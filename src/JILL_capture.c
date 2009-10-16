@@ -20,7 +20,10 @@ SNDFILE *sf_out;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
+long crossings = 0;
 long nframes_written = 0;
+
+jack_default_audio_sample_t threshhold = 0.5;
 
 typedef struct {
     jack_default_audio_sample_t *delay;
@@ -32,7 +35,6 @@ paDelayData;
 
 
 void *capture_thread(void *arg) {
-  printf("Hello World! It's me, capture_thread!\n");
    pthread_exit(NULL);
 }
 
@@ -64,83 +66,48 @@ static void signal_handler(int sig) {
 
 int process (jack_nframes_t nframes, void *arg) {
   jack_default_audio_sample_t *in;
-  int i;
+  int rc;
+  int ncrossings;
   int jack_sample_size;
   jack_nframes_t  num_frames_left_to_write, 
     num_frames_to_write, num_frames_able_to_write,
     num_frames_written;
   size_t num_bytes_to_write, num_bytes_written, num_bytes_able_to_write;
-
+  
   jack_sample_size = sizeof(jack_default_audio_sample_t);
 
   in = jack_port_get_buffer (my_input_port, nframes);
-  num_frames_left_to_write = nframes;
 
-  while (num_frames_left_to_write > 0) {
-    num_bytes_able_to_write = jack_ringbuffer_write_space(jrb);
-    num_frames_able_to_write = floor(num_bytes_able_to_write / jack_sample_size);
+  ncrossings = JILL_get_crossings(threshhold, in, nframes);
+  
+  if (ncrossings > 0) {
+    num_frames_left_to_write = nframes;
 
-    num_frames_to_write = num_frames_able_to_write < num_frames_left_to_write ? num_frames_able_to_write : num_frames_left_to_write; 
-    num_bytes_to_write = num_frames_to_write * jack_sample_size;
-
-    num_bytes_written = jack_ringbuffer_write(jrb, (char*)in, num_bytes_to_write); 
-
-    if (num_bytes_written != num_bytes_to_write) { 
-      printf("DANGER!!! number of bytes written to ringbuffer not the number requested\n"); 
-    } 
-
-    num_frames_written = num_bytes_written / jack_sample_size;
-    num_frames_left_to_write -= num_frames_written; 
-    nframes_written += num_frames_written; 
+    while (num_frames_left_to_write > 0) {
+      num_bytes_able_to_write = jack_ringbuffer_write_space(jrb);
+      num_frames_able_to_write = floor(num_bytes_able_to_write / jack_sample_size);
+      
+      num_frames_to_write = num_frames_able_to_write < num_frames_left_to_write ? num_frames_able_to_write : num_frames_left_to_write; 
+      num_bytes_to_write = num_frames_to_write * jack_sample_size;
+      
+      num_bytes_written = jack_ringbuffer_write(jrb, (char*)in, num_bytes_to_write); 
+      
+      if (num_bytes_written != num_bytes_to_write) { 
+	printf("DANGER!!! number of bytes written to ringbuffer not the number requested\n"); 
+      } 
+      
+      num_frames_written = num_bytes_written / jack_sample_size;
+      num_frames_left_to_write -= num_frames_written; 
+      nframes_written += num_frames_written; 
+    }
+    /* signal we have more data to write */
+    rc = pthread_mutex_trylock(&mutex);
+    if (rc == 0) {
+      pthread_cond_signal(&cond);
+      pthread_mutex_unlock(&mutex);
+    }
   }
-
-/*   while(num_frames_left_to_write > 0) { */
-/*     jack_ringbuffer_get_write_vector(jrb, jrb_write_vec); */
-
-/*     num_frames_able_to_write = floor(jrb_write_vec[0].len / jack_sample_size); */
-
-/*     printf("frames able to write %d\n", num_frames_able_to_write); */
-/*     if (num_frames_able_to_write <= 0) { */
-/*       printf("filled up the buffer, please read it faster.\n"); */
-/*     } else { */
-
-/*       /* write to the buffer */ 
-/*       num_frames_to_write = num_frames_able_to_write < num_frames_left_to_write ? num_frames_able_to_write : num_frames_left_to_write; */
-/*       num_bytes_to_write = num_frames_to_write * jack_sample_size; */
-
-/*       num_bytes_written = jack_ringbuffer_write(jrb, (char*)in, num_bytes_to_write); */
-
-/*       if (num_bytes_written != num_bytes_to_write) { */
-/* 	printf("DANGER!!! number of bytes written to ringbuffer not the number requested\n"); */
-/*       } */
-/*       num_frames_left_to_write -= num_frames_to_write; */
-/*       nframes_written += num_frames_to_write; */
-/*       //      jack_ringbuffer_write_advance(jrb, num_bytes_written); */
-       
-/*       if (num_frames_left_to_write > 0) { */
-	
-/* 	num_frames_able_to_write = floor(jrb_write_vec[1].len / jack_sample_size); */
-
-/* 	if (num_frames_able_to_write > 0) { */
-
-/* 	  /* write to the buffer  */
-/* 	  num_frames_to_write = num_frames_able_to_write < num_frames_left_to_write ? num_frames_able_to_write : num_frames_left_to_write; */
-/* 	  num_bytes_to_write = num_frames_to_write * jack_sample_size; */
-
-/* 	  num_bytes_written = jack_ringbuffer_write(jrb, (char*) in, num_bytes_to_write); */
-
-/* 	  if (num_bytes_written != num_bytes_to_write) { */
-/* 	    printf("DANGER!!! number of bytes written to ringbuffer not the number requested\n"); */
-/* 	  } */
-/* 	  num_frames_left_to_write -= num_frames_to_write; */
-/* 	  nframes_written += num_frames_to_write; */
-/* 	  //jack_ringbuffer_write_advance(jrb, num_bytes_written); */
-/* 	} */
-/*       } */
-/*     } */
-/*   } */
-   
-   return 0;      
+  return 0;      
 }
 
 /**
@@ -184,7 +151,7 @@ main (int argc, char *argv[])
   int jack_sample_size;
   size_t jrb_size_in_bytes;
   char out_filename[JILL_MAX_FILENAME_LEN];
-  size_t num_bytes_available_to_read, num_bytes_read;
+  size_t num_bytes_available_to_read, num_bytes_to_read, num_bytes_read;
   sf_count_t num_frames_to_write_to_disk, num_frames_written_to_disk;
   float *read_buf;
 
@@ -242,7 +209,6 @@ main (int argc, char *argv[])
 
   jrb_size_in_bytes = SR*sizeof(jack_default_audio_sample_t);
 
-  printf("about to create a jack_ringbuffer with size %d\n", jrb_size_in_bytes);
   jrb = jack_ringbuffer_create(jrb_size_in_bytes);
   read_buf = (float *) malloc(jrb_size_in_bytes);
 
@@ -278,24 +244,14 @@ main (int argc, char *argv[])
       
   if (jack_connect (client, his_output_port_name, jack_port_name(my_input_port))) {
     fprintf (stderr, "cannot connect to port '%s'\n", his_output_port_name);
+    exit(1);
   }
 
-    
-  /* install a signal handler to properly quits jack client */
-#ifdef WIN32
-  signal(SIGINT, signal_handler);
-  signal(SIGABRT, signal_handler);
-  signal(SIGTERM, signal_handler);
-#else
   signal(SIGQUIT, signal_handler);
   signal(SIGTERM, signal_handler);
   signal(SIGHUP, signal_handler);
   signal(SIGINT, signal_handler);
-#endif
 
-  /* keep running until the Ctrl+C */
-
-  
   strcpy(out_filename, "JILL_test.wav"); 
   sf_out = JILL_open_soundfile_for_write(out_filename);
   if (sf_out == NULL) {
@@ -306,31 +262,31 @@ main (int argc, char *argv[])
   
   jack_sample_size = sizeof(jack_default_audio_sample_t);
 
+  pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+  pthread_mutex_lock(&mutex);
+
   while (1) {
+
 
     num_bytes_available_to_read = jack_ringbuffer_read_space(jrb);
 
-    while (num_bytes_available_to_read > 0) {
+    
+    while (num_bytes_available_to_read >= jack_sample_size) {
+      num_bytes_to_read = floor(num_bytes_available_to_read / jack_sample_size) * jack_sample_size;
       num_bytes_read = jack_ringbuffer_read(jrb, (char *) read_buf, num_bytes_available_to_read);
-      printf ("%d bytes available, %d bytes read from jrb\n", num_bytes_available_to_read, num_bytes_read);
+      
       num_bytes_available_to_read -= num_bytes_read;
-
+      
       num_frames_to_write_to_disk = num_bytes_read / jack_sample_size;
-
-      printf("jack sample size %d\n", jack_sample_size);
-      printf("about to write %d frames to disk\n", num_frames_to_write_to_disk);
-
+      
       num_frames_written_to_disk = JILL_soundfile_write(sf_out, read_buf, num_frames_to_write_to_disk);
       if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
 	printf("number of frames written to disk is not equal to number requested\n");
       }
     }
-/* #ifdef WIN32  */
-/*     Sleep(1000); */
-/* #else */
-/*    sleep (0.5);*/ 
-/* #endif */
+    pthread_cond_wait(&cond, &mutex);
   }
+  pthread_mutex_unlock(&mutex);
     
   jack_client_close (client);
   exit (0);

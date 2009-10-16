@@ -28,3 +28,22 @@ int JILL_close_soundfile(SNDFILE *sf) {
   ret_val = sf_close(sf);
   return ret_val;
 }
+
+
+int JILL_get_crossings(float threshhold, float *buf, jack_nframes_t nframes) {
+  int i;
+  int ncrossings = 0;
+
+  float mine, before, after;
+
+  for (i = 0; i < nframes-1; i++) {
+    mine = fabs(threshhold);
+    before = fabs(buf[i]);
+    after = fabs(buf[i+1]);
+    if ((before < mine && mine < after) || (after < mine && mine < before)) {
+      ncrossings++;
+    }
+  }
+
+  return ncrossings;
+}

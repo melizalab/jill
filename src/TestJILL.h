@@ -34,4 +34,14 @@ public:
     system (cmd);
   }
 
+
+  void testGetCrossings() {
+
+    float buf[] = { 0.4, 0.6, 0.3, -0.3, -0.4, -0.7, -0.8 };
+    jack_nframes_t nframes = 7;
+    float threshhold = 0.5;
+
+    TS_ASSERT_EQUALS(JILL_get_crossings(threshhold, buf, nframes), 3);
+  }
+
 };
