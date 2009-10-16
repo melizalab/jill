@@ -17,6 +17,9 @@ jack_ringbuffer_t *jrb;
 jack_ringbuffer_data_t jrb_write_vec[2], jrb_read_vec[2];
 SNDFILE *sf_out;
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
 long nframes_written = 0;
 
 typedef struct {
@@ -88,13 +91,8 @@ int process (jack_nframes_t nframes, void *arg) {
 
     num_frames_written = num_bytes_written / jack_sample_size;
     num_frames_left_to_write -= num_frames_written; 
-    printf("num frames left to write after write %d\n", num_frames_left_to_write);
     nframes_written += num_frames_written; 
   }
-
-  printf("total frames written %ld\n", nframes_written);
-  printf("exiting process\n");
-
 
 /*   while(num_frames_left_to_write > 0) { */
 /*     jack_ringbuffer_get_write_vector(jrb, jrb_write_vec); */
@@ -310,8 +308,6 @@ main (int argc, char *argv[])
 
   while (1) {
 
-    
-    //jack_ringbuffer_get_read_vector(jrb, jrb_read_vec);
     num_bytes_available_to_read = jack_ringbuffer_read_space(jrb);
 
     while (num_bytes_available_to_read > 0) {
