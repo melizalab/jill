@@ -155,6 +155,8 @@ main (int argc, char *argv[])
   sf_count_t num_frames_to_write_to_disk, num_frames_written_to_disk;
   float *read_buf;
 
+  jack_ringbuffer_t &trigger_delay;
+
   rc = pthread_create(&capture, NULL, capture_thread, NULL);
   if (rc){
     printf("ERROR; return code from pthread_create() is %d\n", rc);
@@ -267,27 +269,41 @@ main (int argc, char *argv[])
 
   while (1) {
 
+    if (JILL_get_trigger_state(trigger)) {
 
-    num_bytes_available_to_read = jack_ringbuffer_read_space(jrb);
+      trigger_start_frame = JILL_get_trigger_start_frame(trigger);
 
+
+      if (JILL_trigger_event_not_seen(trigger)) {
+	JILL_trigger_set_event_seen(trigger);
+	
+	num_bytes_available_to_read = jack_ringbuffer_read_space(jrb);
+	jack_ringbuffer_read_advance(num_bytes_available_to_read - jack_sample_size * trigger->num_frames_to_write_before_trigger);
+	jack_ringbuffer_read(jrb, (char *) read_buf, trigger->num_frames_to_write_before_trigger);
+	
+      }
+	
     
-    while (num_bytes_available_to_read >= jack_sample_size) {
-      num_bytes_to_read = floor(num_bytes_available_to_read / jack_sample_size) * jack_sample_size;
-      num_bytes_read = jack_ringbuffer_read(jrb, (char *) read_buf, num_bytes_available_to_read);
-      
-      num_bytes_available_to_read -= num_bytes_read;
-      
-      num_frames_to_write_to_disk = num_bytes_read / jack_sample_size;
-      
-      num_frames_written_to_disk = JILL_soundfile_write(sf_out, read_buf, num_frames_to_write_to_disk);
-      if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
-	printf("number of frames written to disk is not equal to number requested\n");
+      while (num_bytes_available_to_read >= jack_sample_size) {
+	num_bytes_to_read = floor(num_bytes_available_to_read / jack_sample_size) * jack_sample_size;
+	num_bytes_read = jack_ringbuffer_read(jrb, (char *) read_buf, num_bytes_available_to_read);
+	
+	num_bytes_available_to_read -= num_bytes_read;
+	
+	num_frames_to_write_to_disk = num_bytes_read / jack_sample_size;
+	
+	num_frames_written_to_disk = JILL_soundfile_write(sf_out, read_buf, num_frames_to_write_to_disk);
+	if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
+	  printf("number of frames written to disk is not equal to number requested\n");
+	}
       }
     }
+
     pthread_cond_wait(&cond, &mutex);
   }
+
   pthread_mutex_unlock(&mutex);
-    
+  
   jack_client_close (client);
   exit (0);
 }
