@@ -62,7 +62,7 @@ int JILL_trigger_create(trigger_data_t *trigger, float threshhold, float window,
   trigger->buffers_per_window = ceil(sr * trigger->window / buf_len);
   trigger->ncrossings = (int *) calloc(trigger->buffers_per_window, buf_len * sizeof(int));
   trigger->c_idx = 0;
-    
+  
   if (trigger->ncrossings == 0) {
     ret = 1;
   }
@@ -90,8 +90,12 @@ int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nfr
   }
   
   trigger->state = tot_ncrossings >= trigger->crossings_per_window ? 1 : 0;
-  
+ 
+
   return trigger->state;
   
 }
 
+int JILL_trigger_get_state(trigger_data_t *trigger) {
+  return trigger->state;
+}

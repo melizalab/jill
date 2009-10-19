@@ -155,6 +155,9 @@ main (int argc, char *argv[])
   int trigger_delay_nframes;
   trigger_data_t trigger;
   float trigger_delay_secs = 0.5;
+  float trigger_after_secs = 0.5;
+
+  jack_time_t last_on, start_time;
 
   rc = pthread_create(&capture, NULL, capture_thread, NULL);
   if (rc){
@@ -215,7 +218,7 @@ main (int argc, char *argv[])
   read_buf = (float *) malloc(jrb_size_in_bytes);
 
   /* just cover delay time */
-  trigger_delay_nframes =  ceil(SR * trigger_delay_secs); 
+  trigger_delay_nframes = SR * trigger_delay_secs; 
 
   printf("tdelay nframes %d\n", trigger_delay_nframes);
   
@@ -274,6 +277,9 @@ main (int argc, char *argv[])
 
   pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
   pthread_mutex_lock(&mutex);
+ 
+  start_time = jack_get_time();
+  last_on = start_time;
 
   while (1) {
 
@@ -286,13 +292,24 @@ main (int argc, char *argv[])
       num_bytes_read = jack_ringbuffer_read(jrb, (char *) read_buf, num_bytes_to_read);
       num_bytes_available_to_read -= num_bytes_read;
 	
-      jack_ringbuffer_write(jrb_trigger_delay, (char *) read_buf, num_bytes_read);
+      if (jack_ringbuffer_write_space(jrb_trigger_delay) < num_bytes_read) {
+	jack_ringbuffer_read_advance(jrb_trigger_delay, num_bytes_read);
+      }
+
+      printf("written: %d\n", jack_ringbuffer_write(jrb_trigger_delay, (char *) read_buf, num_bytes_read));
 
       if (JILL_trigger_calc_new_state(&trigger, read_buf, jack_nframes_per_buf) == 1) {
-	printf("TRIGGER ON\n");
-
-
-	num_bytes_read = jack_ringbuffer_read(jrb_trigger_delay, (char *) read_buf, trigger_delay_nframes * jack_sample_size);
+	printf("ON\n");
+	last_on = jack_get_time();
+      } else {
+	printf("OFF\n");
+      }
+      
+      if (JILL_trigger_get_state(&trigger) == 1 || ((last_on > start_time) && ((jack_get_time() - last_on) < trigger_after_secs * 1000000))) {
+	printf("RECORDING\n");
+	num_bytes_to_read = jack_ringbuffer_read_space(jrb_trigger_delay);
+	printf("num bytes available to read from trigger delay: %d\n", num_bytes_to_read);
+	num_bytes_read = jack_ringbuffer_read(jrb_trigger_delay, (char *) read_buf, num_bytes_to_read); 
 	printf("bytes read from trigger delay: %d; frames: %d\n", num_bytes_read, num_bytes_read / jack_sample_size);
 	printf("tdnframes %d, jssize %d\n", trigger_delay_nframes, jack_sample_size);
 	num_frames_to_write_to_disk = (float) num_bytes_read / jack_sample_size;
@@ -301,10 +318,7 @@ main (int argc, char *argv[])
 	if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
 	  printf("number of frames written to disk is not equal to number requested\n");
 	}
-      } else {
-	printf("OFF\n");
-      }
-      
+      } 
     }
 
     pthread_cond_wait(&cond, &mutex);

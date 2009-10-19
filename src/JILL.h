@@ -35,7 +35,6 @@ extern "C" {
   void JILL_trigger_free(trigger_data_t *trigger);
   int JILL_trigger_get_crossings(trigger_data_t *trigger, float *buf, jack_nframes_t nframes);
   int JILL_trigger_get_state(trigger_data_t *trigger);
-  //  jack_nframes_t JILL_trigger_get_last_even_frame(trigger_data_t *trigger);
   int JILL_trigger_set_event_seen(trigger_data_t *trigger);
   int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nframes_t nframes);
 
