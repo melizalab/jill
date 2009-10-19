@@ -144,18 +144,18 @@ main (int argc, char *argv[])
   int rc;
 
   int jack_sample_size;
-  size_t jrb_size_in_bytes;
+  size_t jrb_size_in_bytes, jrb_trigger_size_in_bytes;
   char out_filename[JILL_MAX_FILENAME_LEN];
   size_t num_bytes_available_to_read, num_bytes_to_read, num_bytes_read;
   sf_count_t num_frames_to_write_to_disk, num_frames_written_to_disk;
-  float *read_buf;
+  sample_t *writer_read_buf, *trigger_read_buf;
   int jack_nframes_per_buf;
 
-  jack_ringbuffer_t *jrb_trigger_delay;
-  int trigger_delay_nframes;
+  jack_ringbuffer_t *jrb_trigger;
+  int trigger_nframes;
   trigger_data_t trigger;
-  float trigger_delay_secs = 0.5;
-  float trigger_after_secs = 0.5;
+  float trigger_delay_secs = 2.0;
+  float trigger_after_secs = 2.0;
 
   jack_time_t last_on, start_time;
 
@@ -215,16 +215,19 @@ main (int argc, char *argv[])
   jrb_size_in_bytes = SR*sizeof(jack_default_audio_sample_t);
 
   jrb = jack_ringbuffer_create(jrb_size_in_bytes);
-  read_buf = (float *) malloc(jrb_size_in_bytes);
+  writer_read_buf = (float *) malloc(jrb_size_in_bytes);
 
   /* just cover delay time */
-  trigger_delay_nframes = SR * trigger_delay_secs; 
+  trigger_nframes = SR * trigger_delay_secs; 
 
-  printf("tdelay nframes %d\n", trigger_delay_nframes);
+  printf("tdelay nframes %d\n", trigger_nframes);
   
-  jrb_trigger_delay = jack_ringbuffer_create(trigger_delay_nframes * sizeof(sample_t)); 
+  jrb_trigger = jack_ringbuffer_create(trigger_nframes * sizeof(sample_t)); 
+  jrb_trigger_size_in_bytes = jack_ringbuffer_write_space(jrb_trigger);
+  printf("asked for %d, got %d bytes in trigger jrb\n", jrb_trigger_size_in_bytes, trigger_nframes * sizeof(sample_t));
+  trigger_read_buf = (sample_t *) malloc(jrb_trigger_size_in_bytes);
 
-  rc = JILL_trigger_create(&trigger, 0.01, 0.03, 30, SR, jack_get_buffer_size(client));
+  rc = JILL_trigger_create(&trigger, 0.005, 0.03, 5, SR, jack_get_buffer_size(client));
   /* tell the JACK server to call `process()' whenever
      there is work to be done.
   */
@@ -285,20 +288,20 @@ main (int argc, char *argv[])
 
     num_bytes_available_to_read = jack_ringbuffer_read_space(jrb);
 
-    printf("num bytes available to disk writer %d\n", num_bytes_available_to_read);
+    //    printf("num bytes available to disk writer %d\n", num_bytes_available_to_read);
     while (num_bytes_available_to_read >= (jack_nframes_per_buf * jack_sample_size)) {
 
       num_bytes_to_read = jack_nframes_per_buf * jack_sample_size;
-      num_bytes_read = jack_ringbuffer_read(jrb, (char *) read_buf, num_bytes_to_read);
+      num_bytes_read = jack_ringbuffer_read(jrb, (char *) writer_read_buf, num_bytes_to_read);
       num_bytes_available_to_read -= num_bytes_read;
 	
-      if (jack_ringbuffer_write_space(jrb_trigger_delay) < num_bytes_read) {
-	jack_ringbuffer_read_advance(jrb_trigger_delay, num_bytes_read);
+      if (jack_ringbuffer_write_space(jrb_trigger) < num_bytes_read) {
+	jack_ringbuffer_read_advance(jrb_trigger, num_bytes_read);
       }
 
-      printf("written: %d\n", jack_ringbuffer_write(jrb_trigger_delay, (char *) read_buf, num_bytes_read));
+      jack_ringbuffer_write(jrb_trigger, (char *) writer_read_buf, num_bytes_read);
 
-      if (JILL_trigger_calc_new_state(&trigger, read_buf, jack_nframes_per_buf) == 1) {
+      if (JILL_trigger_calc_new_state(&trigger, writer_read_buf, jack_nframes_per_buf) == 1) {
 	printf("ON\n");
 	last_on = jack_get_time();
       } else {
@@ -307,17 +310,18 @@ main (int argc, char *argv[])
       
       if (JILL_trigger_get_state(&trigger) == 1 || ((last_on > start_time) && ((jack_get_time() - last_on) < trigger_after_secs * 1000000))) {
 	printf("RECORDING\n");
-	num_bytes_to_read = jack_ringbuffer_read_space(jrb_trigger_delay);
+	num_bytes_to_read = jack_ringbuffer_read_space(jrb_trigger);
 	printf("num bytes available to read from trigger delay: %d\n", num_bytes_to_read);
-	num_bytes_read = jack_ringbuffer_read(jrb_trigger_delay, (char *) read_buf, num_bytes_to_read); 
+	num_bytes_read = jack_ringbuffer_read(jrb_trigger, (char *) trigger_read_buf, num_bytes_to_read); 
 	printf("bytes read from trigger delay: %d; frames: %d\n", num_bytes_read, num_bytes_read / jack_sample_size);
-	printf("tdnframes %d, jssize %d\n", trigger_delay_nframes, jack_sample_size);
+	printf("tdnframes %d, jssize %d\n", trigger_nframes, jack_sample_size);
 	num_frames_to_write_to_disk = (float) num_bytes_read / jack_sample_size;
 	printf("%d num f to wr to disk\n", num_frames_to_write_to_disk);
-	num_frames_written_to_disk = JILL_soundfile_write(sf_out, read_buf, num_frames_to_write_to_disk);
+	num_frames_written_to_disk = JILL_soundfile_write(sf_out, trigger_read_buf, num_frames_to_write_to_disk);
 	if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
 	  printf("number of frames written to disk is not equal to number requested\n");
 	}
+	printf("num frames to disk %d\n", num_frames_written_to_disk);
       } 
     }
 
