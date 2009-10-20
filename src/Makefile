@@ -1,4 +1,4 @@
-all: run_tests JILL JILL_capture
+all: run_tests JILL JILL_capture JILL_display_signal
 
 JACK_LIB = -ljack -lpthread -lrt
 
@@ -7,7 +7,7 @@ LFLAGS = ${JACK_LIB} -lsndfile
 CFLAGS = -Wall -c 
 
 SRCS = JILL_capture.c
-OBJS = $(SRCS:.c=.o)
+OBJS = JILL.o
 HDRS = JILL.h
 
 #.SUFFIXES:
@@ -20,8 +20,11 @@ HDRS = JILL.h
 JILL: JILL.c JILL.h  
 	$(CC) ${CFLAGS} JILL.c
 
-JILL_capture: JILL ${OBJS} 
-	$(CC) -o $@ JILL.o ${OBJS} ${LFLAGS}
+JILL_capture: JILL  
+	$(CC) -o $@ JILL.o JILL_capture.o ${LFLAGS}
+
+JILL_display_signal: JILL JILL.o JILL_display_signal.o 
+	$(CC) -o $@ JILL.o gnuplot_i.o JILL_display_signal.o ${LFLAGS}
 
 # A rule that runs the unit tests
 run_tests: runner

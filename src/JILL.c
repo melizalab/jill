@@ -99,3 +99,10 @@ int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nfr
 int JILL_trigger_get_state(trigger_data_t *trigger) {
   return trigger->state;
 }
+
+void JILL_wait_for_keystroke(char *prompt) {
+  printf("Press any key to continue.\n");
+  printf("here?\n");
+  fgetc(stdin);
+  return;
+}

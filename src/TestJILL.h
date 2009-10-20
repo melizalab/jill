@@ -110,4 +110,5 @@ public:
     JILL_trigger_free(&trigger);
 
   }
+
 };

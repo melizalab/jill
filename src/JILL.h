@@ -29,8 +29,8 @@ extern "C" {
   SNDFILE* JILL_open_soundfile_for_write(const char *filename);
   sf_count_t JILL_soundfile_write(SNDFILE *sf, float *buf, sf_count_t frames);
   int JILL_close_soundfile(SNDFILE *sf);
-
-
+  void JILL_wait_for_keystroke();
+ 
   int JILL_trigger_create(trigger_data_t *trigger, float threshhold, float window, int crossings_per_window, float sr, int buf_len);
   void JILL_trigger_free(trigger_data_t *trigger);
   int JILL_trigger_get_crossings(trigger_data_t *trigger, float *buf, jack_nframes_t nframes);
