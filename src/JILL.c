@@ -1,4 +1,18 @@
 #include "JILL.h"
+#include <time.h>
+
+void JILL_get_outfilename(char* outfilename, const char *name, const char *portname) {
+  char timestring[80];
+  time_t t;
+  struct tm *tm_time;
+  
+  t = time(NULL);
+  tm_time = localtime(&t);
+  strftime(timestring, 80, "%F", tm_time);
+  sprintf(outfilename, "%s_%s_%s.wav", name, timestring, portname);
+  outfilename[79] = '\0';
+
+}
 
 SNDFILE* JILL_open_soundfile_for_write(const char *filename) {
   SNDFILE *sf;

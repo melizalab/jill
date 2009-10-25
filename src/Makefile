@@ -20,7 +20,7 @@ HDRS = JILL.h
 JILL: JILL.c JILL.h  
 	$(CC) ${CFLAGS} JILL.c
 
-JILL_capture: JILL  
+JILL_capture: JILL JILL_capture.o 
 	$(CC) -o $@ JILL.o JILL_capture.o ${LFLAGS}
 
 JILL_display_signal: JILL JILL.o JILL_display_signal.o 

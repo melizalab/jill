@@ -111,4 +111,10 @@ public:
 
   }
 
+  void testOutFilename() {
+    char filename[JILL_MAX_FILENAME_LEN];
+
+    JILL_get_outfilename(filename, "testing", "system:capture_1");
+    TS_ASSERT(strlen(filename) <= JILL_MAX_FILENAME_LEN);
+  }
 };

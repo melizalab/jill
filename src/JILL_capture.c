@@ -22,20 +22,7 @@ pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 long crossings = 0;
 long nframes_written = 0;
 
-jack_default_audio_sample_t threshhold = 0.5;
-
-typedef struct {
-    jack_default_audio_sample_t *delay;
-    int read_phase;
-    int write_phase;
-}
-paDelayData;
-
-
-
-void *capture_thread(void *arg) {
-   pthread_exit(NULL);
-}
+sample_t threshhold = 0.5;
 
 jack_nframes_t calc_jack_latency(jack_client_t *client) {
 
@@ -64,7 +51,7 @@ static void signal_handler(int sig) {
  */
 
 int process (jack_nframes_t nframes, void *arg) {
-  jack_default_audio_sample_t *in;
+  sample_t *in;
   int rc;
   int jack_sample_size;
   jack_nframes_t  num_frames_left_to_write, 
@@ -72,7 +59,7 @@ int process (jack_nframes_t nframes, void *arg) {
     num_frames_written;
   size_t num_bytes_to_write, num_bytes_written, num_bytes_able_to_write;
 
-  jack_sample_size = sizeof(jack_default_audio_sample_t);
+  jack_sample_size = sizeof(sample_t);
 
   in = jack_port_get_buffer (my_input_port, nframes);
 
@@ -119,33 +106,28 @@ usage () {
 
   fprintf (stderr, "\n"
 "usage: delay \n"
-"              [ --delay OR -d delay (in sec) ]\n"
-"              [ --output_port OR -o jack port to send delayed signal ]\n"
-"              [ --input_port OR -i jack port from which to read signal ]\n"
+"                --delay OR -d delay (in sec) ]\n"
+"                --input_port OR -i <jack port name from which to read signal> \n"
+"                --input_port OR -i <jack port name from which to read signal> \n"
 );
 }
 
 int
 main (int argc, char *argv[])
 {
-  const char **ports;
   char *client_name;
-  const char *server_name = NULL;
   jack_options_t jack_options = JackNullOption;
   jack_status_t status;
-  paDelayData data;
   int option_index;
   int opt;
-  int i;
   float SR;
-  double delay; /* in seconds */
-  char *his_input_port_name, *his_output_port_name;
-  pthread_t capture;
+  char his_output_port_name[80];
   int rc;
 
   int jack_sample_size;
   size_t jrb_size_in_bytes, jrb_trigger_size_in_bytes;
   char out_filename[JILL_MAX_FILENAME_LEN];
+
   size_t num_bytes_available_to_read, num_bytes_to_read, num_bytes_read;
   sf_count_t num_frames_to_write_to_disk, num_frames_written_to_disk;
   sample_t *writer_read_buf, *trigger_read_buf;
@@ -159,24 +141,26 @@ main (int argc, char *argv[])
 
   jack_time_t last_on, start_time;
 
-  rc = pthread_create(&capture, NULL, capture_thread, NULL);
-  if (rc){
-    printf("ERROR; return code from pthread_create() is %d\n", rc);
-    exit(-1);
-  }
-  
-  const char *options = "i:";
+  const char *options = "i:f:";
   struct option long_options[] =
     {
       {"inputPort", 1, 0, 'i'},
+      {"filename", 1, 0, 'f'},
       {0, 0, 0, 0}
     };
-  
+
+  his_output_port_name[0] = '\0';
+  out_filename[0] = '\0';
+
   while ((opt = getopt_long (argc, argv, options, long_options, &option_index)) != EOF) {
     switch (opt) {
     case 'i':
-      his_output_port_name = (char *) malloc ((strlen (optarg) + 1) * sizeof (char));
-      strcpy (his_output_port_name, optarg);
+      strncpy (his_output_port_name, optarg, 80);
+      his_output_port_name[79] = '\0';
+      break;
+    case 'f':
+      strncpy (out_filename, optarg, 80);
+      out_filename[79] = '\0';
       break;
     default:
       fprintf (stderr, "unknown option %c\n", opt); 
@@ -185,8 +169,19 @@ main (int argc, char *argv[])
       return -1;
     }
   }
-	  
-  printf ("capture input port: %s\n", his_output_port_name);
+	 
+  if (his_output_port_name[0] == '\0') {
+    fprintf(stderr, "No input port specified, will use default.\n");
+    strcpy(his_output_port_name, "system:capture_1");
+  } 
+
+  if (out_filename[0] == '\0') {
+    fprintf(stderr, "No output file specified, will use default.\n");
+    JILL_get_outfilename(out_filename, "JILL_capture", his_output_port_name);
+  } 
+  
+  printf ("capture input port to try: %s\n", his_output_port_name);
+  printf ("output file to try: %s\n", out_filename);
 
   /* open a client connection to the JACK server */
     
@@ -212,7 +207,7 @@ main (int argc, char *argv[])
   jack_nframes_per_buf = jack_get_buffer_size(client);
   SR = jack_get_sample_rate (client);
 
-  jrb_size_in_bytes = SR*sizeof(jack_default_audio_sample_t);
+  jrb_size_in_bytes = SR*sizeof(sample_t);
 
   jrb = jack_ringbuffer_create(jrb_size_in_bytes);
   writer_read_buf = (float *) malloc(jrb_size_in_bytes);
@@ -268,7 +263,6 @@ main (int argc, char *argv[])
   signal(SIGHUP, signal_handler);
   signal(SIGINT, signal_handler);
 
-  strcpy(out_filename, "JILL_test.wav"); 
   sf_out = JILL_open_soundfile_for_write(out_filename);
   if (sf_out == NULL) {
     printf("could not open file '%s' for writting\n", out_filename);
@@ -316,12 +310,12 @@ main (int argc, char *argv[])
 	printf("bytes read from trigger delay: %d; frames: %d\n", num_bytes_read, num_bytes_read / jack_sample_size);
 	printf("tdnframes %d, jssize %d\n", trigger_nframes, jack_sample_size);
 	num_frames_to_write_to_disk = (float) num_bytes_read / jack_sample_size;
-	printf("%d num f to wr to disk\n", num_frames_to_write_to_disk);
+	printf("%d num f to wr to disk\n", (int) num_frames_to_write_to_disk);
 	num_frames_written_to_disk = JILL_soundfile_write(sf_out, trigger_read_buf, num_frames_to_write_to_disk);
 	if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
 	  printf("number of frames written to disk is not equal to number requested\n");
 	}
-	printf("num frames to disk %d\n", num_frames_written_to_disk);
+	printf("num frames to disk %d\n", (int) num_frames_written_to_disk);
       } 
     }
 
