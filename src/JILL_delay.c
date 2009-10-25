@@ -36,10 +36,10 @@ jack_nframes_t calc_jack_latency(jack_client_t *client) {
 
   jack_nframes_t  latency = 0;
 
-  latency += jack_port_get_latency (jack_port_by_name (client, "system:capture_1"));
+  //  latency += jack_port_get_latency (jack_port_by_name (client, "system:capture_1"));
   latency += jack_port_get_latency (jack_port_by_name (client, "system:playback_1"));
 
-  return 2*latency;
+  return 2*latency + 60;
 }
 
 

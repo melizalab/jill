@@ -1,4 +1,6 @@
-all: run_tests JILL_capture JILL_display_signal
+PROGS = JILL_capture JILL_display_signal JILL_delay 
+
+all: run_tests ${PROGS}
 
 JACK_LIB = -ljack -lpthread -lrt
 
@@ -17,11 +19,14 @@ HDRS = JILL.h
 %.o : %.c
 	$(CC) ${CFLAGS} $<
 
+JILL_delay: ${OBJS} JILL_delay.o
+	$(CC) -o $@ $^ ${LFLAGS}
+
 JILL_capture: ${OBJS} JILL_capture.o
-	$(CC) -o $@ ${OBJS} JILL_capture.o ${LFLAGS}
+	$(CC) -o $@ $^ ${LFLAGS}
 
 JILL_display_signal: ${OBJS} JILL_display_signal.o 
-	$(CC) -o $@ ${OBJS} JILL_display_signal.o ${LFLAGS}
+	$(CC) -o $@ $^ ${LFLAGS}
 
 # A rule that runs the unit tests
 run_tests: runner
@@ -36,4 +41,4 @@ runner.cpp: TestJILL.h ${SRCS}
 	cxxtestgen -o $@ --error-printer TestJILL.h
 
 clean:
-	rm -f ${OBJS} JILL_capture.o JILL_display_signal.o
+	rm -f ${OBJS} $(PROGS:%=%.o)
