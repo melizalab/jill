@@ -1,13 +1,3 @@
-/** @file simple_client.c
- *
- * @brief This simple client demonstrates the basic features of JACK
- * as they would be used by many applications.
- */
-
-/* compile with:
- *  gcc -o delay delay.c -ljack -lpthread -lrt       
- */
-
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -71,14 +61,6 @@ int process (jack_nframes_t nframes, void *arg) {
   for( i=0; i<nframes; i++ ) {
     out[i] = data->delay[data->write_phase];
 
-
-/*     test = data->delay[data->write_phase] * 0.8 + in[i] * 10; */
-/*     if (test < 0.8) { */
-/*       out[i] = test; */
-/*     } else { */
-/*       out[i] = 0.8; */
-/*     } */
-                
     data->delay[data->read_phase] = in[i];
     data->read_phase++;
     data->write_phase++;
@@ -109,8 +91,8 @@ usage ()
 	fprintf (stderr, "\n"
 "usage: delay \n"
 "              [ --delay OR -d delay (in sec) ]\n"
-"              [ --output_port OR -o jack port to send delayed signal ]\n"
-"              [ --input_port OR -i jack port from which to read signal ]\n"
+"              [ --output_port OR -o <name of jack port to send delayed signal> ]\n"
+"              [ --input_port OR -i <name of jack port from which to read signal> ]\n"
 );
 }
 
