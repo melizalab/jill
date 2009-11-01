@@ -26,7 +26,7 @@ static void usage () {
 
 int main(int argc, char **argv) {
 
-  float dt1 = 0.1, dt2 = 0.01, v1 = 4.0, v2 = -4.0, sr = 44100.;
+  float dt1 = 0.1, dt2 = 0.01, v1 = 0.4, v2 = -0.4, sr = 20000.;
   float dt_samp;
   int i;
  
@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  sf = JILL_open_soundfile_for_write(filename);
+  sf = JILL_open_soundfile_for_write(filename, sr);
   if (sf == NULL) {
     printf("could not open file, '%s' for writing\n", filename);
   }

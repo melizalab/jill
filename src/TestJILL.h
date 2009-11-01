@@ -11,7 +11,7 @@ public:
     int ret;
 
     const char *filename = "/tmp/blah.wav";
-    sf = JILL_open_soundfile_for_write(filename);
+    sf = JILL_open_soundfile_for_write(filename, 44100);
     TS_ASSERT(sf != NULL);
 
     sprintf(cmd, "rm -rf %s", filename);
@@ -24,7 +24,7 @@ public:
     int ret;
 
     const char *filename = "/tmp/blah.wav";
-    sf = JILL_open_soundfile_for_write(filename);
+    sf = JILL_open_soundfile_for_write(filename, 44100);
 
     ret = JILL_close_soundfile(sf);
 

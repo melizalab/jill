@@ -27,7 +27,7 @@ extern "C" {
   } trigger_data_t;
 
   void JILL_get_outfilename(char* outfilename, const char *name, const char *portname);
-  SNDFILE* JILL_open_soundfile_for_write(const char *filename);
+  SNDFILE* JILL_open_soundfile_for_write(const char *filename, int samplerate);
   sf_count_t JILL_soundfile_write(SNDFILE *sf, float *buf, sf_count_t frames);
   int JILL_close_soundfile(SNDFILE *sf);
   void JILL_wait_for_keystroke();

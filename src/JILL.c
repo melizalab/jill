@@ -14,16 +14,15 @@ void JILL_get_outfilename(char* outfilename, const char *name, const char *portn
 
 }
 
-SNDFILE* JILL_open_soundfile_for_write(const char *filename) {
+SNDFILE* JILL_open_soundfile_for_write(const char *filename, int samplerate) {
   SNDFILE *sf;
 
   SF_INFO sf_info;
-  int sr = 44100;
   int channels = 1;
   int format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
   int mode = SFM_WRITE;
 
-  sf_info.samplerate = sr;
+  sf_info.samplerate = samplerate;
   sf_info.channels = channels;
   sf_info.format = format;
 

@@ -263,7 +263,7 @@ main (int argc, char *argv[])
   signal(SIGHUP, signal_handler);
   signal(SIGINT, signal_handler);
 
-  sf_out = JILL_open_soundfile_for_write(out_filename);
+  sf_out = JILL_open_soundfile_for_write(out_filename, SR);
   if (sf_out == NULL) {
     printf("could not open file '%s' for writting\n", out_filename);
     jack_client_close(client);
