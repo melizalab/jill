@@ -2,14 +2,14 @@
 #include <time.h>
 
 void JILL_get_outfilename(char* outfilename, const char *name, const char *portname) {
-  char timestring[80];
+  char timestring[JILL_MAX_STRING_LEN];
   time_t t;
   struct tm *tm_time;
   
   t = time(NULL);
   tm_time = localtime(&t);
-  strftime(timestring, 80, "%F", tm_time);
-  sprintf(outfilename, "%s_%s_%s.wav", name, timestring, portname);
+  strftime(timestring, JILL_MAX_STRING_LEN, "%Y%m%d_%H%M%S", tm_time);
+  sprintf(outfilename, "%s_%s_%s.wav", name, portname, timestring);
   outfilename[79] = '\0';
 
 }

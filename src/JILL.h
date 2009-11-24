@@ -12,7 +12,7 @@ extern "C" {
 #include <math.h>
 #include <jack/jack.h>
 
-#define JILL_MAX_FILENAME_LEN 80
+#define JILL_MAX_STRING_LEN 80
 
   typedef jack_default_audio_sample_t sample_t;
 

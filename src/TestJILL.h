@@ -7,7 +7,7 @@ public:
 
   void testOpenSoundFile() {
     SNDFILE *sf;
-    char cmd[80];
+    char cmd[JILL_MAX_STRING_LEN];
     int ret;
 
     const char *filename = "/tmp/blah.wav";
@@ -20,7 +20,7 @@ public:
 
   void testCloseSoundFile() {
     SNDFILE *sf;
-    char cmd[80];
+    char cmd[JILL_MAX_STRING_LEN];
     int ret;
 
     const char *filename = "/tmp/blah.wav";
@@ -112,9 +112,9 @@ public:
   }
 
   void testOutFilename() {
-    char filename[JILL_MAX_FILENAME_LEN];
+    char filename[JILL_MAX_STRING_LEN];
 
     JILL_get_outfilename(filename, "testing", "system:capture_1");
-    TS_ASSERT(strlen(filename) <= JILL_MAX_FILENAME_LEN);
+    TS_ASSERT(strlen(filename) <= JILL_MAX_STRING_LEN);
   }
 };

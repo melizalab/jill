@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
   float dt_samp;
   int i;
  
-  char filename[JILL_MAX_FILENAME_LEN];
+  char filename[JILL_MAX_STRING_LEN];
   SNDFILE *sf;
   int table_size;
   float *table;
@@ -49,15 +49,15 @@ int main(int argc, char **argv) {
       {0, 0, 0, 0}
     };
 
-  strncpy (filename, "signal.wav", JILL_MAX_FILENAME_LEN-1);
-  filename[JILL_MAX_FILENAME_LEN-1] = '\0';
+  strncpy (filename, "signal.wav", JILL_MAX_STRING_LEN-1);
+  filename[JILL_MAX_STRING_LEN-1] = '\0';
 
 
   while ((opt = getopt_long (argc, argv, options, long_options, &option_index)) != EOF) {
     switch (opt) {
     case 'o':
-      strncpy(filename, optarg, JILL_MAX_FILENAME_LEN-1);
-      filename[JILL_MAX_FILENAME_LEN-1] = '\0';
+      strncpy(filename, optarg, JILL_MAX_STRING_LEN-1);
+      filename[JILL_MAX_STRING_LEN-1] = '\0';
       break;
     case 'r':
       sr = atof(optarg);

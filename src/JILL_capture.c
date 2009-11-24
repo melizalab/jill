@@ -96,19 +96,17 @@ int process (jack_nframes_t nframes, void *arg) {
  * JACK calls this shutdown_callback if the server ever shuts down or
  * decides to disconnect the client.
  */
-void
-jack_shutdown (void *arg) {
+void jack_shutdown (void *arg) {
+	JILL_close_soundfile(sf_out);
 	exit (1);
 }
 
-static void
-usage () {
+static void usage () {
 
   fprintf (stderr, "\n"
-"usage: delay \n"
-"                --delay OR -d delay (in sec) ]\n"
-"                --input_port OR -i <jack port name from which to read signal> \n"
-"                --input_port OR -i <jack port name from which to read signal> \n"
+"usage: JILL_capture \n"
+"                --input_port OR -i <jack input port name (as listed by the jack_lsp command)> \n"
+"                --name OR -n <string identifier for recording> \n"
 );
 }
 
@@ -121,12 +119,13 @@ main (int argc, char *argv[])
   int option_index;
   int opt;
   float SR;
-  char his_output_port_name[80];
+  char his_output_port_name[JILL_MAX_STRING_LEN];
   int rc;
 
   int jack_sample_size;
   size_t jrb_size_in_bytes, jrb_trigger_size_in_bytes;
-  char out_filename[JILL_MAX_FILENAME_LEN];
+  char out_filename[JILL_MAX_STRING_LEN];
+  char recording_id[JILL_MAX_STRING_LEN];
 
   size_t num_bytes_available_to_read, num_bytes_to_read, num_bytes_read;
   sf_count_t num_frames_to_write_to_disk, num_frames_written_to_disk;
@@ -141,26 +140,25 @@ main (int argc, char *argv[])
 
   jack_time_t last_on, start_time;
 
-  const char *options = "i:f:";
+  const char *options = "i:n:";
   struct option long_options[] =
     {
       {"inputPort", 1, 0, 'i'},
-      {"filename", 1, 0, 'f'},
+      {"name", 1, 0, 'n'},
       {0, 0, 0, 0}
     };
 
-  his_output_port_name[0] = '\0';
-  out_filename[0] = '\0';
+  memset(his_output_port_name, '\0', JILL_MAX_STRING_LEN);
+  memset(out_filename, '\0', JILL_MAX_STRING_LEN);
+  memset(recording_id, '\0', JILL_MAX_STRING_LEN);
 
   while ((opt = getopt_long (argc, argv, options, long_options, &option_index)) != EOF) {
     switch (opt) {
     case 'i':
-      strncpy (his_output_port_name, optarg, 80);
-      his_output_port_name[79] = '\0';
+      strncpy (his_output_port_name, optarg, JILL_MAX_STRING_LEN-1);
       break;
-    case 'f':
-      strncpy (out_filename, optarg, 80);
-      out_filename[79] = '\0';
+    case 'n':
+      strncpy (recording_id, optarg, JILL_MAX_STRING_LEN-1);
       break;
     default:
       fprintf (stderr, "unknown option %c\n", opt); 
@@ -175,17 +173,20 @@ main (int argc, char *argv[])
     strcpy(his_output_port_name, "system:capture_1");
   } 
 
-  if (out_filename[0] == '\0') {
-    fprintf(stderr, "No output file specified, will use default.\n");
-    JILL_get_outfilename(out_filename, "JILL_capture", his_output_port_name);
-  } 
-  
+  if (recording_id[0] == '\0') {
+    fprintf(stderr, "No output name specified, will use default.\n");
+    JILL_get_outfilename(out_filename, "JC", his_output_port_name);
+  } else {
+    JILL_get_outfilename(out_filename, recording_id, his_output_port_name);
+  }
+ 
   printf ("capture input port to try: %s\n", his_output_port_name);
   printf ("output file to try: %s\n", out_filename);
 
+  exit(0);
   /* open a client connection to the JACK server */
     
-  client_name = (char *) malloc(80 * sizeof(char));
+  client_name = (char *) malloc(JILL_MAX_STRING_LEN * sizeof(char));
   strcpy(client_name, "JILL_capture");
   client = jack_client_open (client_name, jack_options, &status);
   if (client == NULL) {
