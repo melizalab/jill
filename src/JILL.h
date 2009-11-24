@@ -18,12 +18,18 @@ extern "C" {
 
   typedef struct {
     int state;
-    sample_t threshhold;
-    float window;
-    int crossings_per_window;
-    int buffers_per_window;
-    int *ncrossings;
-    int c_idx;
+    sample_t open_threshold;
+    sample_t close_threshold;
+    float open_window;
+    float close_window;
+    int crossings_per_open_window;
+    int crossings_per_close_window;
+    int buffers_per_open_window;
+    int buffers_per_close_window;
+    int *nopen_crossings;
+    int *nclose_crossings;
+    int open_idx;
+    int close_idx;
   } trigger_data_t;
 
   void JILL_get_outfilename(char* outfilename, const char *name, const char *portname);
@@ -32,11 +38,15 @@ extern "C" {
   int JILL_close_soundfile(SNDFILE *sf);
   void JILL_wait_for_keystroke();
  
-  int JILL_trigger_create(trigger_data_t *trigger, float threshhold, float window, int crossings_per_window, float sr, int buf_len);
+  int JILL_trigger_create(trigger_data_t *trigger, 
+			  sample_t open_threshold, sample_t close_threshold, 
+			  float open_window, float close_window, 
+			  int crossings_per_open_window, int crossings_per_close_window, 
+			  float sr, int buf_len);
+
   void JILL_trigger_free(trigger_data_t *trigger);
-  int JILL_trigger_get_crossings(trigger_data_t *trigger, float *buf, jack_nframes_t nframes);
+  int JILL_trigger_get_crossings(sample_t threshold, sample_t *buf, jack_nframes_t nframes);
   int JILL_trigger_get_state(trigger_data_t *trigger);
-  int JILL_trigger_set_event_seen(trigger_data_t *trigger);
   int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nframes_t nframes);
 
 #ifdef __cplusplus

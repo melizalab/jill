@@ -43,19 +43,29 @@ int JILL_close_soundfile(SNDFILE *sf) {
 }
 
 
-int JILL_trigger_get_crossings(trigger_data_t *trigger, float *buf, jack_nframes_t nframes) {
+int JILL_trigger_get_crossings(sample_t threshold, sample_t *buf, jack_nframes_t nframes) {
   int i;
   int ncrossings = 0;
+  
+  sample_t threshold_pos, threshold_neg;
+  sample_t mine, before, after;
 
-  float mine, before, after;
+  threshold_pos = fabs(threshold);
+  threshold_neg = -threshold;
 
   for (i = 0; i < nframes-1; i++) {
-    mine = fabs(trigger->threshhold);
-    before = fabs(buf[i]);
-    after = fabs(buf[i+1]);
-    if ((before < mine && mine < after) || (after < mine && mine < before)) {
+    
+    before = buf[i];
+    after = buf[i+1];
+    if ((before < threshold_neg && threshold_neg < after) || 
+	(after < threshold_neg && threshold_neg < before)) {
       ncrossings++;
     }
+    if ((before < threshold_pos && threshold_pos < after) || 
+	(after < threshold_pos && threshold_pos < before)) {
+      ncrossings++;
+    } 
+
   }
 
   return ncrossings;
@@ -66,17 +76,23 @@ int JILL_get_trigger_state(trigger_data_t *trigger) {
   return trigger->state; 
 }
 
-int JILL_trigger_create(trigger_data_t *trigger, float threshhold, float window, int crossings_per_window, float sr, int buf_len) {
+int JILL_trigger_create(trigger_data_t *trigger, sample_t open_threshold, sample_t close_threshold, float open_window, float close_window, int crossings_per_open_window, int crossings_per_close_window, float sr, int buf_len) {
   int ret = 0;
 
-  trigger->threshhold = threshhold;
-  trigger->window = window;
-  trigger->crossings_per_window = crossings_per_window;
-  trigger->buffers_per_window = ceil(sr * trigger->window / buf_len);
-  trigger->ncrossings = (int *) calloc(trigger->buffers_per_window, buf_len * sizeof(int));
-  trigger->c_idx = 0;
+  trigger->open_threshold = open_threshold;
+  trigger->close_threshold = close_threshold;
+  trigger->open_window = open_window;
+  trigger->close_window = close_window;
+  trigger->crossings_per_open_window = crossings_per_open_window;
+  trigger->crossings_per_close_window = crossings_per_close_window;
+  trigger->buffers_per_open_window = ceil(sr * trigger->open_window / buf_len);
+  trigger->buffers_per_close_window = ceil(sr * trigger->close_window / buf_len);
+  trigger->nopen_crossings = (int *) calloc(trigger->buffers_per_open_window, buf_len * sizeof(int));
+  trigger->nclose_crossings = (int *) calloc(trigger->buffers_per_close_window, buf_len * sizeof(int));
+  trigger->open_idx = 0;
+  trigger->close_idx = 0;
   
-  if (trigger->ncrossings == 0) {
+  if (trigger->nopen_crossings == 0 || trigger->nclose_crossings == 0) {
     ret = 1;
   }
 
@@ -84,29 +100,51 @@ int JILL_trigger_create(trigger_data_t *trigger, float threshhold, float window,
 }
 
 void JILL_trigger_free(trigger_data_t *trigger) {
-  free(trigger->ncrossings);
+  free(trigger->nopen_crossings);
+  free(trigger->nclose_crossings);
 }
 
-/* expects input buffer to be of size one jack buffer long */
-int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nframes_t nframes) {
-  int tot_ncrossings = 0;
-  int i;
-  
-  trigger->ncrossings[trigger->c_idx++] = JILL_trigger_get_crossings(trigger, buf, nframes);
-  
-  if (trigger->c_idx >= trigger->buffers_per_window) {
-    trigger->c_idx -= trigger->buffers_per_window;
-  }
-  
-  for (i = 0; i < trigger->buffers_per_window; i++) {
-    tot_ncrossings += trigger->ncrossings[i];
-  }
-  
-  trigger->state = tot_ncrossings >= trigger->crossings_per_window ? 1 : 0;
- 
 
-  return trigger->state;
+int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nframes_t nframes) {
+  int tot_ncrossings;
+  int open_test;
+  int i;
+
+  /* count crossings in our open window */
+  trigger->nopen_crossings[trigger->open_idx++] = JILL_trigger_get_crossings(trigger->open_threshold, buf, nframes);
   
+  if (trigger->open_idx >= trigger->buffers_per_open_window) {
+    trigger->open_idx -= trigger->buffers_per_open_window;
+  }
+
+  /* count crossings in our close window */
+  trigger->nclose_crossings[trigger->close_idx++] = JILL_trigger_get_crossings(trigger->close_threshold, buf, nframes);
+  
+  if (trigger->close_idx >= trigger->buffers_per_close_window) {
+    trigger->close_idx -= trigger->buffers_per_close_window;
+  }
+  
+  /* see if we should open */
+  tot_ncrossings = 0;
+
+  for (i = 0; i < trigger->buffers_per_open_window; i++) {
+    tot_ncrossings += trigger->nopen_crossings[i];
+  }
+
+  open_test = tot_ncrossings >= trigger->crossings_per_open_window ? 1 : 0;
+
+  if (trigger->state == 0) { /* we are closed, so new state is result of open test */
+    trigger->state = open_test;
+  } else if (open_test == 0) { /* we are open and didn't pass open test, so test if should close */    
+    tot_ncrossings = 0;
+    for (i = 0; i < trigger->buffers_per_close_window; i++) {
+      tot_ncrossings += trigger->nopen_crossings[i];
+    }
+    
+    trigger->state = tot_ncrossings <= trigger->crossings_per_close_window ? 0 : 1;
+  }
+
+  return trigger->state;  
 }
 
 int JILL_trigger_get_state(trigger_data_t *trigger) {

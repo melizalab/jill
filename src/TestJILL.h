@@ -37,41 +37,30 @@ public:
 
   void testGetCrossings() {
 
-    float buf1[] = { 0.7, 0.6, 0.55, 0.54, -0.4, -0.7, -0.8, -0.9 }; // 2
+    float buf1[] = { 0.7, -0.7, 0.55, 0.54, -0.4, -0.7, -0.8, -0.9 }; // 6
     float buf2[] = { 0.4, 0.45, 0.3, -0.3, -0.4, -0.7, -0.8, -0.45 }; // 2
-    float buf3[] = { 0., 0., 0., 0., 0., 0., 0., 0. }; // 0
+    float buf3[] = { 0.7, -0.7, 0., 0., 0., 0., 0., 0. }; // 2
     
     jack_nframes_t nframes = 8;
-    float threshhold = 0.5;
-    float window = 16;
-    int crossings_per_window = 3;
-    float sr = 1;
-    int buf_len = 8;
-    int state = 0;
-    
-    int rc;
-    trigger_data_t trigger;
+    float threshold = 0.5;
 
-    rc = JILL_trigger_create(&trigger, threshhold, window, crossings_per_window, sr, buf_len);
+    TS_ASSERT_EQUALS(JILL_trigger_get_crossings(threshold, buf1, nframes), 6);
+    TS_ASSERT_EQUALS(JILL_trigger_get_crossings(threshold, buf2, nframes), 2);
+    TS_ASSERT_EQUALS(JILL_trigger_get_crossings(threshold, buf3, nframes), 2);
 
-    TS_ASSERT_EQUALS(JILL_trigger_get_crossings(&trigger, buf1, nframes), 2);
-    TS_ASSERT_EQUALS(JILL_trigger_get_crossings(&trigger, buf2, nframes), 2);
-    TS_ASSERT_EQUALS(JILL_trigger_get_crossings(&trigger, buf3, nframes), 0);
-
-    JILL_trigger_free(&trigger);
   }
 
 
   void testTriggerCalcNewState() {
 
-    float buf1[] = { 0.7, 0.6, 0.55, 0.54, -0.4, -0.7, -0.8, -0.9 }; // 2
+    float buf1[] = { 0.7, 0.6, 0.55, 0.45, 0.55, -0.7, -0.8, -0.9 }; // 2
     float buf2[] = { 0.4, 0.45, 0.3, -0.3, -0.4, -0.7, -0.8, -0.45 }; // 2
     float buf3[] = { 0., 0., 0., 0., 0., 0., 0., 0. }; // 0
     
     jack_nframes_t nframes = 8;
-    float threshhold = 0.5;
-    float window = 16;
-    int crossings_per_window = 3;
+    float open_threshold = 0.5, close_threshold = 0.1;
+    float open_window = 8, close_window = 16;
+    int crossings_per_open_window = 3, crossings_per_close_window = 2;
     float sr = 1;
     int buf_len = 8;
     int state = 0;
@@ -79,7 +68,13 @@ public:
     int rc;
     trigger_data_t trigger;
 
-    rc = JILL_trigger_create(&trigger, threshhold, window, crossings_per_window, sr, buf_len);
+    rc = JILL_trigger_create(&trigger, 
+			     open_threshold, 
+			     close_threshold,
+			     open_window, close_window,
+			     crossings_per_open_window, 
+			     crossings_per_close_window,
+			     sr, buf_len);
 
     
     TS_ASSERT_EQUALS(JILL_trigger_calc_new_state(&trigger, buf1, buf_len), 0);
@@ -96,15 +91,18 @@ public:
     trigger_data_t trigger;
     
     int rc;
-    sample_t threshhold = 0.3;
-    float window = 0.03;
-    int crossings_per_window = 53;
+    sample_t open_threshold = 0.3, close_threshold = 0.05;
+    float open_window = 0.1, close_window = 0.25;
+    int crossings_per_open_window = 53, crossings_per_close_window = 10;
     float sr = 44100.;
     int buf_len = 64;
 
-    rc = JILL_trigger_create(&trigger, threshhold, window, crossings_per_window, sr, buf_len);
+    rc = JILL_trigger_create(&trigger, 
+			     open_threshold, close_threshold,
+			     open_window, close_window,
+			     crossings_per_open_window, crossings_per_close_window,
+			     sr, buf_len);
 
-    //    trigger = (trigger_data_t *) malloc (sizeof(trigger_data_t));
     TS_ASSERT_EQUALS(rc, 0);
 
     JILL_trigger_free(&trigger);

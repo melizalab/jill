@@ -104,10 +104,12 @@ int main(int argc, char **argv) {
   table = (float *) calloc(sizeof(float), table_size);
   for (i = 0; i < table_size; i++) {
     if (i * dt_samp < dt1) {
-      table[i] = v1;
+      table[i] =  v1;
+      printf("HERE\n");
     } else {
-      table[i] = v2;
+      table[i] =  v2;
     }
+    //    printf("%d: %f\n", i, table[i]);
   }
 
   num_frames_written_to_disk = JILL_soundfile_write(sf, table, table_size);

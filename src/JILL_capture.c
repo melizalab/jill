@@ -46,8 +46,6 @@ static void signal_handler(int sig) {
  * The process callback for this JACK application is called in a
  * special realtime thread once for each audio cycle.
  *
- * This client follows a simple rule: when the JACK transport is
- * running, copy the input port to the output.  When it stops, exit.
  */
 
 int process (jack_nframes_t nframes, void *arg) {
@@ -107,6 +105,8 @@ static void usage () {
 "usage: JILL_capture \n"
 "                --input_port OR -i <jack input port name (as listed by the jack_lsp command)> \n"
 "                --name OR -n <string identifier for recording> \n"
+"                --prebuf OR -p <record this number of seconds before the trigger opening> \n"
+"                --postbuf OR -s <record this number of seconds after the trigger closing> \n"
 );
 }
 
@@ -135,16 +135,18 @@ main (int argc, char *argv[])
   jack_ringbuffer_t *jrb_trigger;
   int trigger_nframes;
   trigger_data_t trigger;
-  float trigger_delay_secs = 2.0;
-  float trigger_after_secs = 2.0;
+  float trigger_prebuf_secs = 2.0;
+  float trigger_postbuf_secs = 2.0;
 
   jack_time_t last_on, start_time;
 
-  const char *options = "i:n:";
+  const char *options = "i:n:p:s:";
   struct option long_options[] =
     {
       {"inputPort", 1, 0, 'i'},
       {"name", 1, 0, 'n'},
+      {"prebuf", 1, 0, 'p'},
+      {"postbuf", 1, 0, 's'},
       {0, 0, 0, 0}
     };
 
@@ -159,6 +161,12 @@ main (int argc, char *argv[])
       break;
     case 'n':
       strncpy (recording_id, optarg, JILL_MAX_STRING_LEN-1);
+      break;
+    case 'p':
+      trigger_prebuf_secs = atof(optarg);
+      break;
+    case 's':
+      trigger_postbuf_secs = atof(optarg);
       break;
     default:
       fprintf (stderr, "unknown option %c\n", opt); 
@@ -175,13 +183,15 @@ main (int argc, char *argv[])
 
   if (recording_id[0] == '\0') {
     fprintf(stderr, "No output name specified, will use default.\n");
-    JILL_get_outfilename(out_filename, "JC", his_output_port_name);
+    JILL_get_outfilename(out_filename, "jc", his_output_port_name);
   } else {
     JILL_get_outfilename(out_filename, recording_id, his_output_port_name);
   }
  
   printf ("capture input port to try: %s\n", his_output_port_name);
   printf ("output file to try: %s\n", out_filename);
+  printf ("prebuf (secs): %f\n", trigger_prebuf_secs);
+  printf ("postbuf (secs): %f\n", trigger_postbuf_secs);
 
   exit(0);
   /* open a client connection to the JACK server */
@@ -214,9 +224,9 @@ main (int argc, char *argv[])
   writer_read_buf = (float *) malloc(jrb_size_in_bytes);
 
   /* just cover delay time */
-  trigger_nframes = SR * trigger_delay_secs; 
+  trigger_nframes = SR * trigger_prebuf_secs; 
 
-  printf("tdelay nframes %d\n", trigger_nframes);
+  printf("trigger prebuf nframes %d\n", trigger_nframes);
   
   jrb_trigger = jack_ringbuffer_create(trigger_nframes * sizeof(sample_t)); 
   jrb_trigger_size_in_bytes = jack_ringbuffer_write_space(jrb_trigger);
@@ -303,7 +313,7 @@ main (int argc, char *argv[])
 	printf("OFF\n");
       }
       
-      if (JILL_trigger_get_state(&trigger) == 1 || ((last_on > start_time) && ((jack_get_time() - last_on) < trigger_after_secs * 1000000))) {
+      if (JILL_trigger_get_state(&trigger) == 1 || ((last_on > start_time) && ((jack_get_time() - last_on) < trigger_postbuf_secs * 1000000))) {
 	printf("RECORDING\n");
 	num_bytes_to_read = jack_ringbuffer_read_space(jrb_trigger);
 	printf("num bytes available to read from trigger delay: %d\n", num_bytes_to_read);
