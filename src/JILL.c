@@ -48,7 +48,7 @@ int JILL_trigger_get_crossings(sample_t threshold, sample_t *buf, jack_nframes_t
   int ncrossings = 0;
   
   sample_t threshold_pos, threshold_neg;
-  sample_t mine, before, after;
+  sample_t before, after;
 
   threshold_pos = fabs(threshold);
   threshold_neg = -threshold;
@@ -87,11 +87,12 @@ int JILL_trigger_create(trigger_data_t *trigger, sample_t open_threshold, sample
   trigger->crossings_per_close_window = crossings_per_close_window;
   trigger->buffers_per_open_window = ceil(sr * trigger->open_window / buf_len);
   trigger->buffers_per_close_window = ceil(sr * trigger->close_window / buf_len);
-  trigger->nopen_crossings = (int *) calloc(trigger->buffers_per_open_window, buf_len * sizeof(int));
-  trigger->nclose_crossings = (int *) calloc(trigger->buffers_per_close_window, buf_len * sizeof(int));
+  trigger->nopen_crossings = (int *) calloc(trigger->buffers_per_open_window, sizeof(int));
+  trigger->nclose_crossings = (int *) calloc(trigger->buffers_per_close_window, sizeof(int));
   trigger->open_idx = 0;
   trigger->close_idx = 0;
-  
+  trigger->state = 0;
+
   if (trigger->nopen_crossings == 0 || trigger->nclose_crossings == 0) {
     ret = 1;
   }
@@ -138,7 +139,7 @@ int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nfr
   } else if (open_test == 0) { /* we are open and didn't pass open test, so test if should close */    
     tot_ncrossings = 0;
     for (i = 0; i < trigger->buffers_per_close_window; i++) {
-      tot_ncrossings += trigger->nopen_crossings[i];
+      tot_ncrossings += trigger->nclose_crossings[i];
     }
     
     trigger->state = tot_ncrossings <= trigger->crossings_per_close_window ? 0 : 1;

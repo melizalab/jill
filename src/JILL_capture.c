@@ -183,9 +183,7 @@ main (int argc, char *argv[])
 
   if (recording_id[0] == '\0') {
     fprintf(stderr, "No output name specified, will use default.\n");
-    JILL_get_outfilename(out_filename, "jc", his_output_port_name);
-  } else {
-    JILL_get_outfilename(out_filename, recording_id, his_output_port_name);
+    strcpy(recording_id, "jc");
   }
  
   printf ("capture input port to try: %s\n", his_output_port_name);
@@ -193,7 +191,7 @@ main (int argc, char *argv[])
   printf ("prebuf (secs): %f\n", trigger_prebuf_secs);
   printf ("postbuf (secs): %f\n", trigger_postbuf_secs);
 
-  exit(0);
+
   /* open a client connection to the JACK server */
     
   client_name = (char *) malloc(JILL_MAX_STRING_LEN * sizeof(char));
@@ -222,18 +220,20 @@ main (int argc, char *argv[])
 
   jrb = jack_ringbuffer_create(jrb_size_in_bytes);
   writer_read_buf = (float *) malloc(jrb_size_in_bytes);
-
+  printf("asked for %d, got %d bytes in jrb\n", jrb_size_in_bytes, jack_ringbuffer_write_space(jrb));
   /* just cover delay time */
   trigger_nframes = SR * trigger_prebuf_secs; 
 
   printf("trigger prebuf nframes %d\n", trigger_nframes);
-  
-  jrb_trigger = jack_ringbuffer_create(trigger_nframes * sizeof(sample_t)); 
-  jrb_trigger_size_in_bytes = jack_ringbuffer_write_space(jrb_trigger);
-  printf("asked for %d, got %d bytes in trigger jrb\n", jrb_trigger_size_in_bytes, trigger_nframes * sizeof(sample_t));
+
+  jrb_trigger_size_in_bytes = trigger_nframes * sizeof(sample_t);  
+  jrb_trigger = jack_ringbuffer_create(jrb_trigger_size_in_bytes); 
+
   trigger_read_buf = (sample_t *) malloc(jrb_trigger_size_in_bytes);
 
-  rc = JILL_trigger_create(&trigger, 0.005, 0.03, 5, SR, jack_get_buffer_size(client));
+  //  exit(0);
+  rc = JILL_trigger_create(&trigger, 0.1, 0.01, 0.1, 0.250, 1, 1000000, SR, jack_get_buffer_size(client));
+
   /* tell the JACK server to call `process()' whenever
      there is work to be done.
   */
@@ -274,12 +274,6 @@ main (int argc, char *argv[])
   signal(SIGHUP, signal_handler);
   signal(SIGINT, signal_handler);
 
-  sf_out = JILL_open_soundfile_for_write(out_filename, SR);
-  if (sf_out == NULL) {
-    printf("could not open file '%s' for writting\n", out_filename);
-    jack_client_close(client);
-    exit(1);
-  }
   
   jack_sample_size = sizeof(sample_t);
 
@@ -291,27 +285,39 @@ main (int argc, char *argv[])
 
   while (1) {
 
+    /* check for samples in ringbuffer that process fills */
     num_bytes_available_to_read = jack_ringbuffer_read_space(jrb);
 
-    //    printf("num bytes available to disk writer %d\n", num_bytes_available_to_read);
+    /* will empty ringbuffer into the trigger prebuf ringbuffer jack_nframes_per_buf at a time */
     while (num_bytes_available_to_read >= (jack_nframes_per_buf * jack_sample_size)) {
 
       num_bytes_to_read = jack_nframes_per_buf * jack_sample_size;
       num_bytes_read = jack_ringbuffer_read(jrb, (char *) writer_read_buf, num_bytes_to_read);
       num_bytes_available_to_read -= num_bytes_read;
 	
-      if (jack_ringbuffer_write_space(jrb_trigger) < num_bytes_read) {
+      /* restrict prebuf size to delay length (the ringbuffer has more space than we need) */
+      if (jack_ringbuffer_read_space(jrb_trigger) + num_bytes_read > jrb_trigger_size_in_bytes) {
 	jack_ringbuffer_read_advance(jrb_trigger, num_bytes_read);
       }
 
       jack_ringbuffer_write(jrb_trigger, (char *) writer_read_buf, num_bytes_read);
 
       if (JILL_trigger_calc_new_state(&trigger, writer_read_buf, jack_nframes_per_buf) == 1) {
-	printf("ON\n");
+
+	if (sf_out == NULL) {
+
+	  JILL_get_outfilename(out_filename, recording_id, his_output_port_name);
+	  printf("opening '%s'\n", out_filename);
+	  sf_out = JILL_open_soundfile_for_write(out_filename, SR);
+	  if (sf_out == NULL) {
+	    printf("could not open file '%s' for writing\n", out_filename);
+	    jack_client_close(client);
+	    exit(1);
+	  }
+	}
+  
 	last_on = jack_get_time();
-      } else {
-	printf("OFF\n");
-      }
+      } 
       
       if (JILL_trigger_get_state(&trigger) == 1 || ((last_on > start_time) && ((jack_get_time() - last_on) < trigger_postbuf_secs * 1000000))) {
 	printf("RECORDING\n");
@@ -327,10 +333,15 @@ main (int argc, char *argv[])
 	  printf("number of frames written to disk is not equal to number requested\n");
 	}
 	printf("num frames to disk %d\n", (int) num_frames_written_to_disk);
-      } 
+      } else {
+	if (sf_out != NULL) {
+	  printf("closing outfile\n");
+	  JILL_close_soundfile(sf_out);
+	  sf_out = NULL;
+	}
+      }
     }
-
-    pthread_cond_wait(&cond, &mutex);
+    pthread_cond_wait(&cond, &mutex);    
   }
 
   pthread_mutex_unlock(&mutex);
