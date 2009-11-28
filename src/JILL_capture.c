@@ -15,6 +15,7 @@ jack_client_t *client;
 size_t TABLE_SIZE;
 jack_ringbuffer_t *jrb;
 SNDFILE *sf_out;
+struct timeval start_tv;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -22,7 +23,39 @@ pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 long crossings = 0;
 long nframes_written = 0;
 
+int finish_up = 0;
+long long samples_processed = 0;
+
 sample_t threshhold = 0.5;
+
+void samples_to_timeval(struct timeval *tv, long long samples, int sr) {
+  long long start_micro, now_micro;
+
+  start_micro =  (long long) start_tv.tv_sec * 1000000 + start_tv.tv_usec;
+  now_micro = start_micro + floor(1000000 * (float)samples / (float)sr);
+  
+  tv->tv_sec = (time_t)floor(now_micro / 1000000.);
+  tv->tv_usec = (suseconds_t) (now_micro - 1000000 * tv->tv_sec);
+}
+ 
+float timeval_to_seconds_since_midnight(struct timeval *tv) {
+  struct tm *lt;
+  float ssm = 0;
+  
+  lt = localtime(&(tv->tv_sec));
+
+  ssm =lt->tm_sec + 60. * lt->tm_min + 3600 * lt->tm_hour + tv->tv_usec / 1000000.;
+
+  return ssm;
+}
+
+double samples_to_seconds_since_epoch(long long samples, int sr) {
+  struct timeval tv;
+
+  samples_to_timeval(&tv, samples, sr);
+  return (double) tv.tv_sec + tv.tv_usec / 1000000.;
+}
+
 
 jack_nframes_t calc_jack_latency(jack_client_t *client) {
 
@@ -36,10 +69,20 @@ jack_nframes_t calc_jack_latency(jack_client_t *client) {
 
 
 static void signal_handler(int sig) {
-	jack_client_close(client);
+  int rc;
+	jack_deactivate(client);
+	finish_up = 1;
+	rc = pthread_mutex_trylock(&mutex);
+	if (rc == 0) {
+	  pthread_cond_signal(&cond);
+	  pthread_mutex_unlock(&mutex);
+	}
+
+
+	/*	jack_client_close(client);
 	JILL_close_soundfile(sf_out);
 	fprintf(stderr, "signal received, exiting ...\n");
-	exit(0);
+	exit(0);*/
 }
 
 /**
@@ -56,6 +99,10 @@ int process (jack_nframes_t nframes, void *arg) {
     num_frames_to_write, num_frames_able_to_write,
     num_frames_written;
   size_t num_bytes_to_write, num_bytes_written, num_bytes_able_to_write;
+
+  if (!timerisset(&start_tv)) {
+    gettimeofday(&start_tv, NULL);
+  }
 
   jack_sample_size = sizeof(sample_t);
 
@@ -79,7 +126,8 @@ int process (jack_nframes_t nframes, void *arg) {
     num_frames_written = num_bytes_written / jack_sample_size;
     num_frames_left_to_write -= num_frames_written; 
     nframes_written += num_frames_written; 
-    }
+    samples_processed += num_frames_written;
+  }
   /* signal we have more data to write */
   rc = pthread_mutex_trylock(&mutex);
   if (rc == 0) {
@@ -114,14 +162,13 @@ int
 main (int argc, char *argv[])
 {
   char *client_name;
-  jack_options_t jack_options = JackNullOption;
-  jack_status_t status;
   int option_index;
   int opt;
   float SR;
   char his_output_port_name[JILL_MAX_STRING_LEN];
   int rc;
 
+  
   int jack_sample_size;
   size_t jrb_size_in_bytes, jrb_trigger_size_in_bytes;
   char out_filename[JILL_MAX_STRING_LEN];
@@ -137,16 +184,28 @@ main (int argc, char *argv[])
   trigger_data_t trigger;
   float trigger_prebuf_secs = 2.0;
   float trigger_postbuf_secs = 2.0;
+  sample_t open_threshold = 0.1, close_threshold = 0.01;
+  float open_window = 0.1, close_window = 0.250;
+  int ncrossings_open = 1, ncrossings_close = 1000000;
+  int last_state, new_state;
+  
+  struct timeval tv;
 
-  jack_time_t last_on, start_time;
+  double last_on, start_time;
 
-  const char *options = "i:n:p:s:";
+  const char *options = "i:n:p:s:o:c:w:x:a:b:";
   struct option long_options[] =
     {
       {"inputPort", 1, 0, 'i'},
       {"name", 1, 0, 'n'},
       {"prebuf", 1, 0, 'p'},
       {"postbuf", 1, 0, 's'},
+      {"open_threshold", 1, 0, 'o'},
+      {"close_threshold", 1, 0, 'c'},
+      {"open_window", 1, 0, 'w'},
+      {"close_window", 1, 0, 'x'},
+      {"ncrossings_open", 1, 0, 'a'},
+      {"ncrossings_close", 1, 0, 'b'},
       {0, 0, 0, 0}
     };
 
@@ -168,6 +227,24 @@ main (int argc, char *argv[])
     case 's':
       trigger_postbuf_secs = atof(optarg);
       break;
+    case 'o':
+      open_threshold = atof(optarg);
+      break;
+    case 'c':
+      close_threshold = atof(optarg);
+      break;
+    case 'w':
+      open_window = atof(optarg);
+      break;
+    case 'x':
+      close_window = atof(optarg);
+      break;
+    case 'a':
+      ncrossings_open = atof(optarg);
+      break;
+    case 'b':
+      ncrossings_close = atof(optarg);
+      break;
     default:
       fprintf (stderr, "unknown option %c\n", opt); 
     case 'h':
@@ -183,11 +260,10 @@ main (int argc, char *argv[])
 
   if (recording_id[0] == '\0') {
     fprintf(stderr, "No output name specified, will use default.\n");
-    strcpy(recording_id, "jc");
+    strcpy(recording_id, "default");
   }
  
   printf ("capture input port to try: %s\n", his_output_port_name);
-  printf ("output file to try: %s\n", out_filename);
   printf ("prebuf (secs): %f\n", trigger_prebuf_secs);
   printf ("postbuf (secs): %f\n", trigger_postbuf_secs);
 
@@ -195,22 +271,14 @@ main (int argc, char *argv[])
   /* open a client connection to the JACK server */
     
   client_name = (char *) malloc(JILL_MAX_STRING_LEN * sizeof(char));
-  strcpy(client_name, "JILL_capture");
-  client = jack_client_open (client_name, jack_options, &status);
+  strcpy(client_name, recording_id);
+  strcat(client_name, "_jill_capture");
+
+  client = JILL_connect_server(client_name);
+
   if (client == NULL) {
-    fprintf (stderr, "jack_client_open() failed, "
-	     "status = 0x%2.0x\n", status);
-    if (status & JackServerFailed) {
-      fprintf (stderr, "Unable to connect to JACK server\n");
-    }
-    exit (1);
-  }
-  if (status & JackServerStarted) {
-    fprintf (stderr, "JACK server started\n");
-  }
-  if (status & JackNameNotUnique) {
-    client_name = jack_get_client_name(client);
-    fprintf (stderr, "unique name `%s' assigned\n", client_name);
+    fprintf(stderr, "could not connect to jack server\n");
+    exit(1);
   }
 
   jack_nframes_per_buf = jack_get_buffer_size(client);
@@ -232,7 +300,10 @@ main (int argc, char *argv[])
   trigger_read_buf = (sample_t *) malloc(jrb_trigger_size_in_bytes);
 
   //  exit(0);
-  rc = JILL_trigger_create(&trigger, 0.1, 0.01, 0.1, 0.250, 1, 1000000, SR, jack_get_buffer_size(client));
+
+
+  rc = JILL_trigger_create(&trigger, open_threshold, close_threshold, open_window, close_window, 
+			   ncrossings_open, ncrossings_close, SR, jack_get_buffer_size(client));
 
   /* tell the JACK server to call `process()' whenever
      there is work to be done.
@@ -280,8 +351,10 @@ main (int argc, char *argv[])
   pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
   pthread_mutex_lock(&mutex);
  
-  start_time = jack_get_time();
+  start_time = samples_to_seconds_since_epoch(0, SR);
   last_on = start_time;
+
+  printf("Starting at %f\n", start_time);
 
   while (1) {
 
@@ -302,44 +375,63 @@ main (int argc, char *argv[])
 
       jack_ringbuffer_write(jrb_trigger, (char *) writer_read_buf, num_bytes_read);
 
-      if (JILL_trigger_calc_new_state(&trigger, writer_read_buf, jack_nframes_per_buf) == 1) {
+      last_state = JILL_trigger_get_state(&trigger);
+      new_state = JILL_trigger_calc_new_state(&trigger, writer_read_buf, jack_nframes_per_buf);
 
-	if (sf_out == NULL) {
+      if (last_state != new_state) {
 
-	  JILL_get_outfilename(out_filename, recording_id, his_output_port_name);
-	  printf("opening '%s'\n", out_filename);
-	  sf_out = JILL_open_soundfile_for_write(out_filename, SR);
+	if (new_state == 1) {
+
+	  samples_to_timeval(&tv, trigger.samples_processed, SR);	  
+	  printf("OPEN trigger at %f\n", samples_to_seconds_since_epoch(trigger.samples_processed, SR));
+
 	  if (sf_out == NULL) {
-	    printf("could not open file '%s' for writing\n", out_filename);
-	    jack_client_close(client);
-	    exit(1);
+
+
+	    JILL_get_outfilename(out_filename, recording_id, his_output_port_name, &tv);
+	    printf("opening '%s'\n", out_filename);
+	    sf_out = JILL_open_soundfile_for_write(out_filename, SR);
+	    if (sf_out == NULL) {
+	      printf("could not open file '%s' for writing\n", out_filename);
+	      jack_client_close(client);
+	      exit(1);
+	    }
 	  }
+	} else {
+	  printf("CLOSE trigger at %f\n", samples_to_seconds_since_epoch(trigger.samples_processed, SR));
 	}
-  
-	last_on = jack_get_time();
+      }
+
+      if (new_state == 1) {
+	last_on = samples_to_seconds_since_epoch(trigger.samples_processed, SR);
       } 
       
-      if (JILL_trigger_get_state(&trigger) == 1 || ((last_on > start_time) && ((jack_get_time() - last_on) < trigger_postbuf_secs * 1000000))) {
-	printf("RECORDING\n");
+      if (JILL_trigger_get_state(&trigger) == 1 || 
+	  ( (last_on > start_time) && 
+	    ((samples_to_seconds_since_epoch(trigger.samples_processed, SR) - last_on) < trigger_postbuf_secs) )) {
+
 	num_bytes_to_read = jack_ringbuffer_read_space(jrb_trigger);
-	printf("num bytes available to read from trigger delay: %d\n", num_bytes_to_read);
+
 	num_bytes_read = jack_ringbuffer_read(jrb_trigger, (char *) trigger_read_buf, num_bytes_to_read); 
-	printf("bytes read from trigger delay: %d; frames: %d\n", num_bytes_read, num_bytes_read / jack_sample_size);
-	printf("tdnframes %d, jssize %d\n", trigger_nframes, jack_sample_size);
+
 	num_frames_to_write_to_disk = (float) num_bytes_read / jack_sample_size;
-	printf("%d num f to wr to disk\n", (int) num_frames_to_write_to_disk);
+
 	num_frames_written_to_disk = JILL_soundfile_write(sf_out, trigger_read_buf, num_frames_to_write_to_disk);
 	if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
 	  printf("number of frames written to disk is not equal to number requested\n");
 	}
-	printf("num frames to disk %d\n", (int) num_frames_written_to_disk);
+
       } else {
 	if (sf_out != NULL) {
-	  printf("closing outfile\n");
+	  printf("closing %s at %f\n", out_filename, samples_to_seconds_since_epoch(trigger.samples_processed, SR));
 	  JILL_close_soundfile(sf_out);
 	  sf_out = NULL;
 	}
       }
+    }
+    if (finish_up == 1) {
+      printf("process says %lld trigger says %lld\n", samples_processed, trigger.samples_processed);
+      exit(0);
     }
     pthread_cond_wait(&cond, &mutex);    
   }

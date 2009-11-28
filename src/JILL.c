@@ -1,13 +1,12 @@
 #include "JILL.h"
 #include <time.h>
 
-void JILL_get_outfilename(char* outfilename, const char *name, const char *portname) {
+void JILL_get_outfilename(char* outfilename, const char *name, const char *portname, struct timeval *tv) {
   char timestring[JILL_MAX_STRING_LEN];
   time_t t;
   struct tm *tm_time;
   
-  t = time(NULL);
-  tm_time = localtime(&t);
+  tm_time = localtime(&(tv->tv_sec));
   strftime(timestring, JILL_MAX_STRING_LEN, "%Y%m%d_%H%M%S", tm_time);
   sprintf(outfilename, "%s_%s_%s.wav", name, portname, timestring);
   outfilename[79] = '\0';
@@ -31,7 +30,7 @@ SNDFILE* JILL_open_soundfile_for_write(const char *filename, int samplerate) {
   return sf;
 }
 
-sf_count_t JILL_soundfile_write(SNDFILE *sf, float *buf, sf_count_t frames) {
+sf_count_t JILL_soundfile_write(SNDFILE *sf, sample_t *buf, sf_count_t frames) {
   return sf_write_float (sf, buf, frames);
 }
 
@@ -92,6 +91,7 @@ int JILL_trigger_create(trigger_data_t *trigger, sample_t open_threshold, sample
   trigger->open_idx = 0;
   trigger->close_idx = 0;
   trigger->state = 0;
+  trigger->samples_processed = 0;
 
   if (trigger->nopen_crossings == 0 || trigger->nclose_crossings == 0) {
     ret = 1;
@@ -144,7 +144,9 @@ int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nfr
     
     trigger->state = tot_ncrossings <= trigger->crossings_per_close_window ? 0 : 1;
   }
-
+  //  printf("BEFORE trigger samples %lld\n", trigger->samples_processed);
+  trigger->samples_processed += nframes;
+  //printf("AFTER trigger samples %lld\n", trigger->samples_processed);
   return trigger->state;  
 }
 
@@ -157,4 +159,25 @@ void JILL_wait_for_keystroke(char *prompt) {
   printf("here?\n");
   fgetc(stdin);
   return;
+}
+
+
+jack_client_t *JILL_connect_server(char *name) {
+
+  jack_client_t *client;
+  jack_status_t status;
+  jack_options_t jack_options = JackNullOption;
+
+  jack_options |= JackUseExactName;
+
+  client = jack_client_open (name, jack_options, &status);
+  if (status & JackServerStarted) {
+    fprintf (stderr, "JACK server started\n");
+  }
+  if (status & JackNameNotUnique) {
+    name = jack_get_client_name(client);
+    fprintf (stderr, "unique name `%s' assigned\n", name);
+  }
+
+  return client;
 }

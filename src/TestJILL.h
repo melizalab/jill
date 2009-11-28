@@ -131,8 +131,10 @@ public:
 
   void testOutFilename() {
     char filename[JILL_MAX_STRING_LEN];
-
-    JILL_get_outfilename(filename, "testing", "system:capture_1");
+    struct timeval tv;
+    
+    gettimeofday(&tv, NULL);
+    JILL_get_outfilename(filename, "testing", "system:capture_1", &tv);
     TS_ASSERT(strlen(filename) <= JILL_MAX_STRING_LEN);
   }
 };
