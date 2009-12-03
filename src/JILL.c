@@ -1,5 +1,11 @@
 #include "JILL.h"
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdarg.h>
+#include <fcntl.h>
+#include <string.h>
+#include <sys/file.h>
 
 void JILL_get_outfilename(char* outfilename, const char *name, const char *portname, struct timeval *tv) {
   char timestring[JILL_MAX_STRING_LEN];
@@ -180,4 +186,36 @@ jack_client_t *JILL_connect_server(char *name) {
   }
 
   return client;
+}
+
+int JILL_log_open(char *filename) {
+  if (strcmp(filename, "stdout") == 0) {
+    return 0;
+  } else {
+    return open(filename, O_APPEND|O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+  }
+}
+
+int JILL_log_writef(int fd, char *fmt, ...) {
+  
+  char message[256];
+  int count = 0;
+
+  va_list argp;
+  va_start(argp, fmt);
+  vsprintf(message, fmt, argp);
+  va_end(argp);
+  
+  count = strlen(message);
+  if (fd == 0) {
+    count = write(fd, message, count);
+  } else {
+    flock(fd, LOCK_EX);
+
+    count = write(fd, message, count);
+
+    flock(fd, LOCK_UN);
+  }
+
+  return count;
 }

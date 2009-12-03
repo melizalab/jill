@@ -9,6 +9,7 @@ extern "C" {
 #include <sndfile.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <math.h>
 #include <sys/time.h>
 #include <jack/jack.h>
@@ -53,6 +54,11 @@ extern "C" {
   int JILL_trigger_get_state(trigger_data_t *trigger);
   int JILL_trigger_calc_new_state(trigger_data_t *trigger, sample_t *buf, jack_nframes_t nframes);
 
+
+  int JILL_log_open(char *filename);
+  int JILL_log_writef(int fd, char *fmt, ...);
+   
+  
 #ifdef __cplusplus
 }
 #endif
