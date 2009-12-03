@@ -6,7 +6,7 @@ JACK_LIB = -ljack -lpthread -lrt
 
 LFLAGS = ${JACK_LIB} -lsndfile
 
-CFLAGS = -Wall -c 
+CFLAGS = -Wall -c
 
 SRCS = JILL.c gnuplot_i.c
 OBJS = $(SRCS:.c=.o)

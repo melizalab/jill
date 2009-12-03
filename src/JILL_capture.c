@@ -167,7 +167,7 @@ main (int argc, char *argv[])
   int jack_sample_size;
   size_t jrb_size_in_bytes, jrb_prebuf_size_in_bytes;
   char soundfile_name[JILL_MAX_STRING_LEN];
-  char recording_id[JILL_MAX_STRING_LEN];
+  char jill_id[JILL_MAX_STRING_LEN];
 
   size_t num_bytes_available_to_read, num_bytes_to_read, num_bytes_read;
   sf_count_t num_frames_to_write_to_disk, num_frames_written_to_disk;
@@ -210,7 +210,7 @@ main (int argc, char *argv[])
 
   memset(his_output_port_name, '\0', JILL_MAX_STRING_LEN);
   memset(soundfile_name, '\0', JILL_MAX_STRING_LEN);
-  memset(recording_id, '\0', JILL_MAX_STRING_LEN);
+  memset(jill_id, '\0', JILL_MAX_STRING_LEN);
   memset(logfile_name, '\0', JILL_MAX_STRING_LEN);
 
   while ((opt = getopt_long (argc, argv, options, long_options, &option_index)) != EOF) {
@@ -219,7 +219,7 @@ main (int argc, char *argv[])
       strncpy (his_output_port_name, optarg, JILL_MAX_STRING_LEN-1);
       break;
     case 'n':
-      strncpy (recording_id, optarg, JILL_MAX_STRING_LEN-1);
+      strncpy (jill_id, optarg, JILL_MAX_STRING_LEN-1);
       break;
     case 'l':
       strncpy (logfile_name, optarg, JILL_MAX_STRING_LEN-1);
@@ -268,17 +268,17 @@ main (int argc, char *argv[])
     strcpy(his_output_port_name, "system:capture_1");
   } 
 
-  if (recording_id[0] == '\0') {
-    fprintf(stderr, "No output name specified, will use default.\n");
-    strcpy(recording_id, "default_id");
+  if (jill_id[0] == '\0') {
+    fprintf(stderr, "No name specified, will use default.\n");
+    strcpy(jill_id, "default_id");
   }
    
 
   /* open a client connection to the JACK server */
     
   client_name = (char *) malloc(JILL_MAX_STRING_LEN * sizeof(char));
-  strcpy(client_name, "JILL_capture:");
-  strcat(client_name, recording_id);
+  strcpy(client_name, "JILL_capture__");
+  strcat(client_name, jill_id);
 
   client = JILL_connect_server(client_name);
 
@@ -359,44 +359,31 @@ main (int argc, char *argv[])
      first close after being open, initialize it to be far in the past */
   jill_time_trigger_first_close = 0.0;
 
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u START\n", his_output_port_name, recording_id, start_time, jtime_start);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u START\n", jill_id, start_time, jtime_start);
 
-  /*
-      {"input_port", 1, 0, 'i'},
-      {"name", 1, 0, 'n'},
-      {"prebuf", 1, 0, 'p'},
-      {"postbuf", 1, 0, 's'},
-      {"open_threshold", 1, 0, 'o'},
-      {"close_threshold", 1, 0, 'c'},
-      {"open_window", 1, 0, 'w'},
-      {"close_window", 1, 0, 'x'},
-      {"ncrossings_open", 1, 0, 'a'},
-      {"ncrossings_close", 1, 0, 'b'},
-      {"logfile", 1, 0, 'l'},
-  */
 
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER name = %s\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, recording_id);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER logfile = %s\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, logfile_name);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER input_port = %s\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, his_output_port_name);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER open_window = %.4f\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, open_window);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER close_window = %.4f\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, close_window);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER open_threshold = %.4f\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, open_threshold);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER close_threshold = %.4f\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, close_threshold);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER ncrossings_open = %d\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, ncrossings_open);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER ncrossings_close = %d\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, ncrossings_close);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER prebuf = %.4f\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, trigger_prebuf_secs);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u PARAMETER postbuf = %.4f\n", 
-		  his_output_port_name, recording_id, start_time, jtime_start, trigger_postbuf_secs);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER name = %s\n", 
+		  jill_id, start_time, jtime_start, jill_id);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER logfile = %s\n", 
+		  jill_id, start_time, jtime_start, logfile_name);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER input_port = %s\n", 
+		  jill_id, start_time, jtime_start, his_output_port_name);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER open_window = %.4f\n", 
+		  jill_id, start_time, jtime_start, open_window);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER close_window = %.4f\n", 
+		  jill_id, start_time, jtime_start, close_window);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER open_threshold = %.4f\n", 
+		  jill_id, start_time, jtime_start, open_threshold);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER close_threshold = %.4f\n", 
+		  jill_id, start_time, jtime_start, close_threshold);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER ncrossings_open = %d\n", 
+		  jill_id, start_time, jtime_start, ncrossings_open);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER ncrossings_close = %d\n", 
+		  jill_id, start_time, jtime_start, ncrossings_close);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER prebuf = %.4f\n", 
+		  jill_id, start_time, jtime_start, trigger_prebuf_secs);
+  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER postbuf = %.4f\n", 
+		  jill_id, start_time, jtime_start, trigger_postbuf_secs);
 
 
   while (1) {
@@ -436,12 +423,12 @@ main (int argc, char *argv[])
       if (trigger_last_state != trigger_new_state) {
 	if (trigger_new_state == 1) {
 	  samples_to_timeval(&tv_cur, trigger.samples_processed, SR);	  
-	  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u TRIGGER_OPEN\n", his_output_port_name, recording_id, jill_time_cur, jtime_start_cur_cycle);
+	  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u TRIGGER_OPEN\n", jill_id, jill_time_cur, jtime_start_cur_cycle);
 
 	  if (sf_out == NULL) {
 
-	    JILL_get_outfilename(soundfile_name, recording_id, his_output_port_name, &tv_cur);
-	    JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u OUTFILE_OPEN %s\n", his_output_port_name, recording_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
+	    JILL_get_outfilename(soundfile_name, jill_id, his_output_port_name, &tv_cur);
+	    JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u OUTFILE_OPEN %s\n", jill_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
 
 	    sf_out = JILL_open_soundfile_for_write(soundfile_name, SR);
 	    if (sf_out == NULL) {
@@ -452,7 +439,7 @@ main (int argc, char *argv[])
 	  }
 	} else { 
 	jill_time_trigger_first_close = jill_time_cur; 
-	JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u TRIGGER_CLOSE\n", his_output_port_name, recording_id, jill_time_cur, jtime_start_cur_cycle); 
+	JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u TRIGGER_CLOSE\n", jill_id, jill_time_cur, jtime_start_cur_cycle); 
 	}
       }
       
@@ -467,7 +454,7 @@ main (int argc, char *argv[])
 
       } else {
 	if (sf_out != NULL) {
-	  JILL_log_writef(logfile_fd, "[JILL_capture:%s:%s] %f %u OUTFILE_CLOSE %s\n", his_output_port_name, recording_id, samples_to_seconds_since_epoch(trigger.samples_processed, SR), jtime_start_cur_cycle, soundfile_name);
+	  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u OUTFILE_CLOSE %s\n", jill_id, samples_to_seconds_since_epoch(trigger.samples_processed, SR), jtime_start_cur_cycle, soundfile_name);
 
 	  JILL_close_soundfile(sf_out);
 	  sf_out = NULL;

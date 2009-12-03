@@ -10,13 +10,15 @@
 #endif
 #include <jack/jack.h>
 
+#include "JILL.h"
+
 jack_port_t *my_output_port, *my_input_port, *his_input_port, *his_output_port;
 jack_client_t *client;
 size_t TABLE_SIZE;
 
 typedef struct
 {
-    jack_default_audio_sample_t *delay;
+    sample_t *delay;
     int read_phase;
     int write_phase;
 }
@@ -28,8 +30,8 @@ jack_nframes_t calc_jack_latency(jack_client_t *client) {
 
   //  latency += jack_port_get_latency (jack_port_by_name (client, "system:capture_1"));
   latency += jack_port_get_latency (jack_port_by_name (client, "system:playback_1"));
-
-  return 2*latency + 60;
+  printf("calc latency: %d\n", latency);
+  return latency;
 }
 
 
@@ -49,11 +51,9 @@ static void signal_handler(int sig)
  */
 
 int process (jack_nframes_t nframes, void *arg) {
-  jack_default_audio_sample_t *out, *in;
+  sample_t *out, *in;
   paDelayData *data = (paDelayData*)arg;
   int i;
-  jack_default_audio_sample_t test;
-
 
   out = jack_port_get_buffer (my_output_port, nframes);
   in = jack_port_get_buffer (my_input_port, nframes);
@@ -99,43 +99,52 @@ usage ()
 int
 main (int argc, char *argv[])
 {
-  const char **ports;
-  const char *client_name;
-  const char *server_name = NULL;
-  jack_options_t jack_options = JackNullOption;
-  jack_status_t status;
+  char *client_name;
   paDelayData data;
   int option_index;
   int opt;
   int i;
   jack_nframes_t SR;
-  double delay; /* in seconds */
-  char *his_input_port_name, *his_output_port_name;
-  
-  const char *options = "d:i:o:";
+  double delay = 0.2; /* in seconds */
+  char his_input_port_name[JILL_MAX_STRING_LEN], his_output_port_name[JILL_MAX_STRING_LEN];
+
+  char jill_id[JILL_MAX_STRING_LEN];
+
+  int logfile_fd;
+  char logfile_name[JILL_MAX_STRING_LEN];  
+
+  const char *options = "n:d:i:o:l:";
   struct option long_options[] =
     {
       {"delay", 1, 0, 'd'},
-      {"inputPort", 1, 0, 'i'},
-      {"outputPort", 1, 0, 'o'},
+      {"name", 1, 0, 'n'},
+      {"input_port", 1, 0, 'i'},
+      {"output_port", 1, 0, 'o'},
+      {"logfile", 1, 0, 'l'},
       {0, 0, 0, 0}
     };
-  
+
+  memset(his_output_port_name, '\0', JILL_MAX_STRING_LEN);
+  memset(his_input_port_name, '\0', JILL_MAX_STRING_LEN);
+  memset(logfile_name, '\0', JILL_MAX_STRING_LEN);
+  memset(jill_id, '\0', JILL_MAX_STRING_LEN);
+
   while ((opt = getopt_long (argc, argv, options, long_options, &option_index)) != EOF) {
     switch (opt) {
     case 'd':
-      if ((delay = atof (optarg)) < 0) {
-	fprintf (stderr, "invalid delay\n");
-	return -1;
-      }
+      delay = atof (optarg);
+	break;
+    case 'n':
+      strncpy (jill_id, optarg, JILL_MAX_STRING_LEN-1);
       break;
     case 'i':
-      his_output_port_name = (char *) malloc (strlen (optarg) * sizeof (char));
-      strcpy (his_output_port_name, optarg);
+      strncpy (his_output_port_name, optarg, JILL_MAX_STRING_LEN-1);
       break;
     case 'o':
-      his_input_port_name = (char *) malloc (strlen (optarg) * sizeof (char));
-      strcpy (his_input_port_name, optarg);
+      strncpy (his_input_port_name, optarg, JILL_MAX_STRING_LEN-1);
+      break;
+    case 'l':
+      strncpy (logfile_name, optarg, JILL_MAX_STRING_LEN-1);
       break;
     default:
       fprintf (stderr, "unknown option %c\n", opt); 
@@ -145,27 +154,52 @@ main (int argc, char *argv[])
     }
   }
 	  
-  printf ("delay: %f, input port: %s, output port: %s\n", delay, his_output_port_name, his_input_port_name);
+  if (logfile_name[0] == '\0') {
+    fprintf(stderr, "No logfile specified, will use stdout.\n");
+    strcpy(logfile_name, "stdout");
+  }
+
+  logfile_fd = JILL_log_open(logfile_name);
+
+  if (his_output_port_name[0] == '\0') {
+    fprintf(stderr, "No input port specified, will not connect.\n");
+  } 
+
+  if (his_input_port_name[0] == '\0') {
+    fprintf(stderr, "No output port specified, will not connect.\n");
+  } 
+
+  if (jill_id[0] == '\0') {
+    fprintf(stderr, "No name specified, will use default.\n");
+    strcpy(jill_id, "default_id");
+  }
 
   /* open a client connection to the JACK server */
     
-  client_name = (char *) malloc(9 * sizeof(char));
-  strcpy(client_name, "delay");
-  client = jack_client_open (client_name, jack_options, &status);
+  client_name = (char *) malloc(JILL_MAX_STRING_LEN * sizeof(char));
+  strcpy(client_name, "JILL_delay__");
+  strcat(client_name, jill_id);
+
+  client = JILL_connect_server(client_name);
+
   if (client == NULL) {
-    fprintf (stderr, "jack_client_open() failed, "
-	     "status = 0x%2.0x\n", status);
-    if (status & JackServerFailed) {
-      fprintf (stderr, "Unable to connect to JACK server\n");
-    }
+    fprintf (stderr, "%s could not connect to jack server", client_name);
     exit (1);
   }
-  if (status & JackServerStarted) {
-    fprintf (stderr, "JACK server started\n");
-  }
-  if (status & JackNameNotUnique) {
-    client_name = jack_get_client_name(client);
-    fprintf (stderr, "unique name `%s' assigned\n", client_name);
+
+  /* create input and output ports */
+
+  my_output_port = jack_port_register (client, "output",
+				       JACK_DEFAULT_AUDIO_TYPE,
+				       JackPortIsOutput, 0);
+
+  my_input_port = jack_port_register (client, "input",
+				      JACK_DEFAULT_AUDIO_TYPE,
+				      JackPortIsInput, 0);
+
+  if ((my_output_port == NULL) || (my_input_port == NULL)) {
+    fprintf(stderr, "no more JACK ports available\n");
+    exit (1);
   }
 
   SR = jack_get_sample_rate (client);
@@ -173,13 +207,14 @@ main (int argc, char *argv[])
   TABLE_SIZE -= calc_jack_latency(client);
   printf("%d\n", calc_jack_latency(client));
 
-  printf("sample rate: %d, TABLE_SIZE: %d\n", SR, TABLE_SIZE);
-  data.delay = (jack_default_audio_sample_t *) malloc(sizeof(jack_default_audio_sample_t) * TABLE_SIZE); 
+  printf("%d\n", TABLE_SIZE);
+  data.delay = (sample_t *) malloc(sizeof(sample_t) * TABLE_SIZE); 
   for( i=0; i<TABLE_SIZE; i++ ) {
     data.delay[i] = 0.0;
   }
   data.read_phase = 0;
   data.write_phase = 0;
+
 	  
   /* tell the JACK server to call `process()' whenever
      there is work to be done.
@@ -194,20 +229,6 @@ main (int argc, char *argv[])
 
   jack_on_shutdown (client, jack_shutdown, 0);
 
-  /* create two ports */
-
-  my_output_port = jack_port_register (client, "output",
-				       JACK_DEFAULT_AUDIO_TYPE,
-				       JackPortIsOutput, 0);
-
-  my_input_port = jack_port_register (client, "input",
-				      JACK_DEFAULT_AUDIO_TYPE,
-				      JackPortIsInput, 0);
-
-  if ((my_output_port == NULL) || (my_input_port == NULL)) {
-    fprintf(stderr, "no more JACK ports available\n");
-    exit (1);
-  }
    
   /* Tell the JACK server that we are ready to roll.  Our
    * process() callback will start running now. */
@@ -217,52 +238,25 @@ main (int argc, char *argv[])
     exit (1);
   }
 
-  /* Connect the ports.  You can't do this before the client is
-   * activated, because we can't make connections to clients
-   * that aren't running.  Note the confusing (but necessary)
-   * orientation of the driver backend ports: playback ports are
-   * "input" to the backend, and capture ports are "output" from
-   * it.
-   */
- 	
-  /* 	ports = jack_get_ports (client, NULL, NULL, */
-  /* 				JackPortIsPhysical|JackPortIsInput); */
-  /* 	if (ports == NULL) { */
-  /* 		fprintf(stderr, "no physical playback ports\n"); */
-  /* 		exit (1); */
-  /* 	} */
 
-  printf ("me: %s, him: %s\n", jack_port_name(my_output_port), his_input_port_name);
-  if (jack_connect (client, jack_port_name(my_output_port), his_input_port_name)) {
-    fprintf (stderr, "cannot connect to port '%s'\n", his_input_port_name);
-  }
-  
-  /* 	free (ports); */
-    
-  /* 	ports = jack_get_ports (client, NULL, NULL, */
-  /* 				JackPortIsPhysical|JackPortIsOutput); */
-  /* 	if (ports == NULL) { */
-  /* 		fprintf(stderr, "no physical capture ports\n"); */
-  /* 		exit (1); */
-  /* 	} */
-
-  if (jack_connect (client, his_output_port_name, jack_port_name(my_input_port))) {
-    fprintf (stderr, "cannot connect to port '%s'\n", his_output_port_name);
+  if (strcmp(his_input_port_name, "") != 0) {
+    if (jack_connect (client, jack_port_name(my_output_port), his_input_port_name)) {
+      fprintf (stderr, "cannot connect to port '%s'\n", his_input_port_name);
+    }
   }
 
-  /* 	free (ports); */
-    
+  if (strcmp(his_output_port_name, "") != 0) {
+    if (jack_connect (client, his_output_port_name, jack_port_name(my_input_port))) {
+      fprintf (stderr, "cannot connect to port '%s'\n", his_output_port_name);
+    }
+  }
+
   /* install a signal handler to properly quits jack client */
-#ifdef WIN32
-  signal(SIGINT, signal_handler);
-  signal(SIGABRT, signal_handler);
-  signal(SIGTERM, signal_handler);
-#else
+
   signal(SIGQUIT, signal_handler);
   signal(SIGTERM, signal_handler);
   signal(SIGHUP, signal_handler);
   signal(SIGINT, signal_handler);
-#endif
 
   /* keep running until the Ctrl+C */
 
