@@ -295,7 +295,7 @@ main (int argc, char *argv[])
 
   my_input_port = jack_port_register (client, "input",
 				      JACK_DEFAULT_AUDIO_TYPE,
-				      JackPortIsInput, 0);
+				      JackPortIsInput|JackPortIsTerminal, 0);
 
   if (my_input_port == NULL) {
     fprintf(stderr, "no more JACK ports available\n");

@@ -34,12 +34,12 @@ typedef struct
 }
 paDelayData;
 
-jack_nframes_t calc_jack_latency(jack_client_t *client) {
+jack_nframes_t calc_jack_latency(jack_client_t *client, jack_port_t *input_port, jack_port_t *output_port) {
 
   jack_nframes_t  latency = 0;
 
-  //  latency += jack_port_get_latency (jack_port_by_name (client, "system:capture_1"));
-  latency += jack_port_get_latency (jack_port_by_name (client, "system:playback_1"));
+  latency += jack_port_get_latency (jack_port_by_name (client, "system:capture_1"));
+
   return latency;
 }
 
@@ -55,8 +55,6 @@ static void signal_handler(int sig)
  * The process callback for this JACK application is called in a
  * special realtime thread once for each audio cycle.
  *
- * This client follows a simple rule: when the JACK transport is
- * running, copy the input port to the output.  When it stops, exit.
  */
 
 int process (jack_nframes_t nframes, void *arg) {
@@ -106,7 +104,9 @@ void jack_shutdown (void *arg) {
 static void usage () {
 
   fprintf (stderr, "\n"
-	   "usage: delay \n"
+	   "usage: JILL_delay \n"
+	   "              [ --name OR -n <string identifier for delay> ]\n"
+	   "              [ --logfile OR -l <logfile name> ]\n"
 	   "              [ --delay OR -d delay (in sec) ]\n"
 	   "              [ --output_port OR -o <name of jack port to send delayed signal> ]\n"
 	   "              [ --input_port OR -i <name of jack port from which to read signal> ]\n"
@@ -221,7 +221,7 @@ int main (int argc, char *argv[]) {
 
   SR = jack_get_sample_rate (client);
   TABLE_SIZE = ceil(SR * delay);
-  TABLE_SIZE -= calc_jack_latency(client);
+  TABLE_SIZE -= calc_jack_latency(client, my_input_port, my_output_port);
 
   data.delay = (sample_t *) malloc(sizeof(sample_t) * TABLE_SIZE); 
   for( i=0; i<TABLE_SIZE; i++ ) {
@@ -265,6 +265,7 @@ int main (int argc, char *argv[]) {
       fprintf (stderr, "cannot connect to port '%s'\n", his_output_port_name);
     }
   }
+  calc_jack_latency(client, my_input_port, my_output_port);
 
   /* install a signal handler to properly quit jack client */
 
