@@ -16,6 +16,16 @@ jack_port_t *my_output_port, *my_input_port, *his_input_port, *his_output_port;
 jack_client_t *client;
 size_t TABLE_SIZE;
 
+struct timeval tv_start_process;
+jack_nframes_t jtime_start;
+
+jack_nframes_t jtime_start_cur_cycle;
+struct timeval tv_cur;
+double jill_time_cur;
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
 typedef struct
 {
     sample_t *delay;
@@ -30,7 +40,6 @@ jack_nframes_t calc_jack_latency(jack_client_t *client) {
 
   //  latency += jack_port_get_latency (jack_port_by_name (client, "system:capture_1"));
   latency += jack_port_get_latency (jack_port_by_name (client, "system:playback_1"));
-  printf("calc latency: %d\n", latency);
   return latency;
 }
 
@@ -53,7 +62,19 @@ static void signal_handler(int sig)
 int process (jack_nframes_t nframes, void *arg) {
   sample_t *out, *in;
   paDelayData *data = (paDelayData*)arg;
-  int i;
+  int i, rc;
+
+  if (!timerisset(&tv_start_process)) {
+    gettimeofday(&tv_start_process, NULL);
+    jtime_start = jack_last_frame_time(client);
+
+
+    rc = pthread_mutex_trylock(&mutex);
+    if (rc == 0) {
+      pthread_cond_signal(&cond);
+      pthread_mutex_unlock(&mutex);
+    }
+  }
 
   out = jack_port_get_buffer (my_output_port, nframes);
   in = jack_port_get_buffer (my_input_port, nframes);
@@ -78,27 +99,21 @@ int process (jack_nframes_t nframes, void *arg) {
  * JACK calls this shutdown_callback if the server ever shuts down or
  * decides to disconnect the client.
  */
-void
-jack_shutdown (void *arg)
-{
-	exit (1);
+void jack_shutdown (void *arg) {
+  exit (1);
 }
 
-static void
-usage ()
+static void usage () {
 
-{
-	fprintf (stderr, "\n"
-"usage: delay \n"
-"              [ --delay OR -d delay (in sec) ]\n"
-"              [ --output_port OR -o <name of jack port to send delayed signal> ]\n"
-"              [ --input_port OR -i <name of jack port from which to read signal> ]\n"
-);
+  fprintf (stderr, "\n"
+	   "usage: delay \n"
+	   "              [ --delay OR -d delay (in sec) ]\n"
+	   "              [ --output_port OR -o <name of jack port to send delayed signal> ]\n"
+	   "              [ --input_port OR -i <name of jack port from which to read signal> ]\n"
+	   );
 }
 
-int
-main (int argc, char *argv[])
-{
+int main (int argc, char *argv[]) {
   char *client_name;
   paDelayData data;
   int option_index;
@@ -112,6 +127,8 @@ main (int argc, char *argv[])
 
   int logfile_fd;
   char logfile_name[JILL_MAX_STRING_LEN];  
+
+  double jill_time_start;
 
   const char *options = "n:d:i:o:l:";
   struct option long_options[] =
@@ -205,9 +222,7 @@ main (int argc, char *argv[])
   SR = jack_get_sample_rate (client);
   TABLE_SIZE = ceil(SR * delay);
   TABLE_SIZE -= calc_jack_latency(client);
-  printf("%d\n", calc_jack_latency(client));
 
-  printf("%d\n", TABLE_SIZE);
   data.delay = (sample_t *) malloc(sizeof(sample_t) * TABLE_SIZE); 
   for( i=0; i<TABLE_SIZE; i++ ) {
     data.delay[i] = 0.0;
@@ -251,15 +266,56 @@ main (int argc, char *argv[])
     }
   }
 
-  /* install a signal handler to properly quits jack client */
+  /* install a signal handler to properly quit jack client */
 
   signal(SIGQUIT, signal_handler);
   signal(SIGTERM, signal_handler);
   signal(SIGHUP, signal_handler);
   signal(SIGINT, signal_handler);
 
-  /* keep running until the Ctrl+C */
+  /* wait until process goes through once (to set the date) then wake up */
+  pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+  pthread_mutex_lock(&mutex);
 
+  pthread_cond_wait(&cond, &mutex); 
+
+
+/*     case 'd': */
+/*       delay = atof (optarg); */
+/* 	break; */
+/*     case 'n': */
+/*       strncpy (jill_id, optarg, JILL_MAX_STRING_LEN-1); */
+/*       break; */
+/*     case 'i': */
+/*       strncpy (his_output_port_name, optarg, JILL_MAX_STRING_LEN-1); */
+/*       break; */
+/*     case 'o': */
+/*       strncpy (his_input_port_name, optarg, JILL_MAX_STRING_LEN-1); */
+/*       break; */
+/*     case 'l': */
+/*       strncpy (logfile_name, optarg, JILL_MAX_STRING_LEN-1); */
+/*       break; */
+/*     default: */
+/*       fprintf (stderr, "unknown option %c\n", opt);  */
+
+  jill_time_start = JILL_samples_to_seconds_since_epoch(0, &tv_start_process, SR);
+  JILL_log_writef(logfile_fd, "[JILL_delay:%s] %f %u START\n", 
+		  jill_id, jill_time_start, jtime_start);
+  JILL_log_writef(logfile_fd, "[JILL_delay:%s] %f %u PARAMETER name = %s\n", 
+		  jill_id, jill_time_start, jtime_start, jill_id);
+  JILL_log_writef(logfile_fd, "[JILL_delay:%s] %f %u PARAMETER logfile = %s\n", 
+		  jill_id, jill_time_start, jtime_start, logfile_name);
+  JILL_log_writef(logfile_fd, "[JILL_delay:%s] %f %u PARAMETER delay = %f\n", 
+		  jill_id, jill_time_start, jtime_start, delay);
+  JILL_log_writef(logfile_fd, "[JILL_delay:%s] %f %u PARAMETER input_port = %s\n", 
+		  jill_id, jill_time_start, jtime_start, his_output_port_name);
+  JILL_log_writef(logfile_fd, "[JILL_delay:%s] %f %u PARAMETER output_port = %s\n", 
+		  jill_id, jill_time_start, jtime_start, his_input_port_name);
+
+  pthread_mutex_unlock(&mutex);
+
+
+  /* keep running until the Ctrl+C */
   while (1) {
 #ifdef WIN32 
     Sleep(1000);

@@ -35,10 +35,10 @@ extern "C" {
     long long samples_processed;
   } trigger_data_t;
 
-  void JILL_get_outfilename(char* outfilename, const char *name, const char *portname, struct timeval *tv);
-  SNDFILE* JILL_open_soundfile_for_write(const char *filename, int samplerate);
+  void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, struct timeval *tv);
+  SNDFILE* JILL_soundfile_open_for_write(const char *filename, int samplerate);
   sf_count_t JILL_soundfile_write(SNDFILE *sf, sample_t *buf, sf_count_t frames);
-  int JILL_close_soundfile(SNDFILE *sf);
+  int JILL_soundfile_close(SNDFILE *sf);
   void JILL_wait_for_keystroke();
  
   jack_client_t *JILL_connect_server(char *client_name);
@@ -57,8 +57,12 @@ extern "C" {
 
   int JILL_log_open(char *filename);
   int JILL_log_writef(int fd, char *fmt, ...);
-   
-  
+
+  void JILL_samples_to_timeval(long long samples, struct timeval *tv_start_process, int sr, struct timeval *tv);
+  double JILL_timeval_to_seconds_since_midnight(struct timeval *tv);
+  double JILL_samples_to_seconds_since_epoch(long long samples, struct timeval *tv_start_process, int sr);
+
+
 #ifdef __cplusplus
 }
 #endif

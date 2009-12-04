@@ -11,7 +11,7 @@ public:
     int ret;
 
     const char *filename = "/tmp/blah.wav";
-    sf = JILL_open_soundfile_for_write(filename, 44100);
+    sf = JILL_soundfile_open_for_write(filename, 44100);
     TS_ASSERT(sf != NULL);
 
     sprintf(cmd, "rm -rf %s", filename);
@@ -24,9 +24,9 @@ public:
     int ret;
 
     const char *filename = "/tmp/blah.wav";
-    sf = JILL_open_soundfile_for_write(filename, 44100);
+    sf = JILL_soundfile_open_for_write(filename, 44100);
 
-    ret = JILL_close_soundfile(sf);
+    ret = JILL_soundfile_close(sf);
 
     TS_ASSERT(ret == 0);
 
@@ -134,7 +134,7 @@ public:
     struct timeval tv;
     
     gettimeofday(&tv, NULL);
-    JILL_get_outfilename(filename, "testing", "system:capture_1", &tv);
+    JILL_soundfile_get_name(filename, "testing", "system:capture_1", &tv);
     TS_ASSERT(strlen(filename) <= JILL_MAX_STRING_LEN);
   }
 };

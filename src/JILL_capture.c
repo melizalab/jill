@@ -32,39 +32,12 @@ long long samples_processed = 0;
 
 sample_t threshhold = 0.5;
 
-void samples_to_timeval(struct timeval *tv, long long samples, int sr) {
-  long long start_micro, now_micro;
-
-  start_micro =  (long long) tv_start_process.tv_sec * 1000000 + tv_start_process.tv_usec;
-  now_micro = start_micro + floor(1000000 * (float)samples / (float)sr);
-  
-  tv->tv_sec = (time_t)floor(now_micro / 1000000.);
-  tv->tv_usec = (suseconds_t) (now_micro - 1000000 * tv->tv_sec);
-}
- 
-float timeval_to_seconds_since_midnight(struct timeval *tv) {
-  struct tm *lt;
-  float ssm = 0;
-  
-  lt = localtime(&(tv->tv_sec));
-
-  ssm =lt->tm_sec + 60. * lt->tm_min + 3600 * lt->tm_hour + tv->tv_usec / 1000000.;
-
-  return ssm;
-}
-
-double samples_to_seconds_since_epoch(long long samples, int sr) {
-  struct timeval tv;
-
-  samples_to_timeval(&tv, samples, sr);
-  return (double) tv.tv_sec + tv.tv_usec / 1000000.;
-}
 
 
 static void signal_handler(int sig) {
 
   jack_client_close(client);
-  JILL_close_soundfile(sf_out);
+  JILL_soundfile_close(sf_out);
   fprintf(stderr, "signal received, exiting ...\n");
   exit(0);
 }
@@ -131,8 +104,8 @@ int process (jack_nframes_t nframes, void *arg) {
  * decides to disconnect the client.
  */
 void jack_shutdown (void *arg) {
-	JILL_close_soundfile(sf_out);
-	exit (1);
+  JILL_soundfile_close(sf_out);
+  exit (1);
 }
 
 static void usage () {
@@ -185,7 +158,7 @@ main (int argc, char *argv[])
   int trigger_last_state, trigger_new_state;
   
 
-  double jill_time_trigger_first_close, start_time;
+  double jill_time_trigger_first_close, jill_time_start;
 
   int logfile_fd;
   char logfile_name[JILL_MAX_STRING_LEN];
@@ -207,7 +180,7 @@ main (int argc, char *argv[])
       {0, 0, 0, 0}
     };
   
-
+  memset(&tv_start_process, '\0', sizeof(struct timeval));
   memset(his_output_port_name, '\0', JILL_MAX_STRING_LEN);
   memset(soundfile_name, '\0', JILL_MAX_STRING_LEN);
   memset(jill_id, '\0', JILL_MAX_STRING_LEN);
@@ -352,38 +325,41 @@ main (int argc, char *argv[])
 
   pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
   pthread_mutex_lock(&mutex);
- 
-  start_time = samples_to_seconds_since_epoch(0, SR);
+
+  /* wait until process goes through once (to set the date) then wake up and roll */
+  pthread_cond_wait(&cond, &mutex); 
+
+  jill_time_start = JILL_samples_to_seconds_since_epoch(0, &tv_start_process, SR);
 
   /* because we check for triggering based on being within a certain time of the 
-     first close after being open, initialize it to be far in the past */
+     first close after being open, initialize the first close to be far in the past */
   jill_time_trigger_first_close = 0.0;
 
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u START\n", jill_id, start_time, jtime_start);
 
-
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER name = %s\n", 
-		  jill_id, start_time, jtime_start, jill_id);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER logfile = %s\n", 
-		  jill_id, start_time, jtime_start, logfile_name);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER input_port = %s\n", 
-		  jill_id, start_time, jtime_start, his_output_port_name);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER open_window = %.4f\n", 
-		  jill_id, start_time, jtime_start, open_window);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER close_window = %.4f\n", 
-		  jill_id, start_time, jtime_start, close_window);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER open_threshold = %.4f\n", 
-		  jill_id, start_time, jtime_start, open_threshold);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER close_threshold = %.4f\n", 
-		  jill_id, start_time, jtime_start, close_threshold);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER ncrossings_open = %d\n", 
-		  jill_id, start_time, jtime_start, ncrossings_open);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER ncrossings_close = %d\n", 
-		  jill_id, start_time, jtime_start, ncrossings_close);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER prebuf = %.4f\n", 
-		  jill_id, start_time, jtime_start, trigger_prebuf_secs);
-  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u PARAMETER postbuf = %.4f\n", 
-		  jill_id, start_time, jtime_start, trigger_postbuf_secs);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u START\n", 
+		  jill_id, jill_time_start, jtime_start);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER name = %s\n", 
+		  jill_id, jill_time_start, jtime_start, jill_id);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER logfile = %s\n", 
+		  jill_id, jill_time_start, jtime_start, logfile_name);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER input_port = %s\n", 
+		  jill_id, jill_time_start, jtime_start, his_output_port_name);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER open_window = %.4f\n", 
+		  jill_id, jill_time_start, jtime_start, open_window);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER close_window = %.4f\n", 
+		  jill_id, jill_time_start, jtime_start, close_window);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER open_threshold = %.4f\n", 
+		  jill_id, jill_time_start, jtime_start, open_threshold);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER close_threshold = %.4f\n", 
+		  jill_id, jill_time_start, jtime_start, close_threshold);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER ncrossings_open = %d\n", 
+		  jill_id, jill_time_start, jtime_start, ncrossings_open);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER ncrossings_close = %d\n", 
+		  jill_id, jill_time_start, jtime_start, ncrossings_close);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER prebuf = %.4f\n", 
+		  jill_id, jill_time_start, jtime_start, trigger_prebuf_secs);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER postbuf = %.4f\n", 
+		  jill_id, jill_time_start, jtime_start, trigger_postbuf_secs);
 
 
   while (1) {
@@ -416,21 +392,21 @@ main (int argc, char *argv[])
 
       /* calculate current time from number of samples processed by trigger
 	 FIXME: what if there's an xrun? need to use jack's time mechanism */
-      jill_time_cur = samples_to_seconds_since_epoch(trigger.samples_processed, SR);
+      jill_time_cur = JILL_samples_to_seconds_since_epoch(trigger.samples_processed, &tv_start_process, SR);
 
 
       /* now begin  deciding what to do with the new state */
       if (trigger_last_state != trigger_new_state) {
 	if (trigger_new_state == 1) {
-	  samples_to_timeval(&tv_cur, trigger.samples_processed, SR);	  
-	  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u TRIGGER_OPEN\n", jill_id, jill_time_cur, jtime_start_cur_cycle);
+	  JILL_samples_to_timeval(trigger.samples_processed, &tv_start_process, SR, &tv_cur);	  
+	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u TRIGGER_OPEN\n", jill_id, jill_time_cur, jtime_start_cur_cycle);
 
 	  if (sf_out == NULL) {
 
-	    JILL_get_outfilename(soundfile_name, jill_id, his_output_port_name, &tv_cur);
-	    JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u OUTFILE_OPEN %s\n", jill_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
+	    JILL_soundfile_get_name(soundfile_name, jill_id, his_output_port_name, &tv_cur);
+	    JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u OUTFILE_OPEN %s\n", jill_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
 
-	    sf_out = JILL_open_soundfile_for_write(soundfile_name, SR);
+	    sf_out = JILL_soundfile_open_for_write(soundfile_name, SR);
 	    if (sf_out == NULL) {
 	      fprintf(stderr, "could not open file '%s' for writing\n", soundfile_name);
 	      jack_client_close(client);
@@ -439,7 +415,7 @@ main (int argc, char *argv[])
 	  }
 	} else { 
 	jill_time_trigger_first_close = jill_time_cur; 
-	JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u TRIGGER_CLOSE\n", jill_id, jill_time_cur, jtime_start_cur_cycle); 
+	JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u TRIGGER_CLOSE\n", jill_id, jill_time_cur, jtime_start_cur_cycle); 
 	}
       }
       
@@ -454,9 +430,9 @@ main (int argc, char *argv[])
 
       } else {
 	if (sf_out != NULL) {
-	  JILL_log_writef(logfile_fd, "[JILL_capture__%s] %f %u OUTFILE_CLOSE %s\n", jill_id, samples_to_seconds_since_epoch(trigger.samples_processed, SR), jtime_start_cur_cycle, soundfile_name);
+	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u OUTFILE_CLOSE %s\n", jill_id, JILL_samples_to_seconds_since_epoch(trigger.samples_processed, &tv_start_process, SR), jtime_start_cur_cycle, soundfile_name);
 
-	  JILL_close_soundfile(sf_out);
+	  JILL_soundfile_close(sf_out);
 	  sf_out = NULL;
 	}
       }

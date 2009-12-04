@@ -7,19 +7,19 @@
 #include <string.h>
 #include <sys/file.h>
 
-void JILL_get_outfilename(char* outfilename, const char *name, const char *portname, struct timeval *tv) {
+void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, struct timeval *tv) {
   char timestring[JILL_MAX_STRING_LEN];
   time_t t;
   struct tm *tm_time;
   
   tm_time = localtime(&(tv->tv_sec));
-  strftime(timestring, JILL_MAX_STRING_LEN, "%Y%m%d_%H%M%S", tm_time);
-  sprintf(outfilename, "%s_%s_%s.wav", name, portname, timestring);
+  strftime(timestring, JILL_MAX_STRING_LEN, "%Y-%m-%d_%H:%M:%S", tm_time);
+  sprintf(outfilename, "%s_%s.wav", name, timestring);
   outfilename[79] = '\0';
 
 }
 
-SNDFILE* JILL_open_soundfile_for_write(const char *filename, int samplerate) {
+SNDFILE* JILL_soundfile_open_for_write(const char *filename, int samplerate) {
   SNDFILE *sf;
 
   SF_INFO sf_info;
@@ -40,7 +40,7 @@ sf_count_t JILL_soundfile_write(SNDFILE *sf, sample_t *buf, sf_count_t frames) {
   return sf_write_float (sf, buf, frames);
 }
 
-int JILL_close_soundfile(SNDFILE *sf) {
+int JILL_soundfile_close(SNDFILE *sf) {
   int ret_val;
 
   ret_val = sf_close(sf);
@@ -218,4 +218,33 @@ int JILL_log_writef(int fd, char *fmt, ...) {
   }
 
   return count;
+}
+
+
+void JILL_samples_to_timeval(long long samples, struct timeval *tv_start_process, int sr, struct timeval *tv) {
+  long long start_micro, now_micro;
+
+  start_micro =  (long long) tv_start_process->tv_sec * 1000000 + tv_start_process->tv_usec;
+  now_micro = start_micro + floor(1000000 * (float)samples / (float)sr);
+  
+  tv->tv_sec = (time_t)floor(now_micro / 1000000.);
+  tv->tv_usec = (suseconds_t) (now_micro - 1000000 * tv->tv_sec);
+}
+ 
+double JILL_timeval_to_seconds_since_midnight(struct timeval *tv) {
+  struct tm *lt;
+  double ssm = 0;
+  
+  lt = localtime(&(tv->tv_sec));
+
+  ssm =lt->tm_sec + 60. * lt->tm_min + 3600 * lt->tm_hour + tv->tv_usec / 1000000.;
+
+  return ssm;
+}
+
+double JILL_samples_to_seconds_since_epoch(long long samples, struct timeval *tv_start_process, int sr) {
+  struct timeval tv;
+
+  JILL_samples_to_timeval(samples, tv_start_process, sr, &tv);
+  return (double) tv.tv_sec + tv.tv_usec / 1000000.;
 }
