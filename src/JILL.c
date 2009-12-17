@@ -9,12 +9,11 @@
 
 void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, struct timeval *tv) {
   char timestring[JILL_MAX_STRING_LEN];
-  time_t t;
   struct tm *tm_time;
   
   tm_time = localtime(&(tv->tv_sec));
-  strftime(timestring, JILL_MAX_STRING_LEN, "%Y-%m-%d_%H:%M:%S", tm_time);
-  sprintf(outfilename, "%s_%s.wav", name, timestring);
+  strftime(timestring, JILL_MAX_STRING_LEN, "%Y-%m-%d__%Hh%Mm%Ss", tm_time);
+  sprintf(outfilename, "%s__%s.wav", name, timestring);
   outfilename[79] = '\0';
 
 }
