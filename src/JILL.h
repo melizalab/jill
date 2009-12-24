@@ -35,7 +35,7 @@ extern "C" {
     long long samples_processed;
   } trigger_data_t;
 
-  void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, struct timeval *tv);
+  void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, double seconds_since_epoch);
   SNDFILE* JILL_soundfile_open_for_write(const char *filename, int samplerate);
   sf_count_t JILL_soundfile_write(SNDFILE *sf, sample_t *buf, sf_count_t frames);
   int JILL_soundfile_close(SNDFILE *sf);

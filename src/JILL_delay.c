@@ -34,6 +34,81 @@ typedef struct
 }
 paDelayData;
 
+
+/* Time and tempo variables.  These are global to the entire,
+ * transport timeline.  There is no attempt to keep a true tempo map.
+ * The default time signature is: "march time", 4/4, 120bpm
+ */
+float time_beats_per_bar = 4.0;
+float time_beat_type = 4.0;
+double time_ticks_per_beat = 1920.0;
+double time_beats_per_minute = 120.0;
+volatile int time_reset = 1;		/* true when time values change */
+
+/* JACK timebase callback.
+ *
+ * Runs in the process thread.  Realtime, must not wait.
+ */
+static void timebase(jack_transport_state_t state, jack_nframes_t nframes, 
+	      jack_position_t *pos, int new_pos, void *arg)
+{
+	double min;			/* minutes since frame 0 */
+	long abs_tick;			/* ticks since frame 0 */
+	long abs_beat;			/* beats since frame 0 */
+
+	if (new_pos || time_reset) {
+
+		pos->valid = JackPositionBBT;
+		pos->beats_per_bar = time_beats_per_bar;
+		pos->beat_type = time_beat_type;
+		pos->ticks_per_beat = time_ticks_per_beat;
+		pos->beats_per_minute = time_beats_per_minute;
+
+		time_reset = 0;		/* time change complete */
+
+		/* Compute BBT info from frame number.  This is relatively
+		 * simple here, but would become complex if we supported tempo
+		 * or time signature changes at specific locations in the
+		 * transport timeline. */
+
+		min = pos->frame / ((double) pos->frame_rate * 60.0);
+		abs_tick = min * pos->beats_per_minute * pos->ticks_per_beat;
+		abs_beat = abs_tick / pos->ticks_per_beat;
+
+		pos->bar = abs_beat / pos->beats_per_bar;
+		pos->beat = abs_beat - (pos->bar * pos->beats_per_bar) + 1;
+		pos->tick = abs_tick - (abs_beat * pos->ticks_per_beat);
+		pos->bar_start_tick = pos->bar * pos->beats_per_bar *
+			pos->ticks_per_beat;
+		pos->bar++;		/* adjust start to bar 1 */
+
+#if 0
+		/* some debug code... */
+		fprintf(stderr, "\nnew position: %" PRIu32 "\tBBT: %3"
+			PRIi32 "|%" PRIi32 "|%04" PRIi32 "\n",
+			pos->frame, pos->bar, pos->beat, pos->tick);
+#endif
+
+	} else {
+
+		/* Compute BBT info based on previous period. */
+		pos->tick +=
+			nframes * pos->ticks_per_beat * pos->beats_per_minute
+			/ (pos->frame_rate * 60);
+
+		while (pos->tick >= pos->ticks_per_beat) {
+			pos->tick -= pos->ticks_per_beat;
+			if (++pos->beat > pos->beats_per_bar) {
+				pos->beat = 1;
+				++pos->bar;
+				pos->bar_start_tick +=
+					pos->beats_per_bar
+					* pos->ticks_per_beat;
+			}
+		}
+	}
+}
+
 jack_nframes_t calc_jack_latency(jack_client_t *client, jack_port_t *input_port, jack_port_t *output_port) {
 
   jack_nframes_t  latency = 0;
@@ -61,6 +136,7 @@ int process (jack_nframes_t nframes, void *arg) {
   sample_t *out, *in;
   paDelayData *data = (paDelayData*)arg;
   int i, rc;
+  jack_transport_state_t ts = jack_transport_query(client, NULL);
 
   if (!timerisset(&tv_start_process)) {
     gettimeofday(&tv_start_process, NULL);
@@ -74,22 +150,24 @@ int process (jack_nframes_t nframes, void *arg) {
     }
   }
 
-  out = jack_port_get_buffer (my_output_port, nframes);
-  in = jack_port_get_buffer (my_input_port, nframes);
-  
-  for( i=0; i<nframes; i++ ) {
-    out[i] = data->delay[data->write_phase];
-
-    data->delay[data->read_phase] = in[i];
-    data->read_phase++;
-    data->write_phase++;
-    if (data->read_phase >= TABLE_SIZE) {
-      data->read_phase -= TABLE_SIZE;
-    }
-    if (data->write_phase >= TABLE_SIZE) {
-      data->write_phase -= TABLE_SIZE;
-    }
-  }  
+  if (ts == JackTransportRolling) {
+    out = jack_port_get_buffer (my_output_port, nframes);
+    in = jack_port_get_buffer (my_input_port, nframes);
+    
+    for( i=0; i<nframes; i++ ) {
+      out[i] = data->delay[data->write_phase];
+      
+      data->delay[data->read_phase] = in[i];
+      data->read_phase++;
+      data->write_phase++;
+      if (data->read_phase >= TABLE_SIZE) {
+	data->read_phase -= TABLE_SIZE;
+      }
+      if (data->write_phase >= TABLE_SIZE) {
+	data->write_phase -= TABLE_SIZE;
+      }
+    }  
+  } 
   return 0;      
 }
 
@@ -243,6 +321,9 @@ int main (int argc, char *argv[]) {
   */
 
   jack_on_shutdown (client, jack_shutdown, 0);
+
+  if (jack_set_timebase_callback(client, 1, timebase, NULL) != 0)
+    fprintf(stderr, "Unable to take over timebase.\n");
 
    
   /* Tell the JACK server that we are ready to roll.  Our

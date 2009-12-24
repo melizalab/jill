@@ -1,4 +1,4 @@
-PROGS = JILL_capture JILL_display_signal JILL_delay 
+PROGS = JILL_capture JILL_display_signal JILL_delay JILL_transport
 
 all: run_tests ${PROGS}
 
@@ -23,6 +23,9 @@ JILL_delay: ${OBJS} JILL_delay.o
 	$(CC) -o $@ $^ ${LFLAGS}
 
 JILL_capture: ${OBJS} JILL_capture.o
+	$(CC) -o $@ $^ ${LFLAGS}
+
+JILL_transport: ${OBJS} JILL_transport.o
 	$(CC) -o $@ $^ ${LFLAGS}
 
 JILL_display_signal: ${OBJS} JILL_display_signal.o 

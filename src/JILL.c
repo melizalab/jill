@@ -7,11 +7,13 @@
 #include <string.h>
 #include <sys/file.h>
 
-void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, struct timeval *tv) {
+void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, double seconds_since_epoch) {
   char timestring[JILL_MAX_STRING_LEN];
   struct tm *tm_time;
+  time_t secs;
   
-  tm_time = localtime(&(tv->tv_sec));
+  secs = (time_t) floor(seconds_since_epoch);
+  tm_time = localtime(&secs);
   strftime(timestring, JILL_MAX_STRING_LEN, "%Y-%m-%d__%Hh%Mm%Ss", tm_time);
   sprintf(outfilename, "%s__%s.wav", name, timestring);
   outfilename[79] = '\0';

@@ -132,9 +132,11 @@ public:
   void testOutFilename() {
     char filename[JILL_MAX_STRING_LEN];
     struct timeval tv;
+    double secs;
     
     gettimeofday(&tv, NULL);
-    JILL_soundfile_get_name(filename, "testing", "system:capture_1", &tv);
+    secs = tv.tv_sec;
+    JILL_soundfile_get_name(filename, "testing", "system:capture_1", secs);
     TS_ASSERT(strlen(filename) <= JILL_MAX_STRING_LEN);
   }
 };

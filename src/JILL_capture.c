@@ -21,6 +21,7 @@ jack_nframes_t jtime_start;
 jack_nframes_t jtime_start_cur_cycle;
 struct timeval tv_cur;
 double jill_time_cur;
+double start_frame_time;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -31,8 +32,6 @@ long nframes_written = 0;
 long long samples_processed = 0;
 
 sample_t threshhold = 0.5;
-
-
 
 static void signal_handler(int sig) {
 
@@ -50,26 +49,32 @@ static void signal_handler(int sig) {
 
 int process (jack_nframes_t nframes, void *arg) {
   sample_t *in;
-  int rc;
+  //  int rc;
   int jack_sample_size;
   jack_nframes_t  num_frames_left_to_write, 
     num_frames_to_write, num_frames_able_to_write,
     num_frames_written;
   size_t num_bytes_to_write, num_bytes_written, num_bytes_able_to_write;
+  
+  jack_position_t pos;
+  int rc;
 
-  if (!timerisset(&tv_start_process)) {
-    gettimeofday(&tv_start_process, NULL);
-    jtime_start = jack_last_frame_time(client);
+
+  if(jack_transport_query(client, &pos) == JackTransportRolling) {
+
+
+    jtime_start_cur_cycle = pos.frame;
+  } else {
+    return 0;
   }
-
-  jtime_start_cur_cycle = jack_last_frame_time(client);
+  //  jtime_start_cur_cycle = jack_last_frame_time(client);
 
   jack_sample_size = sizeof(sample_t);
 
   in = jack_port_get_buffer (my_input_port, nframes);
 
   num_frames_left_to_write = nframes;
-
+ 
   while (num_frames_left_to_write > 0) {
     num_bytes_able_to_write = jack_ringbuffer_write_space(jrb_process);
     num_frames_able_to_write = floor(num_bytes_able_to_write / jack_sample_size);
@@ -89,12 +94,11 @@ int process (jack_nframes_t nframes, void *arg) {
     samples_processed += num_frames_written;
   }
   /* signal we have more data to write */
-  rc = pthread_mutex_trylock(&mutex);
-  if (rc == 0) {
-    pthread_cond_signal(&cond);
-    pthread_mutex_unlock(&mutex);
-  }
-
+  rc = pthread_mutex_trylock(&mutex); 
+  if (rc == 0) { 
+    pthread_cond_signal(&cond); 
+    pthread_mutex_unlock(&mutex); 
+  } 
   return 0;      
 }
 
@@ -157,7 +161,7 @@ main (int argc, char *argv[])
   int ncrossings_open = 1, ncrossings_close = 1000000;
   int trigger_last_state, trigger_new_state;
   
-
+  jack_position_t pos;
   double jill_time_trigger_first_close, jill_time_start;
 
   int logfile_fd;
@@ -293,6 +297,7 @@ main (int argc, char *argv[])
 
   jack_on_shutdown (client, jack_shutdown, 0);
 
+
   my_input_port = jack_port_register (client, "input",
 				      JACK_DEFAULT_AUDIO_TYPE,
 				      JackPortIsInput|JackPortIsTerminal, 0);
@@ -309,7 +314,7 @@ main (int argc, char *argv[])
     fprintf (stderr, "cannot activate client");
     exit (1);
   }
-      
+
   if (jack_connect (client, his_output_port_name, jack_port_name(my_input_port))) {
     fprintf (stderr, "cannot connect to port '%s'\n", his_output_port_name);
     exit(1);
@@ -328,9 +333,16 @@ main (int argc, char *argv[])
 
   /* wait until process goes through once (to set the date) then wake up and roll */
   pthread_cond_wait(&cond, &mutex); 
+  jack_transport_query(client, &pos);
 
-  jill_time_start = JILL_samples_to_seconds_since_epoch(0, &tv_start_process, SR);
+  start_frame_time = pos.frame_time;
+  jtime_start = pos.frame;
 
+  
+  jill_time_start = start_frame_time;
+
+  time_t  secs = (time_t)floor(jill_time_start);
+  printf("%s\n", ctime(&secs)); 
   /* because we check for triggering based on being within a certain time of the 
      first close after being open, initialize the first close to be far in the past */
   jill_time_trigger_first_close = 0.0;
@@ -338,6 +350,7 @@ main (int argc, char *argv[])
 
   JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u START\n", 
 		  jill_id, jill_time_start, jtime_start);
+
   JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER name = %s\n", 
 		  jill_id, jill_time_start, jtime_start, jill_id);
   JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER logfile = %s\n", 
@@ -360,7 +373,6 @@ main (int argc, char *argv[])
 		  jill_id, jill_time_start, jtime_start, trigger_prebuf_secs);
   JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER postbuf = %.4f\n", 
 		  jill_id, jill_time_start, jtime_start, trigger_postbuf_secs);
-
 
   while (1) {
 
@@ -390,20 +402,17 @@ main (int argc, char *argv[])
       trigger_last_state = JILL_trigger_get_state(&trigger);
       trigger_new_state = JILL_trigger_calc_new_state(&trigger, writer_read_buf, jack_nframes_per_buf);
 
-      /* calculate current time from number of samples processed by trigger
-	 FIXME: what if there's an xrun? need to use jack's time mechanism */
-      jill_time_cur = JILL_samples_to_seconds_since_epoch(trigger.samples_processed, &tv_start_process, SR);
-
+      jack_transport_query(client, &pos);
+      jill_time_cur = pos.frame_time;
 
       /* now begin  deciding what to do with the new state */
       if (trigger_last_state != trigger_new_state) {
 	if (trigger_new_state == 1) {
-	  JILL_samples_to_timeval(trigger.samples_processed, &tv_start_process, SR, &tv_cur);	  
 	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u TRIGGER_OPEN\n", jill_id, jill_time_cur, jtime_start_cur_cycle);
 
 	  if (sf_out == NULL) {
 
-	    JILL_soundfile_get_name(soundfile_name, jill_id, his_output_port_name, &tv_cur);
+	    JILL_soundfile_get_name(soundfile_name, jill_id, his_output_port_name, jill_time_cur);
 	    JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u OUTFILE_OPEN %s\n", jill_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
 
 	    sf_out = JILL_soundfile_open_for_write(soundfile_name, SR);
@@ -430,14 +439,16 @@ main (int argc, char *argv[])
 
       } else {
 	if (sf_out != NULL) {
-	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u OUTFILE_CLOSE %s\n", jill_id, JILL_samples_to_seconds_since_epoch(trigger.samples_processed, &tv_start_process, SR), jtime_start_cur_cycle, soundfile_name);
+	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u OUTFILE_CLOSE %s\n", jill_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
 
 	  JILL_soundfile_close(sf_out);
 	  sf_out = NULL;
 	}
       }
     }
+
     pthread_cond_wait(&cond, &mutex);    
+
   }
 
   pthread_mutex_unlock(&mutex);
