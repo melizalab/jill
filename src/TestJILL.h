@@ -136,7 +136,7 @@ public:
     
     gettimeofday(&tv, NULL);
     secs = tv.tv_sec;
-    JILL_soundfile_get_name(filename, "testing", "system:capture_1", secs);
+    JILL_soundfile_get_name(filename, "testing", secs);
     TS_ASSERT(strlen(filename) <= JILL_MAX_STRING_LEN);
   }
 };

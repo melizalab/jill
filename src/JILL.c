@@ -7,7 +7,7 @@
 #include <string.h>
 #include <sys/file.h>
 
-void JILL_soundfile_get_name(char* outfilename, const char *name, const char *portname, double seconds_since_epoch) {
+void JILL_soundfile_get_name(char* outfilename, const char *name, double seconds_since_epoch) {
   char timestring[JILL_MAX_STRING_LEN];
   struct tm *tm_time;
   time_t secs;

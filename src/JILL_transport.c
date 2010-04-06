@@ -166,6 +166,10 @@ int main (int argc, char *argv[]) {
     exit(1);
   }
 
+
+  /* get transport started asap */
+  jack_transport_start(client);
+
   /* tell the JACK server to call `process()' whenever
      there is work to be done.
   */

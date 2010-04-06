@@ -12,13 +12,14 @@
 
 jack_port_t  *my_input_port, *his_output_port;
 jack_client_t *client;
-size_t TABLE_SIZE;
+
 jack_ringbuffer_t *jrb_process;
+jack_ringbuffer_t *jrb_process_times;
 SNDFILE *sf_out;
 struct timeval tv_start_process;
 jack_nframes_t jtime_start;
 
-jack_nframes_t jtime_start_cur_cycle;
+double jtime_start_cur_cycle;
 struct timeval tv_cur;
 double jill_time_cur;
 double start_frame_time;
@@ -63,45 +64,45 @@ int process (jack_nframes_t nframes, void *arg) {
   if(jack_transport_query(client, &pos) == JackTransportRolling) {
 
 
-    jtime_start_cur_cycle = pos.frame;
-  } else {
-    return 0;
-  }
-  //  jtime_start_cur_cycle = jack_last_frame_time(client);
+    jtime_start_cur_cycle = pos.frame_time;
+    
+    //  jtime_start_cur_cycle = jack_last_frame_time(client);
 
-  jack_sample_size = sizeof(sample_t);
+    jack_sample_size = sizeof(sample_t);
 
-  in = jack_port_get_buffer (my_input_port, nframes);
+    in = jack_port_get_buffer (my_input_port, nframes);
 
-  num_frames_left_to_write = nframes;
+    num_frames_left_to_write = nframes;
  
-  while (num_frames_left_to_write > 0) {
-    num_bytes_able_to_write = jack_ringbuffer_write_space(jrb_process);
-    num_frames_able_to_write = floor(num_bytes_able_to_write / jack_sample_size);
+    while (num_frames_left_to_write > 0) {
+      num_bytes_able_to_write = jack_ringbuffer_write_space(jrb_process);
+      num_frames_able_to_write = floor(num_bytes_able_to_write / jack_sample_size);
       
-    num_frames_to_write = num_frames_able_to_write < num_frames_left_to_write ? num_frames_able_to_write : num_frames_left_to_write; 
-    num_bytes_to_write = num_frames_to_write * jack_sample_size;
+      num_frames_to_write = num_frames_able_to_write < num_frames_left_to_write ? num_frames_able_to_write : num_frames_left_to_write; 
+      num_bytes_to_write = num_frames_to_write * jack_sample_size;
       
-    num_bytes_written = jack_ringbuffer_write(jrb_process, (char*)in, num_bytes_to_write); 
-      
-    if (num_bytes_written != num_bytes_to_write) { 
-      fprintf(stderr, "DANGER!!! number of bytes written to ringbuffer not the number requested\n"); 
-    } 
-      
-    num_frames_written = num_bytes_written / jack_sample_size;
-    num_frames_left_to_write -= num_frames_written; 
-    nframes_written += num_frames_written; 
-    samples_processed += num_frames_written;
+      num_bytes_written = jack_ringbuffer_write(jrb_process, (char*)in, num_bytes_to_write); 
+      if (num_bytes_written != num_bytes_to_write) { 
+	fprintf(stderr, "DANGER!!! number of bytes written to ringbuffer not the number requested\n"); 
+      } 
+      jack_ringbuffer_write(jrb_process_times, (char *) &jtime_start_cur_cycle, sizeof(double));
+
+      num_frames_written = num_bytes_written / jack_sample_size;
+      num_frames_left_to_write -= num_frames_written; 
+      nframes_written += num_frames_written; 
+      samples_processed += num_frames_written;
+    }
   }
-  /* signal we have more data to write */
+
+  /* signal we have processed more data */
   rc = pthread_mutex_trylock(&mutex); 
   if (rc == 0) { 
     pthread_cond_signal(&cond); 
     pthread_mutex_unlock(&mutex); 
   } 
+  
   return 0;      
 }
-
 
 /**
  * JACK calls this shutdown_callback if the server ever shuts down or
@@ -271,11 +272,14 @@ main (int argc, char *argv[])
   jrb_size_in_bytes = SR*sizeof(sample_t);
 
   jrb_process = jack_ringbuffer_create(jrb_size_in_bytes);
+  jrb_process_times = jack_ringbuffer_create(SR*sizeof(double));
+
   writer_read_buf = (float *) malloc(jrb_size_in_bytes);
 
   /* just cover delay time */
   trigger_nframes = SR * trigger_prebuf_secs; 
-
+  
+  
   jrb_prebuf_size_in_bytes = trigger_nframes * sizeof(sample_t);  
   jrb_prebuf = jack_ringbuffer_create(jrb_prebuf_size_in_bytes); 
 
@@ -333,46 +337,43 @@ main (int argc, char *argv[])
 
   /* wait until process goes through once (to set the date) then wake up and roll */
   pthread_cond_wait(&cond, &mutex); 
-  jack_transport_query(client, &pos);
 
-  start_frame_time = pos.frame_time;
-  jtime_start = pos.frame;
 
-  
-  jill_time_start = start_frame_time;
+  jack_ringbuffer_peek(jrb_process_times, (char *) &jill_time_start, sizeof(double));
 
   time_t  secs = (time_t)floor(jill_time_start);
   printf("%s\n", ctime(&secs)); 
+
   /* because we check for triggering based on being within a certain time of the 
      first close after being open, initialize the first close to be far in the past */
   jill_time_trigger_first_close = 0.0;
 
 
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u START\n", 
-		  jill_id, jill_time_start, jtime_start);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f START\n", 
+		  jill_id, jill_time_start);
 
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER name = %s\n", 
-		  jill_id, jill_time_start, jtime_start, jill_id);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER logfile = %s\n", 
-		  jill_id, jill_time_start, jtime_start, logfile_name);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER input_port = %s\n", 
-		  jill_id, jill_time_start, jtime_start, his_output_port_name);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER open_window = %.4f\n", 
-		  jill_id, jill_time_start, jtime_start, open_window);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER close_window = %.4f\n", 
-		  jill_id, jill_time_start, jtime_start, close_window);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER open_threshold = %.4f\n", 
-		  jill_id, jill_time_start, jtime_start, open_threshold);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER close_threshold = %.4f\n", 
-		  jill_id, jill_time_start, jtime_start, close_threshold);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER ncrossings_open = %d\n", 
-		  jill_id, jill_time_start, jtime_start, ncrossings_open);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER ncrossings_close = %d\n", 
-		  jill_id, jill_time_start, jtime_start, ncrossings_close);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER prebuf = %.4f\n", 
-		  jill_id, jill_time_start, jtime_start, trigger_prebuf_secs);
-  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u PARAMETER postbuf = %.4f\n", 
-		  jill_id, jill_time_start, jtime_start, trigger_postbuf_secs);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER name = %s\n", 
+		  jill_id, jill_time_start, jill_id);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER logfile = %s\n", 
+		  jill_id, jill_time_start, logfile_name);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER input_port = %s\n", 
+		  jill_id, jill_time_start, his_output_port_name);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER open_window = %.4f\n", 
+		  jill_id, jill_time_start, open_window);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER close_window = %.4f\n", 
+		  jill_id, jill_time_start, close_window);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER open_threshold = %.4f\n", 
+		  jill_id, jill_time_start, open_threshold);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER close_threshold = %.4f\n", 
+		  jill_id, jill_time_start, close_threshold);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER ncrossings_open = %d\n", 
+		  jill_id, jill_time_start, ncrossings_open);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER ncrossings_close = %d\n", 
+		  jill_id, jill_time_start, ncrossings_close);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER prebuf = %.4f\n", 
+		  jill_id, jill_time_start, trigger_prebuf_secs);
+  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f PARAMETER postbuf = %.4f\n", 
+		  jill_id, jill_time_start, trigger_postbuf_secs);
 
   while (1) {
 
@@ -388,7 +389,9 @@ main (int argc, char *argv[])
       num_bytes_to_read = jack_nframes_per_buf * jack_sample_size;
       num_bytes_read = jack_ringbuffer_read(jrb_process, (char *) writer_read_buf, num_bytes_to_read);
       num_bytes_available_to_read -= num_bytes_read;
-	
+      
+      jack_ringbuffer_read(jrb_process_times, (char *) &jill_time_cur, sizeof(double));
+
       /* restrict prebuf ringbuffer data size by discarding old samples
 	 (the ringbuffer has more space than we need) */
       if (jack_ringbuffer_read_space(jrb_prebuf) + num_bytes_read > jrb_prebuf_size_in_bytes) {
@@ -402,18 +405,21 @@ main (int argc, char *argv[])
       trigger_last_state = JILL_trigger_get_state(&trigger);
       trigger_new_state = JILL_trigger_calc_new_state(&trigger, writer_read_buf, jack_nframes_per_buf);
 
-      jack_transport_query(client, &pos);
-      jill_time_cur = pos.frame_time;
+      /*     
+	     jack_transport_query(client, &pos);
+	     jill_time_cur = pos.frame_time; 
+      */
 
       /* now begin  deciding what to do with the new state */
       if (trigger_last_state != trigger_new_state) {
 	if (trigger_new_state == 1) {
-	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u TRIGGER_OPEN\n", jill_id, jill_time_cur, jtime_start_cur_cycle);
+	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f TRIGGER_OPEN\n", jill_id, jill_time_cur);
 
 	  if (sf_out == NULL) {
 
-	    JILL_soundfile_get_name(soundfile_name, jill_id, his_output_port_name, jill_time_cur);
-	    JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u OUTFILE_OPEN %s\n", jill_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
+	    JILL_soundfile_get_name(soundfile_name, jill_id, jill_time_cur);
+
+	    JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f OUTFILE_OPEN %s\n", jill_id, jill_time_cur, soundfile_name);
 
 	    sf_out = JILL_soundfile_open_for_write(soundfile_name, SR);
 	    if (sf_out == NULL) {
@@ -424,14 +430,15 @@ main (int argc, char *argv[])
 	  }
 	} else { 
 	jill_time_trigger_first_close = jill_time_cur; 
-	JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u TRIGGER_CLOSE\n", jill_id, jill_time_cur, jtime_start_cur_cycle); 
+	JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f TRIGGER_CLOSE\n", jill_id, jill_time_cur); 
 	}
       }
       
       if ( trigger_new_state == 1 || ( (jill_time_cur - jill_time_trigger_first_close) < trigger_postbuf_secs) ) {
 
 	num_bytes_to_read = jack_ringbuffer_read_space(jrb_prebuf); 
-	num_bytes_read = jack_ringbuffer_read(jrb_prebuf, (char *) trigger_read_buf, num_bytes_to_read); 	num_frames_to_write_to_disk = (float) num_bytes_read / jack_sample_size;
+	num_bytes_read = jack_ringbuffer_read(jrb_prebuf, (char *) trigger_read_buf, num_bytes_to_read); 
+	num_frames_to_write_to_disk = (float) num_bytes_read / jack_sample_size;
 	num_frames_written_to_disk = JILL_soundfile_write(sf_out, trigger_read_buf, num_frames_to_write_to_disk);
 	if(num_frames_written_to_disk != num_frames_to_write_to_disk) {
 	  fprintf(stderr, "number of frames written to disk is not equal to number requested\n");
@@ -439,7 +446,7 @@ main (int argc, char *argv[])
 
       } else {
 	if (sf_out != NULL) {
-	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f %u OUTFILE_CLOSE %s\n", jill_id, jill_time_cur, jtime_start_cur_cycle, soundfile_name);
+	  JILL_log_writef(logfile_fd, "[JILL_capture:%s] %f OUTFILE_CLOSE %s\n", jill_id, jill_time_cur, soundfile_name);
 
 	  JILL_soundfile_close(sf_out);
 	  sf_out = NULL;
