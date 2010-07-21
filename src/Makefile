@@ -44,4 +44,4 @@ runner.cpp: TestJILL.h ${SRCS}
 	cxxtestgen -o $@ --error-printer TestJILL.h
 
 clean:
-	rm -f ${OBJS} $(PROGS:%=%.o)
+	rm -f ${OBJS} $(PROGS:%=%.o) ${PROGS} runner
