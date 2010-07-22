@@ -1,2 +1,6 @@
 import os
 Import('env')
+
+srcs = env.Glob('*.cc')
+
+lib = env.Library('jill',srcs)
