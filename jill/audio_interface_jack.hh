@@ -15,7 +15,6 @@
 
 #include <string>
 #include <vector>
-
 #include <jack/transport.h>
 
 namespace jill {
@@ -39,7 +38,7 @@ public:
 	 *                   JackPortIsOutput - register an output port
 	 *                   JackPortIsInput|JackPortIsOutput - register both
 	 */
-	AudioInterfaceJack(const std::string & name, JackPortFlags port_type);
+	AudioInterfaceJack(const std::string & name, int port_type);
 	virtual ~AudioInterfaceJack();
 
 	virtual void set_timebase_callback(TimebaseCallback cb);

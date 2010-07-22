@@ -1,0 +1,11 @@
+import os
+Import('env lib')
+
+menv = env.Clone()
+menv.Append(CPPPATH=['#'])
+
+srcs = ['template.cc']
+
+for src in srcs:
+    prog = menv.Program(os.path.splitext(src)[0],[src,lib])
+

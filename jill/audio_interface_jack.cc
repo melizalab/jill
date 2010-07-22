@@ -16,11 +16,12 @@
 #include <cerrno>
 #include <cstring>
 
+#include "util/debug.hh"
 #include "util/string.hh"
 
 using namespace jill;
 
-AudioInterfaceJack::AudioInterfaceJack(const std::string & name, JackPortFlags port_type)
+AudioInterfaceJack::AudioInterfaceJack(const std::string & name, int port_type)
 	: _shutdown(false)
 {
 	if ((_client = jack_client_open(name.c_str(), JackNullOption, NULL)) == 0)
@@ -29,7 +30,8 @@ AudioInterfaceJack::AudioInterfaceJack(const std::string & name, JackPortFlags p
 	jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
 	jack_on_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
 
-	if (port_type & JackPortIsInput) 
+	if (port_type & JackPortIsInput)
+	// should make this terminal
 		if ((_input_port = jack_port_register(_client, "in", JACK_DEFAULT_AUDIO_TYPE,
 						      JackPortIsInput, 0))==NULL)
 			throw AudioError("can't register input port");

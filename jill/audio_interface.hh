@@ -11,12 +11,17 @@
 #ifndef _AUDIO_INTERFACE_HH
 #define _AUDIO_INTERFACE_HH
 
-#include "audio.hh"
-
 #include <string>
 #include <stdexcept>
 #include <boost/noncopyable.hpp>
 #include <boost/function.hpp>
+#include <jack/types.h>
+#include <jack/transport.h>
+
+typedef jack_default_audio_sample_t sample_t;
+typedef jack_nframes_t nframes_t;
+typedef jack_position_t position_t;
+
 
 namespace jill {
 
@@ -34,7 +39,7 @@ public:
 		AudioError(std::string const & w) : std::runtime_error(w) { }
 	};
 
-	AudioInterface();
+	AudioInterface() {}
 	virtual ~AudioInterface() { }
 
 	/// The type of the process callback
@@ -72,7 +77,6 @@ public:
 	typedef boost::function<void (position_t *)> TimebaseCallback;
 
 	virtual void set_timebase_callback(TimebaseCallback cb) = 0;
-
 
 	virtual bool transport_rolling() const = 0;
 	virtual position_t position() const = 0;

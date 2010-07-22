@@ -1,0 +1,7 @@
+import os
+Import('env libname')
+
+srcs = env.Glob('*.cc')
+
+lib = env.Library(libname,srcs)
+Return('lib')
