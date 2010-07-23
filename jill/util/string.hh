@@ -39,6 +39,19 @@ class make_string
     std::ostringstream _stream;
 };
 
+std::string get_filename_extension(const std::string & filename)
+{
+    std::string::size_type period = filename.find_last_of('.');
+    if (period == std::string::npos) {
+        return "";
+    }
+
+    std::string ext(filename, period + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    return ext;
+}
+
 }}
 
 #endif // _STRING_HH
