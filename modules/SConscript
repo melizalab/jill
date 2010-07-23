@@ -2,10 +2,12 @@ import os
 Import('env lib')
 
 menv = env.Clone()
-menv.Append(CPPPATH=['#'])
+menv.Append(CPPPATH=['#'],LIBS=['sndfile'])
 
-srcs = ['template.cc']
+srcs = ['template.cc','writer.cc']
 
 for src in srcs:
-    prog = menv.Program(os.path.splitext(src)[0],[src,lib])
+    progname = os.path.splitext(src)[0]
+    prog = menv.Program(progname,[src,lib])
+    menv.Alias(progname,prog)
 

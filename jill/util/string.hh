@@ -9,8 +9,8 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-#ifndef _STRING_HH
-#define _STRING_HH
+#ifndef _UTIL_STRING_HH
+#define _UTIL_STRING_HH
 
 #include <string>
 #include <sstream>
@@ -39,6 +39,7 @@ class make_string
     std::ostringstream _stream;
 };
 
+inline
 std::string get_filename_extension(const std::string & filename)
 {
     std::string::size_type period = filename.find_last_of('.');
@@ -54,4 +55,4 @@ std::string get_filename_extension(const std::string & filename)
 
 }}
 
-#endif // _STRING_HH
+#endif // _UTIL_STRING_HH

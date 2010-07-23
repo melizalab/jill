@@ -18,12 +18,46 @@
 
 #include "jill/main.hh"
 #include "jill/application.hh"
+#include "jill/buffered_sndfile.hh"
 #include "jill/util/logger.hh"
 
 using namespace jill;
 
-// module-level variables are the application and return type
+/**
+ * First, we need to subclass Options to handle the additional
+ * command-line options for this module.  Note how we call the
+ * superclass functions to parse the default options.
+ *
+ * The option added is:
+ * -f  : output file
+ */
+class WriterOptions : public Options {
+
+public:
+	WriterOptions(const char *program_name, const char *program_version)
+		: Options(program_name, program_version) {} // this calls the superclass constructor
+
+	std::string output_file;
+	int parse(int argc, char **argv) {
+		int n, optind;
+		optind = Options::parse(argc, argv);
+		for (n = optind; n < argc; ++n) {
+			output_file = std::string(argv[n]);
+			if (!output_file.empty()) return ++n;
+		}
+		throw CmdlineError("Need to specify an output file");
+	}
+protected:
+	void print_usage() {
+		Options::print_usage();
+		std::cout << "\n\n"
+			  << "Arguments:\n"
+			  << "   wavfile            specify output file\n";
+	}
+};
+
 static boost::scoped_ptr<Application> app;
+static BufferedSndfile<sample_t> sndfile;
 static int ret = EXIT_SUCCESS;
 
 /**
@@ -59,17 +93,22 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		// parse options
-		Options options("template", "1.0.0rc");
+		WriterOptions options("writer", "1.0.0rc");
 		options.parse(argc,argv);
 
 		// fire up the logger
 		util::logstream logv(options.client_name.c_str());
 		logv.set_stream(options.logfile);
-		logv << logv.allfields << "Starting client" << endl;
 
 		// start up the client
+		logv << logv.allfields << "Starting client" << endl;
 		AudioInterfaceJack client(options.client_name, JackPortIsInput|JackPortIsOutput);
 		client.set_process_callback(process);
+
+		// open the output file (after connecting to server to sampling rate)
+		logv << logv.allfields << "Opening " << options.output_file 
+		     << " for output; Fs = " << client.samplerate() << endl;
+		sndfile.open(options.output_file.c_str(), client.samplerate());
 
 		// set up signal handlers to exit cleanly when terminated
 		signal(SIGINT,  signal_handler);
@@ -89,5 +128,6 @@ main(int argc, char **argv)
 		std::cerr << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
+
 	// cleanup is automatic!
 }

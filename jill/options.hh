@@ -30,15 +30,16 @@ namespace jill {
  * -i : input ports
  * -o : output ports
  *
- * Applications requiring additional options can derive from this class and then
- * call the base method, if desired.
+ * Applications requiring additional options can derive from this
+ * class and then call the base method, if desired.  There is
+ * currently no way of removing options from the superclass.
  */
 class Options {
 public:
 	Options(const char *program_name, const char *program_version);
 
 	/// Parse the command line arguments and store options
-	void parse(int argc, char **argv);
+	int parse(int argc, char **argv);
 
 	/// The client name (used in internal JACK representations)
 	std::string client_name;
@@ -49,10 +50,10 @@ public:
 	/// The log file to write application events to
 	std::string logfile;
 
-private:
+protected:
 	struct CmdlineError : public std::runtime_error
 	{
-		CmdlineError(std::string const & w) : std::runtime_error(w) { }
+		CmdlineError(std::string const & w) : std::runtime_error("Error: " + w) { }
 	};
 
 	struct InvalidArgument : public std::runtime_error
@@ -62,8 +63,9 @@ private:
 					     << a << " (" << w << ")") {}
 	};
 
-	void print_version();
-	void print_usage();
+	// these are virtual so that they can be called correctly by parse
+	virtual void print_version();
+	virtual void print_usage();
 	std::string _program_name;
 	std::string _program_version;
 };

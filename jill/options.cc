@@ -31,16 +31,15 @@ void Options::print_version()
 void Options::print_usage()
 {
 	std::cout
-		<< "Usage:  " << _program_name << " [options]\n\n"
+		<< "Usage:  " << _program_name << " [options] [arguments]\n\n"
 		<< "Options:\n"
 		<< "  -n name               set jack client name\n"
 		<< "  -l logfile            set logfile (default standard out)\n"
 		<< "  -o port,...           set output port(s)\n"
-		<< "  -i port,...           set input port(s)\n"
-		<< std::endl;
+		<< "  -i port,...           set input port(s)\n";
 }
 
-void Options::parse(int argc, char **argv)
+int Options::parse(int argc, char **argv)
 {
 	int c;
 	char optstring[] = "+n:l:o:i:Vh";
@@ -88,4 +87,5 @@ void Options::parse(int argc, char **argv)
 			break;
 		}
 	}
+	return ::optind;
 }

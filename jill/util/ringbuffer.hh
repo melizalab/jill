@@ -21,35 +21,35 @@ namespace jill { namespace util {
 
 
 template<typename T>
-class ringbuffer
-	: boost::noncopyable
+class Ringbuffer : boost::noncopyable
 {
 public:
-	ringbuffer(std::size_t size) {
+	Ringbuffer(std::size_t size) {
 		_rb = jack_ringbuffer_create(size * sizeof(T));
 	}
 
-	~ringbuffer() {
+	~Ringbuffer() {
 		jack_ringbuffer_free(_rb);
 	}
 
-	bool write(T const & item) {
-		if (!write_space()) return false;
-		jack_ringbuffer_write(_rb, reinterpret_cast<char const *>(&item), sizeof(T));
-		return true;
+	// should also add calls to get_read_vector and get_write_vector for performance
+	inline std::size_t write(const T *buffer, std::size_t nframes) {
+		return jack_ringbuffer_write(_rb, reinterpret_cast<char const *>(buffer), 
+					     sizeof(T) * nframes);
 	}
 
-	bool read(T & item) {
-		if (!read_space()) return false;
-		jack_ringbuffer_read(_rb, reinterpret_cast<char *>(&item), sizeof(T));
-		return true;
+	inline std::size_t read(T *buffer, std::size_t nframes=0) {
+		if (nframes==0) 
+			nframes = read_space();
+		return jack_ringbuffer_read(_rb, reinterpret_cast<char *>(buffer), 
+					    sizeof(T) * nframes);
 	}
 
-	std::size_t write_space() {
+	inline std::size_t write_space() {
 		return jack_ringbuffer_write_space(_rb) / sizeof(T);
 	}
 
-	std::size_t read_space() {
+	inline std::size_t read_space() {
 		return jack_ringbuffer_read_space(_rb) / sizeof(T);
 	}
 
