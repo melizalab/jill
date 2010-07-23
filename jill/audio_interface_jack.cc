@@ -2,6 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
+ * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +37,7 @@ AudioInterfaceJack::AudioInterfaceJack(const std::string & name, int port_type)
 						      JackPortIsInput, 0))==NULL)
 			throw AudioError("can't register input port");
 
-	if (port_type & JackPortIsOutput) 
+	if (port_type & JackPortIsOutput)
 		if ((_output_port = jack_port_register(_client, "out", JACK_DEFAULT_AUDIO_TYPE,
 						       JackPortIsOutput, 0))==NULL)
 			throw AudioError("can't register output port");
@@ -80,11 +81,11 @@ bool AudioInterfaceJack::is_shutdown() const
 void AudioInterfaceJack::set_timebase_callback(TimebaseCallback cb)
 {
 	if (cb) {
-		if (jack_set_timebase_callback(_client, 0, 
+		if (jack_set_timebase_callback(_client, 0,
 					       &timebase_callback_, static_cast<void*>(this)) != 0) {
 			throw AudioError("failed to become jack transport master");
 		}
-	} 
+	}
 	else {
 		if (_timebase_cb) {
 			jack_release_timebase(_client);
@@ -99,7 +100,7 @@ void AudioInterfaceJack::connect_input(const std::string & port)
 	if (_input_port) {
 		int error = jack_connect(_client, port.c_str(), jack_port_name(_input_port));
 		if (error && error != EEXIST)
-			throw AudioError(util::make_string() << "can't connect " 
+			throw AudioError(util::make_string() << "can't connect "
 					 << jack_port_name(_input_port) << " to " << port.c_str());
 	}
 	else
@@ -112,7 +113,7 @@ void AudioInterfaceJack::connect_output(const std::string & port)
 	if (_output_port) {
 		int error = jack_connect(_client, jack_port_name(_output_port), port.c_str());
 		if (error && error != EEXIST)
-			throw AudioError(util::make_string() << "can't connect " 
+			throw AudioError(util::make_string() << "can't connect "
 					 << jack_port_name(_output_port) << " to " << port.c_str());
 	}
 	else
@@ -181,7 +182,7 @@ bool AudioInterfaceJack::set_frame(nframes_t frame)
 int AudioInterfaceJack::process_callback_(nframes_t nframes, void *arg)
 {
 	AudioInterfaceJack *this_ = static_cast<AudioInterfaceJack*>(arg);
-	
+
 	sample_t *in=NULL, *out=NULL;
 	if (this_->_input_port)
 		in = (sample_t *)jack_port_get_buffer(this_->_input_port, nframes);

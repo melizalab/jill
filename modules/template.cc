@@ -2,6 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
+ * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,22 +31,22 @@ static boost::scoped_ptr<Application> app;
 
 static int ret = EXIT_SUCCESS;
 
-/** 
+/**
  * This function is the processing loop, which runs in a real-time
  * JACK thread.  Depending on the type of interface, it can receive
  * input data, or be required to generate output data.
- * 
+ *
  * @param in Pointer to the input buffer. NULL if the client has no input port
  * @param out Pointer to the output buffer. NULL if no output port
  * @param nframes The number of frames in the data
  */
-void 
+void
 process(sample_t *in, sample_t *out, nframes_t nframes)
 {
 	memcpy(out, in, sizeof(sample_t) * nframes);
 }
 
-/** 
+/**
  * This function handles termination signals and gracefully closes the
  * application.
  */
@@ -71,17 +72,17 @@ main(int argc, char **argv)
 		logv.set_stream(options.logfile);
 		logv << logv.allfields << "Starting client" << endl;
 
- 		// start up the client
- 		AudioInterfaceJack client(client_name, JackPortIsInput|JackPortIsOutput);
- 		client.set_process_callback(process);
+		// start up the client
+		AudioInterfaceJack client(client_name, JackPortIsInput|JackPortIsOutput);
+		client.set_process_callback(process);
 
 		// set up signal handlers to exit cleanly when terminated
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
- 		// instantiate the application
- 		app.reset(new Application(client, options, logv));
+		// instantiate the application
+		app.reset(new Application(client, options, logv));
 		app->setup();
 		app->run();
 		return ret;

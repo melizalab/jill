@@ -2,6 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
+ * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,17 +22,17 @@ class make_string
   public:
     template <typename T>
     make_string & operator<< (T const& t) {
-        _stream << t;
-        return *this;
+	_stream << t;
+	return *this;
     }
 
     make_string & operator<< (std::ostream & (*pf)(std::ostream &)) {
-        pf(_stream);
-        return *this;
+	pf(_stream);
+	return *this;
     }
 
     operator std::string() {
-        return _stream.str();
+	return _stream.str();
     }
 
   private:

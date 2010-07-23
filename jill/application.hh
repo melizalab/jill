@@ -2,6 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
+ * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +32,7 @@ class Application : boost::noncopyable {
 public:
 	/// The main loop callback type. Should return !=0 to terminate the loop
 	typedef boost::function<int(void)> MainLoopCallback;
-	/** 
+	/**
 	 * Initialize the application with a client and options
 	 * @param client The JACK client. Needs to be initialized and any callbacks set
 	 * @param options An options class, which controls initialization.
@@ -41,7 +42,7 @@ public:
 
 	virtual void setup();
 	virtual void set_mainloop_callback(MainLoopCallback cb) { _mainloop_cb = cb; }
-	/// Start the main loop running, sleeping usec_delay between 
+	/// Start the main loop running, sleeping usec_delay between
 	virtual void run(unsigned int usec_delay=100000);
 	virtual void signal_quit() { _quit = true; }
 

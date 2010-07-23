@@ -2,6 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
+ * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,7 @@ using namespace jill;
 
 Application::Application(AudioInterfaceJack &client, const Options &options, util::logstream &logv)
 	: _logv(logv), _client(client), _options(options), _quit(false) {}
-	
+
 
 void
 Application::setup()
@@ -45,7 +46,7 @@ Application::run(unsigned int usec_delay)
 		}
 		else if (_client.is_shutdown())
 			 throw std::runtime_error("Client shutdown by server");
-		
+
 		if (_mainloop_cb)
 			if(_mainloop_cb()!=0) {
 				_logv << _logv.allfields << "Main loop terminated" << std::endl;
@@ -53,6 +54,3 @@ Application::run(unsigned int usec_delay)
 			}
 	}
 }
-				
-			 
-			

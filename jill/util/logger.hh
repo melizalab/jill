@@ -1,16 +1,16 @@
-#ifndef _LOGGER_H
-#define _LOGGER_H 1
 /**
- * @file   logger.h
+ * @file   logger.hh
  * @author Daniel Meliza <dmeliza@uchicago.edu>
  * @date   Mon Mar  1 13:33:47 2010
- * 
+ *
  * @brief  A class for logging events to disk
- * 
+ *
  * Copyright C Daniel Meliza, 2010.  Licensed for use under Creative
  * Commons Attribution-Noncommercial-Share Alike 3.0 United States
  * License (http://creativecommons.org/licenses/by-nc-sa/3.0/us/).
  */
+#ifndef _LOGGER_HH
+#define _LOGGER_HH 1
 #include <cstdio>
 #include <iostream>
 #include <fstream>
@@ -27,7 +27,7 @@ namespace jill { namespace util {
 class logstream {
 public:
 	enum _fixed_fields { program, timestamp, allfields };
-	/** 
+	/**
 	 * Construct logger
 	 * @param s Stream to output log to
 	 * @param p The name of the program doing the logging (when multiple loggers share a file)
@@ -54,7 +54,7 @@ public:
 		if (_stream) pf(*_stream);
 		return *this;
 	}
-	
+
 private:
 	std::ofstream _fstream; // only used if we need to open our own file
 	std::ostream * _stream; // does not own the resource
@@ -83,4 +83,3 @@ logstream & logstream::operator<<(const logstream::_fixed_fields &p)
 
 }}
 #endif /* _LOGGER_H */
-

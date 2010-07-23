@@ -2,6 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
+ * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +20,7 @@
 
 namespace jill {
 
-/** 
+/**
  * The Options class stores options for JILL applications and handles
  * parsing the command line.  This base class processes options common
  * to all JILL applications:
@@ -43,7 +44,7 @@ public:
 	std::string client_name;
 	/// A vector of inputs to connect to the client
 	std::vector<std::string> input_ports;
-        /// A vector of outputs to connect to the client
+	/// A vector of outputs to connect to the client
 	std::vector<std::string> output_ports;
 	/// The log file to write application events to
 	std::string logfile;
@@ -57,7 +58,7 @@ private:
 	struct InvalidArgument : public std::runtime_error
 	{
 		InvalidArgument(char a, std::string const & w)
-			: std::runtime_error(util::make_string() << "invalid argument to -" 
+			: std::runtime_error(util::make_string() << "invalid argument to -"
 					     << a << " (" << w << ")") {}
 	};
 
