@@ -13,11 +13,46 @@
 
 using namespace jill;
 
-Application::Application(AudioInterfaceJack *client, const Options *options, util::logstream *logv)
-	: _client(client), _options(options), _logv(logv), _quit(false) {}
+Application::Application(AudioInterfaceJack &client, const Options &options, util::logstream &logv)
+	: _logv(logv), _client(client), _options(options), _quit(false) {}
+	
 
 void
 Application::setup()
 {
-	
+	std::vector<std::string>::const_iterator it;
+	for (it = _options.input_ports.begin(); it != _options.input_ports.end(); ++it) {
+		_client.connect_input(*it);
+		_logv << _logv.allfields << "Connected input to port " << *it << std::endl;
+	}
+
+	for (it = _options.output_ports.begin(); it != _options.output_ports.end(); ++it) {
+		_client.connect_output(*it);
+		_logv << _logv.allfields << "Connected output to port " << *it << std::endl;
+	}
+
 }
+
+void
+Application::run(unsigned int usec_delay)
+{
+	_logv << _logv.allfields << "Starting main loop with delay " << usec_delay << std::endl;
+	for (;;) {
+		::usleep(usec_delay);
+		if (_quit) {
+			_logv << _logv.allfields << "Application terminated" << std::endl;
+			return;
+		}
+		else if (_client.is_shutdown())
+			 throw std::runtime_error("Client shutdown by server");
+		
+		if (_mainloop_cb)
+			if(_mainloop_cb()!=0) {
+				_logv << _logv.allfields << "Main loop terminated" << std::endl;
+				return;
+			}
+	}
+}
+				
+			 
+			

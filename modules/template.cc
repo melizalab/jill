@@ -67,22 +67,24 @@ main(int argc, char **argv)
 		options.parse(argc,argv);
 
 		// fire up the logger
-		util::logstream logv(0, options.client_name.c_str());
-		std::ofstream log;
-		if (!options.logfile.empty()) {
-			log.open(options.logfile.c_str());
-			logv.set_stream(&log);
-		}
-		else
-			logv.set_stream(&std::cout);
+		util::logstream logv(options.client_name.c_str());
+		logv.set_stream(options.logfile);
 		logv << logv.allfields << "Starting client" << endl;
 
  		// start up the client
  		AudioInterfaceJack client(client_name, JackPortIsInput|JackPortIsOutput);
  		client.set_process_callback(process);
 
+		// set up signal handlers to exit cleanly when terminated
+		signal(SIGINT,  signal_handler);
+		signal(SIGTERM, signal_handler);
+		signal(SIGHUP,  signal_handler);
+
  		// instantiate the application
- 		app.reset(new Application(&client, &options, &logv));
+ 		app.reset(new Application(client, options, logv));
+		app->setup();
+		app->run();
+		return ret;
 	}
 	catch (Exit const &e) {
 		return e.status();
@@ -91,29 +93,6 @@ main(int argc, char **argv)
 		std::cerr << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-	
-// 	
-
-// 	boost::scoped_ptr<AudioInterfaceJack> client;
-// 	client.reset(new AudioInterfaceJack(client_name, JackPortIsInput|JackPortIsOutput));
-// 	logv << logv.allfields << " Initialized interface" << endl;
-
-// 	// set the callback
-// 	client->set_process_callback(process);
-
-// 	// connect the ports
-// 	client->connect_input(input_port);
-// 	client->connect_output(output_port);
-// 	logv << logv.allfields << " Connected to ports" << endl;
-
-// 	// let the client run for a while
-// 	for (;;) {
-// 		::usleep(10000);
-// 		if (client->is_shutdown()) {
-// 			logv << logv.program << " Jack server shut down: exiting " << endl;
-// 			break;
-// 		}
-// 	}
 
 	// cleanup is automatic!
 }

@@ -29,23 +29,30 @@ namespace jill {
  */
 class Application : boost::noncopyable {
 public:
-	
+	/// The main loop callback type. Should return !=0 to terminate the loop
+	typedef boost::function<int(void)> MainLoopCallback;
 	/** 
 	 * Initialize the application with a client and options
 	 * @param client The JACK client. Needs to be initialized and any callbacks set
 	 * @param options An options class, which controls initialization.
 	 */
-	Application(AudioInterfaceJack *client, const Options *options, util::logstream *logv);
-	~Application() {}
+	Application(AudioInterfaceJack &client, const Options &options, util::logstream &logv);
+	virtual ~Application() {}
 
-	void setup();
-	void run();
-	void signal_quit() { _quit = true; }
+	virtual void setup();
+	virtual void set_mainloop_callback(MainLoopCallback cb) { _mainloop_cb = cb; }
+	/// Start the main loop running, sleeping usec_delay between 
+	virtual void run(unsigned int usec_delay=100000);
+	virtual void signal_quit() { _quit = true; }
+
+protected:
+
+	MainLoopCallback _mainloop_cb;
+	util::logstream &_logv;
 
 private:
-	AudioInterfaceJack *_client;
-	const Options *_options;
-	util::logstream *_logv;
+	AudioInterfaceJack &_client;
+	const Options &_options;
 	volatile bool _quit;
 };
 
