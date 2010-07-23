@@ -4,4 +4,5 @@ Import('env libname')
 srcs = env.Glob('*.cc')
 
 lib = env.Library(libname,srcs)
+env.Alias('library',lib)
 Return('lib')

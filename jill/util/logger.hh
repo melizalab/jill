@@ -33,29 +33,31 @@ public:
 	 * @param b True to enable logging (default)
 	 * @param p The name of the program doing the logging (when multiple loggers share a file)
 	 */
-	logstream(std::ostream & s, const char *p="", bool b = true)
+	logstream(std::ostream * s, const char *p="", bool b = true)
 		: _stream(s), _enabled(b), _program(p) {}
 
 	/// Enable or disable the logger
 	void enable(bool b) { _enabled = b; }
+	/// Set or switch streams
+	void set_stream(std::ostream * s) { _stream = s; }
 
 	template <typename T>
 	logstream & operator<< (const T & p);
 
 	logstream & operator<< (std::ostream & (*pf)(std::ostream &)) {
-		if (_enabled) pf(_stream);
+		if (_enabled) pf(*_stream);
 		return *this;
 	}
 	
 private:
-	std::ostream & _stream;
+	std::ostream * _stream;
 	bool _enabled;
 	std::string _program;
 };
 
 template <typename T> inline
 logstream & logstream::operator<< (const T & p) {
-	if (_enabled) _stream << p;
+	if (_enabled) *_stream << p;
 	return *this;
 }
 
@@ -65,10 +67,10 @@ logstream & logstream::operator<<(const logstream::_fixed_fields &p)
 {
 	using namespace boost::posix_time;
 	if (p == program || p == allfields)
-		_stream << '[' << _program << "] ";
+		*_stream << '[' << _program << "] ";
 	if (p == timestamp || p == allfields) {
 		ptime t(microsec_clock::local_time());
-		_stream << to_iso_string(t) << ' ';
+		*_stream << to_iso_string(t) << ' ';
 	}
 	return *this;
 }
