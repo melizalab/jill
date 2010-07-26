@@ -32,8 +32,8 @@ public:
 	 * @param s Stream to output log to
 	 * @param p The name of the program doing the logging (when multiple loggers share a file)
 	 */
-	logstream(const char *p="",std::ostream * s=0)
-		: _stream(s), _program(p) {}
+	logstream(std::ostream * s=0)
+		: _stream(s) {}
 
 	/// Set or switch streams
 	void set_stream(std::ostream * s) { _stream = s; }
@@ -45,6 +45,9 @@ public:
 		}
 		else
 			_stream = &std::cout;
+	}
+	void set_program(const std::string &p) {
+		_program = p;
 	}
 
 	template <typename T>

@@ -42,7 +42,11 @@ public:
 	AudioInterfaceJack(const std::string & name, int port_type);
 	virtual ~AudioInterfaceJack();
 
+	/// The type of the function object for xrun callbacks
+	typedef boost::function<int (float delay_usecs)> XrunCallback;
+
 	virtual void set_timebase_callback(TimebaseCallback cb);
+	virtual void set_xrun_callback(XrunCallback cb);
 
 	/// Get JACK client name
 	std::string client_name() const;
@@ -73,11 +77,6 @@ public:
 	 * @param port_type Indicate the type of the port
 	 */
 	std::vector<std::string> available_ports(JackPortFlags port_type=JackPortIsOutput);
-	/**
-	 * Return a vector of all connected ports
-	 * @param port_type Indicate the type of the port
-	 */
-	//std::vector<std::string> connected_ports(JackPortFlags port_type=JackPortIsOutput);
 
 	// JACK transport
 	virtual bool transport_rolling() const;
@@ -86,11 +85,16 @@ public:
 	virtual bool set_position(const position_t &);
 	virtual bool set_frame(nframes_t);
 
+protected:
+
+	XrunCallback _xrun_cb;
+
 private:
 
 	static int process_callback_(nframes_t, void *);
 	static void timebase_callback_(jack_transport_state_t, nframes_t, position_t *, int, void *);
 	static void shutdown_callback_(void *);
+	static int xrun_callback_(void *);
 
 	jack_client_t *_client;
 	jack_port_t *_output_port;

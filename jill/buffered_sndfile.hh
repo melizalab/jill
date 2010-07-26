@@ -55,12 +55,12 @@ sf_count_t BufferedSndfile<T>::operator()()
 {
 	T *buf;
 	sf_count_t frames = _ringbuffer.peek(&buf);	
-	if (frames)
+	if (frames) {
 		util::Sndfile<T>::writef(buf, frames);
 		_ringbuffer.advance(frames);
+	}
 	return frames;
 }
-	
 
 } // namespace jill
 #endif // _BUFFERED_SNDFILE_HH

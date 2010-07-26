@@ -23,9 +23,10 @@ namespace jill {
 
 
 /**
- * A generic JILL application. Handles argument parsing and any main
- * loop activity. Subclass if you need to do anything in the main
- * loop.
+ * A generic JILL application. It handles connecting the client to any
+ * input or output ports supplied in the Options argument to the
+ * constructor, and calls a main loop callback while the client is
+ * running. Handles some error handling and logging functions as well.
  *
  */
 class Application : boost::noncopyable {
@@ -50,8 +51,10 @@ protected:
 
 	MainLoopCallback _mainloop_cb;
 	util::logstream &_logv;
+	int log_xrun();
 
 private:
+
 	AudioInterfaceJack &_client;
 	const Options &_options;
 	volatile bool _quit;

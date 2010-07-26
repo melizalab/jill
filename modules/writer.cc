@@ -57,6 +57,7 @@ protected:
 	}
 };
 
+static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static BufferedSndfile<sample_t> sndfile;
 static int ret = EXIT_SUCCESS;
@@ -71,7 +72,7 @@ static int ret = EXIT_SUCCESS;
  * @param out Pointer to the output buffer. NULL if no output port
  * @param nframes The number of frames in the data
  */
-void
+static void
 process(sample_t *in, sample_t *out, nframes_t nframes)
 {
 	nframes_t nf = sndfile.writef(in, nframes);
@@ -88,7 +89,7 @@ process(sample_t *in, sample_t *out, nframes_t nframes)
  * 
  * @return 0 for success, non-zero to terminate the application
  */
-int 
+static int 
 mainloop()
 {
 	sndfile();
@@ -108,6 +109,15 @@ static void signal_handler(int sig)
 	app->signal_quit();
 }
 
+/**
+ * This function logs xruns; important to figure out where audio data is bad.
+ */
+static int log_xrun(float usec)
+{
+	logv << logv.allfields << "xrun: " << usec << " us" << std::endl;
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -118,12 +128,13 @@ main(int argc, char **argv)
 		options.parse(argc,argv);
 
 		// fire up the logger
-		util::logstream logv(options.client_name.c_str());
+		logv.set_program(options.client_name.c_str());
 		logv.set_stream(options.logfile);
 
 		// start up the client
 		logv << logv.allfields << "Starting client" << endl;
 		AudioInterfaceJack client(options.client_name, JackPortIsInput);
+		client.set_xrun_callback(log_xrun);
 		client.set_process_callback(process);
 
 		// open the output file (after connecting to server to sampling rate)

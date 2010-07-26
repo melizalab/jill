@@ -11,6 +11,7 @@
  */
 
 #include "application.hh"
+#include <jack/jack.h>
 
 using namespace jill;
 
@@ -31,7 +32,6 @@ Application::setup()
 		_client.connect_output(*it);
 		_logv << _logv.allfields << "Connected output to port " << *it << std::endl;
 	}
-
 }
 
 void
@@ -47,10 +47,11 @@ Application::run(unsigned int usec_delay)
 		else if (_client.is_shutdown())
 			throw std::runtime_error(_client.get_error());
 
-		if (_mainloop_cb)
+		if (_mainloop_cb) {
 			if(_mainloop_cb()!=0) {
 				_logv << _logv.allfields << "Main loop terminated" << std::endl;
 				return;
 			}
+		}
 	}
 }

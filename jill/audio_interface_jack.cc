@@ -13,6 +13,7 @@
 
 #include <jack/jack.h>
 #include <jack/transport.h>
+#include <jack/statistics.h>
 #include <iostream>
 #include <cerrno>
 #include <cstring>
@@ -31,6 +32,7 @@ AudioInterfaceJack::AudioInterfaceJack(const std::string & name, int port_type)
 		throw AudioError("can't connect to jack server");
 
 	jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
+	jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
 	jack_on_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
 
 	if (port_type & JackPortIsInput) {
@@ -105,6 +107,11 @@ void AudioInterfaceJack::set_timebase_callback(TimebaseCallback cb)
 	_timebase_cb = cb;
 }
 
+void
+AudioInterfaceJack::set_xrun_callback(XrunCallback cb)
+{
+	_xrun_cb = cb;
+}
 
 void AudioInterfaceJack::connect_input(const std::string & port)
 {
@@ -230,4 +237,14 @@ void AudioInterfaceJack::shutdown_callback_(void *arg)
 	AudioInterfaceJack *this_ = static_cast<AudioInterfaceJack*>(arg);
 	this_->_err_msg = "shut down by server";
 	this_->_shutdown = true;
+}
+
+
+int 
+AudioInterfaceJack::xrun_callback_(void *arg)
+{
+	AudioInterfaceJack *this_ = static_cast<AudioInterfaceJack*>(arg);
+	if (this_->_xrun_cb)
+		return this_->_xrun_cb(jack_get_xrun_delayed_usecs(this_->_client));
+	return 0;
 }
