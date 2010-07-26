@@ -17,7 +17,7 @@
 #include <boost/shared_ptr.hpp>
 #include <stdexcept>
 #include <string>
-#include <sndfile.hh>
+#include <sndfile.h>
 
 namespace jill { namespace util {
 

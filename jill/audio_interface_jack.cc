@@ -190,7 +190,13 @@ int AudioInterfaceJack::process_callback_(nframes_t nframes, void *arg)
 		out = (sample_t *)jack_port_get_buffer(this_->_output_port, nframes);
 
 	if (this_->_process_cb) {
-		this_->_process_cb(in, out, nframes);
+		try {
+			this_->_process_cb(in, out, nframes);
+		}
+		catch (const std::runtime_error &e) {
+			this_->_err_msg = e.what();
+			this_->_shutdown = true;
+		}
 	}
 
 	return 0;
@@ -210,5 +216,7 @@ void AudioInterfaceJack::timebase_callback_(jack_transport_state_t /*state*/, nf
 
 void AudioInterfaceJack::shutdown_callback_(void *arg)
 {
-	static_cast<AudioInterfaceJack*>(arg)->_shutdown = true;
+	AudioInterfaceJack *this_ = static_cast<AudioInterfaceJack*>(arg);
+	this_->_err_msg = "shut down by server";
+	this_->_shutdown = true;
 }

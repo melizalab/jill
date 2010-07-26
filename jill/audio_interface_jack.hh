@@ -51,6 +51,7 @@ public:
 
 	virtual nframes_t samplerate() const;
 	virtual bool is_shutdown() const;
+	virtual const std::string &get_error() const { return _err_msg; }
 
 	// JACK connections
 	/**
@@ -96,6 +97,7 @@ private:
 	jack_port_t *_input_port;
 
 	volatile bool _shutdown;
+	std::string _err_msg;
 };
 
 } // namespace jill

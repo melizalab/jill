@@ -31,7 +31,7 @@ template <typename T>
 class BufferedSndfile : public util::Sndfile<T> {
 
 public:
-	BufferedSndfile(size_t buffer_size=1000000) 
+	BufferedSndfile(size_t buffer_size=100000) 
 		: util::Sndfile<T>(), _ringbuffer(buffer_size) {}
 
 	/// store data in the ringbuffer. returns the number of samples stored
@@ -49,14 +49,15 @@ sf_count_t BufferedSndfile<T>::writef(const T *buf, size_t nframes)
 	return _ringbuffer.write(buf, nframes);
 }
 
+
 template<typename T> inline
 sf_count_t BufferedSndfile<T>::operator()()
 {
-	// could buffer this further this by declaring a minimum read size
 	T *buf;
-	sf_count_t frames = _ringbuffer.read(buf);	
+	sf_count_t frames = _ringbuffer.peek(&buf);	
 	if (frames)
 		util::Sndfile<T>::writef(buf, frames);
+		_ringbuffer.advance(frames);
 	return frames;
 }
 	

@@ -62,8 +62,9 @@ static int ret = EXIT_SUCCESS;
 
 /**
  * This function is the processing loop, which runs in a real-time
- * JACK thread.  Depending on the type of interface, it can receive
- * input data, or be required to generate output data.
+ * JACK thread.  For this module, we just copy the data to the the
+ * buffered writer.  If not all the samples get written, we throw an
+ * error.
  *
  * @param in Pointer to the input buffer. NULL if the client has no input port
  * @param out Pointer to the output buffer. NULL if no output port
@@ -72,8 +73,27 @@ static int ret = EXIT_SUCCESS;
 void
 process(sample_t *in, sample_t *out, nframes_t nframes)
 {
-	memcpy(out, in, sizeof(sample_t) * nframes);
+	nframes_t nf = sndfile.writef(in, nframes);
+	if (nf < nframes)
+		throw std::runtime_error("ringbuffer filled up");
 }
+
+/** 
+ * This function is a callback that runs in the main thread of this
+ * program. Actions that don't require realtime priority should be
+ * placed here.  In this example, we use the main loop to write data
+ * to the disk. Note that sndfile's operator()() performs the same
+ * thing, so we could have treated the object as a function.
+ * 
+ * @return 0 for success, non-zero to terminate the application
+ */
+int 
+mainloop()
+{
+	sndfile();
+	return 0;
+}
+
 
 /**
  * This function handles termination signals and gracefully closes the
@@ -102,7 +122,7 @@ main(int argc, char **argv)
 
 		// start up the client
 		logv << logv.allfields << "Starting client" << endl;
-		AudioInterfaceJack client(options.client_name, JackPortIsInput|JackPortIsOutput);
+		AudioInterfaceJack client(options.client_name, JackPortIsInput);
 		client.set_process_callback(process);
 
 		// open the output file (after connecting to server to sampling rate)
@@ -118,6 +138,7 @@ main(int argc, char **argv)
 		// instantiate the application
 		app.reset(new Application(client, options, logv));
 		app->setup();
+		app->set_mainloop_callback(mainloop);
 		app->run();
 		return ret;
 	}
@@ -125,7 +146,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::runtime_error const &e) {
-		std::cerr << e.what() << std::endl;
+		std::cerr << "Error: " << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
 

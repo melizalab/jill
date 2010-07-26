@@ -45,7 +45,7 @@ Application::run(unsigned int usec_delay)
 			return;
 		}
 		else if (_client.is_shutdown())
-			 throw std::runtime_error("Client shutdown by server");
+			throw std::runtime_error(_client.get_error());
 
 		if (_mainloop_cb)
 			if(_mainloop_cb()!=0) {
