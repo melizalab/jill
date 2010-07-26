@@ -37,6 +37,7 @@ namespace jill {
 class Options {
 public:
 	Options(const char *program_name, const char *program_version);
+	virtual ~Options() {}
 
 	/// Parse the command line arguments and store options
 	int parse(int argc, char **argv);

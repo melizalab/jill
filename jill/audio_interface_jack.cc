@@ -25,22 +25,33 @@ using namespace jill;
 AudioInterfaceJack::AudioInterfaceJack(const std::string & name, int port_type)
 	: _shutdown(false)
 {
+	int port_flags = 0;
+
 	if ((_client = jack_client_open(name.c_str(), JackNullOption, NULL)) == 0)
 		throw AudioError("can't connect to jack server");
 
 	jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
 	jack_on_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
 
-	if (port_type & JackPortIsInput)
-	// should make this terminal
+	if (port_type & JackPortIsInput) {
+		if (!(port_type & JackPortIsOutput))
+			port_flags = JackPortIsTerminal;
 		if ((_input_port = jack_port_register(_client, "in", JACK_DEFAULT_AUDIO_TYPE,
-						      JackPortIsInput, 0))==NULL)
+						      JackPortIsInput|port_flags, 0))==NULL)
 			throw AudioError("can't register input port");
+	}
+	else
+		_input_port = 0;
 
-	if (port_type & JackPortIsOutput)
+	if (port_type & JackPortIsOutput) {
+		if (!(port_type & JackPortIsInput))
+			port_flags = JackPortIsTerminal;
 		if ((_output_port = jack_port_register(_client, "out", JACK_DEFAULT_AUDIO_TYPE,
-						       JackPortIsOutput, 0))==NULL)
+						       JackPortIsOutput|port_flags, 0))==NULL)
 			throw AudioError("can't register output port");
+	}
+	else 
+		_output_port = 0;
 
 	if (jack_activate(_client))
 		throw AudioError("can't activate client");

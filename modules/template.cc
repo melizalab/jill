@@ -15,6 +15,7 @@
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
 #include <fstream>
+#include <signal.h>
 
 #include "jill/main.hh"
 #include "jill/application.hh"
