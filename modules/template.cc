@@ -24,6 +24,7 @@
 using namespace jill;
 
 // module-level variables are the application and return type
+static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
 
@@ -64,7 +65,7 @@ main(int argc, char **argv)
 		options.parse(argc,argv);
 
 		// fire up the logger
-		util::logstream logv(options.client_name.c_str());
+		logv.set_program(options.client_name.c_str());
 		logv.set_stream(options.logfile);
 		logv << logv.allfields << "Starting client" << endl;
 
