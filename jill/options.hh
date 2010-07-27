@@ -56,6 +56,16 @@ public:
 	 */
 	virtual void parse(int argc, char **argv, const char *configfile=0);
 
+	/**
+	 * Retrieve the value of an option from storage. It's
+	 * recommended to explicitly specify the type, e.g. get<float>("blah")
+	 *
+	 * @param name  The name of the option
+	 * @param def   The default value to use, if the option wasn't set
+	 */
+	template <typename T>
+	T get(const char *name, const T &def);
+
 	/// The client name (used in internal JACK representations)
 	std::string client_name;
 	/// A vector of inputs to connect to the client
@@ -75,6 +85,15 @@ protected:
 	virtual void print_version();
 	
 };
+
+template <typename T>
+T Options::get(const char *name, const T &def)
+{
+	if (vmap.count(name))
+		return vmap[name].as<T>();
+	else
+		return def;
+}
 
 } // namespace jill
 

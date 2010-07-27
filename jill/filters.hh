@@ -33,6 +33,8 @@ namespace jill {
 template <typename T>
 class DelayBuffer : boost::noncopyable {
 public:
+	typedef typename std::deque<T>::size_type size_type;
+
 	DelayBuffer(typename std::deque<T>::size_type delay)
 		: _delay(delay) {}
 	

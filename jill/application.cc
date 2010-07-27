@@ -42,7 +42,7 @@ Application::connect_outputs(const std::vector<std::string> &ports)
 void
 Application::run(unsigned int usec_delay)
 {
-	_logv << _logv.allfields << "Starting main loop with delay " << usec_delay << std::endl;
+	_logv << _logv.allfields << "Starting main loop with delay " << usec_delay << " usec" << std::endl;
 	for (;;) {
 		::usleep(usec_delay);
 		if (_quit) {
