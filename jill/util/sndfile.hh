@@ -29,14 +29,26 @@ public:
 	struct FileError : public std::runtime_error {
 		FileError(const std::string & w) : std::runtime_error(w) { }
 	};
-	Sndfile() {}
+	Sndfile() : _nframes(0) {}
 
+	/// Open a new file for output. Old files are truncated.
 	void open(const std::string &filename, size_t samplerate);
-	sf_count_t writef(const T *buf, sf_count_t nframes);
+
+	/// Write nframes from buf to disk
+	inline sf_count_t writef(const T *buf, sf_count_t nframes) {
+		sf_count_t n = _writef(buf, nframes);
+		_nframes += n;
+		return n;
+	}
+
+	/// Return the total number of frames written
+	sf_count_t nframes() const { return _nframes; }
 
 private:
-	size_t _samplerate;
+	sf_count_t _samplerate;
+	sf_count_t _nframes;
 	boost::shared_ptr<SNDFILE> _sndfile;
+	sf_count_t _writef(const T *buf, sf_count_t nframes);
 
 };
 
@@ -78,22 +90,22 @@ void Sndfile<T>::open(const std::string &filename, size_t samplerate)
 }	
 
 template<> inline
-sf_count_t Sndfile<float>::writef(const float *buf, sf_count_t nframes) {
-	return sf_writef_float(_sndfile.get(), buf, nframes);	
+sf_count_t Sndfile<float>::_writef(const float *buf, sf_count_t nframes) {
+	return sf_writef_float(_sndfile.get(), buf, nframes);
 }
 
 template<> inline
-sf_count_t Sndfile<double>::writef(const double *buf, sf_count_t nframes) {
+sf_count_t Sndfile<double>::_writef(const double *buf, sf_count_t nframes) {
 	return sf_writef_double(_sndfile.get(), buf, nframes);	
 }
 
 template<> inline
-sf_count_t Sndfile<short>::writef(const short *buf, sf_count_t nframes) {
+sf_count_t Sndfile<short>::_writef(const short *buf, sf_count_t nframes) {
 	return sf_writef_short(_sndfile.get(), buf, nframes);	
 }
 
 template<> inline
-sf_count_t Sndfile<int>::writef(const int *buf, sf_count_t nframes) {
+sf_count_t Sndfile<int>::_writef(const int *buf, sf_count_t nframes) {
 	return sf_writef_int(_sndfile.get(), buf, nframes);	
 }
 

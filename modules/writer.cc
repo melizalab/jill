@@ -82,12 +82,14 @@ protected:
 /*
  * We've added an additional module-scope variable, a BufferedSndfile
  * instance. This object needs to be at this scope so that it can be
- * accessed by the real-time and main threads.
+ * accessed by the real-time and main threads.  We initialize it with
+ * enough room for 500k samples, which is enough to buffer over 10s of
+ * sound at CD-quality rates.
  */
 static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
-static BufferedSndfile<sample_t> sndfile;
+static BufferedSndfile<sample_t> sndfile(500000);
 
 /**
  * The process function is similar to the ones in the previous
@@ -201,7 +203,13 @@ main(int argc, char **argv)
 		 * the object.
 		 */
 		// app->set_mainloop_callback(boost::ref(sndfile));
-		app->run();
+		/*
+		 * Writing data is fairly intensive and benefits from
+		 * lots of buffering, so we specify a nice long delay
+		 * between main loops.
+		 */
+		app->run(1e6);
+		logv << logv.allfields << "Total frames written: " << sndfile.nframes() << endl;
 		return ret;
 	}
 	catch (Exit const &e) {
