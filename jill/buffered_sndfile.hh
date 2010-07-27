@@ -36,8 +36,8 @@ public:
 
 	/// store data in the ringbuffer. returns the number of samples stored
 	sf_count_t writef(const T *buf, size_t nframes);
-	/// write data from the ringbuffer to disk
-	sf_count_t operator() ();
+	/// write data from the ringbuffer to disk. Returns 0 if successful, -1 otherwise
+	int operator() ();
 
 private:
 	util::Ringbuffer<T> _ringbuffer;
@@ -51,15 +51,16 @@ sf_count_t BufferedSndfile<T>::writef(const T *buf, size_t nframes)
 
 
 template<typename T> inline
-sf_count_t BufferedSndfile<T>::operator()()
+int BufferedSndfile<T>::operator()()
 {
 	T *buf;
-	sf_count_t frames = _ringbuffer.peek(&buf);	
+	sf_count_t cnt, frames = _ringbuffer.peek(&buf);	
 	if (frames) {
-		util::Sndfile<T>::writef(buf, frames);
+		cnt = util::Sndfile<T>::writef(buf, frames);
 		_ringbuffer.advance(frames);
+		return (cnt == frames) ? 0 : -1;
 	}
-	return frames;
+	return 0;
 }
 
 } // namespace jill

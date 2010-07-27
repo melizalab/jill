@@ -55,7 +55,8 @@ process(sample_t *in, sample_t *out, nframes_t nframes)
 	buffer->push_pop(in, out, nframes);
 }
 
-static void signal_handler(int sig)
+void 
+signal_handler(int sig)
 {
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
@@ -101,7 +102,8 @@ main(int argc, char **argv)
 		 */
 		float delay_time = options.get<float>("delay", 10.0) / 1000;
 		DelayBuffer<sample_t>::size_type buffer_size = ceil(delay_time * client.samplerate());
-		logv << logv.allfields << "Allocating buffer of size " << buffer_size << endl;
+		logv << logv.allfields << "Allocating buffer of size " << buffer_size 
+		     << "(" << delay_time << " ms)" << endl;
 		buffer.reset(new DelayBuffer<sample_t>(buffer_size));
 
 		logv << logv.allfields << "Starting client" << endl;

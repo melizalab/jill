@@ -20,8 +20,7 @@ using std::string;
 using std::vector;
 
 Options::Options(const char *program_name, const char *program_version)
-	: cmd_opts(string(program_name) + " usage"),
-	  _program_name(program_name), _program_version(program_version)
+	:  client_name(program_name), _program_name(program_name), _program_version(program_version)
 {
 	po::options_description generic("General options");
 	generic.add_options()
@@ -32,6 +31,7 @@ Options::Options(const char *program_name, const char *program_version)
 		("out,o",     po::value<vector<string> >(), "add output port")
 		("in,i",      po::value<vector<string> >(), "add input port");
 	cmd_opts.add(generic);
+	visible_opts.add(generic);
 }
 
 void
@@ -42,11 +42,18 @@ Options::print_version()
 }
 
 
+void
+Options::print_usage()
+{
+	std::cout << "Usage: " << _program_name << " [options] " << std::endl;
+	std::cout << visible_opts;
+}
+
 
 void
 Options::parse(int argc, char **argv, const char *configfile)
 {
-	po::store(po::parse_command_line(argc, argv, cmd_opts), vmap);
+	po::store(po::command_line_parser(argc, argv).options(cmd_opts).positional(pos_opts).run(), vmap);
 	if (configfile) {
 		std::ifstream ff(configfile);
 		if (ff.good())
@@ -55,7 +62,7 @@ Options::parse(int argc, char **argv, const char *configfile)
 	po::notify(vmap);
 
 	if (vmap.count("help")) {
-		std::cout << cmd_opts;
+		print_usage();
 		throw Exit(EXIT_SUCCESS);
 	}
 	else if (vmap.count("version")) {
@@ -70,11 +77,11 @@ void
 Options::process_options()
 {
 	if (vmap.count("out"))
-		output_ports = vmap["out"].as<vector<string> >();
+		output_ports = get<vector<string> >("out");
 	if (vmap.count("in"))
-		input_ports = vmap["in"].as<vector<string> >();
+		input_ports = get<vector<string> >("in");
 	if (vmap.count("name"))
-		client_name = vmap["name"].as<string>();
+		client_name = get<string>("name");
 	if (vmap.count("log"))
-		logfile = vmap["log"].as<string>();
+		logfile = get<string>("log");
 }

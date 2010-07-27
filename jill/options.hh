@@ -32,9 +32,17 @@ namespace po = boost::program_options;
  * -i : input ports
  * -o : output ports
  *
- * This class is a thin wrapper around boost/program_options. Some of
- * the functions for adding options are exposed to allow additional
- * options.
+ * This class is a thin wrapper around boost/program_options. The
+ * options_descriptions members and parsed value map are exposed to
+ * allow additional options without a need for subclassing.  For
+ * example, to add a single option:
+ *
+ * options.cmd_opts.add_options()("user_name", po:value<string>(), "the user's name");
+ * options.parse();
+ * string uname = options.get("blah","");
+ *
+ * Alternatively, a class can inherit from this class and override the
+ * constructor and process_options() functions (possibly the parse() function as well)
  */
 class Options {
 public:
@@ -43,8 +51,12 @@ public:
 
 	/// Description of the options for commandline usage
 	po::options_description cmd_opts;
+	/// Description of options visible in the help (a subset of cmd_opts)
+	po::options_description visible_opts;
 	/// Description of options parsed from a config file
 	po::options_description cfg_opts;
+	/// Options which are processed positionally
+	po::positional_options_description pos_opts;
 	/// Values for options are stored here after parsing
 	po::variables_map vmap;
 
@@ -61,10 +73,9 @@ public:
 	 * recommended to explicitly specify the type, e.g. get<float>("blah")
 	 *
 	 * @param name  The name of the option
-	 * @param def   The default value to use, if the option wasn't set
 	 */
-	template <typename T>
-	T get(const char *name, const T &def);
+	template <typename T> inline
+	const T &get(const char *name) { return vmap[name].as<T>(); }
 
 	/// The client name (used in internal JACK representations)
 	std::string client_name;
@@ -83,17 +94,10 @@ protected:
 	virtual void process_options();
 	/// Print the name and version of the program. Called by parse()
 	virtual void print_version();
+	/// Print the usage information
+	virtual void print_usage();
 	
 };
-
-template <typename T>
-T Options::get(const char *name, const T &def)
-{
-	if (vmap.count(name))
-		return vmap[name].as<T>();
-	else
-		return def;
-}
 
 } // namespace jill
 

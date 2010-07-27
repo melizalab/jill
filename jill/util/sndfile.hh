@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <string>
 #include <sndfile.h>
+#include "string.hh"
 
 namespace jill { namespace util {
 
