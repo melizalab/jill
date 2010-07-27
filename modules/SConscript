@@ -4,7 +4,7 @@ Import('env lib')
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],LIBS=['sndfile'])
 
-srcs = ['template.cc','writer.cc']
+srcs = ['mixer.cc','delay.cc','writer.cc']
 
 for src in srcs:
     progname = os.path.splitext(src)[0]
