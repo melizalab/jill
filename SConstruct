@@ -5,7 +5,7 @@ if hasattr(os,'uname'):
 else:
     system = 'Windows'
 
-version = '1.0.0rc'
+version = '1.0.0rc2'
 libname = 'jill'
     
 env = Environment(CCFLAGS=['-O2','-g','-Wall'],

@@ -78,7 +78,7 @@ main(int argc, char **argv)
 		 * additional options. For more details see
 		 * http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
 		 */
-		Options	options("delay", "1.0.0rc"); 
+		Options	options("delay", "1.0.0rc2"); 
 		options.cmd_opts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
 		options.parse(argc,argv);
@@ -100,7 +100,7 @@ main(int argc, char **argv)
 		 * option from the command line and multiply it by the
 		 * sampling rate.
 		 */
-		float delay_time = options.get<float>("delay", 10.0) / 1000;
+		float delay_time = options.get<float>("delay") / 1000;
 		DelayBuffer<sample_t>::size_type buffer_size = ceil(delay_time * client.samplerate());
 		logv << logv.allfields << "Allocating buffer of size " << buffer_size 
 		     << "(" << delay_time << " ms)" << endl;

@@ -161,7 +161,7 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		// parse options, using our custom options class
-		WriterOptions options("writer", "1.0.0rc");
+		WriterOptions options("writer", "1.0.0rc2");
 		options.parse(argc,argv);
 
 		// fire up the logger
@@ -193,6 +193,7 @@ main(int argc, char **argv)
 		app.reset(new Application(client, logv));
 		app->connect_inputs(options.input_ports);
 		app->set_mainloop_callback(mainloop);
+
 		/*
 		 * Equivalently, we can pass the sndfile object to the
 		 * set_mainloop_callback function.  However, as noted
@@ -203,12 +204,13 @@ main(int argc, char **argv)
 		 * the object.
 		 */
 		// app->set_mainloop_callback(boost::ref(sndfile));
+
 		/*
 		 * Writing data is fairly intensive and benefits from
 		 * lots of buffering, so we specify a nice long delay
 		 * between main loops.
 		 */
-		app->run(1e6);
+		app->run(1000000);
 		logv << logv.allfields << "Total frames written: " << sndfile.nframes() << endl;
 		return ret;
 	}
