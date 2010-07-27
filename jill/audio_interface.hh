@@ -58,6 +58,7 @@ public:
 
 	/// get sample rate
 	virtual nframes_t samplerate() const = 0;
+
 	/// check if backend is still running
 	virtual bool is_shutdown() const = 0;
 
@@ -69,7 +70,6 @@ protected:
 
 /**
  * Define an audio interface that supports a transport protocol.
- *
  */
 class AudioInterfaceTransport : public AudioInterface
 {

@@ -2,7 +2,7 @@ import os
 Import('env lib')
 
 menv = env.Clone()
-menv.Append(CPPPATH=['#'],LIBS=['sndfile'])
+menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_program_options'])
 
 srcs = ['mixer.cc','delay.cc','writer.cc']
 

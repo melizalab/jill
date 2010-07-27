@@ -30,6 +30,8 @@ namespace jill {
 class AudioInterfaceJack : public AudioInterfaceTransport
 {
 public:
+	/// The three types of interfaces
+	enum InterfaceType { Source, Sink, Filter};
 
 	/**
 	 * Initialize a JACK client
@@ -39,39 +41,50 @@ public:
 	 *                   JackPortIsOutput - register an output port
 	 *                   JackPortIsInput|JackPortIsOutput - register both
 	 */
-	AudioInterfaceJack(const std::string & name, int port_type);
+	AudioInterfaceJack(const std::string & name, InterfaceType port_type);
 	virtual ~AudioInterfaceJack();
 
 	/// The type of the function object for xrun callbacks
 	typedef boost::function<int (float delay_usecs)> XrunCallback;
 
+	/// Specify the callback for timebase
 	virtual void set_timebase_callback(TimebaseCallback cb);
+
+	/// Specify the callback for xruns
 	virtual void set_xrun_callback(XrunCallback cb);
 
 	/// Get JACK client name
 	std::string client_name() const;
+
 	/// Get id of JACK audio processing thread
 	pthread_t client_thread() const;
 
+	/// Get samplerate 
 	virtual nframes_t samplerate() const;
+
+	/// Return true if the client is no longer connected
 	virtual bool is_shutdown() const;
+
+	/// Return the last error message
 	virtual const std::string &get_error() const { return _err_msg; }
 
-	// JACK connections
 	/**
 	 * Connect the client's input to an output port
 	 *
 	 * @param port The name of the port to connect to
 	 */
 	void connect_input(const std::string & port);
+
 	/**
 	 * Connect the client's output to an input port
 	 *
 	 * @param port The name of the port to connect to
 	 */
 	void connect_output(const std::string & port);
+
 	/// Disconnect the client from all its ports
 	void disconnect_all();
+
 	/**
 	 * Return a vector of all available ports
 	 * @param port_type Indicate the type of the port

@@ -26,7 +26,9 @@ namespace jill { namespace util {
  */
 class logstream {
 public:
+	/// constants that can be passed to << to output program name, timestamp, etc
 	enum _fixed_fields { program, timestamp, allfields };
+
 	/**
 	 * Construct logger
 	 * @param s Stream to output log to
@@ -46,6 +48,7 @@ public:
 		else
 			_stream = &std::cout;
 	}
+	/// Set or switch program name
 	void set_program(const std::string &p) {
 		_program = p;
 	}

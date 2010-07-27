@@ -18,45 +18,67 @@
 #include "options.hh"
 #include "util/logger.hh"
 
-
 namespace jill {
-
 
 /**
  * A generic JILL application. It handles connecting the client to any
  * input or output ports supplied in the Options argument to the
  * constructor, and calls a main loop callback while the client is
  * running. Handles some error handling and logging functions as well.
- *
  */
 class Application : boost::noncopyable {
 public:
-	/// The main loop callback type. Should return !=0 to terminate the loop
+	/// The main loop callback type.
 	typedef boost::function<int(void)> MainLoopCallback;
 	/**
 	 * Initialize the application with a client and options
 	 * @param client The JACK client. Needs to be initialized and any callbacks set
-	 * @param options An options class, which controls initialization.
+	 * @param logv   This logstream is used to provide feedback on what's happening
 	 */
-	Application(AudioInterfaceJack &client, const Options &options, util::logstream &logv);
+	Application(AudioInterfaceJack &client, util::logstream &logv);
 	virtual ~Application() {}
 
-	virtual void setup();
-	virtual void set_mainloop_callback(MainLoopCallback cb) { _mainloop_cb = cb; }
-	/// Start the main loop running, sleeping usec_delay between
+	/**
+	 * Connect the client to a set of inputs. This is just a
+	 * wrapper around the client's connect_input() function, but
+	 * it also logs this.
+	 * @param ports: a vector of names of the input ports
+	 */
+	virtual void connect_inputs(const std::vector<std::string> &ports);
+
+	/**
+	 * Connect the client to a set of outputs. This is just a
+	 * wrapper around the client's connect_output() function, but
+	 * it also logs this.
+	 * @param ports: a vector of names of the output ports
+	 */
+	virtual void connect_outputs(const std::vector<std::string> &ports);
+
+	/** 
+	 * Specify the callback to use in the main loop. The argument
+	 * can be anything that matches the MainLoopCallback type - a
+	 * function pointer or a function object.  The argument is
+	 * copied; if this is undesirable, use a boost::ref.
+	 *
+	 * If the callback function returns anything other than 0 the
+	 * application will terminate.
+	 */
+	virtual void set_mainloop_callback(const MainLoopCallback &cb) { _mainloop_cb = cb; } 
+
+        /// Start the main loop running, sleeping usec_delay between loops
 	virtual void run(unsigned int usec_delay=100000);
+
+	/// Terminate the application at the end of the next main loop
 	virtual void signal_quit() { _quit = true; }
 
 protected:
 
 	MainLoopCallback _mainloop_cb;
 	util::logstream &_logv;
-	int log_xrun();
 
 private:
 
 	AudioInterfaceJack &_client;
-	const Options &_options;
 	volatile bool _quit;
 };
 

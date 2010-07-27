@@ -15,20 +15,25 @@
 
 using namespace jill;
 
-Application::Application(AudioInterfaceJack &client, const Options &options, util::logstream &logv)
-	: _logv(logv), _client(client), _options(options), _quit(false) {}
+Application::Application(AudioInterfaceJack &client, util::logstream &logv)
+	: _logv(logv), _client(client), _quit(false) {}
 
 
 void
-Application::setup()
+Application::connect_inputs(const std::vector<std::string> &ports)
 {
 	std::vector<std::string>::const_iterator it;
-	for (it = _options.input_ports.begin(); it != _options.input_ports.end(); ++it) {
+	for (it = ports.begin(); it != ports.end(); ++it) {
 		_client.connect_input(*it);
 		_logv << _logv.allfields << "Connected input to port " << *it << std::endl;
 	}
+}
 
-	for (it = _options.output_ports.begin(); it != _options.output_ports.end(); ++it) {
+void
+Application::connect_outputs(const std::vector<std::string> &ports)
+{
+	std::vector<std::string>::const_iterator it;
+	for (it = ports.begin(); it != ports.end(); ++it) {
 		_client.connect_output(*it);
 		_logv << _logv.allfields << "Connected output to port " << *it << std::endl;
 	}

@@ -23,10 +23,10 @@
 
 using namespace jill;
 
-AudioInterfaceJack::AudioInterfaceJack(const std::string & name, int port_type)
-	: _shutdown(false)
+AudioInterfaceJack::AudioInterfaceJack(const std::string & name, InterfaceType port_type)
+	: _output_port(0), _input_port(0), _shutdown(false)
 {
-	int port_flags = 0;
+	long port_flags;
 
 	if ((_client = jack_client_open(name.c_str(), JackNullOption, NULL)) == 0)
 		throw AudioError("can't connect to jack server");
@@ -35,25 +35,19 @@ AudioInterfaceJack::AudioInterfaceJack(const std::string & name, int port_type)
 	jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
 	jack_on_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
 
-	if (port_type & JackPortIsInput) {
-		if (!(port_type & JackPortIsOutput))
-			port_flags = JackPortIsTerminal;
+	if (port_type == Sink || port_type == Filter) {
+		port_flags = JackPortIsInput | ((port_type==Sink) ? JackPortIsTerminal : 0);
 		if ((_input_port = jack_port_register(_client, "in", JACK_DEFAULT_AUDIO_TYPE,
-						      JackPortIsInput|port_flags, 0))==NULL)
+						      port_flags, 0))==NULL)
 			throw AudioError("can't register input port");
 	}
-	else
-		_input_port = 0;
 
-	if (port_type & JackPortIsOutput) {
-		if (!(port_type & JackPortIsInput))
-			port_flags = JackPortIsTerminal;
+	if (port_type == Source || port_type == Filter) {
+		port_flags = JackPortIsOutput | ((port_type==Source) ? JackPortIsTerminal : 0);
 		if ((_output_port = jack_port_register(_client, "out", JACK_DEFAULT_AUDIO_TYPE,
-						       JackPortIsOutput|port_flags, 0))==NULL)
+						       port_flags, 0))==NULL)
 			throw AudioError("can't register output port");
 	}
-	else 
-		_output_port = 0;
 
 	if (jack_activate(_client))
 		throw AudioError("can't activate client");

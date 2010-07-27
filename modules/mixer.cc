@@ -9,29 +9,58 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * This file is a template of a JILL client, which just copies data
- * from its input to its output.  Adapt it to write your own module.
+ * This file is an extremely simple JILL client, which just copies
+ * data from its input to its output.  It's also the first chapter in
+ * the JILL tutorial.
+ *
+ * A JILL application needs to perform three tasks:
+ * 1. Define a real-time processing function
+ * 2. Parse command-line options and set up data logging
+ * 3. Handle application startup and shutdown
  */
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
-#include <fstream>
 #include <signal.h>
 
+/*
+ * Here we include the relevant JILL headers.  For an application, the
+ * main.hh and application.hh headers are required.  We also include
+ * the logger.hh header, which gives us access to the logstream class,
+ * and lift the jill namespace into this compilation unit.
+ */
 #include "jill/main.hh"
 #include "jill/application.hh"
 #include "jill/util/logger.hh"
-
 using namespace jill;
 
-// module-level variables are the application and return type
-static util::logstream logv;
+
+/*
+ * Next, we define several variables with module scope. First, a smart
+ * pointer for the Application class is declared.  By using a smart
+ * pointer, we guarantee that the application will be shut down and
+ * cleaned up once the variable goes out of scope (i.e. when the
+ * application exits). We also create a logstream, and an integer to
+ * hold the exist status of the application.
+ */
 static boost::scoped_ptr<Application> app;
+static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 
-/**
- * This function is the processing loop, which runs in a real-time
- * JACK thread.  Depending on the type of interface, it can receive
- * input data, or be required to generate output data.
+/*
+ * This function is the processing loop, which is how the application
+ * interacts with the auditory stream.  The JACK server calls this
+ * function in a real-time loop, providing pointers to an input and an
+ * output buffer.  Applications can be, generally speaking, Sinks,
+ * Sources, or Filters (see below for how to define this).  If it
+ * receives data, it needs to deal with this data as rapidly as
+ * possible and then return control to the server.  If it generates
+ * data, it needs to fill the output buffer and then return control to
+ * the server.
+ *
+ * This example doesn't do much; it just copies the data from the
+ * input to the output buffer. However, if more than one source is
+ * connected to the application's input port, the streams will be
+ * mixed.
  *
  * @param in Pointer to the input buffer. NULL if the client has no input port
  * @param out Pointer to the output buffer. NULL if no output port
@@ -43,9 +72,12 @@ process(sample_t *in, sample_t *out, nframes_t nframes)
 	memcpy(out, in, sizeof(sample_t) * nframes);
 }
 
-/**
- * This function handles termination signals and gracefully closes the
- * application.
+/*
+ * We also need to handle signals from the user and the operating
+ * system and shut down in a graceful manner. This function is called
+ * by the OS when the user hits Ctrl-C, or the application is killed
+ * with kill(1). It calls the signal_quit() method of the application,
+ * which tells it to shut down.
  */
 static void signal_handler(int sig)
 {
@@ -55,41 +87,94 @@ static void signal_handler(int sig)
 	app->signal_quit();
 }
 
+/*
+ * This is the main() function of the application. It performs tasks
+ * related to setting up the application, including parsing command
+ * line options, starting the logger, and starting the appplication.
+ */
 int
 main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-		// parse options
-		Options options("template", "1.0.0rc");
+
+		/*
+		 * The Options class is responsible for parsing
+		 * command line arguments. It comes with some
+		 * predefined options.  Here, we tell the class the
+		 * name of the application, the version, and pass it
+		 * the command line arguments.
+		 */
+		Options options("mixer", "1.0.0rc");
 		options.parse(argc,argv);
 
-		// fire up the logger
-		logv.set_program(options.client_name.c_str());
+		/*
+		 * Next, we set up logging. This is handled by the
+		 * logstream class, which we instantiated
+		 * earlier. After parsing the options, we know the
+		 * name of the client and the logfile to use.
+		 * Logstream has some members (e.g. allfields) that
+		 * can be used to add the name of the client and a
+		 * timestamp to the logfile, as we do here.
+		 */
+		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);
-		logv << logv.allfields << "Starting client" << endl;
 
-		// start up the client
-		AudioInterfaceJack client(options.client_name, JackPortIsInput|JackPortIsOutput);
+		/*
+		 * Now we're ready to start up the processing
+		 * client. Most simple clients can use the
+		 * AudioInterfaceJack class, which can handle both
+		 * inputs and outputs, up to one of each.  The
+		 * arguments to the constructor specify the client
+		 * name and client type.  A Filter has one input and
+		 * one output; a Sink has one input, and a Source has
+		 * one output.  We then tell the client what process
+		 * function to call with the set_process_callback()
+		 * function.
+		 */
+		logv << logv.allfields << "Starting client" << endl;
+		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Filter);
 		client.set_process_callback(process);
 
-		// set up signal handlers to exit cleanly when terminated
+		/*
+		 * Similarly, we need to tell the OS what function to
+		 * call when it receives a termination signal
+		 * (i.e. SIGINT, SIGTERM, SIGHUP). See signal(3) for
+		 * details on other types of signals the program can handle.
+		 */
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
-		// instantiate the application
-		app.reset(new Application(client, options, logv));
-		app->setup();
+		/*
+		 * Finally, we create a new Application object,
+		 * connect to the input and output ports specified by
+		 * the user, and start running.  The run() function
+		 * will exit when the application terminates (in this
+		 * case, when the signal_handler calls signal_quit(),
+		 * or if the client throws an exception.
+		 */
+		app.reset(new Application(client, logv));
+		app->connect_inputs(options.input_ports);
+		app->connect_outputs(options.output_ports);
 		app->run();
 		return ret;
 	}
+	/*
+	 * These catch statements handle two kinds of exceptions.  The
+	 * Exit exception is thrown to terminate the application
+	 * normally (i.e. if the user asked for the app version or
+	 * usage); other exceptions are typically thrown if there's a
+	 * serious error, in which case the user is notified on
+	 * stderr.
+	 */
 	catch (Exit const &e) {
 		return e.status();
 	}
-	catch (std::runtime_error const &e) {
-		std::cerr << e.what() << std::endl;
+	catch (std::exception const &e) {
+		std::cerr << "Error: " << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-	// cleanup is automatic!
+
+	/* Because we used smart pointers and locally scoped variables, there is no cleanup to do! */
 }
