@@ -19,11 +19,30 @@
 
 namespace jill { namespace util {
 
-
+/**
+ *  Many JILL applications will access an audio stream in both the
+ *  real-time thread and a lower-priority main thread.  This class,
+ *  which is a thin wrapper around the JACK ringbuffer interface,
+ *  allows simultaneous access by read and write threads.
+ * 
+ *  Client applications can derive from this class or encapsulate it
+ *  to provide a wide variety of data handling functionality; note,
+ *  however, that due to the performance demands of running in the
+ *  real-time thread, none of the member functions are virtual.
+ *
+ *  @param T the type of object to store in the ringbuffer. Should be POD.
+ */
 template<typename T>
 class Ringbuffer : boost::noncopyable
 {
 public:
+	typedef T data_type;
+	/** 
+	 * Construct a ringbuffer with enough room to hold @a size
+	 * objects of type T.
+	 * 
+	 * @param size The size of the ringbuffer (in objects)
+	 */
 	Ringbuffer(std::size_t size) {
 		_rb = jack_ringbuffer_create(size * sizeof(T));
 	}
@@ -62,13 +81,13 @@ public:
 	}
 
 	/** 
-	 * Read data from the ringbuffer. This version sets in the
-	 * input argument to the address of an array with the next
-	 * block of data.  To free space after using the data, call advance()
+	 * Read data from the ringbuffer. This version sets the input
+	 * argument to the address of an array with the next block of
+	 * data.  To free space after using the data, call advance()
 	 * 
-	 * @param buf Output, will point to data in ringbuffer after read
+	 * @param buf   Will point to data in ringbuffer after read
 	 * 
-	 * @return The number of available samples
+	 * @return  The number of available samples in buf
 	 */
 	inline std::size_t peek(T **buf) {
 		jack_ringbuffer_data_t vec[2];
@@ -87,10 +106,12 @@ public:
 		jack_ringbuffer_read_advance(_rb, nframes);
 	}
 
+	/// Returns the number of items that can be written to the ringbuffer
 	inline std::size_t write_space() {
 		return jack_ringbuffer_write_space(_rb) / sizeof(T);
 	}
 
+	/// Returns the number of items that can be read from the ringbuffer
 	inline std::size_t read_space() {
 		return jack_ringbuffer_read_space(_rb) / sizeof(T);
 	}

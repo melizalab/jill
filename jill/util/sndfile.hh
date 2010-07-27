@@ -62,7 +62,7 @@ void Sndfile<T>::open(const std::string &filename, size_t samplerate)
 	} else if (ext == "ogg" || ext == "oga") {
 		sfinfo.format = SF_FORMAT_OGG | SF_FORMAT_VORBIS;
 #endif
-	} else if (ext == "raw") {
+	} else if (ext == "raw" || ext == "pcm") {
 		sfinfo.format = SF_FORMAT_RAW | SF_FORMAT_PCM_16;
 	} else {
 		throw FileError(make_string() << "failed to recognize file extension '" << ext << "'");
