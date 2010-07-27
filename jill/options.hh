@@ -15,10 +15,12 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <boost/program_options.hpp>
 
-#include "util/string.hh"
 
 namespace jill {
+
+namespace po = boost::program_options;
 
 /**
  * The Options class stores options for JILL applications and handles
@@ -30,17 +32,29 @@ namespace jill {
  * -i : input ports
  * -o : output ports
  *
- * Applications requiring additional options can derive from this
- * class and then call the base method, if desired.  There is
- * currently no way of removing options from the superclass.
+ * This class is a thin wrapper around boost/program_options. Some of
+ * the functions for adding options are exposed to allow additional
+ * options.
  */
 class Options {
 public:
 	Options(const char *program_name, const char *program_version);
 	virtual ~Options() {}
 
-	/// Parse the command line arguments and store options
-	int parse(int argc, char **argv);
+	/// Description of the options for commandline usage
+	po::options_description cmd_opts;
+	/// Description of options parsed from a config file
+	po::options_description cfg_opts;
+	/// Values for options are stored here after parsing
+	po::variables_map vmap;
+
+	/**
+	 * Parse the command line arguments and store options.
+	 * @param argc Number of arguments
+	 * @param argv Array of command-line arguments
+	 * @param config Optional config file name
+	 */
+	virtual void parse(int argc, char **argv, const char *configfile=0);
 
 	/// The client name (used in internal JACK representations)
 	std::string client_name;
@@ -52,23 +66,14 @@ public:
 	std::string logfile;
 
 protected:
-	struct CmdlineError : public std::runtime_error
-	{
-		CmdlineError(std::string const & w) : std::runtime_error("Error: " + w) { }
-	};
-
-	struct InvalidArgument : public std::runtime_error
-	{
-		InvalidArgument(char a, std::string const & w)
-			: std::runtime_error(util::make_string() << "invalid argument to -"
-					     << a << " (" << w << ")") {}
-	};
-
-	// these are virtual so that they can be called correctly by parse
-	virtual void print_version();
-	virtual void print_usage();
 	std::string _program_name;
 	std::string _program_version;
+
+	/// This function is called once the options are parsed; its job is to load data into the fields
+	virtual void process_options();
+	/// Print the name and version of the program. Called by parse()
+	virtual void print_version();
+	
 };
 
 } // namespace jill

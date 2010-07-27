@@ -11,81 +11,70 @@
  */
 
 #include <iostream>
-#include <boost/tokenizer.hpp>
+#include <fstream>
 #include "options.hh"
 #include "main.hh"
 
 using namespace jill;
-typedef boost::char_separator<char> char_sep;
-typedef boost::tokenizer<char_sep> tokenizer;
+using std::string;
+using std::vector;
 
 Options::Options(const char *program_name, const char *program_version)
-	: client_name(program_name), _program_name(program_name), _program_version(program_version) {}
-
-void Options::print_version()
+	: cmd_opts(string(program_name) + " usage"),
+	  _program_name(program_name), _program_version(program_version)
 {
-	std::cout << _program_name << " " << _program_version << std::endl;
-	std::cout << "JILL " VERSION << std::endl;
+	po::options_description generic("General options");
+	generic.add_options()
+		("version,v", "print version string")
+		("help,h",      "print help message")
+		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
+		("log,l",     po::value<string>(), "set logfile (default stdout)")
+		("out,o",     po::value<vector<string> >(), "add output port")
+		("in,i",      po::value<vector<string> >(), "add input port");
+	cmd_opts.add(generic);
 }
 
-void Options::print_usage()
+void
+Options::print_version()
 {
-	std::cout
-		<< "Usage:  " << _program_name << " [options] [arguments]\n\n"
-		<< "Options:\n"
-		<< "  -n name               set jack client name\n"
-		<< "  -l logfile            set logfile (default standard out)\n"
-		<< "  -o port,...           set output port(s)\n"
-		<< "  -i port,...           set input port(s)\n";
+	std::cout << _program_name << " " << _program_version
+		  << " (JILL " VERSION ")" << std::endl;
 }
 
-int Options::parse(int argc, char **argv)
+
+
+void
+Options::parse(int argc, char **argv, const char *configfile)
 {
-	int c;
-	char optstring[] = "+n:l:o:i:Vh";
-
-	while ((c = ::getopt(argc, argv, optstring)) != -1) {
-		switch (c) {
-
-		case 'V':
-			print_version();
-			throw Exit(EXIT_SUCCESS);
-
-		case 'h':
-			print_usage();
-			throw Exit(EXIT_SUCCESS);
-			break;
-
-		case 'n':
-			client_name = std::string(::optarg);
-			break;
-
-		case 'l':
-			logfile = std::string(::optarg);
-			break;
-
-		case 'o':
-		{
-			std::string str(::optarg);
-			char_sep sep(",");
-			tokenizer tok(str, sep);
-			for (tokenizer::iterator i = tok.begin(); i != tok.end(); ++i)
-				output_ports.push_back(*i);
-		} break;
-
-		case 'i':
-		{
-			std::string str(::optarg);
-			char_sep sep(",");
-			tokenizer tok(str, sep);
-			for (tokenizer::iterator i = tok.begin(); i != tok.end(); ++i)
-				input_ports.push_back(*i);
-		} break;
-
-		default:
-			throw Exit(EXIT_FAILURE);
-			break;
-		}
+	po::store(po::parse_command_line(argc, argv, cmd_opts), vmap);
+	if (configfile) {
+		std::ifstream ff(configfile);
+		if (ff.good())
+			po::store(po::parse_config_file(ff, cfg_opts), vmap);
 	}
-	return ::optind;
+	po::notify(vmap);
+
+	if (vmap.count("help")) {
+		std::cout << cmd_opts;
+		throw Exit(EXIT_SUCCESS);
+	}
+	else if (vmap.count("version")) {
+		print_version();
+		throw Exit(EXIT_SUCCESS);
+	}
+	process_options();
+}
+
+
+void
+Options::process_options()
+{
+	if (vmap.count("out"))
+		output_ports = vmap["out"].as<vector<string> >();
+	if (vmap.count("in"))
+		input_ports = vmap["in"].as<vector<string> >();
+	if (vmap.count("name"))
+		client_name = vmap["name"].as<string>();
+	if (vmap.count("log"))
+		logfile = vmap["log"].as<string>();
 }
