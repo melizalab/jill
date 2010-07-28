@@ -38,7 +38,8 @@
  */
 #include "jill/main.hh"
 #include "jill/application.hh"
-#include "jill/buffered_sndfile.hh"
+#include "jill/util/sndfile.hh"
+#include "jill/util/ringbuffer.hh"
 #include "jill/util/logger.hh"
 using namespace jill;
 
@@ -89,7 +90,8 @@ protected:
 static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
-static BufferedSndfile<sample_t> sndfile(500000);
+static util::RingbufferAdapter<util::single_sndfile<sample_t> > sndfile(50000);
+//static BufferedSndfile<sample_t> sndfile(500000);
 
 /**
  * The process function is similar to the ones in the previous
@@ -103,7 +105,7 @@ static BufferedSndfile<sample_t> sndfile(500000);
 void
 process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
-	nframes_t nf = sndfile.writef(in, nframes);
+	nframes_t nf = sndfile.push(in, nframes);
 	if (nf < nframes)
 		throw std::runtime_error("ringbuffer filled up");
 }
@@ -126,7 +128,8 @@ process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 int 
 mainloop()
 {
-	return sndfile();
+	sndfile.flush();
+	return 0;
 }
 
 
@@ -184,7 +187,8 @@ main(int argc, char **argv)
 		 */
 		logv << logv.allfields << "Opening " << options.output_file 
 		     << " for output; Fs = " << client.samplerate() << endl;
-		sndfile.open(options.output_file.c_str(), client.samplerate());
+		util::single_sndfile<sample_t> outfile(options.output_file.c_str(), client.samplerate());
+		sndfile.set_sink(&outfile);
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -210,8 +214,8 @@ main(int argc, char **argv)
 		 * lots of buffering, so we specify a nice long delay
 		 * between main loops.
 		 */
-		app->run(1000000);
-		logv << logv.allfields << "Total frames written: " << sndfile.nframes() << endl;
+		app->run(500000);
+		logv << logv.allfields << "Total frames written: " << outfile.nframes() << endl;
 		return ret;
 	}
 	catch (Exit const &e) {

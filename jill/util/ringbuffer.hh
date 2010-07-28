@@ -14,6 +14,8 @@
 #define _RINGBUFFER_HH
 
 #include <boost/noncopyable.hpp>
+#include <boost/type_traits.hpp>
+#include <boost/static_assert.hpp>
 #include <jack/ringbuffer.h>
 
 
@@ -126,6 +128,56 @@ std::ostream &operator<< (std::ostream &os, const Ringbuffer<T> &o)
 {
 	return os << "read space " << o.read_space() << "; write space " << o.write_space();
 }
+
+/**
+ * The RingbufferAdapter is a generic class that uses a Ringbuffer to
+ * buffer writing to a backend.  The backend class must have exposed
+ * sample_type and size_type types, and a write(const sample_type *in,
+ * size_type n) function.
+ *
+ * The class provides threadsafe buffering.  One thread can call the
+ * push() function to add data to the buffer, and the other thread can
+ * call flush() to write data to disk.
+ *
+ */
+template <typename Sink>
+class RingbufferAdapter : boost::noncopyable {
+
+public:
+	typedef typename Sink::sample_type sample_type;
+	typedef typename Sink::size_type size_type;
+	BOOST_STATIC_ASSERT((boost::is_convertible<size_type,
+			     typename Ringbuffer<sample_type>::size_type>::value));
+
+	/// Initialize the buffer with room for buffer_size samples
+	RingbufferAdapter(size_type buffer_size, Sink *S=0)
+		: _ringbuffer(buffer_size), _sink(S) {}
+
+	void set_sink(Sink *S) { _sink = S; }
+	const Sink *get_sink() const { return _sink; }
+
+	/// Store data in the buffer
+	inline size_type push(const sample_type *in, size_type n) {
+		return _ringbuffer.push(in, n);
+	}
+
+        /// write data from the ringbuffer to sink. Returns 0 if successful, -1 otherwise
+	inline int flush() {
+		sample_type *buf;
+		size_type cnt, frames = _ringbuffer.peek(&buf);	
+		if (frames && _sink) {
+			cnt = _sink->write(buf, frames);
+			_ringbuffer.advance(frames);
+			return cnt;
+		}
+		return 0;
+	}
+
+private:
+	Ringbuffer<sample_type> _ringbuffer;
+	Sink *_sink;
+};
+	
 
 }} // namespace jill::util
 

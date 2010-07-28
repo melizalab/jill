@@ -9,7 +9,11 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
+ *! @file
+ *! @brief Classes for writing data to sound files
+ *! 
  */
+
 #ifndef _SNDFILE_HH
 #define _SNDFILE_HH
 
@@ -22,67 +26,111 @@
 
 namespace jill { namespace util {
 
+struct FileError : public std::runtime_error {
+	FileError(const std::string & w) : std::runtime_error(w) { }
+};
+
+
+/**
+ * A sndfile is any object that can act as a sink for audio data.
+ * They are intended to be used as back-ends for buffered writing
+ * systems.
+ */
 template <typename T>
-class Sndfile : boost::noncopyable {
+class sndfile : boost::noncopyable {
 
 public:
-	struct FileError : public std::runtime_error {
-		FileError(const std::string & w) : std::runtime_error(w) { }
-	};
-	Sndfile() : _nframes(0) {}
+	typedef T sample_type;
+	typedef sf_count_t size_type;
 
-	/// Open a new file for output. Old files are truncated.
-	void open(const std::string &filename, size_t samplerate);
+	/**
+	 * The "sink" function for data. The data may be written
+	 * directly to disk, or delayed in a buffer.
+	 *
+	 * @param in         Samples to write
+	 * @param nframes    Number of samples in the input buffer
+	 * @return The number of samples actually used
+	 */
+	virtual size_type write(const sample_type *in, size_type nsamples) = 0;
 
-	/// Write nframes from buf to disk
-	inline sf_count_t writef(const T *buf, sf_count_t nframes) {
-		sf_count_t n = _writef(buf, nframes);
+	/**
+	 * For backends that support multiple files or entries, this
+	 * advances to the next one.
+	 *
+	 * @return   The number of frames written to the last entry
+	 */
+	virtual size_type next() = 0;
+
+	/// Return the number of frames written to the current entry
+	virtual size_type nframes() const = 0;
+	 
+};
+	   	
+/**
+ * This sound file is a single file, opened using libsndfile. Data
+ * supplied to write() are written consecutively to the file.
+ */
+template <typename T>
+class single_sndfile : boost::noncopyable {
+
+public:
+	typedef T sample_type;
+	typedef sf_count_t size_type;
+
+	single_sndfile(const char *filename, size_type samplerate) 
+		: _nframes(0) { open(filename, samplerate); }
+
+	size_type write(const sample_type *in, size_type nsamples) {
+		size_type n = _writef(in, nsamples);
 		_nframes += n;
 		return n;
 	}
 
 	/// Return the total number of frames written
-	sf_count_t nframes() const { return _nframes; }
+	size_type nframes() const { return _nframes; }
+
+protected:
+
+	/// Open a new file for output. Old files are truncated.
+	void open(const char *filename, size_type samplerate);
+
 
 private:
-	sf_count_t _samplerate;
-	sf_count_t _nframes;
+	size_type _nframes;
+	SF_INFO _sfinfo;
 	boost::shared_ptr<SNDFILE> _sndfile;
-	sf_count_t _writef(const T *buf, sf_count_t nframes);
+	size_type _writef(const sample_type *buf, size_type nframes);
 
 };
 
 template <typename T>
-void Sndfile<T>::open(const std::string &filename, size_t samplerate)
+void single_sndfile<T>::open(const char *filename, size_type samplerate)
 {
-	_samplerate = samplerate;
+	std::memset(&_sfinfo, 0, sizeof(_sfinfo));
 
-	SF_INFO sfinfo;
-	std::memset(&sfinfo, 0, sizeof(sfinfo));
-
-	sfinfo.samplerate = samplerate;
-	sfinfo.channels = 1;
+	_sfinfo.samplerate = samplerate;
+	_sfinfo.channels = 1;
 
 	// detect desired file format based on filename extension
 	std::string ext = get_filename_extension(filename);
 	if (ext == "wav") {
-		sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+		_sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
 	} else if (ext == "aiff" || ext == "aif") {
-		sfinfo.format = SF_FORMAT_AIFF | SF_FORMAT_PCM_16;
+		_sfinfo.format = SF_FORMAT_AIFF | SF_FORMAT_PCM_16;
 	} else if (ext == "flac") {
-		sfinfo.format = SF_FORMAT_FLAC | SF_FORMAT_PCM_16;
+		_sfinfo.format = SF_FORMAT_FLAC | SF_FORMAT_PCM_16;
 #ifdef HAVE_SNDFILE_OGG
 	} else if (ext == "ogg" || ext == "oga") {
-		sfinfo.format = SF_FORMAT_OGG | SF_FORMAT_VORBIS;
+		_sfinfo.format = SF_FORMAT_OGG | SF_FORMAT_VORBIS;
 #endif
 	} else if (ext == "raw" || ext == "pcm") {
-		sfinfo.format = SF_FORMAT_RAW | SF_FORMAT_PCM_16;
+		_sfinfo.format = SF_FORMAT_RAW | SF_FORMAT_PCM_16;
 	} else {
 		throw FileError(make_string() << "failed to recognize file extension '" << ext << "'");
 	}
 
 	// open output file for writing
-	SNDFILE *f = sf_open(filename.c_str(), SFM_WRITE, &sfinfo);
+	SNDFILE *f = sf_open(filename, SFM_WRITE, &_sfinfo);
 	if (!f) {
 		throw FileError(make_string() << "couldn't open '" << filename << "' for output");
 	}
@@ -90,22 +138,26 @@ void Sndfile<T>::open(const std::string &filename, size_t samplerate)
 }	
 
 template<> inline
-sf_count_t Sndfile<float>::_writef(const float *buf, sf_count_t nframes) {
+single_sndfile<float>::size_type
+single_sndfile<float>::_writef(const float *buf, size_type nframes) {
 	return sf_writef_float(_sndfile.get(), buf, nframes);
 }
 
 template<> inline
-sf_count_t Sndfile<double>::_writef(const double *buf, sf_count_t nframes) {
+single_sndfile<double>::size_type 
+single_sndfile<double>::_writef(const double *buf, size_type nframes) {
 	return sf_writef_double(_sndfile.get(), buf, nframes);	
 }
 
 template<> inline
-sf_count_t Sndfile<short>::_writef(const short *buf, sf_count_t nframes) {
+single_sndfile<short>::size_type 
+single_sndfile<short>::_writef(const short *buf, size_type nframes) {
 	return sf_writef_short(_sndfile.get(), buf, nframes);	
 }
 
 template<> inline
-sf_count_t Sndfile<int>::_writef(const int *buf, sf_count_t nframes) {
+single_sndfile<int>::size_type 
+single_sndfile<int>::_writef(const int *buf, size_type nframes) {
 	return sf_writef_int(_sndfile.get(), buf, nframes);	
 }
 
