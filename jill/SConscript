@@ -1,7 +1,7 @@
 import os
 Import('env libname')
 
-srcs = env.Glob('*.cc') + env.Glob('util/*.cc')
+srcs = env.Glob('*.cc') + env.Glob('util/*.cc') + env.Glob('filters/*.cc')
 
 lib = env.Library(libname,srcs)
 env.Alias('library',lib)

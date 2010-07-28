@@ -23,12 +23,12 @@
 
 /*
  * Here we include the relevant JILL headers.  We've added an
- * additional header, filters.hh, which gives us access to the
+ * additional header which gives us access to the
  * DelayBuffer class.
  */
 #include "jill/main.hh"
 #include "jill/application.hh"
-#include "jill/filters.hh"
+#include "jill/filters/delay_buffer.hh"
 #include "jill/util/logger.hh"
 using namespace jill;
 
@@ -41,7 +41,7 @@ using namespace jill;
 static boost::scoped_ptr<Application> app;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
-static boost::scoped_ptr<DelayBuffer<sample_t> > buffer;
+static boost::scoped_ptr<filters::DelayBuffer<sample_t> > buffer;
 
 /*
  * In this app, we write incoming data to the delay buffer and read
@@ -100,11 +100,11 @@ main(int argc, char **argv)
 		 * option from the command line and multiply it by the
 		 * sampling rate.
 		 */
-		float delay_time = options.get<float>("delay") / 1000;
-		DelayBuffer<sample_t>::size_type buffer_size = ceil(delay_time * client.samplerate());
+		float delay_time = options.get<float>("delay");
+		unsigned int buffer_size = ceil(delay_time / 1000 * client.samplerate());
 		logv << logv.allfields << "Allocating buffer of size " << buffer_size 
-		     << "(" << delay_time << " ms)" << endl;
-		buffer.reset(new DelayBuffer<sample_t>(buffer_size));
+		     << " (" << delay_time << " ms)" << endl;
+		buffer.reset(new filters::DelayBuffer<sample_t>(buffer_size));
 
 		logv << logv.allfields << "Starting client" << endl;
 		client.set_process_callback(process);

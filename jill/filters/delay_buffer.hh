@@ -14,14 +14,14 @@
  *! 
  *! This file contains interfaces and templates for filtering audio streams
  */
-#ifndef _FILTERS_HH
-#define _FILTERS_HH
+#ifndef _DELAY_BUFFER_HH
+#define _DELAY_BUFFER_HH
 
 #include <boost/noncopyable.hpp>
 #include <deque>
 
 
-namespace jill {
+namespace jill { namespace filters {
 
 /**
  * A LIFO buffer for maintaining a fixed delay between input and
@@ -48,14 +48,14 @@ public:
 	 * @param size The size of the input/output data
 	 * @param def  The value to use when padding output
 	 */
-	inline std::size_t push_pop(const T *in, T *out, unsigned int size, const T &def=0) {
-		unsigned int i;
-		int Npad;
-
+	inline std::size_t push_pop(const T *in, T *out, size_type size, const T &def=0) {
+		size_type i;
+		// push data into the buffer
 		for (i = 0; i < size; ++i,++in)
 			_buf.push_front(*in);
 
- 		Npad = _delay - _buf.size();
+		// pull data from the buffer, padding as necessary
+ 		int Npad = _delay - _buf.size();
 		for (i = 0; i < size && Npad > 0; ++i, --Npad)
 			out[i] = def;
 		for (; i < size; ++i) {
@@ -69,9 +69,9 @@ public:
 
 private:
 	std::deque<T> _buf;
-	typename std::deque<T>::size_type _delay;
+	size_type _delay;
 
 };
 
-} // namespace jill
+}} // namespace jill::filters
 #endif

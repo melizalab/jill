@@ -5,7 +5,7 @@ menv = env.Clone()
 menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time',
 	 			'boost_program_options'])
 
-srcs = ['mixer.cc','delay.cc','writer.cc']
+srcs = ['mixer.cc','delay.cc','writer.cc','triggered_writer.cc']
 
 for src in srcs:
     progname = os.path.splitext(src)[0]
