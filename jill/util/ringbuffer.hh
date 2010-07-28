@@ -108,18 +108,24 @@ public:
 	}
 
 	/// Returns the number of items that can be written to the ringbuffer
-	inline size_type write_space() {
+	inline size_type write_space() const {
 		return jack_ringbuffer_write_space(_rb) / sizeof(T);
 	}
 
 	/// Returns the number of items that can be read from the ringbuffer
-	inline size_type read_space() {
+	inline size_type read_space() const {
 		return jack_ringbuffer_read_space(_rb) / sizeof(T);
 	}
 
 private:
 	jack_ringbuffer_t * _rb;
 };
+
+template<typename T>
+std::ostream &operator<< (std::ostream &os, const Ringbuffer<T> &o)
+{
+	return os << "read space " << o.read_space() << "; write space " << o.write_space();
+}
 
 }} // namespace jill::util
 

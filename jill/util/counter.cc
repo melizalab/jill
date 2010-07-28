@@ -10,11 +10,13 @@
  * (at your option) any later version.
  */
 
+#include <iostream>
 #include "counter.hh"
 
 using namespace jill::util;
 
 Counter::Counter(size_type size) : _size(size), _running_count(0) {}
+
 
 bool
 Counter::push(int count, int count_thresh) 
@@ -32,9 +34,22 @@ Counter::push(int count, int count_thresh)
 		return (old_count > -count_thresh && _running_count <= -count_thresh);
 }
 
+
 void
 Counter::reset()
 {
 	_counts.clear();
 	_running_count = 0;
 }
+
+
+namespace jill { namespace util {
+std::ostream& operator<< (std::ostream &os, const Counter &o)
+{
+	os << o._running_count << " [" << o._counts.size() << '/' << o._size << "] (";
+	for (std::deque<int>::const_iterator it = o._counts.begin(); it != o._counts.end(); ++it)
+		os << *it << ' ';
+	return os << ')';
+}
+
+}}

@@ -18,6 +18,7 @@
 namespace jill { namespace util {
 
 class Counter : boost::noncopyable {
+	friend std::ostream& operator<< (std::ostream &os, const Counter &o);
 public:
 	typedef std::deque<int>::size_type size_type;
 
