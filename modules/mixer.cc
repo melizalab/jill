@@ -62,12 +62,14 @@ static int ret = EXIT_SUCCESS;
  * connected to the application's input port, the streams will be
  * mixed.
  *
- * @param in Pointer to the input buffer. NULL if the client has no input port
- * @param out Pointer to the output buffer. NULL if no output port
+ * @param in      Pointer to the input buffer. NULL if the client has no input port
+ * @param out     Pointer to the output buffer. NULL if no output port
  * @param nframes The number of frames in the data
+ * @param time    The frame count at the beginning of the process loop. This is guaranteed
+ *                to be unique for all loops in this process
  */
 void
-process(sample_t *in, sample_t *out, nframes_t nframes)
+process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
 	memcpy(out, in, sizeof(sample_t) * nframes);
 }

@@ -101,7 +101,7 @@ static BufferedSndfile<sample_t> sndfile(500000);
  * of this function and the application will exit gracefully.
  */
 void
-process(sample_t *in, sample_t *out, nframes_t nframes)
+process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
 	nframes_t nf = sndfile.writef(in, nframes);
 	if (nf < nframes)

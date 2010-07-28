@@ -44,7 +44,7 @@ public:
 	virtual ~AudioInterface() { }
 
 	/// The type of the process callback
-	typedef boost::function<void (sample_t *in, sample_t *out, nframes_t)> ProcessCallback;
+	typedef boost::function<void (sample_t *in, sample_t *out, nframes_t size, nframes_t time)> ProcessCallback;
 
 	/**
 	 * Set the process callback. This can be a raw function

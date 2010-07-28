@@ -103,7 +103,7 @@ static filters::ThresholdCounter<sample_t> counter(1000, 1000, 10);
  * of this function and the application will exit gracefully.
  */
 void
-process(sample_t *in, sample_t *out, nframes_t nframes)
+process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
 	nframes_t nf = sndfile.writef(in, nframes);
 	if (nf < nframes)

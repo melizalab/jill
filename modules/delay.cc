@@ -50,7 +50,7 @@ static boost::scoped_ptr<filters::DelayBuffer<sample_t> > buffer;
  *
  */
 void
-process(sample_t *in, sample_t *out, nframes_t nframes)
+process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
 	buffer->push_pop(in, out, nframes);
 }

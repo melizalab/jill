@@ -195,15 +195,16 @@ int AudioInterfaceJack::process_callback_(nframes_t nframes, void *arg)
 {
 	AudioInterfaceJack *this_ = static_cast<AudioInterfaceJack*>(arg);
 
-	sample_t *in=NULL, *out=NULL;
-	if (this_->_input_port)
-		in = (sample_t *)jack_port_get_buffer(this_->_input_port, nframes);
-	if (this_->_output_port)
-		out = (sample_t *)jack_port_get_buffer(this_->_output_port, nframes);
-
 	if (this_->_process_cb) {
 		try {
-			this_->_process_cb(in, out, nframes);
+			sample_t *in=NULL, *out=NULL;
+			if (this_->_input_port)
+				in = (sample_t *)jack_port_get_buffer(this_->_input_port, nframes);
+			if (this_->_output_port)
+				out = (sample_t *)jack_port_get_buffer(this_->_output_port, nframes);
+			nframes_t time = jack_last_frame_time(this_->_client);
+
+			this_->_process_cb(in, out, nframes, time);
 		}
 		catch (const std::runtime_error &e) {
 			this_->_err_msg = e.what();
