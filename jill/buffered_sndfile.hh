@@ -46,7 +46,7 @@ private:
 template<typename T> inline
 sf_count_t BufferedSndfile<T>::writef(const T *buf, size_t nframes)
 {
-	return _ringbuffer.write(buf, nframes);
+	return _ringbuffer.push(buf, nframes);
 }
 
 

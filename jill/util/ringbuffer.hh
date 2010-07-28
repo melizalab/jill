@@ -37,13 +37,14 @@ class Ringbuffer : boost::noncopyable
 {
 public:
 	typedef T data_type;
+	typedef std::size_t size_type;
 	/** 
 	 * Construct a ringbuffer with enough room to hold @a size
 	 * objects of type T.
 	 * 
 	 * @param size The size of the ringbuffer (in objects)
 	 */
-	Ringbuffer(std::size_t size) {
+	Ringbuffer(size_type size) {
 		_rb = jack_ringbuffer_create(size * sizeof(T));
 	}
 
@@ -59,7 +60,7 @@ public:
 	 * 
 	 * @return The number of frames actually written
 	 */
-	inline std::size_t write(const T *src, std::size_t nframes) {
+	inline size_type push(const T *src, size_type nframes) {
 		return jack_ringbuffer_write(_rb, reinterpret_cast<char const *>(src), 
 					     sizeof(T) * nframes);
 	}
@@ -73,7 +74,7 @@ public:
 	 * 
 	 * @return The number of frames actually read
 	 */
-	inline std::size_t read(T *dest, std::size_t nframes=0) {
+	inline size_type pop(T *dest, size_type nframes=0) {
 		if (nframes==0) 
 			nframes = read_space();
 		return jack_ringbuffer_read(_rb, reinterpret_cast<char *>(dest), 
@@ -89,7 +90,7 @@ public:
 	 * 
 	 * @return  The number of available samples in buf
 	 */
-	inline std::size_t peek(T **buf) {
+	inline size_type peek(T **buf) {
 		jack_ringbuffer_data_t vec[2];
 		jack_ringbuffer_get_read_vector(_rb, vec);
 		for (int i = 0; i < 2; ++i) {
@@ -102,17 +103,17 @@ public:
 	}
 
 	/// Advance the read pointer by nframes
-	inline void advance(std::size_t nframes) {
+	inline void advance(size_type nframes) {
 		jack_ringbuffer_read_advance(_rb, nframes);
 	}
 
 	/// Returns the number of items that can be written to the ringbuffer
-	inline std::size_t write_space() {
+	inline size_type write_space() {
 		return jack_ringbuffer_write_space(_rb) / sizeof(T);
 	}
 
 	/// Returns the number of items that can be read from the ringbuffer
-	inline std::size_t read_space() {
+	inline size_type read_space() {
 		return jack_ringbuffer_read_space(_rb) / sizeof(T);
 	}
 

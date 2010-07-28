@@ -77,7 +77,7 @@ main(int argc, char **argv)
 		 * boost library that makes it very easy to add
 		 * additional options. For more details see
 		 * http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
-		 */
+		 */	
 		Options	options("delay", "1.0.0rc2"); 
 		options.cmd_opts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
