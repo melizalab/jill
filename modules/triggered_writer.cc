@@ -91,7 +91,7 @@ static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
 static BufferedSndfile<sample_t> sndfile(500000);
-static filters::ThresholdCounter<sample_t> counter(1000, 1000, 10);
+static filters::WindowDiscriminator<sample_t,nframes_t> wd(0.5, 5, 10, 0.5, 5, 10, 100, 100000);
 
 /**
  * The process function is similar to the ones in the previous
@@ -105,9 +105,7 @@ static filters::ThresholdCounter<sample_t> counter(1000, 1000, 10);
 void
 process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
-	nframes_t nf = sndfile.writef(in, nframes);
-	if (nf < nframes)
-		throw std::runtime_error("ringbuffer filled up");
+	std::cout << nframes << " @ " << time << std::endl;
 }
 
 
@@ -128,7 +126,7 @@ process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 int 
 mainloop()
 {
-	return sndfile();
+	return 0;//return sndfile();
 }
 
 
@@ -162,6 +160,7 @@ main(int argc, char **argv)
 {
 	using namespace std;
 	try {
+		cout << wd << endl;
 		// parse options, using our custom options class
 		WriterOptions options("writer", "1.0.0rc2");
 		options.parse(argc,argv);

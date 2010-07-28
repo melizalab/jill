@@ -14,6 +14,7 @@
 #define _BUFFERED_SNDFILE_HH
 
 #include <boost/noncopyable.hpp>
+#include <boost/scoped_array.hpp>
 #include "util/sndfile.hh"
 #include "util/ringbuffer.hh"
 
@@ -41,6 +42,7 @@ public:
 
 private:
 	util::Ringbuffer<T> _ringbuffer;
+	// try this to eliminate segfaults under linux boost::scoped_array<T> _write_buf;
 };
 
 template<typename T> inline

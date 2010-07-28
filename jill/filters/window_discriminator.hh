@@ -17,64 +17,15 @@
 #ifndef _DELAY_BUFFER_HH
 #define _DELAY_BUFFER_HH
 
+#include <limits>
+#include <cmath>
 #include <boost/noncopyable.hpp>
 #include "../util/counter.hh"
 #include "../util/debug.hh"
+#include "../util/ringbuffer.hh"
 
 
 namespace jill { namespace filters {
-
-/**
- * A LIFO buffer for maintaining a fixed delay between input and
- * output data. Has the additional feature that when the buffer is not
- * full, the output is padded with zeros.  To maintain consistency,
- * pushing and popping data occur in a single operation.
- *
- */
-template <typename T>
-class DelayBuffer : boost::noncopyable {
-public:
-	typedef typename std::deque<T>::size_type size_type;
-
-	DelayBuffer(typename std::deque<T>::size_type delay)
-		: _delay(delay) {}
-	
-	/**
-	 * Add data to the buffer while taking an equal amount
-	 * out. If the buffer is not full enough to supply sufficient
-	 * data to the output, it is padded.
-	 *
-	 * @param in   The data to be added to the buffer
-	 * @param out  The destination array for the output
-	 * @param size The size of the input/output data
-	 * @param def  The value to use when padding output
-	 */
-	inline std::size_t push_pop(const T *in, T *out, size_type size, const T &def=0) {
-		size_type i;
-		// push data into the buffer
-		for (i = 0; i < size; ++i,++in)
-			_buf.push_front(*in);
-
-		// pull data from the buffer, padding as necessary
- 		int Npad = _delay - _buf.size();
-		for (i = 0; i < size && Npad > 0; ++i, --Npad)
-			out[i] = def;
-		for (; i < size; ++i) {
-			out[i] = _buf.back();
-			_buf.pop_back();
-		}
-		return _delay - _buf.size();
-	}
-
-	const std::deque<T> &buffer() const { return _buf; }
-
-private:
-	std::deque<T> _buf;
-	size_type _delay;
-
-};
-
-
 
 /**
  * The ThresholdCounter is a simple window discriminator that counts
@@ -136,6 +87,8 @@ public:
 		_period_nsamples = 0;
 	}
 
+	inline size_type period_size() const { return _period_size; }
+
 private:
 	/// sample threshold
 	T _thresh;
@@ -150,31 +103,110 @@ private:
 	size_type _period_nsamples;
 };
 
+
 /**
  * A simple window discriminator. The filter is essentially a gate,
- * which opens when the signal crosses the threshold a certain number
- * of times in a given time window.  The gate closes when the signal
- * fails to cross the threshold more than a certain number of times in
- * a time window.
+ * which is controlled by two counters.  If the signal crosses an open
+ * threshold a certain number of times in a given time window, the
+ * gate opens; when the signal fails to cross the threshold more than
+ * a certain number of times in a time window the gate closes.
+ *
+ * The underlying storage is a ringbuffer, and the object is intended
+ * to be reentrant, so that different threads can call push and pop.
+ * The filtering occurs in the push step.
+ *
+ * The class also keeps track of when the gate opened, so that
+ * downstream clients can correctly timestamp the beginning of each
+ * episode.
  */
-template <typename T>
+template <typename T1, typename T2>
 class WindowDiscriminator : boost::noncopyable {
 public:
-	typedef typename std::deque<T>::size_type size_type;
+	typedef T1 sample_type;
+	typedef T2 time_type;
+	typedef typename util::Ringbuffer<sample_type>::size_type size_type;
+	static const bool has_marks = std::numeric_limits<sample_type>::has_quiet_NaN;
 
-	WindowDiscriminator();
+	/**
+	 * Instantiate a window discriminator with a set of
+	 * parameters. Choosing the parameters can be a bit tricky, so
+	 * a few pointers:
+	 *
+	 * The open and close gates are separate processes and should
+	 * be tuned independently. The main "user" parameters to
+	 * consider are thresholds for samples and for crossing rate.
+	 * Crossing rate is the number of crossings per unit time,
+	 * i.e. count_thresh / (period_size * window_periods). Larger
+	 * period sizes are more efficient; smaller periods give more
+	 * fine-grained temporal information.
+	 */
 
-	size_type push(const T *samples, size_type size);
-	size_type pop(T *buffer, size_type size);
+
+	WindowDiscriminator(const sample_type &othresh, int ocount_thresh, size_type owindow_periods,
+			    const sample_type &cthresh, int ccount_thresh, size_type cwindow_periods,
+			    size_type period_size, size_type buffer_size)
+		: _open(false), _sample_buf(buffer_size), 
+		  // note: maximum number of open transitions is buffer_size / period_size / 2
+		  _time_buf(size_type(ceil(0.5 * buffer_size / period_size))),
+		  _open_counter(othresh, period_size, owindow_periods),
+		  _close_counter(cthresh, period_size, cwindow_periods),
+		  _open_count_thresh(ocount_thresh), 
+		  _close_count_thresh(-ccount_thresh) {} // note sign reversal
+
+	void push(const sample_type *samples, size_type size, time_type time) {
+		if (_open) {
+			int per = _close_counter.push(samples, size, _close_count_thresh);
+			if (per > -1) {
+				size_type offset = per * _close_counter.period_size();
+				if (offset > 0)
+					_sample_buf.push(samples, offset);
+				_open = false;
+				_close_counter.reset();
+			}
+			else
+				_sample_buf.push(samples, size);
+		}
+		else {
+			int per = _open_counter.push(samples, size, _open_count_thresh);
+			if (per > -1) {
+				size_type offset = per * _open_counter.period_size();
+				_sample_buf.push(samples + offset, size - offset);
+				_time_buf.push(&time, 1);
+				_open = true;
+				_open_counter.reset();
+			}
+		}
+	}
+
+	bool open() const { return _open; }
+
+	friend std::ostream& operator<< (std::ostream &os, const WindowDiscriminator<T1,T2> &o) {
+		os << "Gate: " << ((o._open) ? "open" : "closed") << std::endl
+		   << "Input buffer: " << o._sample_buf << std::endl
+		   << "Time buffer: " << o._time_buf << std::endl
+		   << "Open counter: " << o._open_counter << std::endl
+		   << "Close counter: " << o._close_counter << std::endl;
+		return os;
+	}
 
 protected:
-	
+
+	template <bool is_float>
+	void push_mark() {} // no-op for generic template
 
 private:
-	volatile bool _open;
 
-	std::deque<T> _buf;
+	volatile bool _open;
+	util::Ringbuffer<sample_type> _sample_buf;
+	util::Ringbuffer<time_type> _time_buf;
+	ThresholdCounter<sample_type> _open_counter;
+	ThresholdCounter<sample_type> _close_counter;
+	int _open_count_thresh;
+	int _close_count_thresh;
 };
+
+// template<typename T>
+// void WindowDiscriminator<T>::push_mark<true>() { push(std::numeric_limits<T>::quiet_NaN(),1); }
 
 }} // namespace jill::filters
 #endif
