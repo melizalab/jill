@@ -98,7 +98,7 @@ public:
 		for (int i = 0; i < 2; ++i) {
 			if (vec[i].len > 0) {
 				*buf = reinterpret_cast<T *>(vec[i].buf);
-				return vec[i].len;
+				return vec[i].len / sizeof(T);
 			}
 		}
 		return 0;
@@ -106,7 +106,7 @@ public:
 
 	/// Advance the read pointer by nframes
 	inline void advance(size_type nframes) {
-		jack_ringbuffer_read_advance(_rb, nframes);
+		jack_ringbuffer_read_advance(_rb, nframes * sizeof(T));
 	}
 
 	/// Returns the number of items that can be written to the ringbuffer
@@ -146,7 +146,8 @@ class RingbufferAdapter : boost::noncopyable {
 public:
 	typedef typename Sink::sample_type sample_type;
 	typedef typename Sink::size_type size_type;
-	BOOST_STATIC_ASSERT((boost::is_convertible<size_type,
+	BOOST_STATIC_ASSERT((boost::is_convertible<
+			     size_type,
 			     typename Ringbuffer<sample_type>::size_type>::value));
 
 	/// Initialize the buffer with room for buffer_size samples
