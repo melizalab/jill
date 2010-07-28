@@ -19,6 +19,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/format.hpp>
 #include <stdexcept>
 #include <string>
 #include <sndfile.h>
@@ -30,11 +31,10 @@ struct FileError : public std::runtime_error {
 	FileError(const std::string & w) : std::runtime_error(w) { }
 };
 
-
+	   	
 /**
- * A sndfile is any object that can act as a sink for audio data.
- * They are intended to be used as back-ends for buffered writing
- * systems.
+ * This sound file is a single file, opened using libsndfile. Data
+ * supplied to write() are written consecutively to the file.
  */
 template <typename T>
 class sndfile : boost::noncopyable {
@@ -43,41 +43,7 @@ public:
 	typedef T sample_type;
 	typedef sf_count_t size_type;
 
-	/**
-	 * The "sink" function for data. The data may be written
-	 * directly to disk, or delayed in a buffer.
-	 *
-	 * @param in         Samples to write
-	 * @param nframes    Number of samples in the input buffer
-	 * @return The number of samples actually used
-	 */
-	virtual size_type write(const sample_type *in, size_type nsamples) = 0;
-
-	/**
-	 * For backends that support multiple files or entries, this
-	 * advances to the next one.
-	 *
-	 * @return   The number of frames written to the last entry
-	 */
-	virtual size_type next() = 0;
-
-	/// Return the number of frames written to the current entry
-	virtual size_type nframes() const = 0;
-	 
-};
-	   	
-/**
- * This sound file is a single file, opened using libsndfile. Data
- * supplied to write() are written consecutively to the file.
- */
-template <typename T>
-class single_sndfile : boost::noncopyable {
-
-public:
-	typedef T sample_type;
-	typedef sf_count_t size_type;
-
-	single_sndfile(const char *filename, size_type samplerate) 
+	sndfile(const char *filename, size_type samplerate) 
 		: _nframes(0) { open(filename, samplerate); }
 
 	size_type write(const sample_type *in, size_type nsamples) {
@@ -90,6 +56,9 @@ public:
 	size_type nframes() const { return _nframes; }
 
 protected:
+
+	/// Protected default constructor for subclasses
+	sndfile() : _nframes(0) {}
 
 	/// Open a new file for output. Old files are truncated.
 	void open(const char *filename, size_type samplerate);
@@ -104,7 +73,7 @@ private:
 };
 
 template <typename T>
-void single_sndfile<T>::open(const char *filename, size_type samplerate)
+void sndfile<T>::open(const char *filename, size_type samplerate)
 {
 	std::memset(&_sfinfo, 0, sizeof(_sfinfo));
 
@@ -138,29 +107,72 @@ void single_sndfile<T>::open(const char *filename, size_type samplerate)
 }	
 
 template<> inline
-single_sndfile<float>::size_type
-single_sndfile<float>::_writef(const float *buf, size_type nframes) {
+sndfile<float>::size_type
+sndfile<float>::_writef(const float *buf, size_type nframes) {
 	return sf_writef_float(_sndfile.get(), buf, nframes);
 }
 
 template<> inline
-single_sndfile<double>::size_type 
-single_sndfile<double>::_writef(const double *buf, size_type nframes) {
+sndfile<double>::size_type 
+sndfile<double>::_writef(const double *buf, size_type nframes) {
 	return sf_writef_double(_sndfile.get(), buf, nframes);	
 }
 
 template<> inline
-single_sndfile<short>::size_type 
-single_sndfile<short>::_writef(const short *buf, size_type nframes) {
+sndfile<short>::size_type 
+sndfile<short>::_writef(const short *buf, size_type nframes) {
 	return sf_writef_short(_sndfile.get(), buf, nframes);	
 }
 
 template<> inline
-single_sndfile<int>::size_type 
-single_sndfile<int>::_writef(const int *buf, size_type nframes) {
+sndfile<int>::size_type 
+sndfile<int>::_writef(const int *buf, size_type nframes) {
 	return sf_writef_int(_sndfile.get(), buf, nframes);	
 }
 
+/**
+ * This class is an extension of the sndfile to support splitting data
+ * across multiple files. It adds a next() function, which closes the
+ * current file and opens another one, named sequentially.
+ */
+template <typename T>
+class multisndfile : public sndfile<T> {
+
+public:
+	typedef typename sndfile<T>::sample_type sample_type;
+	typedef typename sndfile<T>::size_type size_type;
+	/**
+	 * Instantiate a sndfile family. The filename argument is
+	 * replaced by a template.
+	 *
+	 * @param sprintf-style template with one numeric argument, e.g. "myfile_%04d.wav"
+	 */
+	multisndfile(const char *templ, size_type samplerate)
+		: _fn_templ(templ), _samplerate(samplerate), _file_idx(0) {  next(); }
+
+	/**
+	 * Close the current file and open a new one.
+	 *
+	 * @returns   The name of the new file
+	 */
+	const std::string &next() {
+		try {
+			_current_file = (boost::format(_fn_templ) % ++_file_idx). str();
+		}
+		catch (const boost::io::format_error &e) {
+			throw FileError(make_string() << "invalid filename template: " << _fn_templ);
+		}
+		open(_current_file.c_str(), _samplerate);
+		return _current_file;
+	}
+		
+
+private:
+	std::string _fn_templ;
+	std::string _current_file;
+	size_type _samplerate;
+	int _file_idx;
+};
 
 }} // namespace jill::util
 

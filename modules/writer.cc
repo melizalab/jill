@@ -81,22 +81,26 @@ protected:
 };
 
 /*
- * We've added an additional module-scope variable, a BufferedSndfile
- * instance. This object needs to be at this scope so that it can be
- * accessed by the real-time and main threads.  We initialize it with
- * enough room for 500k samples, which is enough to buffer over 10s of
- * sound at CD-quality rates.
+ * We've added an additional module-scope variable, the buffered
+ * output.  This class is a wrapper around a backend, which is a
+ * sndfile object that stores sample_t's. We could plug in any other
+ * class that implements the same interface (as we'll see in Chapter
+ * 4). The buffer needs to be at this scope so that it can be accessed
+ * by the real-time and main threads.  We initialize it with enough
+ * room for 50k samples, which is enough to buffer about 1s of sound
+ * at CD-quality rates.  We connect it to an actual backend in main()
+ * below.
  */
 static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
-static util::RingbufferAdapter<util::single_sndfile<sample_t> > sndfile(50000);
-//static BufferedSndfile<sample_t> sndfile(500000);
+static util::RingbufferAdapter<util::sndfile<sample_t> > output(50000);
+
 
 /**
  * The process function is similar to the ones in the previous
  * chapters. However, because this module is a Sink, the out buffer is
- * not used. The incoming samples are passed to the BufferedSndfile,
+ * not used. The incoming samples are passed to the RingBufferAdapter,
  * which saves them in the ringbuffer.  If the ringbuffer is full, it
  * will not be able to write all the samples.  This is a serious
  * error, so we throw an exception.  This will be caught by the caller
@@ -105,7 +109,7 @@ static util::RingbufferAdapter<util::single_sndfile<sample_t> > sndfile(50000);
 void
 process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
-	nframes_t nf = sndfile.push(in, nframes);
+	nframes_t nf = output.push(in, nframes);
 	if (nf < nframes)
 		throw std::runtime_error("ringbuffer filled up");
 }
@@ -116,10 +120,8 @@ process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
  * called by the Application class, which runs in the main thread of
  * the program.  Any actions that don't require realtime priority
  * should be placed in this loop.  In this program, we use the main
- * thread to write data from the BufferedSndfile to disk, which is
- * done by calling the () operator on the buffer.  Note that this
- * makes the sndfile object itself a function object, so it could be
- * used as the callback (see below).
+ * thread to write data from the RingbufferAdapter to disk, which is
+ * done by calling the () operator on the buffer.
  * 
  * The function returns 0 if writing was successful, and a nonzero
  * code if it doesn't.  Returning anything other than 0 causes the
@@ -128,7 +130,7 @@ process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 int 
 mainloop()
 {
-	sndfile.flush();
+	output.flush();
 	return 0;
 }
 
@@ -139,7 +141,9 @@ mainloop()
  * able to deal with all the samples before it gets new ones, or an
  * underrun, when the thread is not able to supply enough output
  * samples in time.  Xruns tend to mean skips in the sound, and in the
- * case of this application, missing data.  We use this callback to report xruns to the logfile so that we can later figure out if and where bad data were generated.
+ * case of this application, missing data.  We use this callback to
+ * report xruns to the logfile so that we can later figure out if and
+ * where bad data were generated.
  */
 int 
 log_xrun(float usec)
@@ -183,12 +187,15 @@ main(int argc, char **argv)
 		/*
 		 * Open the output file here. As in the previous
 		 * chapter, we use the JACK server's samplerate to
-		 * specify the samplerate of the output file.
+		 * specify the samplerate of the output file. We then
+		 * pass a pointer to the output file to the
+		 * RingbufferAdapter so it has somewhere to write the
+		 * data.
 		 */
 		logv << logv.allfields << "Opening " << options.output_file 
 		     << " for output; Fs = " << client.samplerate() << endl;
-		util::single_sndfile<sample_t> outfile(options.output_file.c_str(), client.samplerate());
-		sndfile.set_sink(&outfile);
+		util::sndfile<sample_t> outfile(options.output_file.c_str(), client.samplerate());
+		output.set_sink(&outfile);
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -199,22 +206,15 @@ main(int argc, char **argv)
 		app->set_mainloop_callback(mainloop);
 
 		/*
-		 * Equivalently, we can pass the sndfile object to the
-		 * set_mainloop_callback function.  However, as noted
-		 * in the audio_interface.hh header, the function
-		 * object is *copied*.  The BufferedSndFile won't
-		 * allow us to copy it, so it would throw an error.
-		 * To get around this we need to use a reference to
-		 * the object.
+		 * We start the main loop as before, but this time we
+		 * explicitly specify the amount of time to wait
+		 * between running the callback function.  Larger
+		 * values reduce the load, but the ringbuffer has
+		 * enough room for about 1s of data, so we need to
+		 * make sure the data get flushed frequently enough to
+		 * avoid an overrun.
 		 */
-		// app->set_mainloop_callback(boost::ref(sndfile));
-
-		/*
-		 * Writing data is fairly intensive and benefits from
-		 * lots of buffering, so we specify a nice long delay
-		 * between main loops.
-		 */
-		app->run(500000);
+		app->run(250000);
 		logv << logv.allfields << "Total frames written: " << outfile.nframes() << endl;
 		return ret;
 	}
