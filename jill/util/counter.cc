@@ -22,16 +22,17 @@ bool
 Counter::push(int count, int count_thresh) 
 {
 	_counts.push_front(count);
-	if (_counts.size() < _size) return false; // insufficient data
+	_running_count += count;
 
-	int old_count = _running_count;
-	_running_count += count - _counts.back();
+	if (_counts.size() < _size) return false;
+
+	_running_count -=  _counts.back();
 	_counts.pop_back();
 
 	if (count_thresh > 0)
-		return (old_count < count_thresh && _running_count >= count_thresh);
+		return (_running_count >= count_thresh);
 	else
-		return (old_count > -count_thresh && _running_count <= -count_thresh);
+		return (_running_count <= -count_thresh);
 }
 
 

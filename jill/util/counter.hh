@@ -17,18 +17,29 @@
 
 namespace jill { namespace util {
 
+/**
+ * This class is a simple queue-based running counter. The queue has a
+ * fixed size and data are pushed onto the queue one by one, with a
+ * comparison made between the running total and a threshold.
+ */
 class Counter : boost::noncopyable {
 	friend std::ostream& operator<< (std::ostream &os, const Counter &o);
 public:
 	typedef std::deque<int>::size_type size_type;
 
+	/// Initialize the counter with a total size of size
 	Counter(size_t size);
 
-	/// add a value to a count queue. Return true if it crosses the threshold.
+	/**
+	 * Add a value to the queue. Check running total against
+	 * threshold. If threshold is positive, return true if total
+	 * is >= threshold. If negative, return true if <= threshold.
+	 */
 	bool push(int count, int count_thresh);
 
 	/// reset the counter
 	void reset();
+
 
 private:
 	/// the analysis window
