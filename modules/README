@@ -3,9 +3,10 @@ This directory contains several modules that use the JILL framework.
 They are intended for general use, and to serve as an introduction to
 programming in the JILL framework.  A tutorial can be assembled as follows:
 
- * Basic framework:  mixer.cc
- * Customizing the process loop: delay.cc
- * Adding main thread processing: writer.cc
+ 1. Basic framework:  mixer.cc
+ 2. Customizing the process loop: delay.cc
+ 3. Adding main thread processing: writer.cc
+ 4. Designing a custom processing class: triggered_writer.cc
 
 ## Copyright 2010 Daniel Meliza
 ##

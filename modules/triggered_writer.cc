@@ -9,23 +9,21 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * This example is the third chapter in the JILL tutorial.  We will
- * learn how to implement a function that runs in the main loop.  The
- * main loop runs with a lower priority, and any tasks that do not
- * need realtime priority should be run here.  This includes any file
- * or network I/O, which can take an indeterminate amount of time.  
- * 
- * As in the previous chapter, we need somewhere to store the data,
- * but in this case we need a structure that can be safely accessed by
- * multiple threads.  This is called a ringbuffer, which has separate
- * read and write pointers.  The realtime thread uses the write
- * pointer to store data, and the slower I/O thread uses the write
- * pointer.  As long as the write process can deal with large chunks
- * of data and keep up with the faster process, the buffer will
- * prevent underruns.
+ * This example is the fourth chapter in the JILL tutorial.  We will
+ * learn how to write a custom processing class, which we'll define in
+ * a separate file. This allows us to test the processor code as a separate
+ * module without needing to run JACK.
  *
- * We'll also see how to subclass Options to handle positional
- * arguments.
+ * This program's task is similar to writer.cc, but instead of just
+ * writing every sample to disk, we want to only write data when
+ * something is going on.  We'd like to store each recording episode
+ * as a separate file and name them sequentially.
+ *
+ * Looking through the JILL classes, we see that there's a class
+ * WindowDiscriminator in filters/window_discriminator.hh, but it
+ * doesn't have any mechanism for storing the data or writing it to
+ * disk.  So we need to write a custom class.  At this point, open
+ * trigger_classes.hh.
  */
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
@@ -39,46 +37,9 @@
 #include "jill/main.hh"
 #include "jill/application.hh"
 #include "jill/buffered_sndfile.hh"
-#include "jill/filters/window_discriminator.hh"
 #include "jill/util/logger.hh"
 using namespace jill;
 
-
-/**
- * First, we need to subclass Options to handle the additional
- * command-line options for this module.  The additional option is
- * positional; that is, it doesn't have any flags, which means we have
- * to add it to the positional options list.
- */
-class WriterOptions : public Options {
-
-public:
-	WriterOptions(const char *program_name, const char *program_version)
-		: Options(program_name, program_version) { // this calls the superclass constructor
-		cmd_opts.add_options()
-			("output_file", po::value<std::string>(), "set output file");
-		pos_opts.add("output_file", -1);
-	} 
-
-	std::string output_file;
-
-protected:
-
-	void process_options() {
-		if (vmap.count("output_file"))
-			output_file = get<std::string>("output_file");
-		else {
-			std::cerr << "Error: missing required output file name " << std::endl;
-			throw Exit(EXIT_FAILURE);
-		}
-	}
-
-	void print_usage() {
-		std::cout << "Usage: " << _program_name << " [options] output_file\n\n"
-			  << "output_file can be any file format supported by libsndfile\n"
-			  << visible_opts;
-	}
-};
 
 /*
  * We've added an additional module-scope variable, a BufferedSndfile
@@ -91,7 +52,7 @@ static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
 static BufferedSndfile<sample_t> sndfile(500000);
-static filters::WindowDiscriminator<sample_t,nframes_t> wd(0.5, 5, 10, 0.5, 5, 10, 100, 100000);
+static filters::WindowDiscriminator<sample_t,nframes_t> wd(0.5, 5, 10, 0.5, 5, 10, 100);
 
 /**
  * The process function is similar to the ones in the previous
