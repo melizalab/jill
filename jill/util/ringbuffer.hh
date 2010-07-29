@@ -14,8 +14,6 @@
 #define _RINGBUFFER_HH
 
 #include <boost/noncopyable.hpp>
-#include <boost/type_traits.hpp>
-#include <boost/static_assert.hpp>
 #include <jack/ringbuffer.h>
 
 
@@ -140,15 +138,12 @@ std::ostream &operator<< (std::ostream &os, const Ringbuffer<T> &o)
  * call flush() to write data to disk.
  *
  */
-template <typename Sink>
+template <typename T, typename Sink>
 class RingbufferAdapter : boost::noncopyable {
 
 public:
-	typedef typename Sink::sample_type sample_type;
+	typedef T sample_type;
 	typedef typename Sink::size_type size_type;
-	BOOST_STATIC_ASSERT((boost::is_convertible<
-			     size_type,
-			     typename Ringbuffer<sample_type>::size_type>::value));
 
 	/// Initialize the buffer with room for buffer_size samples
 	RingbufferAdapter(size_type buffer_size, Sink *S=0)

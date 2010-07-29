@@ -33,8 +33,9 @@
 
 /*
  * Here we include the relevant JILL headers. We've added a new
- * header, bufered_sndfile.hh, which gives us access to the
- * BufferedSndfile class.
+ * header, ringbuffer.hh, which gives us access to the
+ * RingbufferAdapter class, and sndfile.hh, which gives use access to
+ * sound-file writing backends.
  */
 #include "jill/main.hh"
 #include "jill/application.hh"
@@ -94,7 +95,7 @@ protected:
 static util::logstream logv;
 static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
-static util::RingbufferAdapter<util::sndfile<sample_t> > output(50000);
+static util::RingbufferAdapter<sample_t, util::sndfile > output(50000);
 
 
 /**
@@ -194,7 +195,7 @@ main(int argc, char **argv)
 		 */
 		logv << logv.allfields << "Opening " << options.output_file 
 		     << " for output; Fs = " << client.samplerate() << endl;
-		util::sndfile<sample_t> outfile(options.output_file.c_str(), client.samplerate());
+		util::sndfile outfile(options.output_file.c_str(), client.samplerate());
 		output.set_sink(&outfile);
 
 		signal(SIGINT,  signal_handler);

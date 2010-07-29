@@ -36,21 +36,16 @@ struct FileError : public std::runtime_error {
  * This sound file is a single file, opened using libsndfile. Data
  * supplied to write() are written consecutively to the file.
  */
-template <typename T>
 class sndfile : boost::noncopyable {
 
 public:
-	typedef T sample_type;
 	typedef sf_count_t size_type;
 
 	sndfile(const char *filename, size_type samplerate) 
 		: _nframes(0) { open(filename, samplerate); }
 
-	size_type write(const sample_type *in, size_type nsamples) {
-		size_type n = _writef(in, nsamples);
-		_nframes += n;
-		return n;
-	}
+	template <typename T>
+	size_type write(const T *in, size_type nsamples);
 
 	/// Return the total number of frames written
 	size_type nframes() const { return _nframes; }
@@ -68,12 +63,11 @@ private:
 	size_type _nframes;
 	SF_INFO _sfinfo;
 	boost::shared_ptr<SNDFILE> _sndfile;
-	size_type _writef(const sample_type *buf, size_type nframes);
 
 };
 
-template <typename T>
-void sndfile<T>::open(const char *filename, size_type samplerate)
+void 
+sndfile::open(const char *filename, size_type samplerate)
 {
 	std::memset(&_sfinfo, 0, sizeof(_sfinfo));
 
@@ -107,27 +101,36 @@ void sndfile<T>::open(const char *filename, size_type samplerate)
 }	
 
 template<> inline
-sndfile<float>::size_type
-sndfile<float>::_writef(const float *buf, size_type nframes) {
-	return sf_writef_float(_sndfile.get(), buf, nframes);
+sndfile::size_type
+sndfile::write(const float *buf, size_type nframes)
+{
+	size_type n = sf_writef_float(_sndfile.get(), buf, nframes);
+	_nframes += n;
+	return n;
 }
 
 template<> inline
-sndfile<double>::size_type 
-sndfile<double>::_writef(const double *buf, size_type nframes) {
-	return sf_writef_double(_sndfile.get(), buf, nframes);	
+sndfile::size_type 
+sndfile::write(const double *buf, size_type nframes) {
+	size_type n = sf_writef_double(_sndfile.get(), buf, nframes);	
+	_nframes += n;
+	return n;
 }
 
 template<> inline
-sndfile<short>::size_type 
-sndfile<short>::_writef(const short *buf, size_type nframes) {
-	return sf_writef_short(_sndfile.get(), buf, nframes);	
+sndfile::size_type 
+sndfile::write(const short *buf, size_type nframes) {
+	size_type n = sf_writef_short(_sndfile.get(), buf, nframes);	
+	_nframes += n;
+	return n;
 }
 
 template<> inline
-sndfile<int>::size_type 
-sndfile<int>::_writef(const int *buf, size_type nframes) {
-	return sf_writef_int(_sndfile.get(), buf, nframes);	
+sndfile::size_type 
+sndfile::write(const int *buf, size_type nframes) {
+	size_type n = sf_writef_int(_sndfile.get(), buf, nframes);	
+	_nframes += n;
+	return n;
 }
 
 /**
@@ -135,12 +138,9 @@ sndfile<int>::_writef(const int *buf, size_type nframes) {
  * across multiple files. It adds a next() function, which closes the
  * current file and opens another one, named sequentially.
  */
-template <typename T>
-class multisndfile : public sndfile<T> {
+class multisndfile : public sndfile {
 
 public:
-	typedef typename sndfile<T>::sample_type sample_type;
-	typedef typename sndfile<T>::size_type size_type;
 	/**
 	 * Instantiate a sndfile family. The filename argument is
 	 * replaced by a template.
