@@ -14,6 +14,9 @@
 #define _RINGBUFFER_HH
 
 #include <boost/noncopyable.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/function.hpp>
+#include <boost/static_assert.hpp>
 #include <jack/ringbuffer.h>
 
 
@@ -38,18 +41,17 @@ class Ringbuffer : boost::noncopyable
 public:
 	typedef T data_type;
 	typedef std::size_t size_type;
+	typedef boost::function<void(data_type *, size_type)> ReadCallback;
 	/** 
 	 * Construct a ringbuffer with enough room to hold @a size
 	 * objects of type T.
 	 * 
 	 * @param size The size of the ringbuffer (in objects)
 	 */
-	Ringbuffer(size_type size) {
-		_rb = jack_ringbuffer_create(size * sizeof(T));
-	}
-
-	~Ringbuffer() {
-		jack_ringbuffer_free(_rb);
+	Ringbuffer(size_type size) 
+		: _size(size) {
+		_rb.reset(jack_ringbuffer_create(size * sizeof(T)),
+			  jack_ringbuffer_free);
 	}
 
 	/** 
@@ -61,7 +63,7 @@ public:
 	 * @return The number of frames actually written
 	 */
 	inline size_type push(const T *src, size_type nframes) {
-		return jack_ringbuffer_write(_rb, reinterpret_cast<char const *>(src), 
+		return jack_ringbuffer_write(_rb.get(), reinterpret_cast<char const *>(src), 
 					     sizeof(T) * nframes);
 	}
 
@@ -77,14 +79,18 @@ public:
 	inline size_type pop(T *dest, size_type nframes=0) {
 		if (nframes==0) 
 			nframes = read_space();
-		return jack_ringbuffer_read(_rb, reinterpret_cast<char *>(dest), 
+		return jack_ringbuffer_read(_rb.get(), reinterpret_cast<char *>(dest), 
 					    sizeof(T) * nframes);
 	}
 
 	/** 
 	 * Read data from the ringbuffer. This version sets the input
 	 * argument to the address of an array with the next block of
-	 * data.  To free space after using the data, call advance()
+	 * data.  To free space after using the data, call
+	 * advance(). Note that if the readable data spans the
+	 * boundary of the ringbuffer, this call only provides access
+	 * to the first contiguous chunk of data.  See @a peek_fun for
+	 * an alternative.
 	 * 
 	 * @param buf   Will point to data in ringbuffer after read
 	 * 
@@ -92,7 +98,7 @@ public:
 	 */
 	inline size_type peek(T **buf) {
 		jack_ringbuffer_data_t vec[2];
-		jack_ringbuffer_get_read_vector(_rb, vec);
+		jack_ringbuffer_get_read_vector(_rb.get(), vec);
 		for (int i = 0; i < 2; ++i) {
 			if (vec[i].len > 0) {
 				*buf = reinterpret_cast<T *>(vec[i].buf);
@@ -102,23 +108,62 @@ public:
 		return 0;
 	}
 
-	/// Advance the read pointer by nframes
-	inline void advance(size_type nframes) {
-		jack_ringbuffer_read_advance(_rb, nframes * sizeof(T));
+	/**
+	 * Pass data in the ringbuffer to a function.  This can be a
+	 * convenient way to avoid having to copy data out of the
+	 * buffer, and the somewhat annoying behavior around the
+	 * boundary.  The function will be called twice if the data
+	 * span the boundary.
+	 *
+	 * @param fun   A callback with signature @a ReadCallback
+	 * @returns the total number of samples processed
+	 */
+	inline size_type pop_fun(ReadCallback fun) {
+		size_type count = 0;
+		jack_ringbuffer_data_t vec[2];
+		jack_ringbuffer_get_read_vector(_rb.get(), vec);
+		for (int i = 0; i < 2; ++i) {
+			size_type c = vec[i].len;
+			if (c > 0) {
+				fun(reinterpret_cast<T *>(vec[i].buf),
+				    c / sizeof(T));
+				count += c / sizeof(T);
+				
+			}
+		}
+		advance(count);
+		return count;
+	}
+	/**
+	 * Advance the read pointer by @a nframes, or up to the write
+	 * pointer, whichever is less.
+	 *
+	 * @param nframes   The number of frames to advance. If 0, advance
+	 *                  as far as possible
+	 * @returns the number of frames actually advanced
+	 */
+	inline size_type advance(size_type nframes=0) {
+		// the underlying call can advance the read pointer past the write pointer
+		nframes = (nframes==0) ? read_space() : std::min(read_space(), nframes);
+		jack_ringbuffer_read_advance(_rb.get(), nframes * sizeof(T));
+		return nframes;
 	}
 
 	/// Returns the number of items that can be written to the ringbuffer
 	inline size_type write_space() const {
-		return jack_ringbuffer_write_space(_rb) / sizeof(T);
+		return jack_ringbuffer_write_space(_rb.get()) / sizeof(T);
 	}
 
 	/// Returns the number of items that can be read from the ringbuffer
 	inline size_type read_space() const {
-		return jack_ringbuffer_read_space(_rb) / sizeof(T);
+		return jack_ringbuffer_read_space(_rb.get()) / sizeof(T);
 	}
 
+	inline size_type size() const { return _size; }
+
 private:
-	jack_ringbuffer_t * _rb;
+	size_type _size;
+	boost::shared_ptr<jack_ringbuffer_t> _rb;
 };
 
 template<typename T>
@@ -157,13 +202,13 @@ public:
 		return _ringbuffer.push(in, n);
 	}
 
-        /// write data from the ringbuffer to sink. Returns 0 if successful, -1 otherwise
-	inline int flush() {
+        /// write data from the ringbuffer to sink. Returns the number of samples written
+	inline size_type flush() {
 		sample_type *buf;
 		size_type cnt, frames = _ringbuffer.peek(&buf);	
 		if (frames && _sink) {
 			cnt = _sink->write(buf, frames);
-			_ringbuffer.advance(frames);
+			_ringbuffer.advance(cnt);
 			return cnt;
 		}
 		return 0;

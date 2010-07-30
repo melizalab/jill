@@ -55,12 +55,13 @@ public:
 	 *                than creating the object here, which would require the 
 	 *                this class to know all the constructor parameters, we
 	 *                initialize the object elsewhere and store a reference to it.
-	 * @param writer  An reference to a buffered file output object. As in the
-         *                previous chapter we use a RingbufferAdapter. However,
-	 *                we now need one that will allow us to write to multiple files.
+	 * @param writer  An reference to a file output object. We use one that allows
+	 *                us to write to multiple files.
+	 * @param prebuffer  The size of the prebuffer, in samples
 	 */
 	TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
-			util::RingbufferAdapter<sample_t, util::multisndfile> &writer);
+			util::multisndfile &writer,
+			nframes_t prebuffer_size);
 
 	/**
 	 * This function overloads the () operator; that is, if we
@@ -96,7 +97,14 @@ private:
 	filters::WindowDiscriminator<sample_t> &_wd;
 
 	/// This is our reference to the soundfile writer
-	util::RingbufferAdapter<sample_t, util::multisndfile> &_writer;
+	util::multisndfile &_writer;
+
+	/// This is a ringbuffer that the process thread can write to
+	/// Also one that is used for the prebuffer
+	util::Ringbuffer<sample_t> _ringbuf, _prebuf;
+
+	/// Store the prebuffer size
+	nframes_t _prebuf_size;
 };
 
 /**
