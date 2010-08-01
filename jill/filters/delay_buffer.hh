@@ -24,7 +24,7 @@
 namespace jill { namespace filters {
 
 /**
- * A LIFO buffer for maintaining a fixed delay between input and
+ * A FIFO buffer for maintaining a fixed delay between input and
  * output data. Has the additional feature that when the buffer is not
  * full, the output is padded with zeros.  To maintain consistency,
  * pushing and popping data occur in a single operation.
@@ -48,34 +48,6 @@ public:
 	 * @param size The size of the input/output data
 	 * @param def  The value to use when padding output
 	 * 
-	 */
-	inline std::size_t push_pop(const T *in, T *out, size_type size, const T &def=0) {
-		size_type i;
-		// push data into the buffer
-		for (i = 0; i < size; ++i,++in)
-			_buf.push_front(*in);
-
-		// pull data from the buffer, padding as necessary
- 		int Npad = _delay - _buf.size();
-		for (i = 0; i < size && Npad > 0; ++i, --Npad)
-			out[i] = def;
-		for (; i < size; ++i) {
-			out[i] = _buf.back();
-			_buf.pop_back();
-		}
-		return _delay - _buf.size();
-	}
-
-	
-	/**
-	 * Add data to the buffer while taking samples, if any, off
-	 * the back. This version of the function does not pad the
-	 * output.
-	 *
-	 * @param in   The data to be added to the buffer
-	 * @param out  The destination array for the output
-	 * @param size The size of the input/output data
-	 * @param def  The value to use when padding output
 	 */
 	inline std::size_t push_pop(const T *in, T *out, size_type size, const T &def=0) {
 		size_type i;
