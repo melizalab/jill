@@ -5,10 +5,14 @@ menv = env.Clone()
 menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time',
 	 			'boost_program_options'])
 
-srcs = ['mixer.cc','delay.cc','writer.cc','triggered_writer.cc','trigger_test.cc']
-
-for src in srcs:
-    progname = os.path.splitext(src)[0]
-    prog = menv.Program(progname,[src,lib])
+programs = {'mixer' : ['mixer.cc'],
+            'delay' : ['delay.cc'],
+            'writer' : ['writer.cc'],
+            'twriter' : ['triggered_writer.cc', 'trigger_classes.cc'],
+            #'twriter_test ' : ['trigger_test.cc', 'trigger_classes.cc'],
+            }
+            
+for progname,srcs in programs.items():
+    prog = menv.Program(progname,srcs+[lib])
     menv.Alias(progname,prog)
 

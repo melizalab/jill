@@ -165,6 +165,9 @@ public:
 		open(_current_file.c_str(), _samplerate);
 		return _current_file;
 	}
+
+	/// Return the currently open file
+	const std::string &current_file() const { return _current_file; }
 		
 
 private:

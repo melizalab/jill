@@ -24,11 +24,10 @@
 
 /*
  * Here we include the relevant JILL headers.  For an application, the
- * main.hh and application.hh headers are required.  We also include
- * the logger.hh header, which gives us access to the logstream class,
- * and lift the jill namespace into this compilation unit.
+ * application.hh header is required.  We also include the logger.hh
+ * header, which gives us access to the logstream class, and lift the
+ * jill namespace into this compilation unit.
  */
-#include "jill/main.hh"
 #include "jill/application.hh"
 #include "jill/util/logger.hh"
 using namespace jill;

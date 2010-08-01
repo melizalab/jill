@@ -19,6 +19,8 @@
  * We need to import some classes from JILL. We'll be using the window
  * discriminator, the ringbuffer, and the soundfile writer.
  */
+#include "jill/audio.hh"
+#include "jill/options.hh"
 #include "jill/filters/window_discriminator.hh"
 #include "jill/util/sndfile.hh"
 #include "jill/util/ringbuffer.hh"
@@ -27,6 +29,12 @@
  * These include statements bring in some other classes we need.
  */
 #include <boost/noncopyable.hpp>
+
+/* 
+ * We place the triggered writer into the jill namespace to simplify
+ * access to other members of that namespace
+ */
+namespace jill {
 
 /*
  * Here is where we define our processing class.  We're going to take
@@ -57,11 +65,12 @@ public:
 	 *                initialize the object elsewhere and store a reference to it.
 	 * @param writer  An reference to a file output object. We use one that allows
 	 *                us to write to multiple files.
-	 * @param prebuffer  The size of the prebuffer, in samples
+	 * @param prebuffer_size  The size of the prebuffer, in samples
+	 * @param buffer_size     The size of the process buffer, in samples
 	 */
 	TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
 			util::multisndfile &writer,
-			nframes_t prebuffer_size);
+			nframes_t prebuffer_size, nframes_t buffer_size);
 
 	/**
 	 * This function overloads the () operator; that is, if we
@@ -99,12 +108,10 @@ private:
 	/// This is our reference to the soundfile writer
 	util::multisndfile &_writer;
 
-	/// This is a ringbuffer that the process thread can write to
-	/// Also one that is used for the prebuffer
-	util::Ringbuffer<sample_t> _ringbuf, _prebuf;
-
-	/// Store the prebuffer size
-	nframes_t _prebuf_size;
+	/// A ringbuffer that the process thread can write to
+	util::Ringbuffer<sample_t> _ringbuf;
+	/// The prebuffer
+	util::Prebuffer<sample_t> _prebuf;
 };
 
 /**
@@ -119,7 +126,9 @@ private:
 class TriggerOptions : public Options {
 
 public:
-	WriterOptions(const char *program_name, const char *program_version);
+	TriggerOptions(const char *program_name, const char *program_version);
+
+	std::string output_file_tmpl;
 
 	sample_t open_threshold;
 	sample_t close_threshold;
@@ -138,5 +147,7 @@ protected:
 	void print_usage();
 
 };
+
+}
 
 #endif

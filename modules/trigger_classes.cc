@@ -13,6 +13,8 @@
  *! 
  */
 #include "trigger_classes.hh"
+#include <iostream>
+using namespace jill;
 
 /*
  * This is the file where we define the implementations of the classes
@@ -34,7 +36,7 @@
  * otherwise possible to reseat them).  We also initialize the
  * ringbuffer and store the size of the prebuffer.
  */
-TriggeredWriter::TrigerredWriter(filters::WindowDiscriminator<sample_t> &wd, 
+TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
 				 util::multisndfile &writer,
 				 nframes_t prebuffer_size, nframes_t buffer_size)
 	: _wd(wd), _writer(writer), _ringbuf(buffer_size), _prebuf(prebuffer_size) {}
@@ -48,7 +50,7 @@ TriggeredWriter::TrigerredWriter(filters::WindowDiscriminator<sample_t> &wd,
 void 
 TriggeredWriter::operator() (sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
-	nframes_t nf = _rb.push(in, nframes);
+	nframes_t nf = _ringbuf.push(in, nframes);
 	// as in writer, we throw an error for buffer overruns. It may
 	// be preferable to signal that an xrun has occurred and
 	// simply invalidate the current file.
@@ -70,10 +72,7 @@ TriggeredWriter::operator() (sample_t *in, sample_t *out, nframes_t nframes, nfr
  * moment the gate opens we need to access the samples before the
  * trigger point.  It would be nice to use the process ringbuffer, but
  * we run into issues at the boundary when the write pointer resets to
- * the beginning.  We don't know how many samples we'll get, which
- * makes using a normal buffer complicated.  I've elected to use
- * another ringbuffer here.  We don't need the reentrancy but the
- * semantics are fairly simple to use.
+ * the beginning.  So we use a second buffer for the prebuffer data.
  *
  */
 const std::string&
@@ -89,26 +88,30 @@ TriggeredWriter::flush()
 	// in which case we will need to inspect the return value
 	int offset = _wd.push(buf, frames);
 	if (_wd.open()) {
-		// calculate offset into prebuffer
-		// write prebuf to disk 
-		// write buf to disk
+		// gate is open; data before offset goes into
+		// prebuffer. Some unnecessary copying in the interest
+		// of simplicity.
+		if (offset > 0) {
+			_prebuf.push(buf, offset);
+			_writer.next();
+			//_prebuf.pop_fun(&util::multisndfile::push)
+			_writer.write(buf+offset, frames-offset);
+		}
+		else
+			_writer.write(buf, frames);
 	}
 	else {	
-		// write to prebuffer - the most I will write is _prebuf_size
-		int space = _prebuf_size - _prebuf.read_space(); // 
-		int o = frames - _prebuf.size();
-		if (o > 0) {
-			// too many frames; only push most recent
-			_prebuf.advance();
-			_prebuf.push(buf+o, _prebuf.size());
+		// gate is closed; Data before offset goes to file;
+		// rest goes to prebuffer
+		if (offset > 0) {
+			_writer.write(buf, offset);
+			_prebuf.push(buf+offset, frames-offset);
 		}
-		else {
-			
-
-		_prebuf.push(buf, frames);
+		else
+			_prebuf.push(buf, frames);
 	}
-	// advance ringbuffer
-		
+	_ringbuf.advance(frames);
+	return _writer.current_file();
 }
 
 
@@ -116,7 +119,7 @@ TriggerOptions::TriggerOptions(const char *program_name, const char *program_ver
 	: Options(program_name, program_version) // this calls the superclass constructor
 {
 	cmd_opts.add_options()
-		("output_file", po::value<std::string>(), "set output file");
+		("output_file", po::value<std::string>(), "set output file name template");
 	pos_opts.add("output_file", -1);
 } 
 
@@ -124,7 +127,7 @@ void
 TriggerOptions::process_options() 
 {
 	if (vmap.count("output_file"))
-		output_file = get<std::string>("output_file");
+		output_file_tmpl = get<std::string>("output_file");
 	else {
 		std::cerr << "Error: missing required output file name " << std::endl;
 		throw Exit(EXIT_FAILURE);

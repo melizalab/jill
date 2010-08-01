@@ -26,7 +26,6 @@
  * additional header which gives us access to the
  * DelayBuffer class.
  */
-#include "jill/main.hh"
 #include "jill/application.hh"
 #include "jill/filters/delay_buffer.hh"
 #include "jill/util/logger.hh"
