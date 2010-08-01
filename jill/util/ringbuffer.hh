@@ -48,8 +48,7 @@ public:
 	 * 
 	 * @param size The size of the ringbuffer (in objects)
 	 */
-	Ringbuffer(size_type size) 
-		: _size(size) {
+	Ringbuffer(size_type size) {
 		_rb.reset(jack_ringbuffer_create(size * sizeof(T)),
 			  jack_ringbuffer_free);
 	}
@@ -62,9 +61,9 @@ public:
 	 * 
 	 * @return The number of frames actually written
 	 */
-	inline size_type push(const T *src, size_type nframes) {
+	inline size_type push(const data_type *src, size_type nframes) {
 		return jack_ringbuffer_write(_rb.get(), reinterpret_cast<char const *>(src), 
-					     sizeof(T) * nframes);
+					     sizeof(data_type) * nframes);
 	}
 
 	/** 
@@ -76,11 +75,11 @@ public:
 	 * 
 	 * @return The number of frames actually read
 	 */
-	inline size_type pop(T *dest, size_type nframes=0) {
+	inline size_type pop(data_type *dest, size_type nframes=0) {
 		if (nframes==0) 
 			nframes = read_space();
 		return jack_ringbuffer_read(_rb.get(), reinterpret_cast<char *>(dest), 
-					    sizeof(T) * nframes);
+					    sizeof(data_type) * nframes);
 	}
 
 	/** 
@@ -96,13 +95,13 @@ public:
 	 * 
 	 * @return  The number of available samples in buf
 	 */
-	inline size_type peek(T **buf) {
+	inline size_type peek(data_type **buf) {
 		jack_ringbuffer_data_t vec[2];
 		jack_ringbuffer_get_read_vector(_rb.get(), vec);
 		for (int i = 0; i < 2; ++i) {
 			if (vec[i].len > 0) {
-				*buf = reinterpret_cast<T *>(vec[i].buf);
-				return vec[i].len / sizeof(T);
+				*buf = reinterpret_cast<data_type *>(vec[i].buf);
+				return vec[i].len / sizeof(data_type);
 			}
 		}
 		return 0;
@@ -125,9 +124,9 @@ public:
 		for (int i = 0; i < 2; ++i) {
 			size_type c = vec[i].len;
 			if (c > 0) {
-				fun(reinterpret_cast<T *>(vec[i].buf),
-				    c / sizeof(T));
-				count += c / sizeof(T);
+				fun(reinterpret_cast<data_type *>(vec[i].buf),
+				    c / sizeof(data_type));
+				count += c / sizeof(data_type);
 				
 			}
 		}
@@ -145,24 +144,23 @@ public:
 	inline size_type advance(size_type nframes=0) {
 		// the underlying call can advance the read pointer past the write pointer
 		nframes = (nframes==0) ? read_space() : std::min(read_space(), nframes);
-		jack_ringbuffer_read_advance(_rb.get(), nframes * sizeof(T));
+		jack_ringbuffer_read_advance(_rb.get(), nframes * sizeof(data_type));
 		return nframes;
 	}
 
 	/// Returns the number of items that can be written to the ringbuffer
 	inline size_type write_space() const {
-		return jack_ringbuffer_write_space(_rb.get()) / sizeof(T);
+		return jack_ringbuffer_write_space(_rb.get()) / sizeof(data_type);
 	}
 
 	/// Returns the number of items that can be read from the ringbuffer
 	inline size_type read_space() const {
-		return jack_ringbuffer_read_space(_rb.get()) / sizeof(T);
+		return jack_ringbuffer_read_space(_rb.get()) / sizeof(data_type);
 	}
 
-	inline size_type size() const { return _size; }
+	inline size_type size() const { return read_space() + write_space(); }
 
 private:
-	size_type _size;
 	boost::shared_ptr<jack_ringbuffer_t> _rb;
 };
 
@@ -171,6 +169,47 @@ std::ostream &operator<< (std::ostream &os, const Ringbuffer<T> &o)
 {
 	return os << "read space " << o.read_space() << "; write space " << o.write_space();
 }
+
+/**
+ * The Prebuffer is a specialization of the Ringbuffer that
+ * automatically flushes data when new data is added to maintain a
+ * constant quantity of data to be read.  This is useful in
+ * maintaining a prebuffer of some fixed time period.
+ *
+ * Note: this class is NOT thread-safe, because the push function
+ * manipulates both the read and write pointers.
+ */
+template <typename T>
+class Prebuffer : public Ringbuffer<T> {
+
+public:
+	typedef T data_type;
+	typedef std::size_t size_type;
+
+	Prebuffer(size_type size) : Ringbuffer<T>(size), _size(size) {}
+
+	/**
+	 * Push data onto the prebuffer. If the size of the data
+	 * exceeds the size of the ringbuffer, only the last size
+	 * items will be written.  The read pointer is advanced so
+	 * that it is at most size behind the write pointer. Because
+	 * of this, this operation is not reentrant with the read functions
+	 *
+	 * @param in  The input data
+	 * @param nframes  The number of items in the data
+	 * @returns  The number of items actually written
+	 */
+	inline size_type push(const data_type *in, size_type nframes) {
+		size_type nwrite = std::min(_size, nframes);
+		size_type nflush = std::min(nwrite, super::read_space());
+		super::advance(nflush);
+		return super::push(in+(nframes-nwrite), nwrite);
+	}
+
+private:
+	typedef Ringbuffer<T> super;
+	size_type _size;
+};
 
 /**
  * The RingbufferAdapter is a generic class that uses a Ringbuffer to
