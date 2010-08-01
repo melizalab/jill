@@ -13,7 +13,6 @@
 #include <iostream>
 #include <fstream>
 #include "options.hh"
-#include "main.hh"
 
 using namespace jill;
 using std::string;

@@ -99,6 +99,22 @@ protected:
 	
 };
 
+/**
+ * A class of exceptions intended to trigger program termination with
+ * a specific status value.
+ */
+class Exit : public std::exception {
+public:
+	Exit(int status) : _status(status) { }
+	virtual ~Exit() throw () { }
+
+	int status() const throw() { return _status; }
+
+protected:
+	int _status;
+};
+
+
 } // namespace jill
 
 #endif // _OPTIONS_HH
