@@ -14,6 +14,7 @@
  */
 #include "trigger_classes.hh"
 #include <iostream>
+#include <boost/bind.hpp>
 using namespace jill;
 
 /*
@@ -81,7 +82,7 @@ TriggeredWriter::flush()
 	// read samples from buffer. We allocate a pointer and then
 	// get the ringbuffer to point us at the memory where the data
 	// are located.  
-	sample_t *buf;
+	sample_t *buf = 0;
 	nframes_t frames = _ringbuf.peek(&buf);
 
 	// pass samples to window discriminator; its state may change,
@@ -94,7 +95,16 @@ TriggeredWriter::flush()
 		if (offset > 0) {
 			_prebuf.push(buf, offset);
 			_writer.next();
-			//_prebuf.pop_fun(&util::multisndfile::push)
+			// Here we use the pop_fun function of the
+			// prebuffer to write the entire prebuffer to
+			// disk.  There is some jiggery-pokery in
+			// passing the write function to pop_fun()
+			// because it's a member function.  The
+			// alternative would be to either copy the
+			// prebuffer, or make two passes to get the
+			// data out to file.
+ 			_prebuf.pop_fun(boost::bind(static_cast<writefun_t>(&util::multisndfile::write),
+ 						    boost::ref(_writer), _1, _2));
 			_writer.write(buf+offset, frames-offset);
 		}
 		else

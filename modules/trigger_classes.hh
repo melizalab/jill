@@ -107,6 +107,9 @@ private:
 
 	/// This is our reference to the soundfile writer
 	util::multisndfile &_writer;
+	// a typedef for pointers to the writer's write function
+	typedef util::multisndfile::size_type (util::multisndfile::*writefun_t)(const sample_t *,
+										util::multisndfile::size_type);
 
 	/// A ringbuffer that the process thread can write to
 	util::Ringbuffer<sample_t> _ringbuf;
