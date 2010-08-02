@@ -30,7 +30,8 @@ namespace jill {
  * AudioInterface is a generic wrapper around a callback-based audio
  * process. The callback is a function or function object will be
  * called repeatedly, being passed an input and output array of
- * samples. Processes that only input or output can ignore one or the other pointer.
+ * samples. Processes that only input or output can ignore one or the
+ * other pointer.
  */
 class AudioInterface : boost::noncopyable
 {
@@ -48,18 +49,22 @@ public:
 
 	/**
 	 * Set the process callback. This can be a raw function
-	 * pointer or any function object. The argument is copied; if
-	 * this is undesirable use a boost::ref.
-	 * @param cb The function object that will process the audio data
+	 * pointer or any function object that matches the signature
+	 * of @a ProcessCallback. The argument is copied; if this is
+	 * undesirable use a boost::ref.  
+	 *
+	 * @param cb The function object that will process the audio
+	 * data [type void (*)(sample_t *, sample_t *, nframes_t, nframes_t)]
+	 *
 	 */
 	virtual void set_process_callback(const ProcessCallback &cb) {
 		_process_cb = cb;
 	}
 
-	/// get sample rate
+	/// Return the sample rate of the client
 	virtual nframes_t samplerate() const = 0;
 
-	/// check if backend is still running
+	/// True if backend is still running
 	virtual bool is_shutdown() const = 0;
 
 protected:
@@ -70,6 +75,8 @@ protected:
 
 /**
  * Define an audio interface that supports a transport protocol.
+ * Clients deriving from this class must implement a number of methods
+ * associated with transport.
  */
 class AudioInterfaceTransport : public AudioInterface
 {
