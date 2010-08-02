@@ -168,7 +168,7 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		// parse options, using our custom options class
-		WriterOptions options("writer", "1.0.0rc2");
+		WriterOptions options("writer", "1.0.0rc3");
 		options.parse(argc,argv);
 
 		// fire up the logger

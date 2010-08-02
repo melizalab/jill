@@ -5,7 +5,7 @@ if hasattr(os,'uname'):
 else:
     system = 'Windows'
 
-version = '1.0.0rc2'
+version = '1.0.0rc3'
 libname = 'jill'
     
 env = Environment(CCFLAGS=['-O2','-g','-Wall'],
@@ -18,6 +18,6 @@ if system=='Darwin':
                LIBPATH=['/opt/local/lib'])
 
 lib = SConscript('jill/SConscript', exports='env libname')
-examples = SConscript('modules/SConscript', exports='env lib')
+examples = SConscript('examples/SConscript', exports='env lib')
 
 env.Alias('examples',examples)
