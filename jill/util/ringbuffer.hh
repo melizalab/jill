@@ -15,8 +15,6 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/function.hpp>
-#include <boost/static_assert.hpp>
 #include <jack/ringbuffer.h>
 
 
@@ -41,7 +39,6 @@ class Ringbuffer : boost::noncopyable
 public:
 	typedef T data_type;
 	typedef std::size_t size_type;
-	typedef boost::function<void(data_type *, size_type)> ReadCallback;
 	/** 
 	 * Construct a ringbuffer with enough room to hold @a size
 	 * objects of type T.
@@ -117,7 +114,8 @@ public:
 	 * @param fun   A callback with signature @a ReadCallback
 	 * @returns the total number of samples processed
 	 */
-	inline size_type pop_fun(ReadCallback fun) {
+	template <typename F>
+	inline size_type pop_fun(F fun) {
 		size_type count = 0;
 		jack_ringbuffer_data_t vec[2];
 		jack_ringbuffer_get_read_vector(_rb.get(), vec);
