@@ -37,7 +37,7 @@ using namespace jill;
  * buffer. This has to be available at this scope in order for the
  * process() function to have access to it.
  */
-static boost::scoped_ptr<Application> app;
+static boost::scoped_ptr<JillApplication> app;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 static boost::scoped_ptr<filters::DelayBuffer<sample_t> > buffer;
@@ -77,7 +77,7 @@ main(int argc, char **argv)
 		 * additional options. For more details see
 		 * http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
 		 */	
-		Options	options("delay", "1.0.0rc2"); 
+		JillOptions options("delay", "1.0.0rc2"); 
 		options.cmd_opts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
 		options.parse(argc,argv);
@@ -112,7 +112,7 @@ main(int argc, char **argv)
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
-		app.reset(new Application(client, logv));
+		app.reset(new JillApplication(client, logv));
 		app->connect_inputs(options.input_ports);
 		app->connect_outputs(options.output_ports);
 		app->run();

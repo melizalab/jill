@@ -23,14 +23,8 @@ namespace jill {
 namespace po = boost::program_options;
 
 /**
- * The Options class stores options for JILL applications and handles
- * parsing the command line.  This base class processes options common
- * to all JILL applications:
- *
- * -n : client name
- * -l : log file
- * -i : input ports
- * -o : output ports
+ * The Options class is a base class for parsing options. It handles
+ * the most basic options common to all programs.
  *
  * This class is a thin wrapper around boost/program_options. The
  * options_descriptions members and parsed value map are exposed to
@@ -42,10 +36,12 @@ namespace po = boost::program_options;
  * string uname = options.get("blah","");
  *
  * Alternatively, a class can inherit from this class and override the
- * constructor and process_options() functions (possibly the parse() function as well)
+ * constructor and process_options() functions (possibly the parse()
+ * function as well)
  */
 class Options {
 public:
+	/** All options classes are initialized with the program name and version */
 	Options(const char *program_name, const char *program_version);
 	virtual ~Options() {}
 
@@ -77,6 +73,34 @@ public:
 	template <typename T> inline
 	const T &get(const char *name) { return vmap[name].as<T>(); }
 
+protected:
+	std::string _program_name;
+	std::string _program_version;
+
+	/// This function is called once the options are parsed; its job is to load data into the fields
+	virtual void process_options() = 0;
+	/// Print the name and version of the program. Called by parse()
+	virtual void print_version();
+	/// Print the usage information
+	virtual void print_usage();
+
+};
+
+/**
+ * The JillOptions class stores options for JILL applications. Options
+ * handled are:
+ *
+ * -n : client name
+ * -l : log file
+ * -i : input ports
+ * -o : output ports
+ *
+ */
+class JillOptions : public Options {
+public:
+	JillOptions(const char *program_name, const char *program_version);
+	virtual ~JillOptions() {}
+
 	/// The client name (used in internal JACK representations)
 	std::string client_name;
 	/// A vector of inputs to connect to the client
@@ -87,15 +111,7 @@ public:
 	std::string logfile;
 
 protected:
-	std::string _program_name;
-	std::string _program_version;
-
-	/// This function is called once the options are parsed; its job is to load data into the fields
 	virtual void process_options();
-	/// Print the name and version of the program. Called by parse()
-	virtual void print_version();
-	/// Print the usage information
-	virtual void print_usage();
 	
 };
 

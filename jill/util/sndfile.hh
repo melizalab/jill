@@ -41,8 +41,12 @@ class sndfile : boost::noncopyable {
 public:
 	typedef sf_count_t size_type;
 
-	sndfile(const char *filename, size_type samplerate) 
-		: _nframes(0) { open(filename, samplerate); }
+	sndfile();
+	sndfile(const char *filename, size_type samplerate);
+
+	void open(const char *filename, size_type samplerate);
+
+	operator bool () const;
 
 	size_type write(const float *buf, size_type nframes);
 	size_type write(const double *buf, size_type nframes);
@@ -51,15 +55,6 @@ public:
 
 	/// Return the total number of frames written
 	size_type nframes() const { return _nframes; }
-
-protected:
-
-	/// Protected default constructor for subclasses
-	sndfile() : _nframes(0) {}
-
-	/// Open a new file for output. Old files are truncated.
-	void open(const char *filename, size_type samplerate);
-
 
 private:
 	size_type _nframes;
@@ -101,6 +96,48 @@ private:
 	std::string _current_file;
 	size_type _samplerate;
 	int _file_idx;
+};
+
+
+/**
+ * A thin wrapper around the libsndfile header for reading sound
+ * files. This duplicates to some extent the SndfileHandle class in
+ * <sndfile.hh> but with a much simpler interface (and no copy semantics)
+ */
+class sndfilereader : boost::noncopyable {
+public:
+	typedef sf_count_t size_type;
+
+	sndfilereader();
+	sndfilereader(const char *path);
+
+	void open(const char *path);
+
+	operator bool () const { return _sndfile; };
+	size_type samplerate() const { return (_sndfile) ? _sfinfo.samplerate : 0; }
+	size_type frames() const { return (_sndfile) ? _sfinfo.frames : 0; }
+
+	inline size_type seek(size_type frames, int whence) {
+		return sf_seek(_sndfile.get(), frames, whence);
+	}
+
+	inline size_type read(float *buf, size_type nframes) {
+		return sf_readf_float(_sndfile.get(), buf, nframes);
+	}
+	inline size_type read(double *buf, size_type nframes) {
+		return sf_readf_double(_sndfile.get(), buf, nframes);
+	}
+	inline size_type read(int *buf, size_type nframes) {
+		return sf_readf_int(_sndfile.get(), buf, nframes);
+	}
+	inline size_type read(short *buf, size_type nframes) {
+		return sf_readf_short(_sndfile.get(), buf, nframes);
+	}
+
+private:
+	boost::shared_ptr<SNDFILE> _sndfile;
+	SF_INFO _sfinfo;
+
 };
 
 }} // namespace jill::util

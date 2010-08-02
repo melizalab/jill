@@ -50,11 +50,11 @@ using namespace jill;
  * positional; that is, it doesn't have any flags, which means we have
  * to add it to the positional options list.
  */
-class WriterOptions : public Options {
+class WriterOptions : public JillOptions {
 
 public:
 	WriterOptions(const char *program_name, const char *program_version)
-		: Options(program_name, program_version) { // this calls the superclass constructor
+		: JillOptions(program_name, program_version) { // this calls the superclass constructor
 		cmd_opts.add_options()
 			("output_file", po::value<std::string>(), "set output file");
 		pos_opts.add("output_file", -1);
@@ -92,7 +92,7 @@ protected:
  * below.
  */
 static util::logstream logv;
-static boost::scoped_ptr<Application> app;
+static boost::scoped_ptr<JillApplication> app;
 static int ret = EXIT_SUCCESS;
 static util::RingbufferAdapter<sample_t, util::sndfile > output(50000);
 
@@ -201,7 +201,7 @@ main(int argc, char **argv)
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
-		app.reset(new Application(client, logv));
+		app.reset(new JillApplication(client, logv));
 		app->connect_inputs(options.input_ports);
 		app->set_mainloop_callback(mainloop);
 

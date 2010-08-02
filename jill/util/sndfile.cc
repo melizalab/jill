@@ -2,6 +2,14 @@
 #include "sndfile.hh"
 using namespace jill::util;
 
+sndfile::sndfile() : _nframes(0) {}
+
+sndfile::sndfile(const char *filename, size_type samplerate) 
+	: _nframes(0) 
+{
+	open(filename, samplerate);
+}
+
 void 
 sndfile::open(const char *filename, size_type samplerate)
 {
@@ -36,6 +44,11 @@ sndfile::open(const char *filename, size_type samplerate)
 	_sndfile.reset(f, sf_close);
 }	
 
+sndfile::operator bool () const
+{
+	return _sndfile;
+}
+	    
 
 sndfile::size_type
 sndfile::write(const float *buf, size_type nframes)
@@ -70,6 +83,7 @@ sndfile::write(const int *buf, size_type nframes) {
 }
 
 
+/* ------------------------- multisndfile --------------------- */
 
 
 const std::string&
@@ -82,4 +96,25 @@ multisndfile::next()  {
 	}
 	open(_current_file.c_str(), _samplerate);
 	return _current_file;
+}
+
+
+/* ------------------------- sndfilereader --------------------- */
+
+sndfilereader::sndfilereader() {}
+
+sndfilereader::sndfilereader(const char *filename) 
+{
+	open(filename);
+}
+
+
+void
+sndfilereader::open(const char *filename)
+{
+	SNDFILE *f = sf_open(filename, SFM_READ, &_sfinfo);
+	if (!f) {
+		throw FileError(make_string() << "couldn't open '" << filename << "' for output");
+	}
+	_sndfile.reset(f, sf_close);
 }

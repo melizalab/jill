@@ -19,16 +19,13 @@ using std::string;
 using std::vector;
 
 Options::Options(const char *program_name, const char *program_version)
-	:  client_name(program_name), _program_name(program_name), _program_version(program_version)
+	:  _program_name(program_name), _program_version(program_version)
 {
 	po::options_description generic("General options");
 	generic.add_options()
 		("version,v", "print version string")
 		("help,h",      "print help message")
-		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
-		("log,l",     po::value<string>(), "set logfile (default stdout)")
-		("out,o",     po::value<vector<string> >(), "add output port")
-		("in,i",      po::value<vector<string> >(), "add input port");
+		("name,n",    po::value<string>()->default_value(_program_name), "set client name");
 	cmd_opts.add(generic);
 	visible_opts.add(generic);
 }
@@ -72,8 +69,23 @@ Options::parse(int argc, char **argv, const char *configfile)
 }
 
 
+
+JillOptions::JillOptions(const char *program_name, const char *program_version)
+	: Options(program_name, program_version), client_name(program_name)
+{
+	po::options_description jillopts("JILL options");
+	jillopts.add_options()
+		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
+		("log,l",     po::value<string>(), "set logfile (default stdout)")
+		("out,o",     po::value<vector<string> >(), "add output port")
+		("in,i",      po::value<vector<string> >(), "add input port");
+	cmd_opts.add(jillopts);
+	visible_opts.add(jillopts);
+}
+
+
 void
-Options::process_options()
+JillOptions::process_options()
 {
 	if (vmap.count("out"))
 		output_ports = get<vector<string> >("out");

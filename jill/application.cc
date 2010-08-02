@@ -15,12 +15,19 @@
 
 using namespace jill;
 
-Application::Application(AudioInterfaceJack &client, util::logstream &logv)
+/* ----------------------- JillApplication ----------------------- */
+
+JillApplication::JillApplication(AudioInterfaceJack &client, util::logstream &logv)
 	: _logv(logv), _client(client), _quit(false) {}
+
+JillApplication::~JillApplication()
+{
+	// attempt to disconnect inputs and outputs
+}
 
 
 void
-Application::connect_inputs(const std::vector<std::string> &ports)
+JillApplication::connect_inputs(const std::vector<std::string> &ports)
 {
 	std::vector<std::string>::const_iterator it;
 	for (it = ports.begin(); it != ports.end(); ++it) {
@@ -30,7 +37,7 @@ Application::connect_inputs(const std::vector<std::string> &ports)
 }
 
 void
-Application::connect_outputs(const std::vector<std::string> &ports)
+JillApplication::connect_outputs(const std::vector<std::string> &ports)
 {
 	std::vector<std::string>::const_iterator it;
 	for (it = ports.begin(); it != ports.end(); ++it) {
@@ -40,7 +47,7 @@ Application::connect_outputs(const std::vector<std::string> &ports)
 }
 
 void
-Application::run(unsigned int usec_delay)
+JillApplication::run(unsigned int usec_delay)
 {
 	_logv << _logv.allfields << "Starting main loop with delay " << usec_delay << " usec" << std::endl;
 	for (;;) {
@@ -60,3 +67,5 @@ Application::run(unsigned int usec_delay)
 		}
 	}
 }
+
+

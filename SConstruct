@@ -18,4 +18,6 @@ if system=='Darwin':
                LIBPATH=['/opt/local/lib'])
 
 lib = SConscript('jill/SConscript', exports='env libname')
-SConscript('modules/SConscript', exports='env lib')
+examples = SConscript('modules/SConscript', exports='env lib')
+
+env.Alias('examples',examples)

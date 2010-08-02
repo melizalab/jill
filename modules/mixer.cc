@@ -24,12 +24,9 @@
 
 /*
  * Here we include the relevant JILL headers.  For an application, the
- * application.hh header is required.  We also include the logger.hh
- * header, which gives us access to the logstream class, and lift the
- * jill namespace into this compilation unit.
+ * application.hh header is required; it includes a number of subsidiary headers.
  */
 #include "jill/application.hh"
-#include "jill/util/logger.hh"
 using namespace jill;
 
 
@@ -41,7 +38,7 @@ using namespace jill;
  * application exits). We also create a logstream, and an integer to
  * hold the exist status of the application.
  */
-static boost::scoped_ptr<Application> app;
+static boost::scoped_ptr<JillApplication> app;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 
@@ -106,7 +103,7 @@ main(int argc, char **argv)
 		 * name of the application, the version, and pass it
 		 * the command line arguments.
 		 */
-		Options options("mixer", "1.0.0rc2");
+		JillOptions options("mixer", "1.0.0rc2");
 		options.parse(argc,argv);
 
 		/*
@@ -155,7 +152,7 @@ main(int argc, char **argv)
 		 * case, when the signal_handler calls signal_quit(),
 		 * or if the client throws an exception.
 		 */
-		app.reset(new Application(client, logv));
+		app.reset(new JillApplication(client, logv));
 		app->connect_inputs(options.input_ports);
 		app->connect_outputs(options.output_ports);
 		app->run();
