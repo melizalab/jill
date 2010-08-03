@@ -10,6 +10,12 @@ sndfile::sndfile(const char *filename, size_type samplerate)
 	open(filename, samplerate);
 }
 
+sndfile::sndfile(const std::string &filename, size_type samplerate) 
+	: _nframes(0) 
+{
+	open(filename.c_str(), samplerate);
+}
+
 void 
 sndfile::open(const char *filename, size_type samplerate)
 {
@@ -88,6 +94,7 @@ sndfile::write(const int *buf, size_type nframes) {
 
 const std::string&
 multisndfile::next()  {
+	if (_fn_templ=="") return _fn_templ;
 	try {
 		_current_file = (boost::format(_fn_templ) % ++_file_idx). str();
 	}
@@ -103,10 +110,9 @@ multisndfile::next()  {
 
 sndfilereader::sndfilereader() {}
 
-sndfilereader::sndfilereader(const char *filename) 
-{
-	open(filename);
-}
+sndfilereader::sndfilereader(const char *filename) { open(filename); }
+
+sndfilereader::sndfilereader(const std::string &filename) { open(filename.c_str()); }
 
 
 void
@@ -114,7 +120,7 @@ sndfilereader::open(const char *filename)
 {
 	SNDFILE *f = sf_open(filename, SFM_READ, &_sfinfo);
 	if (!f) {
-		throw FileError(make_string() << "couldn't open '" << filename << "' for output");
+		throw FileError(make_string() << "couldn't open '" << filename << "' for input");
 	}
 	_sndfile.reset(f, sf_close);
 }

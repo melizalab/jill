@@ -42,6 +42,7 @@ public:
 	typedef sf_count_t size_type;
 
 	sndfile();
+	sndfile(const std::string &filename, size_type samplerate);
 	sndfile(const char *filename, size_type samplerate);
 
 	void open(const char *filename, size_type samplerate);
@@ -73,12 +74,14 @@ class multisndfile : public sndfile {
 public:
 	/**
 	 * Instantiate a sndfile family. The filename argument is
-	 * replaced by a template.
+	 * replaced by a template.  Note: call next() before write()!
 	 *
 	 * @param sprintf-style template with one numeric argument, e.g. "myfile_%04d.wav"
 	 */
 	multisndfile(const char *templ, size_type samplerate)
-		: _fn_templ(templ), _samplerate(samplerate), _file_idx(0) {  next(); }
+		: _fn_templ(templ), _samplerate(samplerate), _file_idx(0) { }
+	multisndfile(const std::string &templ, size_type samplerate)
+		: _fn_templ(templ), _samplerate(samplerate), _file_idx(0) { }
 
 	/**
 	 * Close the current file and open a new one.
@@ -109,6 +112,7 @@ public:
 	typedef sf_count_t size_type;
 
 	sndfilereader();
+	sndfilereader(const std::string &path);
 	sndfilereader(const char *path);
 
 	void open(const char *path);

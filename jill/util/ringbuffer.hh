@@ -60,7 +60,7 @@ public:
 	 */
 	inline size_type push(const data_type *src, size_type nframes) {
 		return jack_ringbuffer_write(_rb.get(), reinterpret_cast<char const *>(src), 
-					     sizeof(data_type) * nframes);
+					     sizeof(data_type) * nframes) / sizeof(data_type);
 	}
 
 	/** 
@@ -76,7 +76,7 @@ public:
 		if (nframes==0) 
 			nframes = read_space();
 		return jack_ringbuffer_read(_rb.get(), reinterpret_cast<char *>(dest), 
-					    sizeof(data_type) * nframes);
+					    sizeof(data_type) * nframes) / sizeof(data_type);
 	}
 
 	/** 

@@ -13,47 +13,9 @@
 #define _OFFLINE_APPLICATION_HH
 
 #include "application.hh"
-#include <boost/shared_array.hpp>
-#include "util/sndfile.hh"
+#include "audio_interface_offline.hh"
 
 namespace jill {
-
-/*
- * The classes in this file are for testing JILL clients. Rather than
- * use the JACK server to run the process thread, data are read from a
- * input sound file and passed to the process callback in blocks.  The
- * AudioInterfaceOffline should be used instead of the
- * AudioInterfaceJack class, and the OfflineApplication class instead
- * of JillApplication.
- */
-
-class AudioInterfaceOffline : public AudioInterface {
-
-public:
-	AudioInterfaceOffline(nframes_t blocksize, nframes_t samplerate=1);
-	virtual ~AudioInterfaceOffline();
-
-	void set_input(const std::string &sndfile, nframes_t startframe=0);
-	void set_output(const std::string &sndfile);
-
-
-	/**
-	 * Run the process callback, reading data from the input file
-	 * and writing data to the output file.  Processes one block of data
-	 */
-	void process();
-
-	virtual nframes_t samplerate() const { return _samplerate; }
-	virtual bool is_shutdown() const { return _quit; }
-
-private:
-	util::sndfilereader _sfin;
-	util::sndfile _sfout;
-	nframes_t _blocksize, _samplerate;
-	bool _quit;
-
-	boost::shared_array<sample_t> _bufin, _bufout;
-};
 
 /**
  * The OfflineApplication is for simulating a JACK run. Rather than use
