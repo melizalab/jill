@@ -111,8 +111,9 @@ public:
 	 * boundary.  The function will be called twice if the data
 	 * span the boundary.
 	 *
-	 * @param fun   A callback with signature @a ReadCallback
-	 * @returns the total number of samples processed
+	 * @param fun   A callback with signature (data_type *, size_type)
+                        [and any return type]
+	 * @return the total number of samples processed
 	 */
 	template <typename F>
 	inline size_type pop_fun(F fun) {
@@ -137,7 +138,7 @@ public:
 	 *
 	 * @param nframes   The number of frames to advance. If 0, advance
 	 *                  as far as possible
-	 * @returns the number of frames actually advanced
+	 * @return the number of frames actually advanced
 	 */
 	inline size_type advance(size_type nframes=0) {
 		// the underlying call can advance the read pointer past the write pointer
@@ -146,12 +147,12 @@ public:
 		return nframes;
 	}
 
-	/// Returns the number of items that can be written to the ringbuffer
+	/// @return the number of items that can be written to the ringbuffer
 	inline size_type write_space() const {
 		return jack_ringbuffer_write_space(_rb.get()) / sizeof(data_type);
 	}
 
-	/// Returns the number of items that can be read from the ringbuffer
+	/// @return the number of items that can be read from the ringbuffer
 	inline size_type read_space() const {
 		return jack_ringbuffer_read_space(_rb.get()) / sizeof(data_type);
 	}
@@ -182,7 +183,7 @@ class Prebuffer : public Ringbuffer<T> {
 
 public:
 	typedef T data_type;
-	typedef std::size_t size_type;
+	typedef typename Ringbuffer<T>::size_type size_type;
 
 	Prebuffer(size_type size) : Ringbuffer<T>(size), _size(size) {}
 
@@ -195,7 +196,7 @@ public:
 	 *
 	 * @param in  The input data
 	 * @param nframes  The number of items in the data
-	 * @returns  The number of items actually written
+	 * @return  The number of items actually written
 	 */
 	inline size_type push(const data_type *in, size_type nframes) {
 		size_type nwrite = std::min(_size, nframes);
@@ -212,7 +213,7 @@ private:
 /**
  * The RingbufferAdapter is a generic class that uses a Ringbuffer to
  * buffer writing to a backend.  The backend class must have exposed
- * sample_type and size_type types, and a write(const sample_type *in,
+ * data_type and size_type types, and a write(const data_type *in,
  * size_type n) function.
  *
  * The class provides threadsafe buffering.  One thread can call the
@@ -224,7 +225,7 @@ template <typename T, typename Sink>
 class RingbufferAdapter : boost::noncopyable {
 
 public:
-	typedef T sample_type;
+	typedef T data_type;
 	typedef typename Sink::size_type size_type;
 
 	/// Initialize the buffer with room for buffer_size samples
@@ -235,13 +236,13 @@ public:
 	const Sink *get_sink() const { return _sink; }
 
 	/// Store data in the buffer
-	inline size_type push(const sample_type *in, size_type n) {
+	inline size_type push(const data_type *in, size_type n) {
 		return _ringbuffer.push(in, n);
 	}
 
-        /// write data from the ringbuffer to sink. Returns the number of samples written
+        /// write data from the ringbuffer to sink. @return the number of samples written
 	inline size_type flush() {
-		sample_type *buf;
+		data_type *buf;
 		size_type cnt, frames = _ringbuffer.peek(&buf);	
 		if (frames && _sink) {
 			cnt = _sink->write(buf, frames);
@@ -252,7 +253,7 @@ public:
 	}
 
 private:
-	Ringbuffer<sample_type> _ringbuffer;
+	Ringbuffer<data_type> _ringbuffer;
 	Sink *_sink;
 };
 	
