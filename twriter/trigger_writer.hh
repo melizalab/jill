@@ -29,6 +29,8 @@
  * These include statements bring in some other classes we need.
  */
 #include <boost/noncopyable.hpp>
+#include <boost/any.hpp>
+#include <iostream>
 
 /* 
  * We place the triggered writer into the jill namespace to simplify
@@ -122,16 +124,40 @@ private:
  * a common options class. As in the previous chapter, we'll derive
  * from Options, but in this case the class will be defined here.
  *
- * Note that unlike in the previous chapter, we're only declaring the
- * class. The implementations of the functions are found in
- * trigger_classes.cc
+ * Because we want to be able to use the TriggerOptions with
+ * either a JILL application, or a standalone test application, the
+ * base class is parameterized (i.e. specified as a template argument)
  */
-class TriggerOptions : public Options {
+ template <typename Base=Options>
+ class TriggerOptions : public Base {
+//class TriggerOptions : public Options {
 
 public:
-	TriggerOptions(const char *program_name, const char *program_version);
+
+	TriggerOptions(const char *program_name, const char *program_version)
+		: Base(program_name, program_version) { // this calls the superclass constructor 
+		po::options_description tropts("Trigger options");
+		tropts.add_options()
+			("prebuffer", po::value<float>(), "set prebuffer size (ms)")
+			("period-size", po::value<float>(), "set analysis period size (ms)")
+			("open-thresh", po::value<sample_t>(), "set sample threshold for open gate (0-1.0)")
+			("open-rate", po::value<float>(), "set crossing rate thresh for open gate (/ms)")
+			("open-periods", po::value<int>(), "set number of period for open gate")
+			("close-thresh", po::value<sample_t>(), "set sample threshold for close gate")
+			("close-rate", po::value<float>(), "set crossing rate thresh for close gate (/ms)")
+			("close-periods", po::value<int>(), "set number of period for close gate");
+
+		Base::cmd_opts.add(tropts);
+		Base::cfg_opts.add(tropts);
+		Base::visible_opts.add(tropts);
+		Base::cmd_opts.add_options()
+			("output-tmpl", po::value<std::string>(), "output file template");
+		Base::pos_opts.add("output-tmpl", -1);
+	} 
 
 	std::string output_file_tmpl;
+
+	float prebuffer_size;  // in ms
 
 	sample_t open_threshold;
 	sample_t close_threshold;
@@ -139,15 +165,46 @@ public:
 	float open_crossing_rate;
 	float close_crossing_rate;
 
-	nframes_t period_size;
+	float period_size; // in ms
 
-	nframes_t open_crossing_periods;
-	nframes_t close_crossing_periods;
+	int open_crossing_periods;
+	int close_crossing_periods;
+
 
 protected:
 
-	void process_options();
-	void print_usage();
+	void process_options() {
+		if (!Base::assign(output_file_tmpl, "output_tmpl")) {
+			std::cerr << "Error: missing required output file template " << std::endl;
+			throw Exit(EXIT_FAILURE);
+		}
+
+		Base::assign(period_size, "period-size");
+
+		Base::assign(open_threshold, "open-threshold");
+		Base::assign(open_crossing_rate, "open-rate");
+		Base::assign(open_crossing_periods, "open-periods");
+
+		Base::assign(close_threshold, "close-threshold");
+		Base::assign(close_crossing_rate, "close-rate");
+		Base::assign(close_crossing_periods, "close-periods");
+
+// 		if (vmap.count("period-size"))
+// 			period_size = get<float>("period-size");
+// 		if (vmap.count("open-threshold"))
+// 			open_threshold = get<sample_t>("open-threshold");
+// 		if (vmap.count("open-rate"))
+// 			open_crossing_rate = get<float>("open-rate");
+// 		if (vmap.count("open-periods"))
+// 			open_crossing_periods = get<int>("open-periods");
+
+// 		if (vmap.count("close-threshold"))
+// 			close_threshold = get<sample_t>("close-threshold");
+// 		if (vmap.count("close-rate"))
+// 			close_crossing_rate = get<float>("close-rate");
+// 		if (vmap.count("close-periods"))
+// 			close_crossing_periods = get<int>("close-periods");
+	}
 
 };
 
