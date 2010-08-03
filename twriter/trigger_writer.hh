@@ -128,9 +128,8 @@ private:
  * either a JILL application, or a standalone test application, the
  * base class is parameterized (i.e. specified as a template argument)
  */
- template <typename Base=Options>
- class TriggerOptions : public Base {
-//class TriggerOptions : public Options {
+template <typename Base=Options>
+class TriggerOptions : public Base {
 
 public:
 
@@ -138,14 +137,22 @@ public:
 		: Base(program_name, program_version) { // this calls the superclass constructor 
 		po::options_description tropts("Trigger options");
 		tropts.add_options()
-			("prebuffer", po::value<float>(), "set prebuffer size (ms)")
-			("period-size", po::value<float>(), "set analysis period size (ms)")
-			("open-thresh", po::value<sample_t>(), "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>(), "set crossing rate thresh for open gate (/ms)")
-			("open-periods", po::value<int>(), "set number of period for open gate")
-			("close-thresh", po::value<sample_t>(), "set sample threshold for close gate")
-			("close-rate", po::value<float>(), "set crossing rate thresh for close gate (/ms)")
-			("close-periods", po::value<int>(), "set number of period for close gate");
+			("prebuffer", po::value<float>()->default_value(1000), 
+			 "set prebuffer size (ms)")
+			("period-size", po::value<float>()->default_value(100), 
+			 "set analysis period size (ms)")
+			("open-thresh", po::value<sample_t>()->default_value(0.2), 
+			 "set sample threshold for open gate (0-1.0)")
+			("open-rate", po::value<float>()->default_value(10), 
+			 "set crossing rate thresh for open gate (/ms)")
+			("open-periods", po::value<int>()->default_value(10), 
+			 "set number of period for open gate")
+			("close-thresh", po::value<sample_t>()->default_value(0.2), 
+			 "set sample threshold for close gate")
+			("close-rate", po::value<float>()->default_value(5), 
+			 "set crossing rate thresh for close gate (/ms)")
+			("close-periods", po::value<int>()->default_value(10), 
+			 "set number of period for close gate");
 
 		Base::cmd_opts.add(tropts);
 		Base::cfg_opts.add(tropts);
@@ -173,12 +180,20 @@ public:
 
 protected:
 
-	void process_options() {
-		if (!Base::assign(output_file_tmpl, "output_tmpl")) {
-			std::cerr << "Error: missing required output file template " << std::endl;
-			throw Exit(EXIT_FAILURE);
-		}
+	void print_usage() {
+		std::cout << "Usage: " << Base::_program_name << " [options] [output-file-template]\n"
+			  << Base::visible_opts << std::endl
+			  << "output-file-template:   specify output files (e.g. myrecording_%03d.wav)\n"
+			  << "                        if omitted, events are logged but no data is written"
+			  << std::endl;
+	}
 
+	void process_options() {
+		Base::process_options();
+
+		Base::assign(output_file_tmpl, "output-tmpl");
+
+		Base::assign(prebuffer_size, "prebuffer");
 		Base::assign(period_size, "period-size");
 
 		Base::assign(open_threshold, "open-threshold");
@@ -188,22 +203,6 @@ protected:
 		Base::assign(close_threshold, "close-threshold");
 		Base::assign(close_crossing_rate, "close-rate");
 		Base::assign(close_crossing_periods, "close-periods");
-
-// 		if (vmap.count("period-size"))
-// 			period_size = get<float>("period-size");
-// 		if (vmap.count("open-threshold"))
-// 			open_threshold = get<sample_t>("open-threshold");
-// 		if (vmap.count("open-rate"))
-// 			open_crossing_rate = get<float>("open-rate");
-// 		if (vmap.count("open-periods"))
-// 			open_crossing_periods = get<int>("open-periods");
-
-// 		if (vmap.count("close-threshold"))
-// 			close_threshold = get<sample_t>("close-threshold");
-// 		if (vmap.count("close-rate"))
-// 			close_crossing_rate = get<float>("close-rate");
-// 		if (vmap.count("close-periods"))
-// 			close_crossing_periods = get<int>("close-periods");
 	}
 
 };
