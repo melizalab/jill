@@ -183,21 +183,15 @@ public:
 			int per = _close_counter.push(samples, size, _close_count_thresh);
 			if (per > -1) {
 				int offset = per * _close_counter.period_size();
-// 				if (offset > 0)
-// 					_sample_buf.push(samples, offset);
 				_open = false;
 				_close_counter.reset();
 				return offset;
 			}
-// 			else
-// 				_sample_buf.push(samples, size);
 		}
 		else {
 			int per = _open_counter.push(samples, size, _open_count_thresh);
 			if (per > -1) {
 				int offset = per * _open_counter.period_size();
-// 				_sample_buf.push(samples + offset, size - offset);
-// 				_time_buf.push(&time, 1);
 				_open = true;
 				_open_counter.reset();
 				return offset;

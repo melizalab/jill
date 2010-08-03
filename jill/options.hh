@@ -71,7 +71,24 @@ public:
 	 * @param name  The name of the option
 	 */
 	template <typename T> inline
-	const T &get(const char *name) { return vmap[name].as<T>(); }
+	const T &get(const char *name) { return vmap[name].as<T>();}
+
+	/**
+	 * Assign a parsed value to a variable, if the value is defined.
+	 *
+	 * @param ref  Reference to variable to recieve new value
+	 * @param name The name of the option
+	 * @returns true if the value was defined
+	 * @throws boost::bad_any_cast if the value could not be case appropriately
+	 */
+	template <typename T> inline
+	bool assign(T &ref, const char *name) {
+		if (vmap.count(name)) {
+			ref = vmap[name].as<T>();//boost::any_cast<T>(vmap[name]);
+			return true;
+		}
+		return false;
+	}
 
 protected:
 	std::string _program_name;

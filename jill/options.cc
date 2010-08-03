@@ -24,8 +24,7 @@ Options::Options(const char *program_name, const char *program_version)
 	po::options_description generic("General options");
 	generic.add_options()
 		("version,v", "print version string")
-		("help,h",      "print help message")
-		("name,n",    po::value<string>()->default_value(_program_name), "set client name");
+		("help,h",      "print help message");
 	cmd_opts.add(generic);
 	visible_opts.add(generic);
 }
@@ -87,12 +86,9 @@ JillOptions::JillOptions(const char *program_name, const char *program_version)
 void
 JillOptions::process_options()
 {
-	if (vmap.count("out"))
-		output_ports = get<vector<string> >("out");
-	if (vmap.count("in"))
-		input_ports = get<vector<string> >("in");
-	if (vmap.count("name"))
-		client_name = get<string>("name");
-	if (vmap.count("log"))
-		logfile = get<string>("log");
+	std::cout << vmap.size() << std::endl;
+	assign(output_ports,"out");
+	assign(input_ports,"in");
+	assign(client_name,"name");
+	assign(logfile,"log");
 }

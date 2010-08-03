@@ -65,9 +65,7 @@ public:
 protected:
 
 	void process_options() {
-		if (vmap.count("output_file"))
-			output_file = get<std::string>("output_file");
-		else {
+		if (!assign(output_file, "output_file")) {
 			std::cerr << "Error: missing required output file name " << std::endl;
 			throw Exit(EXIT_FAILURE);
 		}
