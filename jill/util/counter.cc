@@ -24,7 +24,7 @@ Counter::push(int count, int count_thresh)
 	_counts.push_front(count);
 	_running_count += count;
 
-	if (_counts.size() < _size) return false;
+	if (_counts.size() <= _size) return false;
 
 	_running_count -=  _counts.back();
 	_counts.pop_back();
