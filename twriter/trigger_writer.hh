@@ -23,7 +23,7 @@
 #include "jill/options.hh"
 #include "jill/filters/window_discriminator.hh"
 #include "jill/util/sndfile.hh"
-#include "jill/util/ringbuffer.hh"
+#include "jill/util/time_ringbuffer.hh"
 
 /*
  * These include statements bring in some other classes we need.
@@ -95,6 +95,19 @@ public:
 	 */
 	const std::string &flush();
 
+	/// Returns true if the window discriminator is open at the
+	/// end of the last flush operation
+	bool is_writing() const { return _wd.open(); }
+	/// Returns the frame in which the window discriminator last opened.
+	nframes_t start_time() const;
+	/// Returns the frame in which the window disciminator last closed.
+	nframes_t stop_time() const;
+
+protected:
+
+	/// Open a new entry and log it
+	void next_entry(nframes_t time);
+
 private:
 	/*
 	 * Variables declared in this section are not visible outside
@@ -114,7 +127,7 @@ private:
 										util::multisndfile::size_type);
 
 	/// A ringbuffer that the process thread can write to
-	util::Ringbuffer<sample_t> _ringbuf;
+	util::TimeRingbuffer<sample_t,nframes_t> _ringbuf;
 	/// The prebuffer
 	util::Prebuffer<sample_t> _prebuf;
 };
@@ -141,18 +154,18 @@ public:
 			 "set prebuffer size (ms)")
 			("period-size", po::value<float>()->default_value(100), 
 			 "set analysis period size (ms)")
-			("open-thresh", po::value<sample_t>()->default_value(0.2), 
+			("open-thresh", po::value<float>()->default_value(0.1), 
 			 "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>()->default_value(10), 
-			 "set crossing rate thresh for open gate (/ms)")
+			("open-rate", po::value<float>()->default_value(100), 
+			 "set crossing rate thresh for open gate (s^-1)")
 			("open-periods", po::value<int>()->default_value(10), 
-			 "set number of period for open gate")
-			("close-thresh", po::value<sample_t>()->default_value(0.2), 
+			 "set number of periods for open gate")
+			("close-thresh", po::value<float>()->default_value(0.1), 
 			 "set sample threshold for close gate")
-			("close-rate", po::value<float>()->default_value(5), 
-			 "set crossing rate thresh for close gate (/ms)")
+			("close-rate", po::value<float>()->default_value(50), 
+			 "set crossing rate thresh for close gate (s^-1)")
 			("close-periods", po::value<int>()->default_value(10), 
-			 "set number of period for close gate");
+			 "set number of periods for close gate");
 
 		Base::cmd_opts.add(tropts);
 		Base::cfg_opts.add(tropts);
@@ -164,19 +177,33 @@ public:
 
 	std::string output_file_tmpl;
 
-	float prebuffer_size;  // in ms
+	float prebuffer_size_ms;  // in ms
+	nframes_t prebuffer_size; // samples
 
-	sample_t open_threshold;
-	sample_t close_threshold;
+	float open_threshold;
+	float close_threshold;
 
-	float open_crossing_rate;
+	float open_crossing_rate;  // s^-1
+	int open_count_thresh; // raw count
 	float close_crossing_rate;
-
-	float period_size; // in ms
+	int close_count_thresh;
+	
+	float period_size_ms; // in ms
+	nframes_t period_size; // in samples
 
 	int open_crossing_periods;
 	int close_crossing_periods;
 
+	/// adjust values for sample rate (in Hz)
+	void adjust_values(nframes_t samplerate) {
+		std::cout << samplerate << std::endl;
+		prebuffer_size = prebuffer_size_ms * samplerate / 1000;
+		period_size = period_size_ms * samplerate / 1000;
+		// count thresh is count rate * integration period
+		open_count_thresh = open_crossing_rate * period_size / 1000 * open_crossing_periods;
+		close_count_thresh = close_crossing_rate * period_size / 1000 * close_crossing_periods;
+	}
+		
 
 protected:
 
@@ -193,19 +220,36 @@ protected:
 
 		Base::assign(output_file_tmpl, "output-tmpl");
 
-		Base::assign(prebuffer_size, "prebuffer");
-		Base::assign(period_size, "period-size");
+		Base::assign(prebuffer_size_ms, "prebuffer");
+		Base::assign(period_size_ms, "period-size");
 
-		Base::assign(open_threshold, "open-threshold");
+		Base::assign(open_threshold, "open-thresh");
 		Base::assign(open_crossing_rate, "open-rate");
 		Base::assign(open_crossing_periods, "open-periods");
 
-		Base::assign(close_threshold, "close-threshold");
+		Base::assign(close_threshold, "close-thresh");
 		Base::assign(close_crossing_rate, "close-rate");
 		Base::assign(close_crossing_periods, "close-periods");
 	}
 
 };
+
+template <typename Base>
+std::ostream &operator<<(std::ostream &os, const TriggerOptions<Base> &o)
+{
+	using std::endl;
+
+	os << "output template: " << o.output_file_tmpl << endl
+	   << "prebuffer: " << o.prebuffer_size_ms << "->" << o.prebuffer_size << endl
+	   << "period size: " << o.period_size_ms << "->" << o.period_size << endl
+	   << "open thresh: " << o.open_threshold << endl
+	   << "open count thresh: " << o.open_crossing_rate << "->" << o.open_count_thresh << endl
+	   << "open periods: " << o.open_crossing_periods << endl
+	   << "close thresh: " << o.close_threshold << endl
+	   << "close count thresh: " << o.close_crossing_rate << "->" << o.close_count_thresh << endl
+	   << "close periods: " << o.close_crossing_periods << endl;
+	return os;
+}	   
 
 }
 

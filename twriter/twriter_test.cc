@@ -40,8 +40,17 @@ static int ret = EXIT_SUCCESS;
 
 /*
  * Note that the process function isn't here any more; it's
- * encapsulated in the TriggeredWriter class.
+ * encapsulated in the TriggeredWriter class.  However, we do still
+ * need to write a function that will be called in the main loop.  In
+ * theory, we could pass a pointer to the flush() function directly to
+ * the Application class, but there's some logging to be done.
  */
+static int
+mainloop()
+{
+	std::string outfile = twriter->flush();
+	return 0;
+}
 
 static void signal_handler(int sig)
 {
@@ -86,28 +95,27 @@ main(int argc, char **argv)
 		AudioInterfaceOffline client(options.blocksize, options.samplerate);
 		client.set_input(options.input_file);
 		logv << logv.allfields << "Opened input file " << options.input_file 
-		     << " (Fs = " << client.samplerate() << ")" << std::endl;
+		     << " (size = " << client.frames() << "; Fs = " << client.samplerate() << ")" 
+		     << std::endl;
 
 		/*
 		 * Now we initialize our custom processor and all of its
 		 * subsidiary objects.
 		 */
-		nframes_t period_size = options.period_size * client.samplerate() / 1000;
-		int ocount_thresh = options.open_crossing_rate * options.period_size * 
-			options.open_crossing_periods; // 1/ms * ms * num
-		int ccount_thresh = options.close_crossing_rate * options.period_size * 
-			options.close_crossing_periods; // 1/ms * ms * num
+		options.adjust_values(client.samplerate());
+		std::cout << options << std::endl;
 		filters::WindowDiscriminator<sample_t> wd(options.open_threshold,
-							  ocount_thresh, options.open_crossing_periods,
+							  options.open_count_thresh, 
+							  options.open_crossing_periods,
 							  options.close_threshold,
-							  ccount_thresh, options.close_crossing_periods,
-							  period_size);
+							  options.close_count_thresh, 
+							  options.close_crossing_periods,
+							  options.period_size);
 		
 		util::multisndfile writer(options.output_file_tmpl, client.samplerate());
 		twriter.reset(new TriggeredWriter(wd, writer, 
-						  options.prebuffer_size * client.samplerate() / 1000,
+						  options.prebuffer_size,
 						  client.samplerate() * 2));
-		
 		/*
 		 * Here's where we pass the processing object to the
 		 * client. The semantics are a little tricky, because
@@ -131,7 +139,11 @@ main(int argc, char **argv)
 		 * there is no more data in the input file to process.
 		 */
  		app.reset(new OfflineApplication(client, logv)); 
+		app->set_mainloop_callback(mainloop);
  		app->run();
+// #ifndef NDEBUG
+// 		wd.print_counters(std::cout);
+// #endif
 		return ret;
 	}
 	catch (Exit const &e) {

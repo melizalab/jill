@@ -73,6 +73,9 @@ public:
 			if (_period_nsamples >= _period_size) {
 				if (util::Counter::push(_period_crossings, count_thresh) && ret < 0)
 					ret = period;
+#ifndef NDEBUG
+				_count_storage.push_back(_period_crossings);
+#endif
 				period += 1;
 				_period_nsamples = 0;
 				_period_crossings = 0;
@@ -91,6 +94,10 @@ public:
 	inline size_type period_size() const { return _period_size; }
 	sample_type &thresh() { return _thresh; }
 
+#ifndef NDEBUG
+	std::vector<size_type> _count_storage;
+#endif
+
 private:
 	/// sample threshold
 	volatile sample_type _thresh;
@@ -103,6 +110,7 @@ private:
 	int _period_crossings;
 	/// number of samples analyzed in the current period
 	size_type _period_nsamples;
+
 };
 
 
@@ -185,6 +193,8 @@ public:
 				int offset = per * _close_counter.period_size();
 				_open = false;
 				_close_counter.reset();
+				// push samples after offset to open counter
+				_open_counter.push(samples+offset, size-offset, _open_count_thresh);
 				return offset;
 			}
 		}
@@ -194,6 +204,8 @@ public:
 				int offset = per * _open_counter.period_size();
 				_open = true;
 				_open_counter.reset();
+				// push samples after offset to close counter
+				_close_counter.push(samples+offset, size-offset, _open_count_thresh);
 				return offset;
 			}
 		}
@@ -207,12 +219,21 @@ public:
 
 	friend std::ostream& operator<< (std::ostream &os, const WindowDiscriminator<T> &o) {
 		os << "Gate: " << ((o._open) ? "open" : "closed") << std::endl
-// 		   << "Input buffer: " << o._sample_buf << std::endl
-// 		   << "Time buffer: " << o._time_buf << std::endl
-		   << "Open counter: " << o._open_counter << std::endl
-		   << "Close counter: " << o._close_counter << std::endl;
+		   << "Open counter (" << o._open_count_thresh << "): " << o._open_counter << std::endl
+		   << "Close counter (" << o._close_count_thresh << "): " << o._close_counter << std::endl;
 		return os;
 	}
+
+#ifndef NDEBUG
+	void print_counters(std::ostream &os) {
+		for (int i = 0; i < _open_counter._count_storage.size() ; ++i)
+			os << _open_counter._count_storage[i] << ',';
+		os << std::endl;
+		for (int i = 0; i < _close_counter._count_storage.size() ; ++i)
+			os << _close_counter._count_storage[i] << ',';
+		os << std::endl;
+	}
+#endif
 
 private:
 

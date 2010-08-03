@@ -45,6 +45,7 @@ public:
 
 	virtual nframes_t samplerate() const { return _samplerate; }
 	virtual bool is_shutdown() const { return _quit; }
+	nframes_t frames() const { return _sfin.frames(); }
 
 private:
 	util::sndfilereader _sfin;

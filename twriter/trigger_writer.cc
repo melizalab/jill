@@ -31,6 +31,14 @@ using namespace jill;
  *
  */
 
+void print_samples(const sample_t *buf, nframes_t count)
+{
+	std::cout << '[' << count << "] ";
+	for (int i = 0; i < count; ++i, ++buf)
+		std::cout << *buf << ',';
+	std::cout << std::endl;
+}
+
 /*
  * This is the constructor for the TriggeredWriter class. We have to
  * assign the references in the initialization list (it's not
@@ -40,7 +48,7 @@ using namespace jill;
 TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
 				 util::multisndfile &writer,
 				 nframes_t prebuffer_size, nframes_t buffer_size)
-	: _wd(wd), _writer(writer), _ringbuf(buffer_size), _prebuf(prebuffer_size) {}
+	: _wd(wd), _writer(writer), _ringbuf(buffer_size, 0), _prebuf(prebuffer_size) {}
 
 /*
  * The function called by the process thread is quite simple. We don't
@@ -51,13 +59,12 @@ TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd,
 void 
 TriggeredWriter::operator() (sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
-	nframes_t nf = _ringbuf.push(in, nframes);
+	nframes_t nf = _ringbuf.push(in, nframes, time);
 	// as in writer, we throw an error for buffer overruns. It may
 	// be preferable to signal that an xrun has occurred and
 	// simply invalidate the current file.
 	if (nf < nframes)
 		throw std::runtime_error("ringbuffer filled up");
-	// should do something with timestamps
 }
 
 /*
@@ -94,7 +101,8 @@ TriggeredWriter::flush()
 		// of simplicity.
 		if (offset > 0) {
 			_prebuf.push(buf, offset);
-			_writer.next();
+			// get timestamp and adjust for prebuffer
+			next_entry(_ringbuf.get_time() - _prebuf.read_space());
 			// Here we use the pop_fun function of the
 			// prebuffer to write the entire prebuffer to
 			// disk.  There is some jiggery-pokery in
@@ -124,3 +132,9 @@ TriggeredWriter::flush()
 	return _writer.current_file();
 }
 
+void
+TriggeredWriter::next_entry(nframes_t time)
+{
+	std::cout << "entry starts at " << time << std::endl;
+	_writer.next();
+}
