@@ -22,11 +22,6 @@
 #include "../util/counter.hh"
 #include "../util/debug.hh"
 
-#ifdef DEBUGWD
-#include <cstdio>
-extern FILE *cfp;
-#endif
-
 namespace jill { namespace filters {
 
 /**
@@ -75,12 +70,6 @@ public:
 			if (_period_nsamples >= _period_size) {
 				if (util::Counter::push(_period_crossings, count_thresh) && ret < 0)
 					ret = period;
-#ifdef DEBUGWD
-				if (count_thresh < 0)
-					_period_crossings *= -1;
-				if (cfp)
-					fwrite(&_period_crossings,1,sizeof(int),cfp);
-#endif
 				period += 1;
 				_period_nsamples = 0;
 				_period_crossings = 0;

@@ -15,6 +15,13 @@
 
 using namespace jill::util;
 
+
+#ifdef DEBUG_COUNTER
+#include <cstdio>
+FILE *cfp = fopen("count.bin","wb");
+#endif
+
+
 Counter::Counter(size_type size) : _size(size), _running_count(0) {}
 
 
@@ -28,6 +35,14 @@ Counter::push(int count, int count_thresh)
 
 	_running_count -=  _counts.back();
 	_counts.pop_back();
+
+#ifdef DEBUG_COUNTER
+	int my_count = _running_count;
+	if (count_thresh < 0)
+		my_count *= -1;
+	if (cfp)
+		fwrite(&my_count,1,sizeof(int),cfp);
+#endif
 
 	if (count_thresh > 0)
 		return (_running_count >= count_thresh);

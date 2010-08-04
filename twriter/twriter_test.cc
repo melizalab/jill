@@ -18,11 +18,6 @@
 #include <iostream>
 #include <signal.h>
 
-#ifdef DEBUGWD
-#include <cstdio>
-FILE *cfp = fopen("count.bin","wb");
-#endif
-
 /*
  * Instead of application.hh, we include offline_application.hh, which
  * has several offline equivalents of the usual JILL classes. We also
