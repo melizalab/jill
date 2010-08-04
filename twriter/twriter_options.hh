@@ -43,16 +43,16 @@ public:
 			 "set analysis period size (ms)")
 			("open-thresh", po::value<float>()->default_value(0.01), 
 			 "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>()->default_value(30), 
+			("open-rate", po::value<float>()->default_value(20), 
 			 "set crossing rate thresh for open gate (s^-1)")
-			("open-periods", po::value<int>()->default_value(10), 
-			 "set number of periods for open gate")
+			("open-period", po::value<float>()->default_value(500), 
+			 "set integration time for open gate (ms)")
 			("close-thresh", po::value<float>()->default_value(0.01), 
 			 "set sample threshold for close gate")
-			("close-rate", po::value<float>()->default_value(50), 
+			("close-rate", po::value<float>()->default_value(2),
 			 "set crossing rate thresh for close gate (s^-1)")
-			("close-periods", po::value<int>()->default_value(30), 
-			 "set number of periods for close gate");
+			("close-period", po::value<float>()->default_value(5000), 
+			 "set integration time for close gate (ms)");
 
 		Base::cmd_opts.add(tropts);
 		Base::cfg_opts.add(tropts);
@@ -78,13 +78,17 @@ public:
 	float period_size_ms; // in ms
 	nframes_t period_size; // in samples
 
+	float open_crossing_period_ms;
 	int open_crossing_periods;
+	float close_crossing_period_ms;
 	int close_crossing_periods;
 
 	/// adjust values for sample rate (in Hz)
 	void adjust_values(nframes_t samplerate) {
 		prebuffer_size = prebuffer_size_ms * samplerate / 1000;
 		period_size = period_size_ms * samplerate / 1000;
+		open_crossing_periods = open_crossing_period_ms / period_size_ms;
+		close_crossing_periods = close_crossing_period_ms / period_size_ms;
 		// count thresh is count rate * integration period
 		open_count_thresh = open_crossing_rate * period_size / 1000 * open_crossing_periods;
 		close_count_thresh = close_crossing_rate * period_size / 1000 * close_crossing_periods;
@@ -96,8 +100,9 @@ protected:
 	void print_usage() {
 		std::cout << "Usage: " << Base::_program_name << " [options] [output-file-template]\n"
 			  << Base::visible_opts << std::endl
-			  << "output-file-template:   specify output files (e.g. myrecording_%03d.wav)\n"
-			  << "                        if omitted, events are logged but no data is written"
+			  << "output-file-template:  specify output files (e.g. myrecording_%03d.wav)\n"
+			  << "                       if omitted, events are logged but no data is written\n\n"
+			  << "configuration values will be read from twriter.ini, if it exists"
 			  << std::endl;
 	}
 
@@ -111,11 +116,11 @@ protected:
 
 		Base::assign(open_threshold, "open-thresh");
 		Base::assign(open_crossing_rate, "open-rate");
-		Base::assign(open_crossing_periods, "open-periods");
+		Base::assign(open_crossing_period_ms, "open-period");
 
 		Base::assign(close_threshold, "close-thresh");
 		Base::assign(close_crossing_rate, "close-rate");
-		Base::assign(close_crossing_periods, "close-periods");
+		Base::assign(close_crossing_period_ms, "close-period");
 	}
 
 };

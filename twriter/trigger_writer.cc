@@ -90,8 +90,6 @@ TriggeredWriter::flush()
 	// pass samples to window discriminator; its state may change,
 	// in which case we will need to inspect the return value
 	int offset = _wd.push(buf, frames);
-	//std::cout << _prebuf << std::endl;
-	//std::cout << _wd << std::endl;
 	if (_wd.open()) {
 		// gate is open; data before offset goes into
 		// prebuffer. Some unnecessary copying in the interest

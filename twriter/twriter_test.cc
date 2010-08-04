@@ -79,7 +79,7 @@ main(int argc, char **argv)
 		 * TriggerOptions class has parameterized inheritance.
 		 */
 		TriggerOptions<OfflineOptions> options("twriter_test", "1.0.0rc3");
-		options.parse(argc,argv);
+		options.parse(argc,argv,"twriter.ini");
 		if (options.input_file == "") {
 			cerr << "Error: input file (-i) required" << endl;
 			throw Exit(EXIT_FAILURE);

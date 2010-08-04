@@ -53,6 +53,7 @@ Options::parse(int argc, char **argv, const char *configfile)
 	if (configfile) {
 		std::ifstream ff(configfile);
 		if (ff.good())
+			std::cout << "[Parsing " << configfile << ']' << std::endl;
 			po::store(po::parse_config_file(ff, cfg_opts), vmap);
 	}
 	po::notify(vmap);
