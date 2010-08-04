@@ -94,6 +94,7 @@ main(int argc, char **argv)
 		 * allocated.
 		 */
 		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Filter);
+		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
 
 		/*
 		 * To calculate the buffer size, we get the delay

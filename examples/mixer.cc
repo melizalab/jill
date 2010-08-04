@@ -147,8 +147,8 @@ main(int argc, char **argv)
 		 * function to call with the set_process_callback()
 		 * function.
 		 */
-		logv << logv.allfields << "Starting client" << endl;
 		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Filter);
+		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
 		client.set_process_callback(process);
 
 		/*

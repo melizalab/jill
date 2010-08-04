@@ -182,6 +182,7 @@ main(int argc, char **argv)
 		 */
 		logv << logv.allfields << "Starting client" << endl;
 		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Sink);
+		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
 		client.set_process_callback(process);
 
 		/*

@@ -15,6 +15,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
+#include <iostream>
 #include <jack/ringbuffer.h>
 
 

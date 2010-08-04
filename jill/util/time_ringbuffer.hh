@@ -54,6 +54,7 @@ public:
 		// lock
 		size_type nf = super::push(src, nframes);
 		_wp_time = time + nf;
+		return nf;
 		// unlock
 	}
 

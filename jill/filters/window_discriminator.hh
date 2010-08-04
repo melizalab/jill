@@ -17,9 +17,8 @@
 #ifndef _DELAY_BUFFER_HH
 #define _DELAY_BUFFER_HH
 
-#include <limits>
-#include <cmath>
 #include <boost/noncopyable.hpp>
+#include <vector>
 #include "../util/counter.hh"
 #include "../util/debug.hh"
 
