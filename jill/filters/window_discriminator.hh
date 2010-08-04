@@ -22,7 +22,6 @@
 #include <boost/noncopyable.hpp>
 #include "../util/counter.hh"
 #include "../util/debug.hh"
-#include "../util/ringbuffer.hh"
 
 
 namespace jill { namespace filters {

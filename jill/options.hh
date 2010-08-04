@@ -13,7 +13,6 @@
 #define _OPTIONS_HH
 
 #include <string>
-#include <vector>
 #include <stdexcept>
 #include <boost/program_options.hpp>
 
@@ -70,7 +69,7 @@ public:
 	 *
 	 * @param name  The name of the option
 	 */
-	template <typename T> inline
+	template <typename T>
 	const T &get(const char *name) { return vmap[name].as<T>();}
 
 	/**
@@ -81,7 +80,7 @@ public:
 	 * @returns true if the value was defined
 	 * @throws boost::bad_any_cast if the value could not be case appropriately
 	 */
-	template <typename T> inline
+	template <typename T>
 	bool assign(T &ref, const char *name) {
 		if (vmap.count(name)) {
 			ref = vmap[name].as<T>();//boost::any_cast<T>(vmap[name]);
@@ -101,35 +100,6 @@ protected:
 	/// Print the usage information
 	virtual void print_usage();
 
-};
-
-/**
- * The JillOptions class stores options for JILL applications. Options
- * handled are:
- *
- * -n : client name
- * -l : log file
- * -i : input ports
- * -o : output ports
- *
- */
-class JillOptions : public Options {
-public:
-	JillOptions(const char *program_name, const char *program_version);
-	virtual ~JillOptions() {}
-
-	/// The client name (used in internal JACK representations)
-	std::string client_name;
-	/// A vector of inputs to connect to the client
-	std::vector<std::string> input_ports;
-	/// A vector of outputs to connect to the client
-	std::vector<std::string> output_ports;
-	/// The log file to write application events to
-	std::string logfile;
-
-protected:
-	virtual void process_options();
-	
 };
 
 /**

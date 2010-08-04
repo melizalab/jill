@@ -37,10 +37,12 @@
  * RingbufferAdapter class, and sndfile.hh, which gives use access to
  * sound-file writing backends.
  */
-#include "jill/application.hh"
+#include "jill/jill_application.hh"
+#include "jill/jill_options.hh"
+#include "jill/util/logger.hh"
+
 #include "jill/util/sndfile.hh"
 #include "jill/util/ringbuffer.hh"
-#include "jill/util/logger.hh"
 using namespace jill;
 
 

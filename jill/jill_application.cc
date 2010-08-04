@@ -10,8 +10,9 @@
  * (at your option) any later version.
  */
 
-#include "application.hh"
-#include <jack/jack.h>
+#include "jill_application.hh"
+#include "util/logger.hh"
+//#include <jack/jack.h>
 
 using namespace jill;
 

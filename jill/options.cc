@@ -12,7 +12,8 @@
 
 #include <iostream>
 #include <fstream>
-#include "options.hh"
+#include "jill_options.hh"
+#include "offline_options.hh"
 
 using namespace jill;
 using std::string;
@@ -91,4 +92,40 @@ JillOptions::process_options()
 	assign(input_ports,"in");
 	assign(client_name,"name");
 	assign(logfile,"log");
+}
+
+
+/* ----------------------- OfflineOptions ----------------------- */
+
+OfflineOptions::OfflineOptions(const char *program_name, const char *program_version)
+	: Options(program_name, program_version)
+{
+	po::options_description testopts("Offline module options");
+	testopts.add_options()
+		("log,l",     po::value<std::string>(), "set logfile (default stdout)")
+		("in,i",      po::value<std::string>(), "set input file")
+		("out,o",     po::value<std::string>(), "set output file")
+		("blocksize,b", po::value<int>()->default_value(1024), 
+		 "set number of samples processed in each loop")
+		("samplerate,s", po::value<int>()->default_value(20000), 
+		 "set sampling rate (if no input file)");
+	cmd_opts.add(testopts);
+	visible_opts.add(testopts);
+}
+
+
+void
+OfflineOptions::process_options()
+{
+	if (vmap.count("out"))
+		output_file = get<std::string>("out");
+	if (vmap.count("in"))
+		input_file = get<std::string>("in");
+	if (vmap.count("log"))
+		logfile = get<std::string>("log");
+	if (vmap.count("blocksize"))
+		blocksize = get<int>("blocksize");
+	if (vmap.count("samplerate"))
+		samplerate = get<int>("samplerate");
+	    
 }

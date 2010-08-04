@@ -24,19 +24,36 @@
 
 /*
  * Here we include the relevant JILL headers.  For an application, the
- * application.hh header is required; it includes a number of subsidiary headers.
+ * jill_application.hh header is required. jill_options.hh contains a
+ * class used to parse command-line options, and jill/util/logger.hh
+ * contains code for writing a timestamped logfile.
  */
-#include "jill/application.hh"
+#include "jill/jill_application.hh"
+#include "jill/jill_options.hh"
+#include "jill/util/logger.hh"
 using namespace jill;
 
 
 /*
- * Next, we define several variables with module scope. First, a smart
- * pointer for the Application class is declared.  By using a smart
- * pointer, we guarantee that the application will be shut down and
- * cleaned up once the variable goes out of scope (i.e. when the
- * application exits). We also create a logstream, and an integer to
- * hold the exist status of the application.
+ * Next, we define several variables with module scope. These refer to
+ * objects that need to be accessible to multiple functions in the
+ * module.  The JillApplication, for example, is used by both main()
+ * and signal_handler().
+ *
+ * Note, however, that the constructor for JillApplication requires
+ * that we specify the audio client and a logger, and we have no way
+ * of initializing the client until we've parsed the command-line
+ * options.  The solution is to create a pointer to an object of type
+ * JillApplication, and then initialize the object once we have enough
+ * information to do so.  Using pointers introduces some issues in
+ * resource management; to deal with these we use a "smart pointer",
+ * which guarantees that the object will be cleaned up when the
+ * application exits.
+ *
+ * We also create a logstream, and an integer to hold the exit status
+ * of the application.  We don't really need the logstream at module
+ * scope for this application, but it will come in handy in later
+ * examples.
  */
 static boost::scoped_ptr<JillApplication> app;
 static util::logstream logv;

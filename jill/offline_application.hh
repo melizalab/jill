@@ -17,6 +17,8 @@
 
 namespace jill {
 
+namespace util { class logstream; }
+
 /**
  * The OfflineApplication is for simulating a JACK run. Rather than use
  * the JACK server to run the process thread, it reads in an input
@@ -51,30 +53,6 @@ protected:
 private:
 
 	AudioInterfaceOffline &_client;
-};
-
-/**
- * This class should be used instead of JillOptions when running an offline test
- */
-class OfflineOptions : public Options {
-public:
-	OfflineOptions(const char *program_name, const char *program_version);
-	virtual ~OfflineOptions() {}
-
-	/// The input file name
-	std::string input_file;
-	/// The output file name
-	std::string output_file;
-	/// The log file to write application events to
-	std::string logfile;
-	/// The size of block to read from the input file or write to output file
-	int blocksize;
-	/// The sampling rate to use in opening up output file, if no input file supplied
-	int samplerate;
-
-protected:
-	virtual void process_options();
-
 };
 
 }
