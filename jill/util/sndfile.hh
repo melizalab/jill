@@ -19,11 +19,9 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/format.hpp>
 #include <stdexcept>
 #include <string>
 #include <sndfile.h>
-#include "string.hh"
 
 namespace jill { namespace util {
 
@@ -44,16 +42,17 @@ public:
 	sndfile();
 	sndfile(const std::string &filename, size_type samplerate);
 	sndfile(const char *filename, size_type samplerate);
+	virtual ~sndfile() {}
 
-	void open(const char *filename, size_type samplerate);
-	void close();
+	virtual void open(const char *filename, size_type samplerate);
+	virtual void close();
 
 	operator bool () const;
 
-	size_type write(const float *buf, size_type nframes);
-	size_type write(const double *buf, size_type nframes);
-	size_type write(const int *buf, size_type nframes);
-	size_type write(const short *buf, size_type nframes);
+	virtual size_type write(const float *buf, size_type nframes);
+	virtual size_type write(const double *buf, size_type nframes);
+	virtual size_type write(const int *buf, size_type nframes);
+	virtual size_type write(const short *buf, size_type nframes);
 
 	/// Return the total number of frames written
 	size_type nframes() const { return _nframes; }
@@ -64,44 +63,6 @@ private:
 	boost::shared_ptr<SNDFILE> _sndfile;
 
 };
-
-/**
- * This class is an extension of the sndfile to support splitting data
- * across multiple files. It adds a next() function, which closes the
- * current file and opens another one, named sequentially.
- */
-class multisndfile : public sndfile {
-
-public:
-	/**
-	 * Instantiate a sndfile family. The filename argument is
-	 * replaced by a template.  Note: call next() before write()!
-	 *
-	 * @param sprintf-style template with one numeric argument, e.g. "myfile_%04d.wav"
-	 */
-	multisndfile(const char *templ, size_type samplerate)
-		: _fn_templ(templ), _samplerate(samplerate), _file_idx(0) { }
-	multisndfile(const std::string &templ, size_type samplerate)
-		: _fn_templ(templ), _samplerate(samplerate), _file_idx(0) { }
-
-	/**
-	 * Close the current file and open a new one.
-	 *
-	 * @returns   The name of the new file
-	 */
-	const std::string &next();
-
-	/// Return the currently open file
-	const std::string &current_file() const { return _current_file; }
-		
-
-private:
-	std::string _fn_templ;
-	std::string _current_file;
-	size_type _samplerate;
-	int _file_idx;
-};
-
 
 /**
  * A thin wrapper around the libsndfile header for reading sound

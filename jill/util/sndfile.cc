@@ -1,5 +1,6 @@
 
-#include "sndfile.hh"
+#include "multisndfile.hh"
+#include "string.hh"
 using namespace jill::util;
 
 sndfile::sndfile() : _nframes(0) {}
@@ -102,6 +103,8 @@ sndfile::write(const int *buf, size_type nframes) {
 const std::string&
 multisndfile::next()  {
 	if (_fn_templ=="") return _fn_templ;
+	gettimeofday(_entry_time,0);
+	gettimeofday(_entry_time+1,0);
 	try {
 		_current_file = (boost::format(_fn_templ) % ++_file_idx). str();
 	}
@@ -112,6 +115,12 @@ multisndfile::next()  {
 	return _current_file;
 }
 
+void
+multisndfile::close()
+{
+	sndfile::close();
+	utimes(_current_file.c_str(), _entry_time);
+}
 
 /* ------------------------- sndfilereader --------------------- */
 
