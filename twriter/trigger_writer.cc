@@ -13,13 +13,14 @@
  *! 
  */
 #include "trigger_writer.hh"
-#include <iostream>
+#include "jill/util/logger.hh"
+#include "jill/util/sndfile.hh"
 #include <boost/bind.hpp>
 using namespace jill;
 
 /*
  * This is the file where we define the implementations of the classes
- * declared in in trigger_classes.hh (the interface).  The advantage
+ * declared in in trigger_writer.hh (the interface).  The advantage
  * of separating the implementation from the interface is that the end
  * user doesn't need to see the implementation details.
  *
@@ -27,17 +28,11 @@ using namespace jill;
  * soundfile writer. All the buffering is taken care of internally,
  * and we can change the details of how it's done without affecting
  * the interface.
- *
- *
  */
 
-void print_samples(const sample_t *buf, nframes_t count)
-{
-	std::cout << '[' << count << "] ";
-	for (int i = 0; i < count; ++i, ++buf)
-		std::cout << *buf << ',';
-	std::cout << std::endl;
-}
+/// a typedef for pointers to the writer's write function
+typedef util::multisndfile::size_type (util::multisndfile::*writefun_t)(const sample_t *,
+									util::multisndfile::size_type);
 
 /*
  * This is the constructor for the TriggeredWriter class. We have to
@@ -46,9 +41,9 @@ void print_samples(const sample_t *buf, nframes_t count)
  * ringbuffer and store the size of the prebuffer.
  */
 TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
-				 util::multisndfile &writer,
+				 util::multisndfile &writer, util::logstream &logger,
 				 nframes_t prebuffer_size, nframes_t buffer_size)
-	: _wd(wd), _writer(writer), _ringbuf(buffer_size, 0), _prebuf(prebuffer_size) {}
+	: _wd(wd), _writer(writer), _logv(logger), _ringbuf(buffer_size, 0), _prebuf(prebuffer_size) {}
 
 /*
  * The function called by the process thread is quite simple. We don't
@@ -102,7 +97,7 @@ TriggeredWriter::flush()
 		if (offset > 0) {
 			_prebuf.push(buf, offset);
 			// get timestamp and adjust for prebuffer
-			next_entry(_ringbuf.get_time() - _prebuf.read_space());
+			next_entry(_ringbuf.get_time()+offset, _prebuf.read_space());
 			// Here we use the pop_fun function of the
 			// prebuffer to write the entire prebuffer to
 			// disk.  There is some jiggery-pokery in
@@ -123,6 +118,7 @@ TriggeredWriter::flush()
 		// rest goes to prebuffer
 		if (offset > 0) {
 			_writer.write(buf, offset);
+			close_entry(_ringbuf.get_time()+offset);
 			_prebuf.push(buf+offset, frames-offset);
 		}
 		else
@@ -133,8 +129,19 @@ TriggeredWriter::flush()
 }
 
 void
-TriggeredWriter::next_entry(nframes_t time)
+TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 {
-	std::cout << "entry starts at " << time << std::endl;
-	_writer.next();
+	_logv << _logv.allfields << "Signal start @" << time << "; begin entry @" << time - prebuf;
+	std::string s = _writer.next();
+	if (s != "")
+		_logv << "; writing to file " << s;
+	_logv << std::endl;
+}
+
+
+void
+TriggeredWriter::close_entry(nframes_t time)
+{
+	_logv << _logv.allfields << "Signal stop  @" << time << std::endl;
+	_writer.close();
 }

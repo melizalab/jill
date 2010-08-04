@@ -12,24 +12,22 @@
  *! @brief Helper classes for the triggered_writer
  *! 
  */
-#ifndef _TRIGGER_CLASSES_HH
-#define _TRIGGER_CLASSES_HH
+#ifndef _TRIGGER_WRITER_HH
+#define _TRIGGER_WRITER_HH
 
 /*
  * We need to import some classes from JILL. We'll be using the window
- * discriminator, the ringbuffer, and the soundfile writer.
+ * discriminator and the ringbuffer. We also need into include
+ * audio_interface to access the definitions of nframes_t and sample_t
  */
-#include "jill/audio.hh"
-#include "jill/options.hh"
-#include "jill/filters/window_discriminator.hh"
-#include "jill/util/sndfile.hh"
+#include "jill/audio_interface.hh"
 #include "jill/util/time_ringbuffer.hh"
+#include "jill/filters/window_discriminator.hh"
 
 /*
  * These include statements bring in some other classes we need.
  */
 #include <boost/noncopyable.hpp>
-#include <boost/any.hpp>
 #include <iostream>
 
 /* 
@@ -37,6 +35,15 @@
  * access to other members of that namespace
  */
 namespace jill {
+
+// This is a forward declaration of the logstream and sndfile
+// classes. We can avoid including the entire headers by doing this,
+// which speeds up compilation somewhat.  Classes only need to be
+// defined when they are actually used.
+namespace util { 
+	class logstream;
+	class multisndfile;
+}
 
 /*
  * Here is where we define our processing class.  We're going to take
@@ -71,7 +78,7 @@ public:
 	 * @param buffer_size     The size of the process buffer, in samples
 	 */
 	TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
-			util::multisndfile &writer,
+			util::multisndfile &writer, util::logstream &logger,
 			nframes_t prebuffer_size, nframes_t buffer_size);
 
 	/**
@@ -106,7 +113,9 @@ public:
 protected:
 
 	/// Open a new entry and log it
-	void next_entry(nframes_t time);
+	void next_entry(nframes_t time, nframes_t prebuf);
+	/// Close the current entry and log it
+	void close_entry(nframes_t time);
 
 private:
 	/*
@@ -122,9 +131,9 @@ private:
 
 	/// This is our reference to the soundfile writer
 	util::multisndfile &_writer;
-	// a typedef for pointers to the writer's write function
-	typedef util::multisndfile::size_type (util::multisndfile::*writefun_t)(const sample_t *,
-										util::multisndfile::size_type);
+
+	/// Reference to a logger
+	util::logstream &_logv;
 
 	/// A ringbuffer that the process thread can write to
 	util::TimeRingbuffer<sample_t,nframes_t> _ringbuf;
@@ -132,124 +141,6 @@ private:
 	util::Prebuffer<sample_t> _prebuf;
 };
 
-/**
- * Another way of unifying our testing and the final module is to have
- * a common options class. As in the previous chapter, we'll derive
- * from Options, but in this case the class will be defined here.
- *
- * Because we want to be able to use the TriggerOptions with
- * either a JILL application, or a standalone test application, the
- * base class is parameterized (i.e. specified as a template argument)
- */
-template <typename Base=Options>
-class TriggerOptions : public Base {
-
-public:
-
-	TriggerOptions(const char *program_name, const char *program_version)
-		: Base(program_name, program_version) { // this calls the superclass constructor 
-		po::options_description tropts("Trigger options");
-		tropts.add_options()
-			("prebuffer", po::value<float>()->default_value(1000), 
-			 "set prebuffer size (ms)")
-			("period-size", po::value<float>()->default_value(100), 
-			 "set analysis period size (ms)")
-			("open-thresh", po::value<float>()->default_value(0.1), 
-			 "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>()->default_value(100), 
-			 "set crossing rate thresh for open gate (s^-1)")
-			("open-periods", po::value<int>()->default_value(10), 
-			 "set number of periods for open gate")
-			("close-thresh", po::value<float>()->default_value(0.1), 
-			 "set sample threshold for close gate")
-			("close-rate", po::value<float>()->default_value(50), 
-			 "set crossing rate thresh for close gate (s^-1)")
-			("close-periods", po::value<int>()->default_value(10), 
-			 "set number of periods for close gate");
-
-		Base::cmd_opts.add(tropts);
-		Base::cfg_opts.add(tropts);
-		Base::visible_opts.add(tropts);
-		Base::cmd_opts.add_options()
-			("output-tmpl", po::value<std::string>(), "output file template");
-		Base::pos_opts.add("output-tmpl", -1);
-	} 
-
-	std::string output_file_tmpl;
-
-	float prebuffer_size_ms;  // in ms
-	nframes_t prebuffer_size; // samples
-
-	float open_threshold;
-	float close_threshold;
-
-	float open_crossing_rate;  // s^-1
-	int open_count_thresh; // raw count
-	float close_crossing_rate;
-	int close_count_thresh;
-	
-	float period_size_ms; // in ms
-	nframes_t period_size; // in samples
-
-	int open_crossing_periods;
-	int close_crossing_periods;
-
-	/// adjust values for sample rate (in Hz)
-	void adjust_values(nframes_t samplerate) {
-		std::cout << samplerate << std::endl;
-		prebuffer_size = prebuffer_size_ms * samplerate / 1000;
-		period_size = period_size_ms * samplerate / 1000;
-		// count thresh is count rate * integration period
-		open_count_thresh = open_crossing_rate * period_size / 1000 * open_crossing_periods;
-		close_count_thresh = close_crossing_rate * period_size / 1000 * close_crossing_periods;
-	}
-		
-
-protected:
-
-	void print_usage() {
-		std::cout << "Usage: " << Base::_program_name << " [options] [output-file-template]\n"
-			  << Base::visible_opts << std::endl
-			  << "output-file-template:   specify output files (e.g. myrecording_%03d.wav)\n"
-			  << "                        if omitted, events are logged but no data is written"
-			  << std::endl;
-	}
-
-	void process_options() {
-		Base::process_options();
-
-		Base::assign(output_file_tmpl, "output-tmpl");
-
-		Base::assign(prebuffer_size_ms, "prebuffer");
-		Base::assign(period_size_ms, "period-size");
-
-		Base::assign(open_threshold, "open-thresh");
-		Base::assign(open_crossing_rate, "open-rate");
-		Base::assign(open_crossing_periods, "open-periods");
-
-		Base::assign(close_threshold, "close-thresh");
-		Base::assign(close_crossing_rate, "close-rate");
-		Base::assign(close_crossing_periods, "close-periods");
-	}
-
-};
-
-template <typename Base>
-std::ostream &operator<<(std::ostream &os, const TriggerOptions<Base> &o)
-{
-	using std::endl;
-
-	os << "output template: " << o.output_file_tmpl << endl
-	   << "prebuffer: " << o.prebuffer_size_ms << "->" << o.prebuffer_size << endl
-	   << "period size: " << o.period_size_ms << "->" << o.period_size << endl
-	   << "open thresh: " << o.open_threshold << endl
-	   << "open count thresh: " << o.open_crossing_rate << "->" << o.open_count_thresh << endl
-	   << "open periods: " << o.open_crossing_periods << endl
-	   << "close thresh: " << o.close_threshold << endl
-	   << "close count thresh: " << o.close_crossing_rate << "->" << o.close_count_thresh << endl
-	   << "close periods: " << o.close_crossing_periods << endl;
-	return os;
-}	   
 
 }
 

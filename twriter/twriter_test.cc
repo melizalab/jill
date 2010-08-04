@@ -24,6 +24,9 @@
  * include the header for the base triggered-writer classes.
  */
 #include "jill/offline_application.hh"
+#include "jill/offline_options.hh"
+#include "jill/util/logger.hh"
+#include "twriter_options.hh"
 #include "trigger_writer.hh"
 using namespace jill;
 
@@ -78,7 +81,7 @@ main(int argc, char **argv)
 		TriggerOptions<OfflineOptions> options("twriter_test", "1.0.0rc3");
 		options.parse(argc,argv);
 		if (options.input_file == "") {
-			std::cerr << "Error: input file (-i) required" << std::endl;
+			cerr << "Error: input file (-i) required" << endl;
 			throw Exit(EXIT_FAILURE);
 		}
 
@@ -96,14 +99,13 @@ main(int argc, char **argv)
 		client.set_input(options.input_file);
 		logv << logv.allfields << "Opened input file " << options.input_file 
 		     << " (size = " << client.frames() << "; Fs = " << client.samplerate() << ")" 
-		     << std::endl;
+		     << endl;
 
 		/*
 		 * Now we initialize our custom processor and all of its
 		 * subsidiary objects.
 		 */
 		options.adjust_values(client.samplerate());
-		std::cout << options << std::endl;
 		filters::WindowDiscriminator<sample_t> wd(options.open_threshold,
 							  options.open_count_thresh, 
 							  options.open_crossing_periods,
@@ -113,7 +115,7 @@ main(int argc, char **argv)
 							  options.period_size);
 		
 		util::multisndfile writer(options.output_file_tmpl, client.samplerate());
-		twriter.reset(new TriggeredWriter(wd, writer, 
+		twriter.reset(new TriggeredWriter(wd, writer, logv,
 						  options.prebuffer_size,
 						  client.samplerate() * 2));
 		/*
@@ -126,6 +128,19 @@ main(int argc, char **argv)
 		 * passed by reference - otherwise it gets copied
 		 */
 		client.set_process_callback(boost::ref(*twriter));
+
+		/* Log parameters */
+		logv << logv.program << "output template: " << options.output_file_tmpl << endl
+		     << logv.program << "sampling rate: " << client.samplerate() << endl
+		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl
+		     << logv.program << "period size (samples): " << options.period_size << endl
+		     << logv.program << "open threshold: " << options.open_threshold << endl
+		     << logv.program << "open count thresh: " << options.open_count_thresh << endl
+		     << logv.program << "open periods: " << options.open_crossing_periods << endl
+		     << logv.program << "close threshold: " << options.close_threshold << endl
+		     << logv.program << "close count thresh: " << options.close_count_thresh << endl
+		     << logv.program << "close periods: " << options.close_crossing_periods << endl;
+
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -141,16 +156,13 @@ main(int argc, char **argv)
  		app.reset(new OfflineApplication(client, logv)); 
 		app->set_mainloop_callback(mainloop);
  		app->run();
-// #ifndef NDEBUG
-// 		wd.print_counters(std::cout);
-// #endif
 		return ret;
 	}
 	catch (Exit const &e) {
 		return e.status();
 	}
-	catch (std::exception const &e) {
-		std::cerr << "Error: " << e.what() << std::endl;
+	catch (exception const &e) {
+		cerr << "Error: " << e.what() << endl;
 		return EXIT_FAILURE;
 	}
 }
