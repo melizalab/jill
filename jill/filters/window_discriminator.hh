@@ -14,14 +14,18 @@
  *! 
  *! This file contains interfaces and templates for filtering audio streams
  */
-#ifndef _DELAY_BUFFER_HH
-#define _DELAY_BUFFER_HH
+#ifndef _WINDOW_DISCRIMINATOR_HH
+#define _WINDOW_DISCRIMINATOR_HH
 
 #include <boost/noncopyable.hpp>
 #include <vector>
 #include "../util/counter.hh"
 #include "../util/debug.hh"
 
+#ifdef DEBUGWD
+#include <cstdio>
+extern FILE *cfp;
+#endif
 
 namespace jill { namespace filters {
 
@@ -71,8 +75,11 @@ public:
 			if (_period_nsamples >= _period_size) {
 				if (util::Counter::push(_period_crossings, count_thresh) && ret < 0)
 					ret = period;
-#ifndef NDEBUG
-				_count_storage.push_back(_period_crossings);
+#ifdef DEBUGWD
+				if (count_thresh < 0)
+					_period_crossings *= -1;
+				if (cfp)
+					fwrite(&_period_crossings,1,sizeof(int),cfp);
 #endif
 				period += 1;
 				_period_nsamples = 0;
@@ -91,10 +98,6 @@ public:
 
 	inline size_type period_size() const { return _period_size; }
 	sample_type &thresh() { return _thresh; }
-
-#ifndef NDEBUG
-	std::vector<size_type> _count_storage;
-#endif
 
 private:
 	/// sample threshold

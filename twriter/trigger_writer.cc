@@ -90,11 +90,13 @@ TriggeredWriter::flush()
 	// pass samples to window discriminator; its state may change,
 	// in which case we will need to inspect the return value
 	int offset = _wd.push(buf, frames);
+	//std::cout << _prebuf << std::endl;
+	//std::cout << _wd << std::endl;
 	if (_wd.open()) {
 		// gate is open; data before offset goes into
 		// prebuffer. Some unnecessary copying in the interest
 		// of simplicity.
-		if (offset > 0) {
+		if (offset > -1) {
 			_prebuf.push(buf, offset);
 			// get timestamp and adjust for prebuffer
 			next_entry(_ringbuf.get_time()+offset, _prebuf.read_space());
@@ -116,7 +118,7 @@ TriggeredWriter::flush()
 	else {	
 		// gate is closed; Data before offset goes to file;
 		// rest goes to prebuffer
-		if (offset > 0) {
+		if (offset > -1) {
 			_writer.write(buf, offset);
 			close_entry(_ringbuf.get_time()+offset);
 			_prebuf.push(buf+offset, frames-offset);

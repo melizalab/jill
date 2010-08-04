@@ -202,10 +202,6 @@ public:
 	inline size_type push(const data_type *in, size_type nframes) {
 		size_type nwrite = std::min(_size, nframes);
 		int nflush = super::read_space() + nwrite - _size;
-// 		std::cout << "space: " << super::read_space()
-// 			  << ", frames: " << nframes
-// 			  << ", to write: " << nwrite 
-// 			  << ", to flush: " << nflush << std::endl;
 		if (nflush > 0)
 			super::advance(nflush);
 		return super::push(in+(nframes-nwrite), nwrite);

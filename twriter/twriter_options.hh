@@ -39,19 +39,19 @@ public:
 		tropts.add_options()
 			("prebuffer", po::value<float>()->default_value(1000), 
 			 "set prebuffer size (ms)")
-			("period-size", po::value<float>()->default_value(100), 
+			("period-size", po::value<float>()->default_value(20), 
 			 "set analysis period size (ms)")
-			("open-thresh", po::value<float>()->default_value(0.1), 
+			("open-thresh", po::value<float>()->default_value(0.01), 
 			 "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>()->default_value(100), 
+			("open-rate", po::value<float>()->default_value(30), 
 			 "set crossing rate thresh for open gate (s^-1)")
 			("open-periods", po::value<int>()->default_value(10), 
 			 "set number of periods for open gate")
-			("close-thresh", po::value<float>()->default_value(0.1), 
+			("close-thresh", po::value<float>()->default_value(0.01), 
 			 "set sample threshold for close gate")
 			("close-rate", po::value<float>()->default_value(50), 
 			 "set crossing rate thresh for close gate (s^-1)")
-			("close-periods", po::value<int>()->default_value(10), 
+			("close-periods", po::value<int>()->default_value(30), 
 			 "set number of periods for close gate");
 
 		Base::cmd_opts.add(tropts);
