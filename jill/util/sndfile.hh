@@ -46,6 +46,7 @@ public:
 	sndfile(const char *filename, size_type samplerate);
 
 	void open(const char *filename, size_type samplerate);
+	void close();
 
 	operator bool () const;
 

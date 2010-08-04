@@ -48,7 +48,14 @@ sndfile::open(const char *filename, size_type samplerate)
 		throw FileError(make_string() << "couldn't open '" << filename << "' for output");
 	}
 	_sndfile.reset(f, sf_close);
-}	
+}
+
+void
+sndfile::close()
+{
+	sf_close(_sndfile.get());
+	_sndfile.reset();
+}
 
 sndfile::operator bool () const
 {
