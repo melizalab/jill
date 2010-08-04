@@ -17,6 +17,7 @@ AudioInterfaceOffline::set_input(const std::string &sndfile, nframes_t startfram
 	_sfin.open(sndfile.c_str());
 	_sfin.seek(startframe,0);
 	_samplerate = _sfin.samplerate();
+	_framecount = 0;
 }
 
 void 
@@ -29,7 +30,7 @@ AudioInterfaceOffline::set_output(const std::string &sndfile)
 void 
 AudioInterfaceOffline::process()
 {
-	nframes_t nf = _blocksize, totframes = 0;
+	nframes_t nf = _blocksize;
 	if (_sfin) {
 		nf = _sfin.read(_bufin.get(), _blocksize);
 		if (nf == 0) {
@@ -37,8 +38,8 @@ AudioInterfaceOffline::process()
 			return;
 		}
 	}
-	totframes += nf;
-	_process_cb(_bufin.get(), _bufout.get(), nf, totframes);
+	_framecount += nf;
+	_process_cb(_bufin.get(), _bufout.get(), nf, _framecount);
 	if (_sfout)
 		_sfout.write(_bufout.get(), nf);
 }

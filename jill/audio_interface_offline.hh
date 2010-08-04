@@ -36,7 +36,6 @@ public:
 	void set_input(const std::string &sndfile, nframes_t startframe=0);
 	void set_output(const std::string &sndfile);
 
-
 	/**
 	 * Run the process callback, reading data from the input file
 	 * and writing data to the output file.  Processes one block of data
@@ -50,7 +49,7 @@ public:
 private:
 	util::sndfilereader _sfin;
 	util::sndfile _sfout;
-	nframes_t _blocksize, _samplerate;
+	nframes_t _blocksize, _samplerate, _framecount;
 	bool _quit;
 
 	boost::shared_array<sample_t> _bufin, _bufout;
