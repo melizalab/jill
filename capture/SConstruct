@@ -1,0 +1,17 @@
+import os
+
+if hasattr(os,'uname'):
+    system = os.uname()[0]
+else:
+    system = 'Windows'
+    
+env = Environment(CCFLAGS=['-O2','-g','-Wall'],
+                  LIBS=['jack','jill','sndfile','boost_date_time','boost_program_options'],
+                  tools=['default'])
+
+if system=='Darwin':
+    env.Append(CPPPATH=['/opt/local/include','..'],
+               LIBPATH=['/opt/local/lib','../jill'])
+
+test = env.Program('capture_test',['capture_test.cc','trigger_writer.cc'])
+prog = env.Program('capture', ['capture.cc', 'trigger_writer.cc'])
