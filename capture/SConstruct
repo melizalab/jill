@@ -8,7 +8,7 @@ else:
 env = Environment(CPPPATH=['..'],
                   CCFLAGS=['-O2','-g','-Wall'],
                   LIBPATH=['../jill'],
-                  LIBS=['jack','jill','sndfile','boost_date_time','boost_program_options'],
+                  LIBS=['jack','jill','sndfile','boost_date_time','boost_program_options','boost_thread'],
                   tools=['default'])
 
 if system=='Darwin':
