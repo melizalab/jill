@@ -14,6 +14,7 @@
 #define _TIME_RINGBUFFER_HH
 
 #include "ringbuffer.hh"
+#include <boost/thread/mutex.hpp>
 
 namespace jill { namespace util {
 
@@ -51,18 +52,16 @@ public:
 	 * @return The number of frames actually written
 	 */
 	inline size_type push(const data_type *src, size_type nframes, const time_type &time) {
-		// lock
+		boost::mutex::scoped_lock lock(_wp_time_mutex);
 		size_type nf = super::push(src, nframes);
 		_wp_time = time + nf;
 		return nf;
-		// unlock
 	}
 
 	
-	inline time_type get_time() const {
-		// lock
+	inline time_type get_time() {
+		boost::mutex::scoped_lock lock(_wp_time_mutex);
 		return _wp_time - super::read_space();
-		// unlock
 	}
 	
 
@@ -71,6 +70,10 @@ private:
 
 	/// The time of the write pointer
 	time_type _wp_time; 
+	/// A mutex for _wp_time accessors
+	boost::mutex _wp_time_mutex;
+
+
 };
   
 }}
