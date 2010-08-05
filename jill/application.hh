@@ -29,6 +29,9 @@ public:
 	/// The main loop callback type.
 	typedef boost::function<int(void)> MainLoopCallback;
 
+	Application() {}
+	virtual ~Application() {}
+
 	/** 
 	 * Specify the callback to use in the main loop. The argument
 	 * can be anything that matches the MainLoopCallback type - a
