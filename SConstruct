@@ -5,7 +5,7 @@ if hasattr(os,'uname'):
 else:
     system = 'Windows'
 
-version = '1.0.0rc3'
+version = '1.0.0rc4'
 libname = 'jill'
     
 env = Environment(CCFLAGS=['-O2','-g','-Wall'], # add this to debug counter,'-DDEBUG_COUNTER'],

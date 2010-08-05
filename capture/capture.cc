@@ -70,7 +70,7 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		// Derive CaptureOptions from JillOptions instead of OfflineOptions
-		CaptureOptions<JillOptions> options("capture", "1.0.0rc3");
+		CaptureOptions<JillOptions> options("capture", "1.0.0rc4");
 		options.parse(argc,argv,"capture.ini");
 
 		// fire up the logger

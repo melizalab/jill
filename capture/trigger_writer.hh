@@ -73,10 +73,10 @@ namespace jill {
 
 /*
  * We will also need access to the jill::util::logstream class (for
- * logging the times when the signal starts and stops). This
- * class is found in jill/util/logger.hh, but we don't actually use it in
- * this header (just declare a pointer to it).  The following is a
- * "forward declaration", a trick to speed up compilation times.
+ * logging the times when the signal starts and stops). This class is
+ * found in jill/util/logger.hh, but we don't actually use it in this
+ * header (just declare a pointer to it).  The following is a "forward
+ * declaration", a trick to speed up compilation times.
  */
 namespace util { 
 	class logstream;

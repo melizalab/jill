@@ -111,7 +111,7 @@ main(int argc, char **argv)
 		 * file "capture.ini" in the current directory and
 		 * parses it if it exists.
 		 */
-		CaptureOptions<OfflineOptions> options("capture_test", "1.0.0rc3");
+		CaptureOptions<OfflineOptions> options("capture_test", "1.0.0rc4");
 		options.parse(argc,argv,"capture.ini");
 
 		/*

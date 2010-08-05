@@ -45,7 +45,7 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 
-		OfflineOptions options("mixer", "1.0.0rc3"); // instead of JillOptions
+		OfflineOptions options("mixer", "1.0.0rc4"); // instead of JillOptions
 		options.parse(argc,argv);
 
 		logv.set_program("mixer_test");
