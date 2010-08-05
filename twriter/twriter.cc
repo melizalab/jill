@@ -9,95 +9,43 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * This example is the fourth chapter in the JILL tutorial.  We will
- * learn how to write a custom processing class, which we'll define in
- * a separate file. This allows us to test the processor code as a separate
- * module without needing to run JACK.
- *
- * This program's task is similar to writer.cc, but instead of just
- * writing every sample to disk, we want to only write data when
- * something is going on.  We'd like to store each recording episode
- * as a separate file and name them sequentially.
- *
- * Looking through the JILL classes, we see that there's a class
- * WindowDiscriminator in filters/window_discriminator.hh, but it
- * doesn't have any mechanism for storing the data or writing it to
- * disk.  So we need to write a custom class.  At this point, open
- * trigger_classes.hh.
+ * After testing the offline version of the TriggerWriter, we're ready
+ * to build the live version.  This is almost identical to the test
+ * version; the differences are noted below.
  */
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
 #include <signal.h>
 
 /*
- * Here we include the relevant JILL headers. We've added a new
- * header, bufered_sndfile.hh, which gives us access to the
- * BufferedSndfile class.
+ * Here we include the relevant JILL headers (now online), and the
+ * headers for our custom class.
  */
-#include "jill/main.hh"
-#include "jill/application.hh"
-#include "jill/buffered_sndfile.hh"
+#include "jill/jill_application.hh"
+#include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
+#include "jill/util/multisndfile.hh"
+#include "twriter_options.hh"
+#include "trigger_writer.hh"
 using namespace jill;
 
 
-/*
- * We've added an additional module-scope variable, a BufferedSndfile
- * instance. This object needs to be at this scope so that it can be
- * accessed by the real-time and main threads.  We initialize it with
- * enough room for 500k samples, which is enough to buffer over 10s of
- * sound at CD-quality rates.
- */
+static boost::scoped_ptr<JillApplication> app; // JillApplication instead of OfflineApplication
+static boost::shared_ptr<TriggeredWriter> twriter;
 static util::logstream logv;
-static boost::scoped_ptr<Application> app;
 static int ret = EXIT_SUCCESS;
-static BufferedSndfile<sample_t> sndfile(500000);
-static filters::WindowDiscriminator<sample_t,nframes_t> wd(0.5, 5, 10, 0.5, 5, 10, 100);
 
-/**
- * The process function is similar to the ones in the previous
- * chapters. However, because this module is a Sink, the out buffer is
- * not used. The incoming samples are passed to the BufferedSndfile,
- * which saves them in the ringbuffer.  If the ringbuffer is full, it
- * will not be able to write all the samples.  This is a serious
- * error, so we throw an exception.  This will be caught by the caller
- * of this function and the application will exit gracefully.
- */
-void
-process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
-{
-	std::cout << nframes << " @ " << time << std::endl;
-}
-
-
-/* 
- * We now introduce another callback function.  This function is
- * called by the Application class, which runs in the main thread of
- * the program.  Any actions that don't require realtime priority
- * should be placed in this loop.  In this program, we use the main
- * thread to write data from the BufferedSndfile to disk, which is
- * done by calling the () operator on the buffer.  Note that this
- * makes the sndfile object itself a function object, so it could be
- * used as the callback (see below).
- * 
- * The function returns 0 if writing was successful, and a nonzero
- * code if it doesn't.  Returning anything other than 0 causes the
- * main loop to terminate.
- */
-int 
+static int
 mainloop()
 {
-	return 0;//return sndfile();
+	std::string outfile = twriter->flush();
+	return 0;
 }
 
 
 /*
- * This is yet another callback. It gets called whenever there is an
- * xrun.  An xrun can be an overrun, when the real-time thread is not
- * able to deal with all the samples before it gets new ones, or an
- * underrun, when the thread is not able to supply enough output
- * samples in time.  Xruns tend to mean skips in the sound, and in the
- * case of this application, missing data.  We use this callback to report xruns to the logfile so that we can later figure out if and where bad data were generated.
+ * When running live, we'll need to keep track of xruns.  This
+ * callback is copied from writer.cc
  */
 int 
 log_xrun(float usec)
@@ -121,59 +69,60 @@ main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-		cout << wd << endl;
-		// parse options, using our custom options class
-		WriterOptions options("writer", "1.0.0rc2");
-		options.parse(argc,argv);
+		// use JillOptions instead of OfflineOptions
+		TriggerOptions<JillOptions> options("twriter_test", "1.0.0rc3");
+		options.parse(argc,argv,"twriter.ini");
 
 		// fire up the logger
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);
 
-		/*
-		 * Start up the client. One key difference is that
-		 * this client doesn't have an output port, so we
-		 * specify it as a Sink.
-		 */
-		logv << logv.allfields << "Starting client" << endl;
+		// AudioInterfaceJack instead of AudioInterfaceOffline; different arguments
 		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Sink);
-		client.set_process_callback(process);
+		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
 
 		/*
-		 * Open the output file here. As in the previous
-		 * chapter, we use the JACK server's samplerate to
-		 * specify the samplerate of the output file.
+		 * Now we initialize our custom processor and all of its
+		 * subsidiary objects.
 		 */
-		logv << logv.allfields << "Opening " << options.output_file 
-		     << " for output; Fs = " << client.samplerate() << endl;
-		sndfile.open(options.output_file.c_str(), client.samplerate());
+		options.adjust_values(client.samplerate());
+		filters::WindowDiscriminator<sample_t> wd(options.open_threshold,
+							  options.open_count_thresh, 
+							  options.open_crossing_periods,
+							  options.close_threshold,
+							  options.close_count_thresh, 
+							  options.close_crossing_periods,
+							  options.period_size);
+		
+		util::multisndfile writer(options.output_file_tmpl, client.samplerate());
+		twriter.reset(new TriggeredWriter(wd, writer, logv,
+						  options.prebuffer_size,
+						  client.samplerate() * 2));
+
+		client.set_process_callback(boost::ref(*twriter));
+
+		/* Log parameters */
+		logv << logv.program << "output template: " << options.output_file_tmpl << endl
+		     << logv.program << "sampling rate: " << client.samplerate() << endl
+		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl
+		     << logv.program << "period size (samples): " << options.period_size << endl
+		     << logv.program << "open threshold: " << options.open_threshold << endl
+		     << logv.program << "open count thresh: " << options.open_count_thresh << endl
+		     << logv.program << "open periods: " << options.open_crossing_periods << endl
+		     << logv.program << "close threshold: " << options.close_threshold << endl
+		     << logv.program << "close count thresh: " << options.close_count_thresh << endl
+		     << logv.program << "close periods: " << options.close_crossing_periods << endl;
+
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
-		app.reset(new Application(client, logv));
+
+ 		app.reset(new JillApplication(client, logv)); 
 		app->connect_inputs(options.input_ports);
 		app->set_mainloop_callback(mainloop);
-
-		/*
-		 * Equivalently, we can pass the sndfile object to the
-		 * set_mainloop_callback function.  However, as noted
-		 * in the audio_interface.hh header, the function
-		 * object is *copied*.  The BufferedSndFile won't
-		 * allow us to copy it, so it would throw an error.
-		 * To get around this we need to use a reference to
-		 * the object.
-		 */
-		// app->set_mainloop_callback(boost::ref(sndfile));
-
-		/*
-		 * Writing data is fairly intensive and benefits from
-		 * lots of buffering, so we specify a nice long delay
-		 * between main loops.
-		 */
 		app->run(1000000);
-		logv << logv.allfields << "Total frames written: " << sndfile.nframes() << endl;
 		return ret;
 	}
 	catch (Exit const &e) {

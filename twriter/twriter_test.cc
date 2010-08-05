@@ -9,12 +9,25 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * This program is used to test the window discriminator
- * offline. Instead of taking input from the JACK server, it processes
- * a wav file supplied on the command line.
+ * This example is the fourth chapter in the JILL tutorial.  We will
+ * learn how to write a custom processing class, which we'll define in
+ * a separate file. This program runs the class offline, with a wave
+ * file as input.  Adapting the class to use live JACK input once it's
+ * debugged is trivial.
+ *
+ * This program's task is similar to writer.cc, but instead of just
+ * writing every sample to disk, we want to only write data when
+ * something is going on.  We'd like to store each recording episode
+ * as a separate file and name them sequentially.
+ *
+ * Looking through the JILL classes, we see that there's a class
+ * WindowDiscriminator in filters/window_discriminator.hh, but it
+ * doesn't have any mechanism for storing the data or writing it to
+ * disk.  So we need to write a custom class.  At this point, open
+ * trigger_classes.hh.
+ *
  */
 #include <boost/scoped_ptr.hpp>
-#include <boost/shared_ptr.hpp>
 #include <iostream>
 #include <signal.h>
 
@@ -26,6 +39,7 @@
 #include "jill/offline_application.hh"
 #include "jill/offline_options.hh"
 #include "jill/util/logger.hh"
+#include "jill/util/multisndfile.hh"
 #include "twriter_options.hh"
 #include "trigger_writer.hh"
 using namespace jill;

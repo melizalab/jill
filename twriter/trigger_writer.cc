@@ -14,7 +14,7 @@
  */
 #include "trigger_writer.hh"
 #include "jill/util/logger.hh"
-#include "jill/util/sndfile.hh"
+#include "jill/util/multisndfile.hh"
 #include <boost/bind.hpp>
 using namespace jill;
 
