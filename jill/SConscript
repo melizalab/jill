@@ -1,8 +1,14 @@
 import os
 Import('env libname')
 
-srcs = env.Glob('*.cc') + env.Glob('util/*.cc') + env.Glob('filters/*.cc')
+subdirs = ['.','util','filters']
 
-lib = env.Library(libname,srcs)
+lib = env.Library(libname, [env.Glob(os.path.join(d,'*.cc')) for d in subdirs])
 env.Alias('library',lib)
+env.Alias('install', env.Install(os.path.join(env['PREFIX'],'lib'), lib))
+
+for d in subdirs:
+    env.Alias('install', env.Install(os.path.join(env['PREFIX'],'include',libname,d),
+                                     env.Glob(os.path.join(d,'*.hh'))))
+
 Return('lib')
