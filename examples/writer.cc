@@ -178,12 +178,14 @@ main(int argc, char **argv)
 		/*
 		 * Start up the client. One key difference is that
 		 * this client doesn't have an output port, so we
-		 * specify it as a Sink.
+		 * specify it as a Sink.  We also register our
+		 * xrun-logging function using set_xrun_callback.
 		 */
 		logv << logv.allfields << "Starting client" << endl;
 		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Sink);
 		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
 		client.set_process_callback(process);
+		client.set_xrun_callback(log_xrun);
 
 		/*
 		 * Open the output file here. As in the previous

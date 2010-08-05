@@ -11,44 +11,60 @@
  *
  * This example is the fourth chapter in the JILL tutorial.  We will
  * learn how to write a custom processing class, which we'll define in
- * a separate file. This program runs the class offline, with a wave
- * file as input.  Adapting the class to use live JACK input once it's
- * debugged is trivial.
+ * a separate file. We'll also learn how to write an offline test
+ * module which can be easily converted to an online module once the
+ * logic is debugged.
  *
- * This program's task is similar to writer.cc, but instead of just
- * writing every sample to disk, we want to only write data when
- * something is going on.  We'd like to store each recording episode
- * as a separate file and name them sequentially.
+ * The capture client's task is similar to writer.cc, but instead of
+ * just writing every sample to disk, we want to only write data when
+ * something is going on; i.e., when the signal exceeds a certain
+ * threshold.  The user should be able to specify the options for the
+ * signal detector on the command line.  Each time the signal exceeds
+ * the threshold, we write a new file to disk.
  *
- * Looking through the JILL classes, we see that there's a class
- * WindowDiscriminator in filters/window_discriminator.hh, but it
- * doesn't have any mechanism for storing the data or writing it to
- * disk.  So we need to write a custom class.  At this point, open
- * trigger_classes.hh.
+ * The code for the signal detector is likely to be fairly complex,
+ * and we'd like to be able to test it offline as well as running it
+ * as a JACK client.  Therefore, rather than write the process and
+ * main loop functions here, we specify them in a separate class,
+ * which can be used by any client.
+ *
+ * At this point, open trigger_writer.hh to see how to define the
+ * class.
+ * 
+ * Another task common to both the offline and online versions of this
+ * program is parsing the options that control the behavior of the
+ * window discriminator.  As in writer.cc, we subclass Options to add
+ * our custom options.  This subclass is defined in
+ * capture_options.hh; open this file to see how the options are
+ * parsed.
  *
  */
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
 #include <signal.h>
 
+
 /*
- * Instead of application.hh, we include offline_application.hh, which
- * has several offline equivalents of the usual JILL classes. We also
- * include the header for the base triggered-writer classes.
+ * The JILL framework provides several alternative headers that should
+ * be used in an offline application. Instead of jill_application.hh
+ * and jill_options.hh, we include offline_application.hh and
+ * offline_options.hh.  We also include headers for the logger and
+ * soundfile writer, as well as the headers for the custom classes we
+ * wrote.
  */
 #include "jill/offline_application.hh"
 #include "jill/offline_options.hh"
 #include "jill/util/logger.hh"
 #include "jill/util/multisndfile.hh"
-#include "twriter_options.hh"
+#include "capture_options.hh"
 #include "trigger_writer.hh"
 using namespace jill;
 
 /*
- * The Application is derived from OfflineApplication instead of
- * JillApplication. We also declare a pointer to our custom
- * TriggerWriter class (which will be initialized after we read in the
- * options.
+ * This section is similar to writer.cc, except the app object is of
+ * type OfflineApplication instead of JillApplication.  We also
+ * declare a pointer to our custom TriggerWriter class (which will be
+ * initialized after we read in the options.
  */
 static boost::scoped_ptr<OfflineApplication> app;
 static boost::shared_ptr<TriggeredWriter> twriter;
@@ -60,7 +76,8 @@ static int ret = EXIT_SUCCESS;
  * encapsulated in the TriggeredWriter class.  However, we do still
  * need to write a function that will be called in the main loop.  In
  * theory, we could pass a pointer to the flush() function directly to
- * the Application class, but there's some logging to be done.
+ * the Application class, but in many cases writing a wrapper function
+ * is much simpler.
  */
 static int
 mainloop()
@@ -84,22 +101,31 @@ main(int argc, char **argv)
 	try {
 
 		/*
-		 * This is somewhat complicated.  We use the
-		 * TriggerOptions class from trigger_writer.hh, which
-		 * handles parsing the twriter-specific options.
-		 * However, we want to use the options specific to the
-		 * offline version of the application, which derive
-		 * from OfflineOptions.  This is why the
-		 * TriggerOptions class has parameterized inheritance.
+		 * Here we use our custom CaptureOptions class. As
+		 * noted in capture_options, this class uses
+		 * parameterized inheritance, so we have to specify
+		 * the base class from which it will inherit.  For an
+		 * offline application, we use OfflineOptions (defined
+		 * in offline_options.hh).  Also, note that we pass an
+		 * additional argument to parse(), which checks for a
+		 * file "capture.ini" in the current directory and
+		 * parses it if it exists.
 		 */
-		TriggerOptions<OfflineOptions> options("twriter_test", "1.0.0rc3");
-		options.parse(argc,argv,"twriter.ini");
+		CaptureOptions<OfflineOptions> options("capture_test", "1.0.0rc3");
+		options.parse(argc,argv,"capture.ini");
+
+		/*
+		 * The offline client reads data from a sound file
+		 * instead of from the JACK server.  Therefore, it's
+		 * necessary for the user to specify this file on the
+		 * command line.
+		 */
 		if (options.input_file == "") {
 			cerr << "Error: input file (-i) required" << endl;
 			throw Exit(EXIT_FAILURE);
 		}
 
-		logv.set_program("twriter_test");
+		logv.set_program("capture_test");
 		logv.set_stream(options.logfile);
 
 		/*
@@ -116,8 +142,13 @@ main(int argc, char **argv)
 		     << endl;
 
 		/*
-		 * Now we initialize our custom processor and all of its
-		 * subsidiary objects.
+		 * The TriggeredWriter class requires references to a
+		 * WindowDiscriminator and a multisndfile. We
+		 * instantiate these objects first, using the values
+		 * in the options.  Recall that twriter is a smart
+		 * pointer, so the object it points to is allocated on
+		 * the heap (with new), in contrast to the wd and
+		 * writer objects, which are allocated on the stack.
 		 */
 		options.adjust_values(client.samplerate());
 		filters::WindowDiscriminator<sample_t> wd(options.open_threshold,
@@ -132,6 +163,7 @@ main(int argc, char **argv)
 		twriter.reset(new TriggeredWriter(wd, writer, logv,
 						  options.prebuffer_size,
 						  client.samplerate() * 2));
+
 		/*
 		 * Here's where we pass the processing object to the
 		 * client. The semantics are a little tricky, because
@@ -139,7 +171,10 @@ main(int argc, char **argv)
 		 * to dynamically allocate it here).  The * operator
 		 * dereferences the pointer, which we then wrap in
 		 * boost::ref in order to ensure that the object is
-		 * passed by reference - otherwise it gets copied
+		 * passed by reference - otherwise
+		 * set_process_callback tries to copy it (which will
+		 * raise a compiler error because TriggeredWriter is
+		 * noncopyable)
 		 */
 		client.set_process_callback(boost::ref(*twriter));
 
@@ -180,3 +215,18 @@ main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 }
+
+/*
+ * To test the capture client, run it as follows:
+ *
+ * ./capture_test -i <test.wav>
+ *
+ * where <test.wav> is a recording of the kinds of signals you expect
+ * to get. The logged output will indicate where the window
+ * discriminator opened and closed. Adjust the gate options until it
+ * opens at the beginning of the signals of interest, and closes when
+ * they end.  The options can be stored in capture.ini.
+ *
+ * At this point, open capture.cc to see how to adapt the client to
+ * online use.
+ */

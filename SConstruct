@@ -8,7 +8,7 @@ else:
 version = '1.0.0rc3'
 libname = 'jill'
     
-env = Environment(CCFLAGS=['-O2','-g','-Wall','-DDEBUG_COUNTER'],
+env = Environment(CCFLAGS=['-O2','-g','-Wall'], # add this to debug counter,'-DDEBUG_COUNTER'],
                   CPPDEFINES = [('VERSION', '\\"%s\\"' % version)],
                   LIBS=['jack'],
                   tools=['default'])

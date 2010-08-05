@@ -1,35 +1,47 @@
 
 The JILL project consists of several components.  
 
-First, there is the framework itself, located under jill/.  The
-framework consists of a number of classes designed to facilitate
-writing new real-time audio processing modules and running them under
-the JACK server.
+* JILL framework
+
+The JILL framework is located under jill/.  It consists of a number of
+classes designed to facilitate writing new real-time audio processing
+modules and running them under the JACK server.
 
 To compile the library:
 
 $ scons -Q library
 
-Second, the examples/ directory contains a brief tutorial on
-programming under the JILL framework.  The tutorial is contained in
-comments to the code in the examples.  In order of increasing complexity:
 
-mixer:  an extremely simple client that copies its input to its output
-delay:  a client that adds a fixed time delay between input and output
-writer: a client that writes data to a sound file
+* Tutorial
+
+The examples/ directory contains a brief tutorial on programming under
+the JILL framework.  The tutorial is contained in comments to the code
+in the examples.  In order of increasing complexity:
+
+mixer.cc:  an extremely simple client that copies its input to its output
+delay.cc:  a client that adds a fixed time delay between input and output
+writer.cc: a client that writes data to a sound file
 
 To compile the examples:
 
 $ scons -Q examples
 
-Third, the twriter/ directory is a self-contained JILL project.  User
-interested in writing their own modules should use this as a starting
-point.  The application monitors its input with a window discriminator
-to determine when the amplitude exceeds a certain level, at which
-point it begins writing data to a file.  The processing logic is
-factored out into trigger_writer.hh and trigger_writer.cc.  There
-is a test program, twriter_test, and a fully functional JACK program,
-twriter, both of which make use of these classes.
+
+* Capture client
+
+The 'capture' directory is a self-contained JILL project.  Users
+interested in writing new modules should use this as a starting point.
+The application monitors its input with a window discriminator to
+determine when the amplitude exceeds a certain level, at which point
+it begins writing data to a file.  The code is extensively commented,
+and can be considered the fourth chapter in the tutorial, if read
+starting with capture_test.cc
+
+
+To compile the capture client, run the following command from the
+capture directory:
+
+$ scons -Q
 
 ## Copyright 2010 Daniel Meliza
 ##

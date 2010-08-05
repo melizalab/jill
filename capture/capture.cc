@@ -25,7 +25,7 @@
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 #include "jill/util/multisndfile.hh"
-#include "twriter_options.hh"
+#include "capture_options.hh"
 #include "trigger_writer.hh"
 using namespace jill;
 
@@ -69,9 +69,9 @@ main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-		// use JillOptions instead of OfflineOptions
-		TriggerOptions<JillOptions> options("twriter_test", "1.0.0rc3");
-		options.parse(argc,argv,"twriter.ini");
+		// Derive CaptureOptions from JillOptions instead of OfflineOptions
+		CaptureOptions<JillOptions> options("capture", "1.0.0rc3");
+		options.parse(argc,argv,"capture.ini");
 
 		// fire up the logger
 		logv.set_program(options.client_name);
@@ -81,10 +81,6 @@ main(int argc, char **argv)
 		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Sink);
 		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
 
-		/*
-		 * Now we initialize our custom processor and all of its
-		 * subsidiary objects.
-		 */
 		options.adjust_values(client.samplerate());
 		filters::WindowDiscriminator<sample_t> wd(options.open_threshold,
 							  options.open_count_thresh, 
@@ -100,8 +96,8 @@ main(int argc, char **argv)
 						  client.samplerate() * 2));
 
 		client.set_process_callback(boost::ref(*twriter));
+		client.set_xrun_callback(log_xrun); // register xrun logging function
 
-		/* Log parameters */
 		logv << logv.program << "output template: " << options.output_file_tmpl << endl
 		     << logv.program << "sampling rate: " << client.samplerate() << endl
 		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl
@@ -119,10 +115,11 @@ main(int argc, char **argv)
 		signal(SIGHUP,  signal_handler);
 
 
- 		app.reset(new JillApplication(client, logv)); 
+		// JillApplication instead of OfflineApplication; connect to input ports
+ 		app.reset(new JillApplication(client, logv));
 		app->connect_inputs(options.input_ports);
 		app->set_mainloop_callback(mainloop);
-		app->run(1000000);
+		app->run(250000); // different arguments to mainloop
 		return ret;
 	}
 	catch (Exit const &e) {
