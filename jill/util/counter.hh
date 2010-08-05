@@ -29,7 +29,7 @@ public:
 	typedef std::deque<int>::size_type size_type;
 
 	/// Initialize the counter with a total size of size
-	Counter(size_t size);
+	explicit Counter(size_t size);
 
 	/**
 	 * Add a value to the queue. Check running total against

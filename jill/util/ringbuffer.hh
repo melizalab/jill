@@ -46,7 +46,7 @@ public:
 	 * 
 	 * @param size The size of the ringbuffer (in objects)
 	 */
-	Ringbuffer(size_type size) {
+	explicit Ringbuffer(size_type size) {
 		_rb.reset(jack_ringbuffer_create(size * sizeof(T)),
 			  jack_ringbuffer_free);
 	}
@@ -158,7 +158,7 @@ public:
 	typedef T data_type;
 	typedef typename Ringbuffer<T>::size_type size_type;
 
-	Prebuffer(size_type size) : Ringbuffer<T>(size), _size(size) {}
+	explicit Prebuffer(size_type size) : Ringbuffer<T>(size), _size(size) {}
 
 	/**
 	 * Push data onto the prebuffer. If the size of the data

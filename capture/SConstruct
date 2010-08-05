@@ -8,12 +8,14 @@ else:
 env = Environment(CPPPATH=['..'],
                   CCFLAGS=['-O2','-g','-Wall'],
                   LIBPATH=['../jill'],
-                  LIBS=['jack','jill','sndfile','boost_date_time','boost_program_options','boost_thread'],
+                  LIBS=['jack','jill','sndfile','boost_date_time','boost_program_options'],
                   tools=['default'])
 
 if system=='Darwin':
     env.Append(CPPPATH=['/opt/local/include'],
                LIBPATH=['/opt/local/lib'])
+else:
+    env.Append(LIBS=['boost_thread'])
 
 test = env.Program('capture_test',['capture_test.cc','trigger_writer.cc'])
 prog = env.Program('capture', ['capture.cc', 'trigger_writer.cc'])

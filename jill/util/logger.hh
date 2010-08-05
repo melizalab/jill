@@ -34,7 +34,7 @@ public:
 	 * @param s Stream to output log to
 	 * @param p The name of the program doing the logging (when multiple loggers share a file)
 	 */
-	logstream(std::ostream * s=0)
+	explicit logstream(std::ostream * s=0)
 		: _stream(s) {}
 
 	/// Set or switch streams

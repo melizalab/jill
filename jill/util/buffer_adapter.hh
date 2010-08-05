@@ -45,7 +45,7 @@ public:
 	BOOST_STATIC_ASSERT((boost::is_convertible<size_type, typename Sink::size_type>::value));
 
 	/// Initialize the buffer with room for buffer_size samples
-	BufferAdapter(size_type buffer_size, Sink *S=0)
+	explicit BufferAdapter(size_type buffer_size, Sink *S=0)
 		: Buffer(buffer_size), _sink(S) {}
 
 	void set_sink(Sink *S) { _sink = S; }

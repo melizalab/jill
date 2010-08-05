@@ -39,7 +39,7 @@ public:
 	typedef T2 time_type;
 	typedef typename Ringbuffer<T1>::size_type size_type;
 
-	TimeRingbuffer(size_type size) : super(size) {}
+	explicit TimeRingbuffer(size_type size) : super(size) {}
 	TimeRingbuffer(size_type size, const time_type &start_time) : super(size), _wp_time(start_time) {}
 	
 	/** 

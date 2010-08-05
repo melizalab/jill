@@ -74,8 +74,8 @@ public:
 	typedef sf_count_t size_type;
 
 	sndfilereader();
-	sndfilereader(const std::string &path);
-	sndfilereader(const char *path);
+	explicit sndfilereader(const std::string &path);
+	explicit sndfilereader(const char *path);
 
 	void open(const char *path);
 
