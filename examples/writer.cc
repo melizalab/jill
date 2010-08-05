@@ -41,8 +41,9 @@
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 
-#include "jill/util/sndfile.hh"
+#include "jill/util/buffer_adapter.hh"
 #include "jill/util/ringbuffer.hh"
+#include "jill/util/sndfile.hh"
 using namespace jill;
 
 
@@ -94,7 +95,7 @@ protected:
 static util::logstream logv;
 static boost::scoped_ptr<JillApplication> app;
 static int ret = EXIT_SUCCESS;
-static util::RingbufferAdapter<sample_t, util::sndfile > output(50000);
+static util::BufferAdapter<util::Ringbuffer<sample_t>, util::sndfile > output(50000);
 
 
 /**

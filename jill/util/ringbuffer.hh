@@ -106,34 +106,6 @@ public:
 	}
 
 	/**
-	 * Pass data in the ringbuffer to a function.  This can be a
-	 * convenient way to avoid having to copy data out of the
-	 * buffer, and the somewhat annoying behavior around the
-	 * boundary.  The function will be called twice if the data
-	 * span the boundary.
-	 *
-	 * @param fun   A callback with signature (data_type *, size_type)
-                        [and any return type]
-	 * @return the total number of samples processed
-	 */
-	template <typename F>
-	inline size_type pop_fun(F fun) {
-		size_type count = 0;
-		jack_ringbuffer_data_t vec[2];
-		jack_ringbuffer_get_read_vector(_rb.get(), vec);
-		for (int i = 0; i < 2; ++i) {
-			size_type c = vec[i].len;
-			if (c > 0) {
-				fun(reinterpret_cast<data_type *>(vec[i].buf),
-				    c / sizeof(data_type));
-				count += c / sizeof(data_type);
-				
-			}
-		}
-		advance(count);
-		return count;
-	}
-	/**
 	 * Advance the read pointer by @a nframes, or up to the write
 	 * pointer, whichever is less.
 	 *
@@ -210,53 +182,6 @@ public:
 private:
 	typedef Ringbuffer<T> super;
 	size_type _size;
-};
-
-/**
- * The RingbufferAdapter is a generic class that uses a Ringbuffer to
- * buffer writing to a backend.  The backend class must have exposed
- * data_type and size_type types, and a write(const data_type *in,
- * size_type n) function.
- *
- * The class provides threadsafe buffering.  One thread can call the
- * push() function to add data to the buffer, and the other thread can
- * call flush() to write data to disk.
- *
- */
-template <typename T, typename Sink>
-class RingbufferAdapter : boost::noncopyable {
-
-public:
-	typedef T data_type;
-	typedef typename Sink::size_type size_type;
-
-	/// Initialize the buffer with room for buffer_size samples
-	RingbufferAdapter(size_type buffer_size, Sink *S=0)
-		: _ringbuffer(buffer_size), _sink(S) {}
-
-	void set_sink(Sink *S) { _sink = S; }
-	const Sink *get_sink() const { return _sink; }
-
-	/// Store data in the buffer
-	inline size_type push(const data_type *in, size_type n) {
-		return _ringbuffer.push(in, n);
-	}
-
-        /// write data from the ringbuffer to sink. @return the number of samples written
-	inline size_type flush() {
-		data_type *buf;
-		size_type cnt, frames = _ringbuffer.peek(&buf);	
-		if (frames && _sink) {
-			cnt = _sink->write(buf, frames);
-			_ringbuffer.advance(cnt);
-			return cnt;
-		}
-		return 0;
-	}
-
-private:
-	Ringbuffer<data_type> _ringbuffer;
-	Sink *_sink;
 };
 	
 

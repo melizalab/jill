@@ -24,15 +24,9 @@
  * headers for any classes needed by the implementation (including
  * classes that were only forward-declared in the header)
  *
- * Some of the details of this implementation rely on more complicated
- * C++ concepts, including function binding. The reader is encouraged
- * to consult external references when necessary.
  */
 #include "trigger_writer.hh"
 #include "jill/util/logger.hh"
-#include "jill/util/multisndfile.hh"
-/* The boost::bind library is used to write data from the prebuffer */
-#include <boost/bind.hpp>
 /* The 'using' directive allows us to avoid prefixing all the objects in the jill namespace */
 using namespace jill;
 
@@ -52,7 +46,8 @@ using namespace jill;
 TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
 				 util::multisndfile &writer, util::logstream &logger,
 				 nframes_t prebuffer_size, nframes_t buffer_size)
-	: _wd(wd), _writer(writer), _logv(logger), _ringbuf(buffer_size, 0), _prebuf(prebuffer_size) {}
+	: _wd(wd), _writer(writer), _logv(logger), _ringbuf(buffer_size, 0), 
+	  _prebuf(prebuffer_size, &writer) {}
 
 
 /*
@@ -126,16 +121,8 @@ TriggeredWriter::flush()
 			// and logs the time when the gate opened.
 			next_entry(_ringbuf.get_time()+offset, _prebuf.read_space());
 
-			// Here we use the pop_fun function of the
-			// prebuffer to write the entire prebuffer to
-			// disk.  There is some jiggery-pokery in
-			// passing the write function to pop_fun()
-			// because it's a member function.  The
-			// alternative would be to either copy the
-			// prebuffer, or make two passes to get the
-			// data out to file.
- 			_prebuf.pop_fun(boost::bind(static_cast<writefun_t>(&util::multisndfile::write),
- 						    boost::ref(_writer), _1, _2));
+			// The prebuffer is a BufferAdapter and can be flushed to disk. 
+ 			_prebuf.flush();
 
 			// Write data after the gate opened to the disk
 			_writer.write(buf+offset, frames-offset);

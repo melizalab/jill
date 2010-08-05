@@ -47,9 +47,13 @@
  * the main loop, which will will handle all the threshold
  * calculations and disk IO.  We use the TimeRingbuffer class, found
  * in in this header, which will store the frame number associated
- * with the data, which we need to timestamp the output files.
+ * with the data, which we need to timestamp the output files. This
+ * include also gets us the Prebuffer class.  We also need the
+ * BufferAdapter to simplify writing the prebuffer to disk.
  */
 #include "jill/util/time_ringbuffer.hh"
+#include "jill/util/buffer_adapter.hh"
+#include "jill/util/multisndfile.hh"
 
 /* This header contains the WindowDiscriminator class */
 #include "jill/filters/window_discriminator.hh"
@@ -69,16 +73,13 @@ namespace jill {
 
 /*
  * We will also need access to the jill::util::logstream class (for
- * logging the times when the signal starts and stops), and the
- * jill::util::multisndfile class (for writing data to disk). These
- * classes are found in jill/util/logger.hh and
- * jill/util/multisndfile.hh, but we don't actually use the classes in
- * this header (just declare pointers to them).  The following is a
+ * logging the times when the signal starts and stops). This
+ * class is found in jill/util/logger.hh, but we don't actually use it in
+ * this header (just declare a pointer to it).  The following is a
  * "forward declaration", a trick to speed up compilation times.
  */
 namespace util { 
 	class logstream;
-	class multisndfile;
 }
 
 /*
@@ -191,7 +192,7 @@ private:
 	util::TimeRingbuffer<sample_t,nframes_t> _ringbuf;
 
 	/// The prebuffer
-	util::Prebuffer<sample_t> _prebuf;
+	util::BufferAdapter<util::Prebuffer<sample_t>, util::multisndfile> _prebuf;
 };
 
 /*
