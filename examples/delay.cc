@@ -79,8 +79,11 @@ main(int argc, char **argv)
 		 * http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
 		 */	
 		JillOptions options("delay", "1.0.0rc4"); 
-		options.cmd_opts.add_options()
+		po::options_description delopts("Delay options");
+		delopts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
+		options.cmd_opts.add(delopts);
+		options.visible_opts.add(delopts);
 		options.parse(argc,argv);
 
 		// fire up the logger
