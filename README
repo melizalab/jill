@@ -7,6 +7,11 @@ The JILL framework is located under jill/.  It consists of a number of
 classes designed to facilitate writing new real-time audio processing
 modules and running them under the JACK server.
 
+The JILL framework depends on JACK and boost, and requires a
+reasonably modern C++ compiler.  To install these packages using yum:
+
+# yum install boost-devel jack-audio-connection-kit-devel
+
 To compile the library:
 
 $ scons -Q library
