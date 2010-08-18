@@ -68,6 +68,9 @@ public:
 protected:
 
 	void process_options() {
+		// First, we need to call the base class's process_options() function
+		JillOptions::process_options();
+		// Then, we process our custom option
 		if (!assign(output_file, "output_file")) {
 			std::cerr << "Error: missing required output file name " << std::endl;
 			throw Exit(EXIT_FAILURE);
