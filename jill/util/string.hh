@@ -35,6 +35,10 @@ class make_string
 	return _stream.str();
     }
 
+    operator const char*() {
+	return _stream.str().c_str();
+    }
+
   private:
     std::ostringstream _stream;
 };
