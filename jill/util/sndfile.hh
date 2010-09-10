@@ -54,6 +54,11 @@ public:
 	virtual size_type write(const int *buf, size_type nframes);
 	virtual size_type write(const short *buf, size_type nframes);
 
+	template <class T>
+	size_type write(const T sample) {
+		return write(&sample, 1);
+	}
+
 	/// Return the total number of frames written
 	size_type nframes() const { return _nframes; }
 
