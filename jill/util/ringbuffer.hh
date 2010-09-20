@@ -64,6 +64,26 @@ public:
 					     sizeof(data_type) * nframes) / sizeof(data_type);
 	}
 
+	/**
+	 * Write data to the ringbuffer using a generator function.
+	 *
+	 * @param data_fun  function or object of type size_type(*)(*data_type, size_type)
+	 * @param nframes The number of frames available, or 0 to use as many as
+	 *                available and will fit (not impl)
+	 * @return The number of frames actually written
+	 */
+	template <class Fun>
+	size_type push(Fun &data_fun) {
+		size_type nsamp = 0;
+		jack_ringbuffer_data_t vec[2];
+		jack_ringbuffer_get_write_vector(_rb.get(), vec);
+		for (int i = 0; i < 2; ++i) {
+			if (vec[i].len > 0) {
+				nsamp += data_fun(reinterpret_cast<data_type *>(vec[i].buf), vec[i].len);
+			}
+		}
+		return nsamp;
+	}
 	/** 
 	 * Read data from the ringbuffer. This version of the function
 	 * copies data to a destination buffer.
