@@ -46,6 +46,7 @@ SimpleJillClient::SimpleJillClient(const std::string &client_name,
 
 SimpleJillClient::~SimpleJillClient()
 {
+	_disconnect_all();
 	jack_deactivate(_client);
 }	
 
@@ -106,6 +107,6 @@ SimpleJillClient::_connect_output(const std::string & port, const std::string *)
 void 
 SimpleJillClient::_disconnect_all()
 {
-	jack_port_disconnect(_client, _output_port);
-	jack_port_disconnect(_client, _input_port);
+	if (_output_port) jack_port_disconnect(_client, _output_port);
+	if (_input_port) jack_port_disconnect(_client, _input_port);
 }

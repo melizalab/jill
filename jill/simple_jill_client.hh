@@ -36,8 +36,8 @@ public:
 	 * @param output_name the name of the output port. If empty, none is registered
 	 */
 	SimpleJillClient(const std::string &client_name, 
-			 const std::string &input_name, 
-			 const std::string &output_name);
+			 const std::string &input_name="", 
+			 const std::string &output_name="");
 	virtual ~SimpleJillClient();
 
 	/**

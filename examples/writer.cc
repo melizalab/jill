@@ -32,15 +32,22 @@
 #include <signal.h>
 
 /*
- * Here we include the relevant JILL headers. We've added a new
- * header, ringbuffer.hh, which gives us access to the
- * RingbufferAdapter class, and sndfile.hh, which gives use access to
- * sound-file writing backends.
+ * In this example, we're going to leave out the PlayerJillClient,
+ * because that functionality is pretty pointless for this client. It
+ * also introduces some issues with threading that we can defer to a
+ * later chapter.
  */
-#include "jill/jill_application.hh"
+#include "jill/simple_jill_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 
+/*
+ * After including the JILL headers we used in mixer, we also add some
+ * headers related to handling disk IO.  The buffer_adapter.hh header
+ * gives us access to the BufferedWriter class; we also need the
+ * Ringbuffer class, from ringbuffer.hh, and the sndfile class from
+ * sndfile.hh
+ */
 #include "jill/util/buffer_adapter.hh"
 #include "jill/util/ringbuffer.hh"
 #include "jill/util/sndfile.hh"
@@ -95,11 +102,10 @@ protected:
  * at CD-quality rates.  We connect it to an actual backend in main()
  * below.
  */
+static boost::scoped_ptr<SimpleJillClient> client;
 static util::logstream logv;
-static boost::scoped_ptr<JillApplication> app;
 static int ret = EXIT_SUCCESS;
-static util::BufferAdapter<util::Ringbuffer<sample_t>, util::sndfile > output(50000);
-
+static util::BufferedWriter<util::Ringbuffer<sample_t>, util::sndfile> output(50000);
 
 /**
  * The process function is similar to the ones in the previous
@@ -117,7 +123,6 @@ process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 	if (nf < nframes)
 		throw std::runtime_error("ringbuffer filled up");
 }
-
 
 /* 
  * We now introduce another callback function.  This function is
@@ -163,7 +168,7 @@ signal_handler(int sig)
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
 
-	app->signal_quit();
+	client->stop();
 }
 
 int
@@ -181,47 +186,47 @@ main(int argc, char **argv)
 
 		/*
 		 * Start up the client. One key difference is that
-		 * this client doesn't have an output port, so we
-		 * specify it as a Sink.  We also register our
+		 * this client doesn't have an output port, so we can
+		 * omit that argument. We also register our
 		 * xrun-logging function using set_xrun_callback.
 		 */
-		logv << logv.allfields << "Starting client" << endl;
-		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Sink);
-		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
-		client.set_process_callback(process);
-		client.set_xrun_callback(log_xrun);
+		client.reset(new SimpleJillClient(options.client_name, "in"));
+		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
+		client->set_process_callback(process);
+		client->set_xrun_callback(log_xrun);
 
 		/*
-		 * Open the output file here. As in the previous
-		 * chapter, we use the JACK server's samplerate to
-		 * specify the samplerate of the output file. We then
-		 * pass a pointer to the output file to the
-		 * RingbufferAdapter so it has somewhere to write the
-		 * data.
+		 * Open the output file here. We use the JACK server's
+		 * samplerate to specify the samplerate of the output
+		 * file. We then pass a pointer to the output file to
+		 * the RingbufferAdapter so it has somewhere to write
+		 * the data.
 		 */
 		logv << logv.allfields << "Opening " << options.output_file 
-		     << " for output; Fs = " << client.samplerate() << endl;
-		util::sndfile outfile(options.output_file.c_str(), client.samplerate());
+		     << " for output; Fs = " << client->samplerate() << endl;
+		util::sndfile outfile(options.output_file.c_str(), client->samplerate());
 		output.set_sink(&outfile);
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
-		app.reset(new JillApplication(client, logv));
-		app->connect_inputs(options.input_ports);
-		app->set_mainloop_callback(mainloop);
+		/* Connect the inputs */
+		vector<string>::const_iterator it;
+		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
+			client->connect_input(*it);
+			logv << logv.allfields << "Connected input to port " << *it << endl;
+		}
 
-		/*
-		 * We start the main loop as before, but this time we
-		 * explicitly specify the amount of time to wait
-		 * between running the callback function.  Larger
-		 * values reduce the load, but the ringbuffer has
-		 * enough room for about 1s of data, so we need to
-		 * make sure the data get flushed frequently enough to
-		 * avoid an overrun.
+		/* 
+		 * This is where we tell the client what function to
+		 * call while running the main loop.  This is
+		 * important because it's what flushes samples from
+		 * the ringbuffer to disk, and prevents an overrun.
+		 * Try commenting out this line and see what happens.
 		 */
-		app->run(250000);
+		client->set_mainloop_callback(mainloop);
+		client->run(250000);
 		logv << logv.allfields << "Total frames written: " << outfile.nframes() << endl;
 		return ret;
 	}

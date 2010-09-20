@@ -26,7 +26,7 @@
  * additional header which gives us access to the
  * DelayBuffer class.
  */
-#include "jill/jill_application.hh"
+#include "jill/simple_jill_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 #include "jill/filters/delay_buffer.hh"
@@ -38,7 +38,7 @@ using namespace jill;
  * buffer. This has to be available at this scope in order for the
  * process() function to have access to it.
  */
-static boost::scoped_ptr<JillApplication> app;
+static boost::scoped_ptr<SimpleJillClient> client;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 static boost::scoped_ptr<filters::DelayBuffer<sample_t> > buffer;
@@ -61,7 +61,7 @@ signal_handler(int sig)
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
 
-	app->signal_quit();
+	client->stop();
 }
 
 int
@@ -96,8 +96,8 @@ main(int argc, char **argv)
 		 * the process loop until the buffer has been
 		 * allocated.
 		 */
-		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Filter);
-		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
+		client.reset(new SimpleJillClient(options.client_name, "in", "out"));
+		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		/*
 		 * To calculate the buffer size, we get the delay
@@ -105,22 +105,33 @@ main(int argc, char **argv)
 		 * sampling rate.
 		 */
 		float delay_time = options.get<float>("delay");
-		unsigned int buffer_size = ceil(delay_time / 1000 * client.samplerate());
-		logv << logv.allfields << "Allocating buffer of size " << buffer_size 
+		unsigned int buffer_size = ceil(delay_time / 1000 * client->samplerate());
+		logv << logv.allfields << "Allocating delay buffer of size " << buffer_size 
 		     << " (" << delay_time << " ms)" << endl;
 		buffer.reset(new filters::DelayBuffer<sample_t>(buffer_size));
 
-		logv << logv.allfields << "Starting client" << endl;
-		client.set_process_callback(process);
+		client->set_process_callback(process);
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
-		app.reset(new JillApplication(client, logv));
-		app->connect_inputs(options.input_ports);
-		app->connect_outputs(options.output_ports);
-		app->run();
+		vector<string>::const_iterator it;
+		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
+			client->connect_input(*it);
+			logv << logv.allfields << "Connected input to port " << *it << endl;
+		}
+
+		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
+			client->connect_output(*it);
+			logv << logv.allfields << "Connected output to port " << *it << endl;
+		}
+
+		/* 
+		 * start the client running; it will continue until
+		 * the user hits ctrl-c or an error occurs
+		 */
+		client->run(100000);
 		return ret;
 	}
 	catch (Exit const &e) {
