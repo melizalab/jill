@@ -87,7 +87,6 @@ JillOptions::JillOptions(const char *program_name, const char *program_version)
 void
 JillOptions::process_options()
 {
-	std::cout << vmap.size() << std::endl;
 	assign(output_ports,"out");
 	assign(input_ports,"in");
 	assign(client_name,"name");

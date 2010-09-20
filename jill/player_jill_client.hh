@@ -13,19 +13,22 @@
 #define _PLAYER_JILL_CLIENT_HH
 
 #include "jill_client.hh"
-#include "util/buffer_adapter.hh"
-#include "util/ringbuffer.hh"
-#include "util/sndfile.hh"
 #include <boost/shared_ptr.hpp>
+#include <boost/scoped_array.hpp>
 
 
 namespace jill {
 
+/**
+ * This class is a special output-only JillClient, which is designed
+ * to play a soundfile to its input port whenever run() is called, and
+ * to output zeros otherwise.  It can be used for testing purposes, or
+ * to control an output in response to some other process.
+ */
 class PlayerJillClient : public JillClient {
 
 public:
-	PlayerJillClient(const std::string &client_name, const std::string &audiofile,
-			 nframes_t buffer_size);
+	PlayerJillClient(const std::string &client_name, const std::string &audiofile);
 	virtual ~PlayerJillClient();
 
         /**
@@ -39,7 +42,7 @@ public:
 	 * @returns a shared pointer to the PlayerJillClient created, if necessary
 	 */
 	template <class Iterable>
-	static boost::shared_ptr<PlayerJillClient> from_port_list(Iterable &ports, nframes_t buffer_size) {
+	static boost::shared_ptr<PlayerJillClient> from_port_list(Iterable &ports) {
 		using std::string;
 		boost::shared_ptr<PlayerJillClient> ret;
 		typename Iterable::iterator it;
@@ -48,21 +51,33 @@ public:
 			if (p!=string::npos) {
 				string path = it->substr(8,string::npos);
 				it->assign(path + ":out");
-				ret.reset(new PlayerJillClient(path, path, buffer_size));
+				ret.reset(new PlayerJillClient(path, path));
 				return ret;
 			}
 		}
 		return ret;
 	}
 
+	/**
+	 *  Load data from a file into the buffer. The data are
+	 *  resampled to match the server's sampling rate, so this can
+	 *  be a computationally expensive call.
+	 *
+	 *  @return number of samples loaded (adjusted for resampling)
+	 */
+	nframes_t load_file(const std::string &audiofile);
+
+	friend std::ostream & operator<< (std::ostream &os, const PlayerJillClient &client);
+
 private:
 
-	virtual int _run(unsigned int usec_delay);
+	virtual int _run(unsigned int block=0);
 	static int process_callback_(nframes_t, void *);
 
 	jack_port_t *_output_port;
-	util::sndfilereader _sfin;
-	util::BufferedReader<util::Ringbuffer<sample_t>, util::sndfilereader> _sfbuf;
+	boost::scoped_array<sample_t> _buf;
+	volatile nframes_t _buf_pos;
+	nframes_t _buf_size;
 
 	// these should never get called:
 	virtual void _connect_input(const std::string & port, const std::string * input=0);
