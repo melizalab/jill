@@ -16,6 +16,10 @@
 #include <jack/jack.h>
 #include <ostream>
 
+#ifdef HAVE_SRC
+#include <samplerate.h>
+#endif
+
 using namespace jill;
 
 PlayerJillClient::PlayerJillClient(const std::string &client_name, const std::string &audiofile)
@@ -27,7 +31,7 @@ PlayerJillClient::PlayerJillClient(const std::string &client_name, const std::st
 		throw AudioError("can't register output port");
 
 	load_file(audiofile);
-	
+
 	if (jack_activate(_client))
 		throw AudioError("can't activate client");
 }
@@ -45,24 +49,48 @@ PlayerJillClient::load_file(const std::string &audiofile)
 		return _buf_size;
 
 	util::sndfilereader sf(audiofile);
-	nframes_t nframes = sf.frames();
-	_buf.reset(new sample_t[nframes]);
-	_buf_size = sf(_buf.get(), nframes);
+
+#ifdef HAVE_SRC
+	if (sf.samplerate() != samplerate()) {
+		SRC_DATA data;
+		boost::scoped_array<sample_t> in(new sample_t[sf.frames()]);
+		data.input_frames = sf(in.get(), sf.frames());
+
+		data.src_ratio = float(samplerate()) / float(sf.samplerate());
+		_buf_size = data.output_frames = (int)(data.input_frames * data.src_ratio);
+
+		_buf.reset(new sample_t[_buf_size]);
+		data.data_in = in.get();
+		data.data_out = _buf.get();
+
+		int ec = src_simple(&data, SRC_SINC_BEST_QUALITY, 1);
+		if (ec != 0)
+			throw AudioError(std::string("Resampling error: ") + src_strerror(ec));
+	}
+	else {
+#else
+		nframes_t nframes = sf.frames();
+		_buf.reset(new sample_t[nframes]);
+		_buf_size = sf(_buf.get(), nframes);
+#endif
+#ifdef HAVE_SRC
+	}
+#endif
 	return _buf_size;
 }
 
-int 
+int
 PlayerJillClient::process_callback_(nframes_t nframes, void *arg)
 {
 	PlayerJillClient *this_ = static_cast<PlayerJillClient*>(arg);
 	try {
-		sample_t *out = reinterpret_cast<sample_t *>(jack_port_get_buffer(this_->_output_port, 
+		sample_t *out = reinterpret_cast<sample_t *>(jack_port_get_buffer(this_->_output_port,
 										  nframes));
 		memset(out, 0, nframes * sizeof(sample_t)); // zero buffer
 
 		int avail = this_->_buf_size - this_->_buf_pos;
 		if (avail > 0) {
-			if (avail > nframes) avail = nframes;
+			if (avail > int(nframes)) avail = nframes;
 			memcpy(out, this_->_buf.get()+this_->_buf_pos, avail * sizeof(sample_t));
 			this_->_buf_pos += avail;
 		}
@@ -72,7 +100,7 @@ PlayerJillClient::process_callback_(nframes_t nframes, void *arg)
 		this_->_quit = true;
 	}
 	return 0;
-}	
+}
 
 
 int
@@ -93,19 +121,19 @@ PlayerJillClient::_run(unsigned int usec_delay)
 	}
 }
 
-void 
+void
 PlayerJillClient::_connect_input(const std::string & port, const std::string *)
 {
 	throw AudioError("unsupported operation for PlayerJillClient");
 }
 
-void 
+void
 PlayerJillClient::_connect_output(const std::string & port, const std::string *)
 {
 	throw AudioError("unsupported operation for PlayerJillClient");
 }
 
-void 
+void
 PlayerJillClient::_disconnect_all()
 {
 	throw AudioError("unsupported operation for PlayerJillClient");
