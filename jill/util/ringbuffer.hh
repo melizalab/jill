@@ -59,7 +59,7 @@ public:
 	 * 
 	 * @return The number of frames actually written
 	 */
-	inline size_type push(const data_type *src, size_type nframes) {
+	size_type push(const data_type *src, size_type nframes) {
 		return jack_ringbuffer_write(_rb.get(), reinterpret_cast<char const *>(src), 
 					     sizeof(data_type) * nframes) / sizeof(data_type);
 	}
@@ -73,7 +73,7 @@ public:
 	 * 
 	 * @return The number of frames actually read
 	 */
-	inline size_type pop(data_type *dest, size_type nframes=0) {
+	size_type pop(data_type *dest, size_type nframes=0) {
 		if (nframes==0) 
 			nframes = read_space();
 		return jack_ringbuffer_read(_rb.get(), reinterpret_cast<char *>(dest), 
@@ -86,14 +86,13 @@ public:
 	 * data.  To free space after using the data, call
 	 * advance(). Note that if the readable data spans the
 	 * boundary of the ringbuffer, this call only provides access
-	 * to the first contiguous chunk of data.  See @a peek_fun for
-	 * an alternative.
+	 * to the first contiguous chunk of data.
 	 * 
 	 * @param buf   Will point to data in ringbuffer after read
 	 * 
 	 * @return  The number of available samples in buf
 	 */
-	inline size_type peek(data_type **buf) {
+	size_type peek(data_type **buf) {
 		jack_ringbuffer_data_t vec[2];
 		jack_ringbuffer_get_read_vector(_rb.get(), vec);
 		for (int i = 0; i < 2; ++i) {
@@ -113,7 +112,7 @@ public:
 	 *                  as far as possible
 	 * @return the number of frames actually advanced
 	 */
-	inline size_type advance(size_type nframes=0) {
+	size_type advance(size_type nframes=0) {
 		// the underlying call can advance the read pointer past the write pointer
 		nframes = (nframes==0) ? read_space() : std::min(read_space(), nframes);
 		jack_ringbuffer_read_advance(_rb.get(), nframes * sizeof(data_type));
@@ -121,16 +120,16 @@ public:
 	}
 
 	/// @return the number of items that can be written to the ringbuffer
-	inline size_type write_space() const {
+	size_type write_space() const {
 		return jack_ringbuffer_write_space(_rb.get()) / sizeof(data_type);
 	}
 
 	/// @return the number of items that can be read from the ringbuffer
-	inline size_type read_space() const {
+	size_type read_space() const {
 		return jack_ringbuffer_read_space(_rb.get()) / sizeof(data_type);
 	}
 
-	inline size_type size() const { return read_space() + write_space(); }
+	size_type size() const { return read_space() + write_space(); }
 
 private:
 	boost::shared_ptr<jack_ringbuffer_t> _rb;
@@ -171,7 +170,7 @@ public:
 	 * @param nframes  The number of items in the data
 	 * @return  The number of items actually written
 	 */
-	inline size_type push(const data_type *in, size_type nframes) {
+	size_type push(const data_type *in, size_type nframes) {
 		size_type nwrite = std::min(_size, nframes);
 		int nflush = super::read_space() + nwrite - _size;
 		if (nflush > 0)
