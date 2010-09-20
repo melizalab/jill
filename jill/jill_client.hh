@@ -75,6 +75,7 @@ public:
 		_connect_input(port, input);
 	}
 
+
 	/**
 	 * Connect the client's output to an input port
 	 *
@@ -153,6 +154,7 @@ private:
 	virtual int _run(unsigned int delay);
 
 };
+
 
 } //namespace jill
 
