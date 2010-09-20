@@ -78,9 +78,9 @@ public:
 		jack_ringbuffer_data_t vec[2];
 		jack_ringbuffer_get_write_vector(_rb.get(), vec);
 		for (int i = 0; i < 2; ++i) {
-			if (vec[i].len > 0) {
+			if (vec[i].len > 0)
 				nsamp += data_fun(reinterpret_cast<data_type *>(vec[i].buf), vec[i].len);
-			}
+			jack_ringbuffer_write_advance(_rb.get(), nsamp);
 		}
 		return nsamp;
 	}
