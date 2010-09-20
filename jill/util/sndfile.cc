@@ -139,4 +139,5 @@ sndfilereader::open(const char *filename)
 		throw FileError(make_string() << "couldn't open '" << filename << "' for input");
 	}
 	_sndfile.reset(f, sf_close);
+	_nread = 0;
 }

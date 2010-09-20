@@ -87,27 +87,37 @@ public:
 	operator bool () const { return _sndfile; };
 	size_type samplerate() const { return (_sndfile) ? _sfinfo.samplerate : 0; }
 	size_type frames() const { return (_sndfile) ? _sfinfo.frames : 0; }
+	size_type nread() const { return _nread; }
 
-	inline size_type seek(size_type frames, int whence) {
+	size_type seek(size_type frames, int whence) {
 		return sf_seek(_sndfile.get(), frames, whence);
 	}
 
-	inline size_type read(float *buf, size_type nframes) {
-		return sf_readf_float(_sndfile.get(), buf, nframes);
-	}
-	inline size_type read(double *buf, size_type nframes) {
-		return sf_readf_double(_sndfile.get(), buf, nframes);
-	}
-	inline size_type read(int *buf, size_type nframes) {
-		return sf_readf_int(_sndfile.get(), buf, nframes);
-	}
-	inline size_type read(short *buf, size_type nframes) {
-		return sf_readf_short(_sndfile.get(), buf, nframes);
+	template <class T>
+	size_type operator()(T *buf, size_type nframes) {
+		size_type n = _read(buf, nframes);
+		_nread += n;
+		return n;
 	}
 
 private:
+	size_type _read(float *buf, size_type nframes) {
+		return sf_readf_float(_sndfile.get(), buf, nframes);
+	}
+	size_type _read(double *buf, size_type nframes) {
+		return sf_readf_double(_sndfile.get(), buf, nframes);
+	}
+	size_type _read(int *buf, size_type nframes) {
+		return sf_readf_int(_sndfile.get(), buf, nframes);
+	}
+	size_type _read(short *buf, size_type nframes) {
+		return sf_readf_short(_sndfile.get(), buf, nframes);
+	}
+
+
 	boost::shared_ptr<SNDFILE> _sndfile;
 	SF_INFO _sfinfo;
+	size_type _nread;
 
 };
 
