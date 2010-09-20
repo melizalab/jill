@@ -21,8 +21,8 @@ namespace jill { namespace util {
 
 
 /**
- * The BufferAdapter is a generic class that uses a buffer to wrap
- * I/O operations. For example, a real-time thread may need to
+ * The BufferedWriter is a generic class that uses a buffer to wrap
+ * output operations. For example, a real-time thread may need to
  * dump samples to a ringbuffer while a slower thread writes those
  * samples to disk.
  *
@@ -30,11 +30,12 @@ namespace jill { namespace util {
  *                void push(data_type*,size_type),
  *                size_type peek(data_type**),
  *                void advance(size_type)
+ *                size_type read_space()
  * @param Sink    A class implementing write(data_type*, size_type)
  *
  */
 template <class Buffer, class Sink>
-class BufferAdapter : public Buffer {
+class BufferedWriter : public Buffer {
 
 public:
 	typedef typename Buffer::data_type data_type;
@@ -45,7 +46,7 @@ public:
 	BOOST_STATIC_ASSERT((boost::is_convertible<size_type, typename Sink::size_type>::value));
 
 	/// Initialize the buffer with room for buffer_size samples
-	explicit BufferAdapter(size_type buffer_size, Sink *S=0)
+	explicit BufferedWriter(size_type buffer_size, Sink *S=0)
 		: Buffer(buffer_size), _sink(S) {}
 
 	void set_sink(Sink *S) { _sink = S; }
@@ -76,6 +77,46 @@ public:
 
 private:
 	Sink *_sink;
+};
+
+/**
+ * The BufferedReader is a generic class that uses a buffer to wrap
+ * input operations. For example, a real-time thread may need to
+ * acquire samples from a sound file.
+ *
+ * @param Buffer  A class implementing:
+ *                void push(data_fun)
+ * @param Source  A class implementing operator()(data_type*, size_type)
+ *
+ */
+template <class Buffer, class Source>
+class BufferedReader : public Buffer {
+
+public:
+	typedef typename Buffer::data_type data_type;
+	typedef typename Buffer::size_type size_type;
+
+	// To do: assert that Sink::write can take data_type, size_type
+	//typedef boost::mpl::begin<boost::function_types::parameter_types<typename &Sink::write> >::type t;
+	BOOST_STATIC_ASSERT((boost::is_convertible<size_type, typename Source::size_type>::value));
+
+	/// Initialize the buffer with room for buffer_size samples
+	explicit BufferedReader(size_type buffer_size, Source *S=0)
+		: Buffer(buffer_size), _source(S) {}
+
+	void set_source(Source *S) { _source = S; }
+	const Source *get_source() const { return _source; }
+
+        /// fill the buffer with data from the source. @return the number of samples read
+	size_type fill() {
+		if (_source==0)
+			return 0;
+		return Buffer::push(*_source);
+	}
+
+private:
+	Source *_source;
+
 };
 
 }}
