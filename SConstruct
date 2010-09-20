@@ -5,7 +5,7 @@ if hasattr(os,'uname'):
 else:
     system = 'Windows'
 
-version = '1.0.0rc4'
+version = '1.1.0rc1'
 libname = 'jill'
 
 # install location

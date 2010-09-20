@@ -23,12 +23,15 @@
 #include <signal.h>
 
 /*
- * Here we include the relevant JILL headers.  For an application, the
- * jill_application.hh header is required. jill_options.hh contains a
+ * Here we include the relevant JILL headers.  Most applications will
+ * use the simple_jill_client.hh header. If you plan to support
+ * offline input (i.e. from a wav file), you will also need to include
+ * player_jill_client.hh.  In addition, jill_options.hh contains a
  * class used to parse command-line options, and jill/util/logger.hh
  * contains code for writing a timestamped logfile.
  */
-#include "jill/jill_application.hh"
+#include "jill/simple_jill_client.hh"
+#include "jill/player_jill_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 using namespace jill;
@@ -36,26 +39,32 @@ using namespace jill;
 
 /*
  * Next, we define several variables with module scope. These refer to
- * objects that need to be accessible to multiple functions in the
- * module.  The JillApplication, for example, is used by both main()
- * and signal_handler().
+ * objects that need to be accessible to multiple functions in this
+ * compilation module.  The SimpleJillClient, for example, is used by
+ * both main() and signal_handler().
  *
- * Note, however, that the constructor for JillApplication requires
+ * Note, however, that the constructor for SimpleJillClient requires
  * that we specify the audio client and a logger, and we have no way
  * of initializing the client until we've parsed the command-line
  * options.  The solution is to create a pointer to an object of type
- * JillApplication, and then initialize the object once we have enough
+ * SimpleJillClient, and then initialize the object once we have enough
  * information to do so.  Using pointers introduces some issues in
  * resource management; to deal with these we use a "smart pointer",
  * which guarantees that the object will be cleaned up when the
  * application exits.
  *
+ * The pclient is also a smart pointer, but to an object of type
+ * PlayerJillClient. This object is a second client that is only
+ * instantiated if the user specifies a sound file as input.  It's
+ * responsible for reading that file and sending the samples to JACK.
+ * 
  * We also create a logstream, and an integer to hold the exit status
  * of the application.  We don't really need the logstream at module
  * scope for this application, but it will come in handy in later
  * examples.
  */
-static boost::scoped_ptr<JillApplication> app;
+static boost::scoped_ptr<SimpleJillClient> client;
+static boost::shared_ptr<PlayerJillClient> pclient;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 
@@ -75,11 +84,13 @@ static int ret = EXIT_SUCCESS;
  * connected to the application's input port, the streams will be
  * mixed.
  *
- * @param in      Pointer to the input buffer. NULL if the client has no input port
- * @param out     Pointer to the output buffer. NULL if no output port
- * @param nframes The number of frames in the data
- * @param time    The frame count at the beginning of the process loop. This is guaranteed
- *                to be unique for all loops in this process
+ * @param in Pointer to the input buffer. NULL if the client has no
+ *           input port 
+ * @param out Pointer to the output buffer. NULL if no
+ *            output port 
+ * @param nframes The number of frames in the data 
+ * @param time The frame count at the beginning of the process loop. This is
+ * guaranteed to be unique for all loops in this process
  */
 void
 process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
@@ -99,7 +110,10 @@ static void signal_handler(int sig)
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
 
-	app->signal_quit();
+	client->stop();
+	// here we have to check to see if the pclient object actually got allocated
+	if (pclient)
+		pclient->stop();
 }
 
 /*
@@ -120,7 +134,7 @@ main(int argc, char **argv)
 		 * name of the application, the version, and pass it
 		 * the command line arguments.
 		 */
-		JillOptions options("mixer", "1.0.0rc4");
+		JillOptions options("mixer", "1.1.0rc1");
 		options.parse(argc,argv);
 
 		/*
@@ -147,9 +161,9 @@ main(int argc, char **argv)
 		 * function to call with the set_process_callback()
 		 * function.
 		 */
-		AudioInterfaceJack client(options.client_name, AudioInterfaceJack::Filter);
-		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
-		client.set_process_callback(process);
+		client.reset(new SimpleJillClient(options.client_name, "in", "out"));
+		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
+		client->set_process_callback(process);
 
 		/*
 		 * Similarly, we need to tell the OS what function to
@@ -162,17 +176,62 @@ main(int argc, char **argv)
 		signal(SIGHUP,  signal_handler);
 
 		/*
-		 * Finally, we create a new Application object,
-		 * connect to the input and output ports specified by
-		 * the user, and start running.  The run() function
-		 * will exit when the application terminates (in this
-		 * case, when the signal_handler calls signal_quit(),
-		 * or if the client throws an exception.
+		 * Here, we handle the case where the user wants to
+		 * use a sound file as input, rather than a JACK
+		 * port. This is done by creating a second client
+		 * whose job it is to read in the sound file and
+		 * output the samples to the JACK server, which will
+		 * send them to the primary client. This may seem
+		 * unecessarily complicated, but by doing it this way,
+		 * we use the JACK framework as much as possible and
+		 * we don't have to write a separate set of code for
+		 * handling the offline case.
+		 *
+		 * The PlayerJillClient has a static factory function,
+		 * from_port_list(), that will parse our list of input
+		 * ports and determine if any of them refer to a file.
+		 * If so, it creates a PlayerJillClient object to
+		 * handle the file, and returns a pointer to the newly
+		 * created client.  At various points we'll have to
+		 * check to make sure whether this happened or not.
 		 */
-		app.reset(new JillApplication(client, logv));
-		app->connect_inputs(options.input_ports);
-		app->connect_outputs(options.output_ports);
-		app->run();
+		pclient = PlayerJillClient::from_port_list(options.input_ports);
+		if (pclient)
+			logv << logv.allfields << "Input file: " << *pclient << endl;
+
+		/*
+		 * Next, we connect our client to the input and output
+		 * ports specified by the user. When we called
+		 * from_port_list(), it modified the list of input
+		 * ports so that if the user specified a sound file,
+		 * that place in the list is replaced by a connection
+		 * to the associated PlayerJillClient.
+		 */
+		vector<string>::const_iterator it;
+		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
+			client->connect_input(*it);
+			logv << logv.allfields << "Connected input to port " << *it << endl;
+		}
+
+		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
+			client->connect_output(*it);
+			logv << logv.allfields << "Connected output to port " << *it << endl;
+		}
+
+		/*
+		 * At last, we start the client running. We have to
+		 * make a decision about which client's run() function
+		 * to call.  If the user specified an input file, we
+		 * want to play the file and then exit, so we call
+		 * run() on pclient.  Otherwise, we just want to copy
+		 * samples from the input ports to the output ports
+		 * endlessly, and we call run() on client.
+		 */
+		if (pclient) 
+			pclient->run(100000);
+		else
+			client->run(100000);
+
 		return ret;
 	}
 	/*
