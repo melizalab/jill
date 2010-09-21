@@ -95,6 +95,7 @@ static int ret = EXIT_SUCCESS;
 void
 process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
+	//std::cout << time << std::endl;
 	memcpy(out, in, sizeof(sample_t) * nframes);
 }
 
@@ -110,7 +111,7 @@ static void signal_handler(int sig)
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
 
-	client->stop();
+	client->stop("Received interrupt");
 	// here we have to check to see if the pclient object actually got allocated
 	if (pclient)
 		pclient->stop();
@@ -163,7 +164,6 @@ main(int argc, char **argv)
 		 */
 		client.reset(new SimpleJillClient(options.client_name.c_str(), "in", "out"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
-		client->set_process_callback(process);
 
 		/*
 		 * Similarly, we need to tell the OS what function to
@@ -219,18 +219,30 @@ main(int argc, char **argv)
 		}
 
 		/*
-		 * At last, we start the client running. We have to
-		 * make a decision about which client's run() function
-		 * to call.  If the user specified an input file, we
-		 * want to play the file and then exit, so we call
-		 * run() on pclient.  Otherwise, we just want to copy
-		 * samples from the input ports to the output ports
-		 * endlessly, and we call run() on client.
+		 * At last, we start the client processing
+		 * samples. This doesn't happen until the process
+		 * callback gets registered (which one should avoid
+		 * doing until after the ports are connected and
+		 * everything else is set up.  The process callback
+		 * runs in a separate thread.
+		 *
+		 * Depending on whether the user specified an input
+		 * file, we either wait indefinitely in the main loop,
+		 * or wait until the playback is finished. We could
+		 * make the choice using a simple if construction, but
+		 * just to illustrate, we take advantage of the fact
+		 * that SimpleJillClient and PlayerJillClient share a
+		 * common base class (JillClient) and use a
+		 * polymorphic pointer.
 		 */
-		if (pclient) 
-			pclient->run(100000);
-		else
-			client->run(100000);
+		JillClient *cl = client.get();
+		if (pclient)
+			cl = pclient.get();
+
+		client->set_process_callback(process);
+
+		cl->run();
+		logv << logv.allfields << cl->get_status() << endl;
 
 		return ret;
 	}

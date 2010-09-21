@@ -17,7 +17,7 @@ using namespace jill;
 
 
 JillClient::JillClient(const char * name)
-	: _quit(false)
+	: _mainloop_delay(10000), _quit(false)
 {
 	if ((_client = jack_client_open(name, JackNullOption, NULL)) == 0)
 		throw AudioError("can't connect to jack server");
@@ -49,23 +49,22 @@ JillClient::set_timebase_callback(const TimebaseCallback &cb)
 	_timebase_cb = cb;
 }
 
-std::string 
-JillClient::client_name() const
-{
-	return std::string(jack_get_client_name(_client));
-}
-
-
-pthread_t 
-JillClient::client_thread() const
-{
-	return jack_client_thread_id(_client);
-}
+// pthread_t 
+// JillClient::client_thread() const
+// {
+// 	return jack_client_thread_id(_client);
+// }
 
 nframes_t 
 JillClient::samplerate() const
 {
 	return jack_get_sample_rate(_client);
+}
+
+std::string 
+JillClient::client_name() const
+{
+	return std::string(jack_get_client_name(_client));
 }
 
 
@@ -88,7 +87,7 @@ JillClient::position() const
 nframes_t 
 JillClient::frame() const
 {
-	return position().frame;
+	return jack_get_current_transport_frame(_client);
 }
 
 
@@ -131,7 +130,7 @@ JillClient::shutdown_callback_(void *arg)
 {
 	JillClient *this_ = static_cast<JillClient*>(arg);
 	// this needs to be done async-safe, so I just set a flag and let _run handle it
-	this_->_err_msg = "shut down by server";
+	this_->_status_msg = "shut down by server";
 	this_->_quit = true;
 }
 
@@ -147,24 +146,31 @@ JillClient::xrun_callback_(void *arg)
 
 
 int
-JillClient::_run(unsigned int usec_delay)
+JillClient::_run()
 {
+	_status_msg = "running";
+	_quit = false;
 	for (;;) {
-		::usleep(usec_delay);
-		if (_quit) {
-			if (!_err_msg.empty())
-				throw std::runtime_error(_err_msg);
-			else
-				return 0;
-		}
+		::usleep(_mainloop_delay);
+		if (_quit)
+			return 0;
 		else if (_mainloop_cb) {
 			int ret = _mainloop_cb();
 			if(ret!=0) {
-				_err_msg = "Main loop terminated";
+				_status_msg = "terminated by main loop callback";
 				return ret;
 			}
 		}
 	}
 }
+
+
+void
+JillClient::_stop(const char *reason)
+{
+	_status_msg = (reason==0) ? "main loop terminated" : reason;
+	_quit = true;
+}
+
 
 

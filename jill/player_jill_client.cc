@@ -78,12 +78,6 @@ PlayerJillClient::load_file(const char * audiofile)
 	return _buf_size;
 }
 
-bool
-PlayerJillClient::finished() const
-{
-	return _buf_pos >= _buf_size;
-}
-
 int
 PlayerJillClient::process_callback_(nframes_t nframes, void *arg)
 {
@@ -101,29 +95,32 @@ PlayerJillClient::process_callback_(nframes_t nframes, void *arg)
 		}
 	}
 	catch (const std::runtime_error &e) {
-		this_->_err_msg = e.what();
-		this_->_quit = true;
+		this_->stop(e.what());
 	}
 	return 0;
 }
 
 
 int
-PlayerJillClient::_run(unsigned int usec_delay)
+PlayerJillClient::_run()
 {
+	_status_msg = "running";
 	_buf_pos = 0; // reset position
-	if (usec_delay==0) return 0;
+	if (_mainloop_delay==0) return 0;
 	for (;;) {
-		::usleep(usec_delay);
-		if (_quit) {
-			if (!_err_msg.empty())
-				throw std::runtime_error(_err_msg);
-			else
-				return 0;
-		}
-		if (_buf_pos >= _buf_size)
+		::usleep(_mainloop_delay);
+		if (!_is_running()) {
+			_status_msg = "Playback ended";
 			return 0;
+		}
 	}
+}
+
+void
+PlayerJillClient::_stop(const char *reason)
+{
+	_buf_pos = _buf_size;
+	_status_msg = reason;
 }
 
 namespace jill {

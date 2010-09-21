@@ -67,14 +67,13 @@ public:
 	 */
 	nframes_t load_file(const char * audiofile);
 
-	/** Return true if the file has finished playing */
-	bool finished() const;
-
 	friend std::ostream & operator<< (std::ostream &os, const PlayerJillClient &client);
 
 private:
 
-	virtual int _run(unsigned int block=0);
+	virtual int _run();
+	virtual void _stop(const char *reason);
+	virtual bool _is_running() const { return (_buf_pos < _buf_size); }
 	static int process_callback_(nframes_t, void *);
 
 	jack_port_t *_output_port;

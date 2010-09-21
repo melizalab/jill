@@ -27,6 +27,10 @@ typedef jack_position_t position_t;
 class JillClient : boost::noncopyable {
 
 public:
+	/**
+	 * Objects of this class are emitted by JillClient and
+	 * derived classes for a variety of errors
+	 */
 	struct AudioError : public std::runtime_error {
 		AudioError(std::string const & w) : std::runtime_error(w) { }
 	};
@@ -35,7 +39,8 @@ public:
 	 * The timebase callback is called when the transport system
 	 * is activated and a new position is specified.
 	 *
-	 * @param pos  the new position after the timebase changed
+	 * @param pos  a structure with information about the 
+	 *             position of the transport
 	 */
 	typedef boost::function<void (position_t *pos)> TimebaseCallback;
 
@@ -47,20 +52,58 @@ public:
 	typedef boost::function<int (float delay_usecs)> XrunCallback;
 
 	/**
-	 * The main thread callback is called sporadically, and should
-	 * be used for any low-priority tasks
+	 * The main thread callback is called by the run() loop, and
+	 * should be used for any low-priority tasks. It takes no
+	 * arguments. If it returns a nonzero value the run() loop
+	 * will terminate.
 	 */
 	typedef boost::function<int(void)> MainLoopCallback;
 
-	JillClient(const char *name);
+	/**
+	 * Initialize a new Jill client. All clients are identified to
+	 * the JACK server by an alphanumeric name, which is specified
+	 * here. The constructor creates the client and connects it to
+	 * the server.
+	 *
+	 * @param name   the name of the client as represented to the server
+	 */
+	JillClient(const char * name);
 	virtual ~JillClient();
 
+	/**
+	 * Register a timebase callback. This causes the client to
+	 * become the 'JACK transport master'; an error is thrown if
+	 * this fails.  The callback is called after the process
+	 * callback returns, or whenever a client requests a new
+	 * position.  For example, a client doing playback of a file
+	 * can be repositioned to any point in the file.  Most clients
+	 * will not need to use this.
+	 *
+	 * @param cb    a callback of type @a TimebaseCallback
+	 */
 	void set_timebase_callback(const TimebaseCallback &cb);
 
+	/**
+	 * Register an xrun callback. This function is called whenever
+	 * an overrun or underrun occurs.  Registering a callback is
+	 * only really necessary if the user wants to handle these
+	 * events (i.e. by invalidating an output file)
+	 *
+	 * @param cb   a callback of type @a XrunCallback
+	 */
 	void set_xrun_callback(const XrunCallback &cb) {
 		_xrun_cb = cb;
 	}
 
+	/**
+	 * Register a main loop callback. This function is called by
+	 * the @a run() member function, which has the default
+	 * behavior of looping endlessly until the client terminates,
+	 * the callback returns a nonzero value, or the @a stop()
+	 * function is called by some other thread.
+	 *
+	 * @param cb    a callback of type MainLoopCallback
+	 */
 	void set_mainloop_callback(const MainLoopCallback &cb) {
 		_mainloop_cb = cb;
 	}
@@ -85,64 +128,104 @@ public:
 		_connect_output(port, output);
 	}
 
-	/// Disconnect the client from all its ports
+	/**
+	 * Disconnect the client from all its ports
+	 */
 	void disconnect_all() {
 		_disconnect_all();
 	}
 
-        /// Start the main loop running, waiting some fixed delay between loops
-	int run(unsigned int delay) { 
-		return _run(delay);
-	}
+	/**
+	 * Set the delay, in microseconds, between loops in @a
+	 * run(). This is a separate function rather than an argument
+	 * to run() because deriving classes may calculate delay dynamically
+	 */
+	void set_mainloop_delay(unsigned int usec_delay) { _mainloop_delay = usec_delay; }
 
-	/// Terminate the application at the end of the next main loop
-	void stop() {
-		_quit = true;
-	}
+        /**
+	 * Perform various tasks in the main thread while the process
+	 * thread is running.  The default behavior is to loop until
+	 * the process callback throws an error, the server terminates
+	 * (or the client is disconnected), or some other change to
+	 * the internal state of the object.  If the user has
+	 * specified a mainloop callback, this is executed on every
+	 * loop; if the callback returns a nonzero value this will
+	 * also cause run() to exit.
+	 *
+	 * @return   0 if the client terminates internally; the return value of the
+	 *             mainloop callback otherwise
+	 */
+	int run() { return _run(); }
+
+	/**
+	 * Terminate the client at the next opportunity.
+	 */
+	void stop(const char * reason=0) { _stop(reason); }
+
+	/** Return a reason for the run() loop's termination */
+	const std::string &get_status() const { return _status_msg; }
+
+	/* -- Inspect state of the client or server -- */
 
 	/// Return the sample rate of the client
 	nframes_t samplerate() const;
 
-	/// Return false if the client is shut down
-	bool is_running() const {
-		return !_quit;
-	}
+	/// Return true if the run() loop is in progress
+	bool is_running() const { return _is_running(); }
 
 	/// Get JACK client name
 	std::string client_name() const;
 
-	/// Get id of JACK audio processing thread
-	pthread_t client_thread() const;
+	/* -- Transport related functions -- */
 
-	// transport-related functions
+	/// Return true if the client is receiving data
 	bool transport_rolling() const;
+
+	/**
+	 *  Get the current position of the transport. The value
+	 *  returned is a special JACK structure that may contain
+	 *  extended information about the position (e.g. beat, bar)
+	 */
 	position_t position() const;
+
+	/** Return the current frame */
 	nframes_t frame() const;
+
+	/** Request a new position from the transport master */
 	bool set_position(position_t const &);
+
+	/** Request a new frame position from the transport master */
 	bool set_frame(nframes_t);
 
-	/// Set the freewheel state - can cause JACK to run faster than RT
+	/** 
+	 * Set the freewheel state. If freewheel is on, the client
+	 * graph is processed as fast as possible, which means that
+	 * the server may run much faster than real-time.  Potentially
+	 * useful for test clients, but not tested yet.
+	 *
+	 * @param on   the freewheel state to set
+	 */
 	void set_freewheel(bool on);
 
-	/// Return the last error message
-	const std::string &get_error() const { 
-		return _err_msg; 
-	}
 
 protected:
+	/// store a description of why the run() function is exiting
+	std::string _status_msg;
 
-	/// if true, the run() function will exit at the end of the next loop
-	volatile bool _quit;
-	std::string _err_msg;
+	/// The amount of time to sleep between loops in run()
+	unsigned int _mainloop_delay;
 
 	/// Pointer to the JACK client
 	jack_client_t *_client;
-
+	
 private:
 
 	TimebaseCallback _timebase_cb;
 	XrunCallback _xrun_cb;
 	MainLoopCallback _mainloop_cb;
+
+	/// if true, the run() function will exit at the end of the next loop
+	volatile bool _quit;
 
 	/// The actual callbacks
 	static void timebase_callback_(jack_transport_state_t, nframes_t, position_t *, int, void *);
@@ -153,8 +236,9 @@ private:
 	virtual void _connect_input(const char * port, const char * input=0) = 0;
 	virtual void _connect_output(const char * port, const char * output=0) = 0;
 	virtual void _disconnect_all() = 0;
-	virtual int _run(unsigned int delay);
-
+	virtual int _run();
+	virtual void _stop(const char *reason);
+	virtual bool _is_running() const { return !_quit; }
 };
 
 

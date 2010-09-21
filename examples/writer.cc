@@ -168,7 +168,7 @@ signal_handler(int sig)
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
 
-	client->stop();
+	client->stop("Received interrupt");
 }
 
 int
@@ -192,7 +192,6 @@ main(int argc, char **argv)
 		 */
 		client.reset(new SimpleJillClient(options.client_name.c_str(), "in"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
-		client->set_process_callback(process);
 		client->set_xrun_callback(log_xrun);
 
 		/*
@@ -226,7 +225,10 @@ main(int argc, char **argv)
 		 * Try commenting out this line and see what happens.
 		 */
 		client->set_mainloop_callback(mainloop);
-		client->run(250000);
+		client->set_mainloop_delay(250000);
+		client->set_process_callback(process);
+		client->run();
+		logv << logv.allfields << client->get_status() << endl;
 		logv << logv.allfields << "Total frames written: " << outfile.nframes() << endl;
 		return ret;
 	}

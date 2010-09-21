@@ -61,7 +61,7 @@ signal_handler(int sig)
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
 
-	client->stop();
+	client->stop("Received interrupt");
 }
 
 int
@@ -110,7 +110,6 @@ main(int argc, char **argv)
 		     << " (" << delay_time << " ms)" << endl;
 		buffer.reset(new filters::DelayBuffer<sample_t>(buffer_size));
 
-		client->set_process_callback(process);
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -131,7 +130,9 @@ main(int argc, char **argv)
 		 * start the client running; it will continue until
 		 * the user hits ctrl-c or an error occurs
 		 */
-		client->run(100000);
+		client->set_process_callback(process);
+		client->run();
+		logv << logv.allfields << client->get_status() << endl;
 		return ret;
 	}
 	catch (Exit const &e) {

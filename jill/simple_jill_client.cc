@@ -67,8 +67,7 @@ SimpleJillClient::process_callback_(nframes_t nframes, void *arg)
 			this_->_process_cb(in, out, nframes, time);
 		}
 		catch (const std::runtime_error &e) {
-			this_->_err_msg = e.what();
-			this_->_quit = true;
+			this_->stop(e.what());
 		}
 	}
 
