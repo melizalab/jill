@@ -31,7 +31,7 @@
  * contains code for writing a timestamped logfile.
  */
 #include "jill/simple_client.hh"
-#include "jill/player_client.hh"
+#include "jill/sndfile_player_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 using namespace jill;
@@ -64,7 +64,7 @@ using namespace jill;
  * examples.
  */
 static boost::scoped_ptr<SimpleClient> client;
-static boost::shared_ptr<PlayerClient> pclient;
+static boost::shared_ptr<SndfilePlayerClient> pclient;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 
@@ -111,10 +111,9 @@ static void signal_handler(int sig)
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
 
-	client->stop("Received interrupt");
 	// here we have to check to see if the pclient object actually got allocated
-	if (pclient)
-		pclient->stop();
+	if (pclient) pclient->stop("Received interrupt");
+	client->stop("Received interrupt");
 }
 
 /*
@@ -195,9 +194,7 @@ main(int argc, char **argv)
 		 * created client.  At various points we'll have to
 		 * check to make sure whether this happened or not.
 		 */
-		pclient = PlayerClient::from_port_list(options.input_ports);
-		if (pclient)
-			logv << logv.allfields << "Input file: " << *pclient << endl;
+		pclient = SndfilePlayerClient::from_port_list(options.input_ports, &logv);
 
 		/*
 		 * Next, we connect our client to the input and output

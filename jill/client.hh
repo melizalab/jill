@@ -137,8 +137,7 @@ public:
 
 	/**
 	 * Set the delay, in microseconds, between loops in @a
-	 * run(). This is a separate function rather than an argument
-	 * to run() because deriving classes may calculate delay dynamically
+	 * run().
 	 */
 	void set_mainloop_delay(unsigned int usec_delay) { _mainloop_delay = usec_delay; }
 
@@ -156,6 +155,15 @@ public:
 	 *             mainloop callback otherwise
 	 */
 	int run() { return _run(); }
+
+	/**
+	 * Run the client in "nonblocking mode". This is only
+	 * meaningful if the client has some well-defined starting
+	 * state (set up by the virtual _reset() function).
+	 * Otherwise, note that the client is running as soon as the
+	 * process callback is registered.
+	 */
+	void oneshot() { _reset(); }
 
 	/**
 	 * Terminate the client at the next opportunity.

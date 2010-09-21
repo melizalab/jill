@@ -14,71 +14,44 @@
 
 #include "client.hh"
 #include <boost/shared_ptr.hpp>
-#include <boost/scoped_array.hpp>
+#include <boost/shared_array.hpp>
 
 
 namespace jill {
 
 /**
- * This class is a special output-only Client, which is designed
- * to play a soundfile to its input port whenever run() is called, and
- * to output zeros otherwise.  It can be used for testing purposes, or
- * to control an output in response to some other process.
+ * This class is a further refinement of jill::Client that is
+ * specialized for outputting a bunch of samples to its output
+ * port. What distinguishes it from SimpleClient and other derivations
+ * of Client is that all the data are generated/stored internally, and
+ * there is no process callback.
+ *
+ * Deriving classes need to implement fill_buffer(), which is called to
+ * fill the output buffer
+ * 
  */
 class PlayerClient : public Client {
 
 public:
-	PlayerClient(const char * client_name, const char * audiofile);
-	virtual ~PlayerClient();
+	PlayerClient(const char * client_name);
 
-        /**
-	 * Parse a list of input ports; if one input is of the form
-	 * sndfile:path_to_sndfile, it will create a PlayerClient
-	 * for the sndfile and replace the item in the list with the
-	 * correct port name. Only works with one or zero inputs of
-	 * this type
-	 *
-	 * @param ports   an iterable, modifiable sequence of port names
-	 * @returns a shared pointer to the PlayerClient created, if necessary
-	 */
-	template <class Iterable>
-	static boost::shared_ptr<PlayerClient> from_port_list(Iterable &ports) {
-		using std::string;
-		boost::shared_ptr<PlayerClient> ret;
-		typename Iterable::iterator it;
-		for (it = ports.begin(); it != ports.end(); ++it) {
-			size_t p = it->find("sndfile:");
-			if (p!=string::npos) {
-				string path = it->substr(8,string::npos);
-				it->assign(path + ":out");
-				ret.reset(new PlayerClient(path.c_str(), path.c_str()));
-				return ret;
-			}
-		}
-		return ret;
-	}
+protected:
 
 	/**
-	 *  Load data from a file into the buffer. The data are
-	 *  resampled to match the server's sampling rate, so this can
-	 *  be a computationally expensive call.
+	 * This function is called to fill the output buffer. Deriving
+	 * classes must implement this function. 
 	 *
-	 *  @return number of samples loaded (adjusted for resampling)
+	 * @param buffer     the output buffer, zeroed out
+	 * @param frames     the number of items in the buffer
 	 */
-	nframes_t load_file(const char * audiofile);
-
-	friend std::ostream & operator<< (std::ostream &os, const PlayerClient &client);
+	virtual void fill_buffer(sample_t *buffer, nframes_t frames) = 0;
 
 private:
 
-	virtual void _stop(const char *reason);
-	virtual bool _is_running() const { return (_buf_pos < _buf_size); }
+	/** This is the JACK callback; it calls fill_buffer() */
 	static int process_callback_(nframes_t, void *);
 
 	jack_port_t *_output_port;
-	boost::scoped_array<sample_t> _buf;
-	volatile nframes_t _buf_pos;
-	nframes_t _buf_size;
 
 	// these should never get called:
 	void _connect_input(const char * port, const char * input=0) {}
