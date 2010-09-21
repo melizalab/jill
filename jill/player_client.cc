@@ -11,7 +11,7 @@
  *
  */
 
-#include "player_jill_client.hh"
+#include "player_client.hh"
 #include "util/sndfile.hh"
 #include <jack/jack.h>
 #include <iostream>
@@ -22,8 +22,8 @@
 
 using namespace jill;
 
-PlayerJillClient::PlayerJillClient(const char * client_name, const char * audiofile)
-	: JillClient(client_name), _output_port(0), _buf_pos(0), _buf_size(0)
+PlayerClient::PlayerClient(const char * client_name, const char * audiofile)
+	: Client(client_name), _output_port(0), _buf_pos(0), _buf_size(0)
 {
 	jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
 	if ((_output_port = jack_port_register(_client, "out", JACK_DEFAULT_AUDIO_TYPE,
@@ -36,13 +36,13 @@ PlayerJillClient::PlayerJillClient(const char * client_name, const char * audiof
 		throw AudioError("can't activate client");
 }
 
-PlayerJillClient::~PlayerJillClient()
+PlayerClient::~PlayerClient()
 {
 	jack_deactivate(_client);
 }
 
 nframes_t
-PlayerJillClient::load_file(const char * audiofile)
+PlayerClient::load_file(const char * audiofile)
 {
 	_buf_size = _buf_pos = 0;
 	if (audiofile == 0)
@@ -79,9 +79,9 @@ PlayerJillClient::load_file(const char * audiofile)
 }
 
 int
-PlayerJillClient::process_callback_(nframes_t nframes, void *arg)
+PlayerClient::process_callback_(nframes_t nframes, void *arg)
 {
-	PlayerJillClient *this_ = static_cast<PlayerJillClient*>(arg);
+	PlayerClient *this_ = static_cast<PlayerClient*>(arg);
 	try {
 		sample_t *out = reinterpret_cast<sample_t *>(jack_port_get_buffer(this_->_output_port,
 										  nframes));
@@ -101,7 +101,7 @@ PlayerJillClient::process_callback_(nframes_t nframes, void *arg)
 }
 
 void
-PlayerJillClient::_stop(const char *reason)
+PlayerClient::_stop(const char *reason)
 {
 	_buf_pos = _buf_size;
 	_status_msg = reason;
@@ -110,7 +110,7 @@ PlayerJillClient::_stop(const char *reason)
 namespace jill {
 
 std::ostream &
-operator<< (std::ostream &os, const PlayerJillClient &client)
+operator<< (std::ostream &os, const PlayerClient &client)
 {
 	os << client.client_name() << ": " << client._buf_size << " @ " << client.samplerate()
 	   << "Hz (current position: " << client._buf_pos << ')';

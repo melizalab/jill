@@ -12,11 +12,11 @@
 #ifndef _SIMPLE_JILL_CLIENT_HH
 #define _SIMPLE_JILL_CLIENT_HH
 
-#include "jill_client.hh"
+#include "client.hh"
 
 namespace jill {
 
-class SimpleJillClient : public JillClient {
+class SimpleClient : public Client {
 
 public:
 	/** 
@@ -35,10 +35,10 @@ public:
 	 * @param input_name  the name of the input port. If empty, none is registered
 	 * @param output_name the name of the output port. If empty, none is registered
 	 */
-	SimpleJillClient(const char * client_name, 
+	SimpleClient(const char * client_name, 
 			 const char * input_name=0, 
 			 const char * output_name=0);
-	virtual ~SimpleJillClient();
+	virtual ~SimpleClient();
 
 	/**
 	 * Set the process callback. This can be a raw function

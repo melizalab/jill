@@ -24,14 +24,14 @@
 
 /*
  * Here we include the relevant JILL headers.  Most applications will
- * use the simple_jill_client.hh header. If you plan to support
+ * use the simple_client.hh header. If you plan to support
  * offline input (i.e. from a wav file), you will also need to include
  * player_jill_client.hh.  In addition, jill_options.hh contains a
  * class used to parse command-line options, and jill/util/logger.hh
  * contains code for writing a timestamped logfile.
  */
-#include "jill/simple_jill_client.hh"
-#include "jill/player_jill_client.hh"
+#include "jill/simple_client.hh"
+#include "jill/player_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 using namespace jill;
@@ -40,21 +40,21 @@ using namespace jill;
 /*
  * Next, we define several variables with module scope. These refer to
  * objects that need to be accessible to multiple functions in this
- * compilation module.  The SimpleJillClient, for example, is used by
+ * compilation module.  The SimpleClient, for example, is used by
  * both main() and signal_handler().
  *
- * Note, however, that the constructor for SimpleJillClient requires
+ * Note, however, that the constructor for SimpleClient requires
  * that we specify the audio client and a logger, and we have no way
  * of initializing the client until we've parsed the command-line
  * options.  The solution is to create a pointer to an object of type
- * SimpleJillClient, and then initialize the object once we have enough
+ * SimpleClient, and then initialize the object once we have enough
  * information to do so.  Using pointers introduces some issues in
  * resource management; to deal with these we use a "smart pointer",
  * which guarantees that the object will be cleaned up when the
  * application exits.
  *
  * The pclient is also a smart pointer, but to an object of type
- * PlayerJillClient. This object is a second client that is only
+ * PlayerClient. This object is a second client that is only
  * instantiated if the user specifies a sound file as input.  It's
  * responsible for reading that file and sending the samples to JACK.
  * 
@@ -63,8 +63,8 @@ using namespace jill;
  * scope for this application, but it will come in handy in later
  * examples.
  */
-static boost::scoped_ptr<SimpleJillClient> client;
-static boost::shared_ptr<PlayerJillClient> pclient;
+static boost::scoped_ptr<SimpleClient> client;
+static boost::shared_ptr<PlayerClient> pclient;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 
@@ -162,7 +162,7 @@ main(int argc, char **argv)
 		 * function to call with the set_process_callback()
 		 * function.
 		 */
-		client.reset(new SimpleJillClient(options.client_name.c_str(), "in", "out"));
+		client.reset(new SimpleClient(options.client_name.c_str(), "in", "out"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		/*
@@ -187,15 +187,15 @@ main(int argc, char **argv)
 		 * we don't have to write a separate set of code for
 		 * handling the offline case.
 		 *
-		 * The PlayerJillClient has a static factory function,
+		 * The PlayerClient has a static factory function,
 		 * from_port_list(), that will parse our list of input
 		 * ports and determine if any of them refer to a file.
-		 * If so, it creates a PlayerJillClient object to
+		 * If so, it creates a PlayerClient object to
 		 * handle the file, and returns a pointer to the newly
 		 * created client.  At various points we'll have to
 		 * check to make sure whether this happened or not.
 		 */
-		pclient = PlayerJillClient::from_port_list(options.input_ports);
+		pclient = PlayerClient::from_port_list(options.input_ports);
 		if (pclient)
 			logv << logv.allfields << "Input file: " << *pclient << endl;
 
@@ -205,7 +205,7 @@ main(int argc, char **argv)
 		 * from_port_list(), it modified the list of input
 		 * ports so that if the user specified a sound file,
 		 * that place in the list is replaced by a connection
-		 * to the associated PlayerJillClient.
+		 * to the associated PlayerClient.
 		 */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
@@ -231,11 +231,11 @@ main(int argc, char **argv)
 		 * or wait until the playback is finished. We could
 		 * make the choice using a simple if construction, but
 		 * just to illustrate, we take advantage of the fact
-		 * that SimpleJillClient and PlayerJillClient share a
-		 * common base class (JillClient) and use a
+		 * that SimpleClient and PlayerClient share a
+		 * common base class (Client) and use a
 		 * polymorphic pointer.
 		 */
-		JillClient *cl = client.get();
+		Client *cl = client.get();
 		if (pclient)
 			cl = pclient.get();
 

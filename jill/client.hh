@@ -24,11 +24,11 @@ typedef jack_default_audio_sample_t sample_t;
 typedef jack_nframes_t nframes_t;
 typedef jack_position_t position_t;
 
-class JillClient : boost::noncopyable {
+class Client : boost::noncopyable {
 
 public:
 	/**
-	 * Objects of this class are emitted by JillClient and
+	 * Objects of this class are emitted by Client and
 	 * derived classes for a variety of errors
 	 */
 	struct AudioError : public std::runtime_error {
@@ -67,8 +67,8 @@ public:
 	 *
 	 * @param name   the name of the client as represented to the server
 	 */
-	JillClient(const char * name);
-	virtual ~JillClient();
+	Client(const char * name);
+	virtual ~Client();
 
 	/**
 	 * Register a timebase callback. This causes the client to

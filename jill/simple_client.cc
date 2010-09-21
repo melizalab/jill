@@ -9,17 +9,17 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-#include "simple_jill_client.hh"
+#include "simple_client.hh"
 #include "util/string.hh"
 #include <jack/jack.h>
 #include <cerrno>
 
 using namespace jill;
 
-SimpleJillClient::SimpleJillClient(const char * client_name, 
+SimpleClient::SimpleClient(const char * client_name, 
 				   const char * input_name, 
 				   const char * output_name)
-	: JillClient(client_name), _output_port(0), _input_port(0)
+	: Client(client_name), _output_port(0), _input_port(0)
 {
 	long port_flags;
 
@@ -44,16 +44,16 @@ SimpleJillClient::SimpleJillClient(const char * client_name,
 
 }
 
-SimpleJillClient::~SimpleJillClient()
+SimpleClient::~SimpleClient()
 {
 	_disconnect_all();
 	jack_deactivate(_client);
 }	
 
 int 
-SimpleJillClient::process_callback_(nframes_t nframes, void *arg)
+SimpleClient::process_callback_(nframes_t nframes, void *arg)
 {
-	SimpleJillClient *this_ = static_cast<SimpleJillClient*>(arg);
+	SimpleClient *this_ = static_cast<SimpleClient*>(arg);
 
 	if (this_->_process_cb) {
 		try {
@@ -76,7 +76,7 @@ SimpleJillClient::process_callback_(nframes_t nframes, void *arg)
 
 
 void 
-SimpleJillClient::_connect_input(const char * port, const char *)
+SimpleClient::_connect_input(const char * port, const char *)
 {
 	if (_input_port) {
 		int error = jack_connect(_client, port, jack_port_name(_input_port));
@@ -90,7 +90,7 @@ SimpleJillClient::_connect_input(const char * port, const char *)
 
 
 void 
-SimpleJillClient::_connect_output(const char * port, const char *)
+SimpleClient::_connect_output(const char * port, const char *)
 {
 	if (_output_port) {
 		int error = jack_connect(_client, jack_port_name(_output_port), port);
@@ -104,7 +104,7 @@ SimpleJillClient::_connect_output(const char * port, const char *)
 
 
 void 
-SimpleJillClient::_disconnect_all()
+SimpleClient::_disconnect_all()
 {
 	if (_output_port) jack_port_disconnect(_client, _output_port);
 	if (_input_port) jack_port_disconnect(_client, _input_port);

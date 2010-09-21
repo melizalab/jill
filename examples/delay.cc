@@ -26,7 +26,7 @@
  * additional header which gives us access to the
  * DelayBuffer class.
  */
-#include "jill/simple_jill_client.hh"
+#include "jill/simple_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 #include "jill/filters/delay_buffer.hh"
@@ -38,7 +38,7 @@ using namespace jill;
  * buffer. This has to be available at this scope in order for the
  * process() function to have access to it.
  */
-static boost::scoped_ptr<SimpleJillClient> client;
+static boost::scoped_ptr<SimpleClient> client;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 static boost::scoped_ptr<filters::DelayBuffer<sample_t> > buffer;
@@ -96,7 +96,7 @@ main(int argc, char **argv)
 		 * the process loop until the buffer has been
 		 * allocated.
 		 */
-		client.reset(new SimpleJillClient(options.client_name.c_str(), "in", "out"));
+		client.reset(new SimpleClient(options.client_name.c_str(), "in", "out"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		/*

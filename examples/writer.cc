@@ -32,12 +32,12 @@
 #include <signal.h>
 
 /*
- * In this example, we're going to leave out the PlayerJillClient,
+ * In this example, we're going to leave out the PlayerClient,
  * because that functionality is pretty pointless for this client. It
  * also introduces some issues with threading that we can defer to a
  * later chapter.
  */
-#include "jill/simple_jill_client.hh"
+#include "jill/simple_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
 
@@ -102,7 +102,7 @@ protected:
  * at CD-quality rates.  We connect it to an actual backend in main()
  * below.
  */
-static boost::scoped_ptr<SimpleJillClient> client;
+static boost::scoped_ptr<SimpleClient> client;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 static util::BufferedWriter<util::Ringbuffer<sample_t>, util::sndfile> output(50000);
@@ -190,7 +190,7 @@ main(int argc, char **argv)
 		 * omit that argument. We also register our
 		 * xrun-logging function using set_xrun_callback.
 		 */
-		client.reset(new SimpleJillClient(options.client_name.c_str(), "in"));
+		client.reset(new SimpleClient(options.client_name.c_str(), "in"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 		client->set_xrun_callback(log_xrun);
 
