@@ -134,7 +134,7 @@ main(int argc, char **argv)
 		 * name of the application, the version, and pass it
 		 * the command line arguments.
 		 */
-		JillOptions options("mixer", "1.1.0rc1");
+		JillOptions options("mixer", "1.1.0rc2");
 		options.parse(argc,argv);
 
 		/*

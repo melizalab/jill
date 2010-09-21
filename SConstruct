@@ -5,7 +5,7 @@ if hasattr(os,'uname'):
 else:
     system = 'Windows'
 
-version = '1.1.0rc1'
+version = '1.1.0rc2'
 libname = 'jill'
 
 # install location
@@ -16,10 +16,8 @@ AddOption('--prefix',
           action='store',
           metavar='DIR',
           help='installation prefix')
-# whether to use resampling
-do_resampling = ARGUMENTS.get('resample',1)
 # debug flags for compliation
-debug = ARGUMENTS.get('debug',0)
+debug = ARGUMENTS.get('debug',1)
 
 if not GetOption('prefix')==None:
     install_prefix = GetOption('prefix')
@@ -34,14 +32,13 @@ Type: 'scons library' to build the library
 
 Options:
       debug=1      to enable debug compliation
-      resample=0   to turn off resampling for soundfile output (requires libsamplerate)
 """ % install_prefix)
 
 
     
 env = Environment(CCFLAGS=['-Wall'],
                   CPPDEFINES = [('VERSION', '\\"%s\\"' % version)],
-                  LIBS=['jack'],
+                  LIBS=['jack','samplerate'],
                   PREFIX=install_prefix,
                   tools=['default'])
 
@@ -52,11 +49,6 @@ if int(debug):
     env.Append(CCFLAGS=['-g2'])
 else:
     env.Append(CCFLAGS=['-O2'])
-
-if int(do_resampling):
-    env.Append(CPPDEFINES=[('HAVE_SRC', 1)],
-               LIBS=['samplerate'])
-    
 
 lib = SConscript('jill/SConscript', exports='env libname')
 examples = SConscript('examples/SConscript', exports='env lib')

@@ -78,7 +78,7 @@ main(int argc, char **argv)
 		 * additional options. For more details see
 		 * http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
 		 */	
-		JillOptions options("delay", "1.1.0rc1"); 
+		JillOptions options("delay", "1.1.0rc2"); 
 		po::options_description delopts("Delay options");
 		delopts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
