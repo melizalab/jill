@@ -136,6 +136,7 @@ private:
 	void fill_buffer(sample_t *buffer, nframes_t frames);
 
 	virtual void _stop(const char *reason);
+	virtual void _reset() { _buf_pos = 0; }
 	virtual bool _is_running() const { return (_buf_pos < _buf_size); }
 
 	// the currently selected dataset

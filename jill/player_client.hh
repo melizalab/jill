@@ -53,10 +53,11 @@ private:
 
 	jack_port_t *_output_port;
 
-	// these should never get called:
+	// allow user to connect client to an output, which can be useful if it's the only client
+	void _connect_output(const char * port, const char * output=0);
+	void _disconnect_all();	
+	// this has no effect
 	void _connect_input(const char * port, const char * input=0) {}
-	void _connect_output(const char * port, const char * output=0) {}
-	void _disconnect_all() {}
 
 };
 

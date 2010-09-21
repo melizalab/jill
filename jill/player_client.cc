@@ -12,7 +12,9 @@
  */
 
 #include "player_client.hh"
+#include "util/string.hh"
 #include <jack/jack.h>
+#include <cerrno>
 
 using namespace jill;
 
@@ -39,4 +41,25 @@ PlayerClient::process_callback_(nframes_t nframes, void *arg)
 		this_->stop(e.what());
 	}
 	return 0;
+}
+
+
+void 
+PlayerClient::_connect_output(const char * port, const char *)
+{
+	if (_output_port) {
+		int error = jack_connect(_client, jack_port_name(_output_port), port);
+		if (error && error != EEXIST)
+			throw AudioError(util::make_string() << "can't connect "
+					 << jack_port_name(_output_port) << " to " << port);
+	}
+	else
+		throw AudioError("interface does not have an output port");
+}
+
+
+void 
+PlayerClient::_disconnect_all()
+{
+	if (_output_port) jack_port_disconnect(_client, _output_port);
 }

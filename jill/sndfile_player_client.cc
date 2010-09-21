@@ -56,19 +56,19 @@ SndfilePlayerClient::load_data(const key_type &key, data_array buf, nframes_t si
 		data.input_frames = size;
 		data.data_in = buf.get();
 		data.src_ratio = float(samplerate()) / float(rate);
-		_buf_size = data.output_frames = (int)(size * data.src_ratio);
+		size = data.output_frames = (int)(size * data.src_ratio);
 
-		_buf.reset(new sample_t[_buf_size]);
+		_buf.reset(new sample_t[size]);
 		data.data_out = _buf.get();
 
 		int ec = src_simple(&data, SRC_SINC_BEST_QUALITY, 1);
 		if (ec != 0)
 			throw AudioError(std::string("Resampling error: ") + src_strerror(ec));
 	}
-	else {
+	else
 		_buf = buf;
-		_buf_size = size;
-	}
+	
+	_buf_size = _buf_pos = size; // otherwise playback starts immediately
 	_buffers[key] = _buf;
 	_buffer_sizes[key] = _buf_size;
 	return _buf_size;
@@ -99,7 +99,6 @@ SndfilePlayerClient::fill_buffer(sample_t *buffer, nframes_t nframes)
 	}
 
 }
-
 
 void
 SndfilePlayerClient::_stop(const char *reason)
