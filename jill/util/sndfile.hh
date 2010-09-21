@@ -11,7 +11,7 @@
  *
  *! @file
  *! @brief Classes for writing data to sound files
- *! 
+ *!
  */
 
 #ifndef _SNDFILE_HH
@@ -29,7 +29,7 @@ struct FileError : public std::runtime_error {
 	FileError(const std::string & w) : std::runtime_error(w) { }
 };
 
-	   	
+
 /**
  * This sound file is a single file, opened using libsndfile. Data
  * supplied to write() are written consecutively to the file.

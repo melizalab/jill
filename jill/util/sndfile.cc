@@ -1,23 +1,37 @@
-
+/*
+ * JILL - C++ framework for JACK
+ *
+ * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
+ * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ *! @file
+ *! @brief Classes for writing data to sound files
+ *!
+ */
 #include "multisndfile.hh"
 #include "string.hh"
 using namespace jill::util;
 
 sndfile::sndfile() : _nframes(0) {}
 
-sndfile::sndfile(const char *filename, size_type samplerate) 
-	: _nframes(0) 
+sndfile::sndfile(const char *filename, size_type samplerate)
+	: _nframes(0)
 {
 	open(filename, samplerate);
 }
 
-sndfile::sndfile(const std::string &filename, size_type samplerate) 
-	: _nframes(0) 
+sndfile::sndfile(const std::string &filename, size_type samplerate)
+	: _nframes(0)
 {
 	open(filename.c_str(), samplerate);
 }
 
-void 
+void
 sndfile::open(const char *filename, size_type samplerate)
 {
 	std::memset(&_sfinfo, 0, sizeof(_sfinfo));
@@ -54,7 +68,7 @@ sndfile::open(const char *filename, size_type samplerate)
 void
 sndfile::close()
 {
-	sf_close(_sndfile.get());
+	if(_sndfile) sf_close(_sndfile.get());
 	_sndfile.reset();
 }
 
@@ -62,7 +76,7 @@ sndfile::operator bool () const
 {
 	return _sndfile;
 }
-	    
+
 
 sndfile::size_type
 sndfile::write(const float *buf, size_type nframes)
@@ -73,25 +87,25 @@ sndfile::write(const float *buf, size_type nframes)
 }
 
 
-sndfile::size_type 
+sndfile::size_type
 sndfile::write(const double *buf, size_type nframes) {
-	size_type n = sf_writef_double(_sndfile.get(), buf, nframes);	
+	size_type n = sf_writef_double(_sndfile.get(), buf, nframes);
 	_nframes += n;
 	return n;
 }
 
 
-sndfile::size_type 
+sndfile::size_type
 sndfile::write(const short *buf, size_type nframes) {
-	size_type n = sf_writef_short(_sndfile.get(), buf, nframes);	
+	size_type n = sf_writef_short(_sndfile.get(), buf, nframes);
 	_nframes += n;
 	return n;
 }
 
 
-sndfile::size_type 
+sndfile::size_type
 sndfile::write(const int *buf, size_type nframes) {
-	size_type n = sf_writef_int(_sndfile.get(), buf, nframes);	
+	size_type n = sf_writef_int(_sndfile.get(), buf, nframes);
 	_nframes += n;
 	return n;
 }

@@ -22,7 +22,7 @@ namespace jill { namespace util {
  * The TimeRingbuffer is a specialization of Ringbuffer that stores
  * timing information about the position of the read and write
  * pointers.  The interface is the same as Ringbuffer, with the
- * an extended @a push() and a new function,  @a get_time. 
+ * an extended @a push() and a new function,  @a get_time.
  *
  * @param T1  The type of data stored in the ringbuffer
  *
@@ -41,41 +41,41 @@ public:
 
 	explicit TimeRingbuffer(size_type size) : super(size) {}
 	TimeRingbuffer(size_type size, const time_type &start_time) : super(size), _wp_time(start_time) {}
-	
-	/** 
+
+	/**
 	 * Write data to the ringbuffer. Updates the timing information.
-	 * 
+	 *
 	 * @param src Pointer to source buffer
 	 * @param nframes The number of frames in the source buffer
 	 * @param time    The time corresponding to the start of the data
-	 * 
+	 *
 	 * @return The number of frames actually written
 	 */
-	inline size_type push(const data_type *src, size_type nframes, const time_type &time) {
+	size_type push(const data_type *src, size_type nframes, const time_type &time) {
 		boost::mutex::scoped_lock lock(_wp_time_mutex);
 		size_type nf = super::push(src, nframes);
 		_wp_time = time + nf;
 		return nf;
 	}
 
-	
-	inline time_type get_time() {
+
+	time_type get_time() {
 		boost::mutex::scoped_lock lock(_wp_time_mutex);
 		return _wp_time - super::read_space();
 	}
-	
+
 
 private:
 	typedef Ringbuffer<T1> super;
 
 	/// The time of the write pointer
-	time_type _wp_time; 
+	time_type _wp_time;
 	/// A mutex for _wp_time accessors
 	boost::mutex _wp_time_mutex;
 
 
 };
-  
+
 }}
 
 #endif
