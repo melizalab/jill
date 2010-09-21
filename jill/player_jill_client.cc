@@ -100,22 +100,6 @@ PlayerJillClient::process_callback_(nframes_t nframes, void *arg)
 	return 0;
 }
 
-
-int
-PlayerJillClient::_run()
-{
-	_status_msg = "running";
-	_buf_pos = 0; // reset position
-	if (_mainloop_delay==0) return 0;
-	for (;;) {
-		::usleep(_mainloop_delay);
-		if (!_is_running()) {
-			_status_msg = "Playback ended";
-			return 0;
-		}
-	}
-}
-
 void
 PlayerJillClient::_stop(const char *reason)
 {

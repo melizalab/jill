@@ -148,11 +148,11 @@ JillClient::xrun_callback_(void *arg)
 int
 JillClient::_run()
 {
-	_status_msg = "running";
-	_quit = false;
+	_reset();
+	if (_mainloop_delay==0) return 0;
 	for (;;) {
 		::usleep(_mainloop_delay);
-		if (_quit)
+		if (!_is_running())
 			return 0;
 		else if (_mainloop_cb) {
 			int ret = _mainloop_cb();
@@ -164,6 +164,12 @@ JillClient::_run()
 	}
 }
 
+void
+JillClient::_reset()
+{
+	_status_msg = "running";
+	_quit = false;
+}
 
 void
 JillClient::_stop(const char *reason)

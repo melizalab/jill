@@ -71,7 +71,6 @@ public:
 
 private:
 
-	virtual int _run();
 	virtual void _stop(const char *reason);
 	virtual bool _is_running() const { return (_buf_pos < _buf_size); }
 	static int process_callback_(nframes_t, void *);

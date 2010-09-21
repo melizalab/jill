@@ -232,12 +232,63 @@ private:
 	static void shutdown_callback_(void *);
 	static int xrun_callback_(void *);
 
-	/// These functions have to be overridden by derived classes
+	/* virtual functions! */
+
+	/**
+	 * Connect a port to the client's input. Customize based on
+	 * the number of ports, etc.
+	 * 
+	 * @param port     the name of the port to connect TO
+	 * @param input    the name of the client's port to connect; 0 is default
+	 */
 	virtual void _connect_input(const char * port, const char * input=0) = 0;
+
+	/**
+	 * Connect a port to the client's output. Customize based on
+	 * the number of ports, etc.
+	 * 
+	 * @param port     the name of the port to connect TO
+	 * @param output    the name of the client's port to connect; 0 is default
+	 */
 	virtual void _connect_output(const char * port, const char * output=0) = 0;
+
+	/** Disconnect the client from all its connections */
 	virtual void _disconnect_all() = 0;
+
+	/** 
+	 * Run the main loop. Default behavior: can be blocking or
+	 * nonblocking depending on _mainloop_delay. In nonblocking
+	 * case, calls _reset() and returns 0; In blocking case, calls
+	 * _reset(), then loops until one of the following conditions
+	 * are met:
+	 *
+	 * 1. _is_running() returns false
+	 * 2. _mainloop_cb, if it exists, returns nonzero
+	 *
+	 * @return 0 if _is_running() is false, the return value of
+	 * mainloop_cb otherwise.
+	 */
 	virtual int _run();
+
+	/**
+	 * Reset the state of the client. The result, if the client is
+	 * valid and ready to go, should be that _is_running() returns
+	 * true
+	 */
+	virtual void _reset();
+
+	/**
+	 * Cause @a run() to return if it's in blocking mode. At a
+	 * minimum, this function should ensure that _is_running()
+	 * returns false. It may also be desirable to change the
+	 * behavior of the process loop.
+	 */
 	virtual void _stop(const char *reason);
+
+	/**
+	 * Return true if the client is still valid and the run()
+	 * function should continue to loop.
+	 */
 	virtual bool _is_running() const { return !_quit; }
 };
 
