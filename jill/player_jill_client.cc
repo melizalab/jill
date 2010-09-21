@@ -68,11 +68,10 @@ PlayerJillClient::load_file(const std::string &audiofile)
 			throw AudioError(std::string("Resampling error: ") + src_strerror(ec));
 	}
 	else {
-#else
+#endif
 		nframes_t nframes = sf.frames();
 		_buf.reset(new sample_t[nframes]);
 		_buf_size = sf(_buf.get(), nframes);
-#endif
 #ifdef HAVE_SRC
 	}
 #endif
