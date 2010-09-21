@@ -16,25 +16,25 @@
 
 using namespace jill;
 
-SimpleJillClient::SimpleJillClient(const std::string &client_name, 
-				   const std::string &input_name, 
-				   const std::string &output_name)
+SimpleJillClient::SimpleJillClient(const char * client_name, 
+				   const char * input_name, 
+				   const char * output_name)
 	: JillClient(client_name), _output_port(0), _input_port(0)
 {
 	long port_flags;
 
 	jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
 
-	if (!input_name.empty()) {
-		port_flags = JackPortIsInput | ((output_name.empty()) ? JackPortIsTerminal : 0);
-		if ((_input_port = jack_port_register(_client, input_name.c_str(), JACK_DEFAULT_AUDIO_TYPE,
+	if (input_name != 0) {
+		port_flags = JackPortIsInput | ((output_name==0) ? JackPortIsTerminal : 0);
+		if ((_input_port = jack_port_register(_client, input_name, JACK_DEFAULT_AUDIO_TYPE,
 						      port_flags, 0))==NULL)
 			throw AudioError("can't register input port");
 	}
 
-	if (!output_name.empty()) {
-		port_flags = JackPortIsOutput | ((input_name.empty()) ? JackPortIsTerminal : 0);
-		if ((_output_port = jack_port_register(_client, output_name.c_str(), JACK_DEFAULT_AUDIO_TYPE,
+	if (output_name != 0) {
+		port_flags = JackPortIsOutput | ((input_name==0) ? JackPortIsTerminal : 0);
+		if ((_output_port = jack_port_register(_client, output_name, JACK_DEFAULT_AUDIO_TYPE,
 						       port_flags, 0))==NULL)
 			throw AudioError("can't register output port");
 	}
@@ -77,13 +77,13 @@ SimpleJillClient::process_callback_(nframes_t nframes, void *arg)
 
 
 void 
-SimpleJillClient::_connect_input(const std::string & port, const std::string *)
+SimpleJillClient::_connect_input(const char * port, const char *)
 {
 	if (_input_port) {
-		int error = jack_connect(_client, port.c_str(), jack_port_name(_input_port));
+		int error = jack_connect(_client, port, jack_port_name(_input_port));
 		if (error && error != EEXIST)
 			throw AudioError(util::make_string() << "can't connect "
-					 << jack_port_name(_input_port) << " to " << port.c_str());
+					 << jack_port_name(_input_port) << " to " << port);
 	}
 	else
 		throw AudioError("interface does not have an input port");
@@ -91,13 +91,13 @@ SimpleJillClient::_connect_input(const std::string & port, const std::string *)
 
 
 void 
-SimpleJillClient::_connect_output(const std::string & port, const std::string *)
+SimpleJillClient::_connect_output(const char * port, const char *)
 {
 	if (_output_port) {
-		int error = jack_connect(_client, jack_port_name(_output_port), port.c_str());
+		int error = jack_connect(_client, jack_port_name(_output_port), port);
 		if (error && error != EEXIST)
 			throw AudioError(util::make_string() << "can't connect "
-					 << jack_port_name(_output_port) << " to " << port.c_str());
+					 << jack_port_name(_output_port) << " to " << port);
 	}
 	else
 		throw AudioError("interface does not have an output port");

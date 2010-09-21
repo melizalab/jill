@@ -35,9 +35,9 @@ public:
 	 * @param input_name  the name of the input port. If empty, none is registered
 	 * @param output_name the name of the output port. If empty, none is registered
 	 */
-	SimpleJillClient(const std::string &client_name, 
-			 const std::string &input_name="", 
-			 const std::string &output_name="");
+	SimpleJillClient(const char * client_name, 
+			 const char * input_name=0, 
+			 const char * output_name=0);
 	virtual ~SimpleJillClient();
 
 	/**
@@ -65,8 +65,8 @@ private:
 
 	static int process_callback_(nframes_t, void *);
 
-	virtual void _connect_input(const std::string & port, const std::string * input=0);
-	virtual void _connect_output(const std::string & port, const std::string * output=0);
+	virtual void _connect_input(const char * port, const char * input=0);
+	virtual void _connect_output(const char * port, const char * output=0);
 	virtual void _disconnect_all();
 
 };

@@ -16,10 +16,10 @@
 using namespace jill;
 
 
-JillClient::JillClient(const std::string & name)
+JillClient::JillClient(const char * name)
 	: _quit(false)
 {
-	if ((_client = jack_client_open(name.c_str(), JackNullOption, NULL)) == 0)
+	if ((_client = jack_client_open(name, JackNullOption, NULL)) == 0)
 		throw AudioError("can't connect to jack server");
 
 	jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));

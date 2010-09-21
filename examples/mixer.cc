@@ -161,7 +161,7 @@ main(int argc, char **argv)
 		 * function to call with the set_process_callback()
 		 * function.
 		 */
-		client.reset(new SimpleJillClient(options.client_name, "in", "out"));
+		client.reset(new SimpleJillClient(options.client_name.c_str(), "in", "out"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 		client->set_process_callback(process);
 
@@ -209,12 +209,12 @@ main(int argc, char **argv)
 		 */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_input(*it);
+			client->connect_input(it->c_str());
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_output(*it);
+			client->connect_output(it->c_str());
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 

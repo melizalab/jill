@@ -78,7 +78,7 @@ main(int argc, char **argv)
 		 * additional options. For more details see
 		 * http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
 		 */	
-		JillOptions options("delay", "1.0.0rc4"); 
+		JillOptions options("delay", "1.1.0rc1"); 
 		po::options_description delopts("Delay options");
 		delopts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
@@ -96,7 +96,7 @@ main(int argc, char **argv)
 		 * the process loop until the buffer has been
 		 * allocated.
 		 */
-		client.reset(new SimpleJillClient(options.client_name, "in", "out"));
+		client.reset(new SimpleJillClient(options.client_name.c_str(), "in", "out"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		/*
@@ -118,12 +118,12 @@ main(int argc, char **argv)
 
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_input(*it);
+			client->connect_input(it->c_str());
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_output(*it);
+			client->connect_output(it->c_str());
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 

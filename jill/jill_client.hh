@@ -52,7 +52,7 @@ public:
 	 */
 	typedef boost::function<int(void)> MainLoopCallback;
 
-	JillClient(const std::string &name);
+	JillClient(const char *name);
 	virtual ~JillClient();
 
 	void set_timebase_callback(const TimebaseCallback &cb);
@@ -71,10 +71,9 @@ public:
 	 * @param port The name of the port to connect to
 	 * @param input The name of the client's input port, or 0 for default
 	 */
-	void connect_input(const std::string & port, const std::string * input = 0) {
+	void connect_input(const char * port, const char * input = 0) {
 		_connect_input(port, input);
 	}
-
 
 	/**
 	 * Connect the client's output to an input port
@@ -82,7 +81,7 @@ public:
 	 * @param port The name of the port to connect to
 	 * @param output The name of the client's output port, or 0 for default
 	 */
-	void connect_output(const std::string & port, const std::string * output = 0) {
+	void connect_output(const char * port, const char * output = 0) {
 		_connect_output(port, output);
 	}
 
@@ -151,8 +150,8 @@ private:
 	static int xrun_callback_(void *);
 
 	/// These functions have to be overridden by derived classes
-	virtual void _connect_input(const std::string & port, const std::string * input=0) = 0;
-	virtual void _connect_output(const std::string & port, const std::string * output=0) = 0;
+	virtual void _connect_input(const char * port, const char * input=0) = 0;
+	virtual void _connect_output(const char * port, const char * output=0) = 0;
 	virtual void _disconnect_all() = 0;
 	virtual int _run(unsigned int delay);
 

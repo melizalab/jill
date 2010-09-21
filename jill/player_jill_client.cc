@@ -22,7 +22,7 @@
 
 using namespace jill;
 
-PlayerJillClient::PlayerJillClient(const std::string &client_name, const std::string &audiofile)
+PlayerJillClient::PlayerJillClient(const char * client_name, const char * audiofile)
 	: JillClient(client_name), _output_port(0), _buf_pos(0), _buf_size(0)
 {
 	jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
@@ -42,10 +42,10 @@ PlayerJillClient::~PlayerJillClient()
 }
 
 nframes_t
-PlayerJillClient::load_file(const std::string &audiofile)
+PlayerJillClient::load_file(const char * audiofile)
 {
 	_buf_size = _buf_pos = 0;
-	if (audiofile.empty())
+	if (audiofile == 0)
 		return _buf_size;
 
 	util::sndfilereader sf(audiofile);
@@ -124,24 +124,6 @@ PlayerJillClient::_run(unsigned int usec_delay)
 		if (_buf_pos >= _buf_size)
 			return 0;
 	}
-}
-
-void
-PlayerJillClient::_connect_input(const std::string & port, const std::string *)
-{
-	throw AudioError("unsupported operation for PlayerJillClient");
-}
-
-void
-PlayerJillClient::_connect_output(const std::string & port, const std::string *)
-{
-	throw AudioError("unsupported operation for PlayerJillClient");
-}
-
-void
-PlayerJillClient::_disconnect_all()
-{
-	throw AudioError("unsupported operation for PlayerJillClient");
 }
 
 namespace jill {

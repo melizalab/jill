@@ -177,7 +177,7 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		// parse options, using our custom options class
-		WriterOptions options("writer", "1.0.0rc4");
+		WriterOptions options("writer", "1.1.0rc1");
 		options.parse(argc,argv);
 
 		// fire up the logger
@@ -190,7 +190,7 @@ main(int argc, char **argv)
 		 * omit that argument. We also register our
 		 * xrun-logging function using set_xrun_callback.
 		 */
-		client.reset(new SimpleJillClient(options.client_name, "in"));
+		client.reset(new SimpleJillClient(options.client_name.c_str(), "in"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 		client->set_process_callback(process);
 		client->set_xrun_callback(log_xrun);
@@ -214,7 +214,7 @@ main(int argc, char **argv)
 		/* Connect the inputs */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_input(*it);
+			client->connect_input(it->c_str());
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 

@@ -8,7 +8,6 @@ menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time',
 programs = {'mixer' : ['mixer.cc'],
             'delay' : ['delay.cc'],
             'writer' : ['writer.cc'],
-            'offline_mixer' : ['offline_mixer.cc'],
             }
 
 out = []

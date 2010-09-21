@@ -28,7 +28,7 @@ namespace jill {
 class PlayerJillClient : public JillClient {
 
 public:
-	PlayerJillClient(const std::string &client_name, const std::string &audiofile);
+	PlayerJillClient(const char * client_name, const char * audiofile);
 	virtual ~PlayerJillClient();
 
         /**
@@ -51,7 +51,7 @@ public:
 			if (p!=string::npos) {
 				string path = it->substr(8,string::npos);
 				it->assign(path + ":out");
-				ret.reset(new PlayerJillClient(path, path));
+				ret.reset(new PlayerJillClient(path.c_str(), path.c_str()));
 				return ret;
 			}
 		}
@@ -65,7 +65,7 @@ public:
 	 *
 	 *  @return number of samples loaded (adjusted for resampling)
 	 */
-	nframes_t load_file(const std::string &audiofile);
+	nframes_t load_file(const char * audiofile);
 
 	/** Return true if the file has finished playing */
 	bool finished() const;
@@ -83,9 +83,9 @@ private:
 	nframes_t _buf_size;
 
 	// these should never get called:
-	virtual void _connect_input(const std::string & port, const std::string * input=0);
-	virtual void _connect_output(const std::string & port, const std::string * output=0);
-	virtual void _disconnect_all();
+	virtual void _connect_input(const char * port, const char * input=0) {}
+	virtual void _connect_output(const char * port, const char * output=0) {}
+	virtual void _disconnect_all() {}
 
 };
 
