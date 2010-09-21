@@ -67,6 +67,9 @@ public:
 	 */
 	nframes_t load_file(const std::string &audiofile);
 
+	/** Return true if the file has finished playing */
+	bool finished() const;
+
 	friend std::ostream & operator<< (std::ostream &os, const PlayerJillClient &client);
 
 private:

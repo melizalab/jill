@@ -14,7 +14,7 @@
 #include "player_jill_client.hh"
 #include "util/sndfile.hh"
 #include <jack/jack.h>
-#include <ostream>
+#include <iostream>
 
 #ifdef HAVE_SRC
 #include <samplerate.h>
@@ -77,6 +77,12 @@ PlayerJillClient::load_file(const std::string &audiofile)
 	}
 #endif
 	return _buf_size;
+}
+
+bool
+PlayerJillClient::finished() const
+{
+	return _buf_pos >= _buf_size;
 }
 
 int
