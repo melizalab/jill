@@ -122,6 +122,9 @@ public:
 	bool set_position(position_t const &);
 	bool set_frame(nframes_t);
 
+	/// Set the freewheel state - can cause JACK to run faster than RT
+	void set_freewheel(bool on);
+
 	/// Return the last error message
 	const std::string &get_error() const { 
 		return _err_msg; 

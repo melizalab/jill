@@ -106,6 +106,13 @@ JillClient::set_frame(nframes_t frame)
 	return (jack_transport_locate(_client, frame) == 0);
 }
 
+void 
+JillClient::set_freewheel(bool on)
+{
+	int ret = jack_set_freewheel(_client, on);
+	if (ret != 0)
+		throw AudioError("Unable to set freewheel mode");
+}
 
 void 
 JillClient::timebase_callback_(jack_transport_state_t /*state*/, nframes_t /*nframes*/,
