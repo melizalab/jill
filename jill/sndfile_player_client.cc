@@ -97,6 +97,8 @@ SndfilePlayerClient::fill_buffer(sample_t *buffer, nframes_t nframes)
 		memcpy(buffer, _buf.get()+_buf_pos, avail * sizeof(sample_t));
 		_buf_pos += avail;
 	}
+	if (avail < int(nframes))
+		_status_msg = "Completed playback";
 
 }
 
@@ -113,8 +115,7 @@ namespace jill {
 std::ostream &
 operator<< (std::ostream &os, const SndfilePlayerClient &client)
 {
-	os << client._buf_name << ": " << client._buf_size << " @ " << client.samplerate()
-	   << "Hz (current position: " << client._buf_pos << ')';
+	os << client._buf_name << ": " << client._buf_size << " @ " << client.samplerate() << " Hz";
 	return os;
 }
 
