@@ -52,5 +52,6 @@ else:
 
 lib = SConscript('jill/SConscript', exports='env libname')
 examples = SConscript('examples/SConscript', exports='env lib')
+capture = SConscript('capture/SConscript', exports='env lib')
 
 env.Alias('examples',examples)

@@ -19,10 +19,10 @@
 
 #include <boost/noncopyable.hpp>
 #include <vector>
-#include "../util/counter.hh"
-#include "../util/debug.hh"
+#include <jill/util/counter.hh>
 
-namespace jill { namespace filters {
+
+namespace capture {
 
 /**
  * The ThresholdCounter is a simple window discriminator that counts
@@ -30,12 +30,13 @@ namespace jill { namespace filters {
  * window. 
  */
 template<typename T>
-class ThresholdCounter : public util::Counter {
+class ThresholdCounter : public jill::util::Counter {
 public:
+	using jill::util::Counter;
 	typedef T sample_type;
 
 	ThresholdCounter(const sample_type &threshold, size_type period_size, size_type period_count)
-		:  util::Counter(period_count), _thresh(threshold), _period_size(period_size),
+		:  Counter(period_count), _thresh(threshold), _period_size(period_size),
 		  _period_crossings(0), _period_nsamples(0) {}
 
 	/**
@@ -68,7 +69,7 @@ public:
 			last = samples[i];
 			_period_nsamples += 1;
 			if (_period_nsamples >= _period_size) {
-				if (util::Counter::push(_period_crossings, count_thresh) && ret < 0)
+				if (Counter::push(_period_crossings, count_thresh) && ret < 0)
 					ret = period;
 				period += 1;
 				_period_nsamples = 0;
@@ -80,7 +81,7 @@ public:
 
 	/// reset the queue
 	void reset() { 
-		util::Counter::reset();
+		Counter::reset();
 		_period_crossings = 0;
 		_period_nsamples = 0;
 	}
@@ -234,5 +235,5 @@ private:
 	int _close_count_thresh;
 };
 
-}} // namespace jill::filters
+} // namespace capture
 #endif

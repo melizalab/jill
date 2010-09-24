@@ -1,0 +1,9 @@
+import os
+Import('env lib')
+
+menv = env.Clone()
+menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time','boost_program_options'])
+
+prog = env.Program('capture', ['capture.cc', 'trigger_writer.cc'])
+
+Return('prog')
