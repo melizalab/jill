@@ -12,7 +12,7 @@
  */
 
 #include "sndfile_player_client.hh"
-#include "util/sndfile.hh"
+#include "util/sndfile_reader.hh"
 #include "util/logger.hh"
 #include <jack/jack.h>
 #include <iostream>
@@ -36,7 +36,7 @@ nframes_t
 SndfilePlayerClient::load_file(const key_type &key, const char * audiofile)
 {
 	if (audiofile == 0) return 0;
-	util::sndfilereader sf(audiofile);
+	util::SndfileReader sf(audiofile);
 	nframes_t nframes = sf.frames();
 	data_array buf(new sample_t[nframes]);
 	sf(buf.get(), nframes);
@@ -49,8 +49,8 @@ SndfilePlayerClient::load_data(const key_type &key, data_array buf, nframes_t si
 {
 	if (rate != samplerate()) {
 		if (_logger)
-			*_logger << util::logstream::allfields << key << ": resampling " 
-				 << size << " samples from " 
+			*_logger << util::logstream::allfields << key << ": resampling "
+				 << size << " samples from "
 				 << rate << "->" << samplerate() << " Hz" << std::endl;
 		SRC_DATA data;
 		data.input_frames = size;
@@ -67,7 +67,7 @@ SndfilePlayerClient::load_data(const key_type &key, data_array buf, nframes_t si
 	}
 	else
 		_buf = buf;
-	
+
 	_buf_size = _buf_pos = size; // otherwise playback starts immediately
 	_buffers[key] = _buf;
 	_buffer_sizes[key] = _buf_size;

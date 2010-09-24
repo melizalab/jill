@@ -23,10 +23,14 @@ namespace jill {
 namespace util { class logstream; }
 
 /**
- * This class is a special output-only Client, which is designed to
- * play a soundfile to its input port whenever run() is called, and to
- * output zeros otherwise.  It can store multiple waveforms, indexed
- * by name.
+ * @ingroup clientgroup
+ * @brief play soundfiles to output port
+ *
+ * Implements PlayerClient using sound files as the source of its
+ * data. Provides functions to load data from sound files, or from
+ * other buffers.  Data are resampled, on loading, to match the
+ * samplerate of the JACK server.  Multiple files can be loaded and
+ * accessed by key.
  *
  * To load a new waveform:
  * load_file(key, filename);
@@ -36,19 +40,23 @@ namespace util { class logstream; }
  *
  * To select an item:
  * select(key);
- * 
+ *
  * To start playback of the last loaded item:
  * run();
  * In nonblocking mode:
- * reset();
- * 
+ * oneshot();
+ *
  */
 class SndfilePlayerClient : public PlayerClient {
 
 public:
+	/** the type of the key used to index sound buffers */
 	typedef std::string key_type;
+
+	/** the type of variable to store sound in */
 	typedef boost::shared_array<sample_t> data_array;
 
+	/** thrown when the user tries to access a non-existent buffer */
 	struct NoSuchKeyError : public std::runtime_error {
 		NoSuchKeyError(const key_type &k) : std::runtime_error(k + " does not exist") {}
 	};
@@ -57,7 +65,7 @@ public:
 	virtual ~SndfilePlayerClient();
 
 
-        /**
+	/**
 	 * Parse a list of input ports; if one input is of the form
 	 * sndfile:path_to_sndfile, it will create a SndfilePlayerClient
 	 * for the sndfile and replace the item in the list with the
@@ -65,7 +73,7 @@ public:
 	 * this type
 	 *
 	 * @param ports   an iterable, modifiable sequence of port names
-	 * @returns a shared pointer to the SndfilePlayerClient created, if necessary
+	 * @return a shared pointer to the SndfilePlayerClient created, if necessary
 	 */
 	template <class Iterable>
 	static boost::shared_ptr<SndfilePlayerClient> from_port_list(Iterable &ports, util::logstream *os) {
@@ -113,23 +121,34 @@ public:
 	nframes_t load_data(const key_type &key, data_array buf, nframes_t size, nframes_t rate);
 
 	/**
-	 * Select which item to play
+	 * Select which item to play.
 	 *
 	 * @param key      an identifying key
-	 * 
+	 *
 	 * @throws NoSuchKey  if the key is invalid
-	 * @returns           the number of frames in the selected dataset
+	 * @return            the number of frames in the selected dataset
 	 */
 	nframes_t select(const key_type &key);
+
+	/**
+	 * Return true if the key is valid
+	 */
+	bool has_key(const key_type &key) const { return (_buffers.find(key) != _buffers.end()); }
 
 	/**
 	 * Resampling can take quite a while for long signals, so it's
 	 * useful to give the user some feedback. If a logger is
 	 * supplied, notifications will be sent to it.
+	 *
+	 * @param os     the @a logstream object
 	 */
 	void set_logger(util::logstream *os) { _logger = os; }
 
 	friend std::ostream & operator<< (std::ostream &os, const SndfilePlayerClient &client);
+
+protected:
+	// for logging resampling events; derivers might enjoy using it too
+	util::logstream *_logger;
 
 private:
 
@@ -149,8 +168,6 @@ private:
 	std::map<key_type, data_array> _buffers;
 	std::map<key_type, nframes_t> _buffer_sizes;
 
-	// for logging resampling events
-	util::logstream *_logger;
 };
 
 } // namespace jill

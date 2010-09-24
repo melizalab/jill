@@ -29,7 +29,7 @@
 #include "jill/simple_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
-#include "jill/filters/delay_buffer.hh"
+#include "jill/util/delay_buffer.hh"
 using namespace jill;
 
 
@@ -41,7 +41,7 @@ using namespace jill;
 static boost::scoped_ptr<SimpleClient> client;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
-static boost::scoped_ptr<filters::DelayBuffer<sample_t> > buffer;
+static util::DelayBuffer<sample_t> buffer;
 
 /*
  * In this app, we write incoming data to the delay buffer and read
@@ -52,7 +52,7 @@ static boost::scoped_ptr<filters::DelayBuffer<sample_t> > buffer;
 void
 process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
-	buffer->push_pop(in, out, nframes);
+	buffer.push_pop(in, out, nframes);
 }
 
 void 
@@ -108,7 +108,7 @@ main(int argc, char **argv)
 		unsigned int buffer_size = ceil(delay_time / 1000 * client->samplerate());
 		logv << logv.allfields << "Allocating delay buffer of size " << buffer_size 
 		     << " (" << delay_time << " ms)" << endl;
-		buffer.reset(new filters::DelayBuffer<sample_t>(buffer_size));
+		buffer.resize(buffer_size);
 
 
 		signal(SIGINT,  signal_handler);

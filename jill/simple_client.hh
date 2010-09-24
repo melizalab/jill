@@ -16,11 +16,22 @@
 
 namespace jill {
 
+/**
+ * @ingroup clientgroup
+ * @brief a simple Client with up to one input and one output port
+ *
+ * This class implements the Client interface, providing up to one
+ * input and one output port.  It also provides the appropriate
+ * callback for this configuration, which is passed an input and and
+ * output buffer of equal size.  It can be used for almost all simple
+ * applications.
+ */
 class SimpleClient : public Client {
 
 public:
-	/** 
-	 * The process callback receives pointers to two buffers
+	/**
+	 * Type of the process callback.
+	 *
 	 * @param in the input buffer
 	 * @param out the output buffer
 	 * @param size the number of samples in each buffer
@@ -29,15 +40,17 @@ public:
 	typedef boost::function<void (sample_t *in, sample_t *out, nframes_t size, nframes_t time)> ProcessCallback;
 
 	/**
-	 * Instantiate a new client.
+	 * Instantiate a new client.  Connects the client to the JACK
+	 * server and, optionally, registers an input and an output
+	 * port.
 	 *
 	 * @param client_name  the name of the client (as represented to JACK)
-	 * @param input_name  the name of the input port. If empty, none is registered
-	 * @param output_name the name of the output port. If empty, none is registered
+	 * @param input_name  the name of the input port. If 0, none is registered
+	 * @param output_name the name of the output port. If 0, none is registered
 	 */
-	SimpleClient(const char * client_name, 
-			 const char * input_name=0, 
-			 const char * output_name=0);
+	SimpleClient(const char * client_name,
+		     const char * input_name=0,
+		     const char * output_name=0);
 	virtual ~SimpleClient();
 
 	/**

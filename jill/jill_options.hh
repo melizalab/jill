@@ -15,12 +15,14 @@
 #include "options.hh"
 #include <vector>
 
-
 namespace jill {
 
 namespace po = boost::program_options;
 
 /**
+ * @ingroup optionsgroup
+ * @brief implement Options with basic JILL options
+ *
  * The JillOptions class stores options for JILL applications. Options
  * handled are:
  *
@@ -35,18 +37,18 @@ public:
 	JillOptions(const char *program_name, const char *program_version);
 	virtual ~JillOptions() {}
 
-	/// The client name (used in internal JACK representations)
+	/** The client name (used in internal JACK representations) */
 	std::string client_name;
-	/// A vector of inputs to connect to the client
+	/** A vector of inputs to connect to the client */
 	std::vector<std::string> input_ports;
-	/// A vector of outputs to connect to the client
+	/** A vector of outputs to connect to the client */
 	std::vector<std::string> output_ports;
-	/// The log file to write application events to
+	/** The log file to write application events to */
 	std::string logfile;
 
 protected:
 	virtual void process_options();
-	
+
 };
 
 // implementations in options.cc

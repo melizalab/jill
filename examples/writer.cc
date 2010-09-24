@@ -45,12 +45,12 @@
  * After including the JILL headers we used in mixer, we also add some
  * headers related to handling disk IO.  The buffer_adapter.hh header
  * gives us access to the BufferedWriter class; we also need the
- * Ringbuffer class, from ringbuffer.hh, and the sndfile class from
- * sndfile.hh
+ * Ringbuffer class, from ringbuffer.hh, and the SimpleSndfile class from
+ * simple_sndfile.hh
  */
 #include "jill/util/buffer_adapter.hh"
 #include "jill/util/ringbuffer.hh"
-#include "jill/util/sndfile.hh"
+#include "jill/util/simple_sndfile.hh"
 using namespace jill;
 
 
@@ -105,7 +105,7 @@ protected:
 static boost::scoped_ptr<SimpleClient> client;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
-static util::BufferedWriter<util::Ringbuffer<sample_t>, util::sndfile> output(50000);
+static util::BufferedWriter<util::Ringbuffer<sample_t>, util::SimpleSndfile> output(50000);
 
 /**
  * The process function is similar to the ones in the previous
@@ -203,7 +203,7 @@ main(int argc, char **argv)
 		 */
 		logv << logv.allfields << "Opening " << options.output_file 
 		     << " for output; Fs = " << client->samplerate() << endl;
-		util::sndfile outfile(options.output_file.c_str(), client->samplerate());
+		util::SimpleSndfile outfile(options.output_file.c_str(), client->samplerate());
 		output.set_sink(&outfile);
 
 		signal(SIGINT,  signal_handler);

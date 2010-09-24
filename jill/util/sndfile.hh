@@ -8,116 +8,139 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- *
- *! @file
- *! @brief Classes for writing data to sound files
- *!
  */
 
 #ifndef _SNDFILE_HH
 #define _SNDFILE_HH
 
 #include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
 #include <stdexcept>
 #include <string>
-#include <sndfile.h>
+
+
+/**
+ * @defgroup iogroup Read and write sound files to disk.
+ *
+ * JILL uses libsndfile to read and write sound files. A variety of
+ * classes provide simple read and write functionality.
+ *
+ */
 
 namespace jill { namespace util {
 
+/**
+ * @ingroup iogroup
+ * @brief exception for file IO errors
+ */
 struct FileError : public std::runtime_error {
 	FileError(const std::string & w) : std::runtime_error(w) { }
 };
 
 
 /**
- * This sound file is a single file, opened using libsndfile. Data
- * supplied to write() are written consecutively to the file.
+ * @ingroup iogroup
+ * @brief ABC for a writable sound file
+ *
+ * Classes that write sound data to disk derive from this class. They
+ * may represent a single file, a single file capable of holding
+ * multiple entries, or a collection of files. Implementing classes
+ * need to override the following functions:
+ *
+ * Required: @ref _open, @ref _write, @ref _close
+ * Optional: @ref _next, @ref _valid, @ref _current_entry
+ *
+ * Information about the current entry/file is maintained in a
+ * structure with nested type Sndfile::Entry.  Deriving classes can
+ * extend this struct to add additional information.
  */
-class sndfile : boost::noncopyable {
-
+class Sndfile : boost::noncopyable {
+	
 public:
-	typedef sf_count_t size_type;
+	typedef std::size_t size_type;
 
-	sndfile();
-	sndfile(const std::string &filename, size_type samplerate);
-	sndfile(const char *filename, size_type samplerate);
-	virtual ~sndfile() {}
+	/**
+	 * Structure holding information about a file/entry
+	 */
+	struct Entry {
+		std::string filename;
+	};
 
-	virtual void open(const char *filename, size_type samplerate);
-	virtual void close();
+	virtual ~Sndfile() {}
 
-	operator bool () const;
+	/**
+	 * Open a new file or file group for writing.
+	 * 
+	 * @param filename    the name of the file, the template for the group, etc
+	 * @param samplerate  the sampling rate of the file
+	 */
+	void open(const char *filename, size_type samplerate) { _open(filename, samplerate); }
 
-	virtual size_type write(const float *buf, size_type nframes);
-	virtual size_type write(const double *buf, size_type nframes);
-	virtual size_type write(const int *buf, size_type nframes);
-	virtual size_type write(const short *buf, size_type nframes);
+	/** Close the currently open file */
+	void close() { _close(); }
 
+	/**
+	 * Advance the writer to the next, or a specified entry. May
+	 * not have an effect for single-entry files.
+	 *
+	 * @return  information about the new entry
+	 */
+	const Entry* next(const char *entry_name) { return _next(entry_name); }
+
+	/**
+	 * @return information about the currently open entry
+	 */
+	const Entry* current_entry() const { return _current_entry(); }
+
+	/** @return true if the sndfile is valid for writing data */
+	operator bool() const { return _valid(); }
+
+	/**
+	 * Write samples to the file
+	 *
+	 * @param buf      buffer containing samples to write
+	 * @param samples  the number of samples in the buffer
+	 *
+	 * @return the number of samples written
+	 */
 	template <class T>
-	size_type write(const T sample) {
-		return write(&sample, 1);
+	size_type operator()(const T *buf, size_type samples) {
+		return _write(buf, samples);
 	}
-
-	/// Return the total number of frames written
-	size_type nframes() const { return _nframes; }
 
 private:
-	size_type _nframes;
-	SF_INFO _sfinfo;
-	boost::shared_ptr<SNDFILE> _sndfile;
 
-};
+	/**
+	 * Open a new file and set it up for writing.
+	 *
+ 	 * @param filename    the name of the file, the template for the group, etc
+	 * @param samplerate  the sampling rate of the file
+	 */
+	virtual void _open(const char *filename, size_type samplerate) = 0;
 
-/**
- * A thin wrapper around the libsndfile header for reading sound
- * files. This duplicates to some extent the SndfileHandle class in
- * <sndfile.hh> but with a much simpler interface (and no copy semantics)
- */
-class sndfilereader : boost::noncopyable {
-public:
-	typedef sf_count_t size_type;
+	/**
+	 * Write a buffer to the file
+	 *
+	 * @param buf      buffer containing samples to write
+	 * @param samples  the number of samples in the buffer
+	 */
+	virtual size_type _write(const float *buf, size_type nframes) = 0;
+	virtual size_type _write(const double *buf, size_type nframes) = 0;
+	virtual size_type _write(const int *buf, size_type nframes) = 0;
+	virtual size_type _write(const short *buf, size_type nframes) = 0;
 
-	sndfilereader();
-	explicit sndfilereader(const std::string &path);
-	explicit sndfilereader(const char *path);
+	/** Close the currently open file */
+	virtual void _close() = 0;
+	
+	/** Advance to the next entry */
+	virtual const Entry* _next(const char *entry_name) { return 0; }
 
-	void open(const char *path);
+	/**
+	 * @return information about the currently open entry
+	 */
+	virtual const Entry* _current_entry() const { return 0; }
 
-	operator bool () const { return _sndfile; };
-	size_type samplerate() const { return (_sndfile) ? _sfinfo.samplerate : 0; }
-	size_type frames() const { return (_sndfile) ? _sfinfo.frames : 0; }
-	size_type nread() const { return _nread; }
-
-	size_type seek(size_type frames, int whence) {
-		return sf_seek(_sndfile.get(), frames, whence);
-	}
-
-	template <class T>
-	size_type operator()(T *buf, size_type nframes) {
-		size_type n = _read(buf, nframes);
-		_nread += n;
-		return n;
-	}
-
-private:
-	size_type _read(float *buf, size_type nframes) {
-		return sf_readf_float(_sndfile.get(), buf, nframes);
-	}
-	size_type _read(double *buf, size_type nframes) {
-		return sf_readf_double(_sndfile.get(), buf, nframes);
-	}
-	size_type _read(int *buf, size_type nframes) {
-		return sf_readf_int(_sndfile.get(), buf, nframes);
-	}
-	size_type _read(short *buf, size_type nframes) {
-		return sf_readf_short(_sndfile.get(), buf, nframes);
-	}
-
-
-	boost::shared_ptr<SNDFILE> _sndfile;
-	SF_INFO _sfinfo;
-	size_type _nread;
+	/** @return true if the sndfile is valid for writing data */
+	virtual bool _valid() const { return true; }
 
 };
 

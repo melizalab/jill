@@ -32,7 +32,7 @@ Client::~Client()
 }
 
 
-void 
+void
 Client::set_timebase_callback(const TimebaseCallback &cb)
 {
 	if (cb) {
@@ -49,33 +49,27 @@ Client::set_timebase_callback(const TimebaseCallback &cb)
 	_timebase_cb = cb;
 }
 
-// pthread_t 
-// Client::client_thread() const
-// {
-// 	return jack_client_thread_id(_client);
-// }
-
-nframes_t 
+nframes_t
 Client::samplerate() const
 {
 	return jack_get_sample_rate(_client);
 }
 
-std::string 
+std::string
 Client::client_name() const
 {
 	return std::string(jack_get_client_name(_client));
 }
 
 
-bool 
+bool
 Client::transport_rolling() const
 {
 	return (jack_transport_query(_client, NULL) == JackTransportRolling);
 }
 
 
-position_t 
+position_t
 Client::position() const
 {
 	position_t pos;
@@ -84,14 +78,14 @@ Client::position() const
 }
 
 
-nframes_t 
+nframes_t
 Client::frame() const
 {
 	return jack_get_current_transport_frame(_client);
 }
 
 
-bool 
+bool
 Client::set_position(position_t const & pos)
 {
 	// jack doesn't modify pos, should have been const anyway, i guess...
@@ -99,13 +93,13 @@ Client::set_position(position_t const & pos)
 }
 
 
-bool 
+bool
 Client::set_frame(nframes_t frame)
 {
 	return (jack_transport_locate(_client, frame) == 0);
 }
 
-void 
+void
 Client::set_freewheel(bool on)
 {
 	int ret = jack_set_freewheel(_client, on);
@@ -113,7 +107,7 @@ Client::set_freewheel(bool on)
 		throw AudioError("Unable to set freewheel mode");
 }
 
-void 
+void
 Client::timebase_callback_(jack_transport_state_t /*state*/, nframes_t /*nframes*/,
 			       position_t *pos, int /*new_pos*/, void *arg)
 {
@@ -125,7 +119,7 @@ Client::timebase_callback_(jack_transport_state_t /*state*/, nframes_t /*nframes
 }
 
 
-void 
+void
 Client::shutdown_callback_(void *arg)
 {
 	Client *this_ = static_cast<Client*>(arg);
@@ -135,7 +129,7 @@ Client::shutdown_callback_(void *arg)
 }
 
 
-int 
+int
 Client::xrun_callback_(void *arg)
 {
 	Client *this_ = static_cast<Client*>(arg);
@@ -177,6 +171,3 @@ Client::_stop(const char *reason)
 	_status_msg = (reason==0) ? "main loop terminated" : reason;
 	_quit = true;
 }
-
-
-

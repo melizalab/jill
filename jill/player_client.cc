@@ -44,7 +44,7 @@ PlayerClient::process_callback_(nframes_t nframes, void *arg)
 }
 
 
-void 
+void
 PlayerClient::_connect_output(const char * port, const char *)
 {
 	if (_output_port) {
@@ -58,7 +58,7 @@ PlayerClient::_connect_output(const char * port, const char *)
 }
 
 
-void 
+void
 PlayerClient::_disconnect_all()
 {
 	if (_output_port) jack_port_disconnect(_client, _output_port);

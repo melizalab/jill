@@ -19,14 +19,34 @@
 #include <jack/ringbuffer.h>
 
 
+/**
+ * @defgroup buffergroup Buffer data in a thread-safe manner
+ *
+ * In a running JACK application there will be at least two threads
+ * running.  The main thread of the application is responsible for
+ * setting up the client, connecting it to the right ports, and any
+ * other setup and shutdown tasks.  Once the main thread registers a
+ * process callback (SimpleClient::set_process_callback), this
+ * callback will run independently, typically at a much higher
+ * priority.  Often it's necessary to move data between these threads,
+ * and the classic data structure for doing this is a ringbuffer.
+ * JACK provides a thread-safe, lock-free ringbuffer.  Classes in this
+ * group provide interfaces to the ringbuffer, and adapters for using
+ * the ringbuffer with various output formats.
+ */
+
+
 namespace jill { namespace util {
 
 /**
+ * @ingroup buffergroup
+ * @brief a wrapper around the JACK ringbuffer
+ *
  *  Many JILL applications will access an audio stream in both the
  *  real-time thread and a lower-priority main thread.  This class,
  *  which is a thin wrapper around the JACK ringbuffer interface,
  *  allows simultaneous access by read and write threads.
- * 
+ *
  *  Client applications can derive from this class or encapsulate it
  *  to provide a wide variety of data handling functionality; note,
  *  however, that due to the performance demands of running in the
@@ -40,10 +60,11 @@ class Ringbuffer : boost::noncopyable
 public:
 	typedef T data_type;
 	typedef std::size_t size_type;
-	/** 
+
+	/**
 	 * Construct a ringbuffer with enough room to hold @a size
 	 * objects of type T.
-	 * 
+	 *
 	 * @param size The size of the ringbuffer (in objects)
 	 */
 	explicit Ringbuffer(size_type size) {
@@ -51,16 +72,16 @@ public:
 			  jack_ringbuffer_free);
 	}
 
-	/** 
-	 * Write data to the ringbuffer. 
-	 * 
+	/**
+	 * Write data to the ringbuffer.
+	 *
 	 * @param src Pointer to source buffer
 	 * @param nframes The number of frames in the source buffer
-	 * 
+	 *
 	 * @return The number of frames actually written
 	 */
 	size_type push(const data_type *src, size_type nframes) {
-		return jack_ringbuffer_write(_rb.get(), reinterpret_cast<char const *>(src), 
+		return jack_ringbuffer_write(_rb.get(), reinterpret_cast<char const *>(src),
 					     sizeof(data_type) * nframes) / sizeof(data_type);
 	}
 
@@ -68,9 +89,10 @@ public:
 	 * Write data to the ringbuffer using a generator function.
 	 *
 	 * @param data_fun  function or object of type size_type(*)(*data_type, size_type)
-	 * @param nframes The number of frames available, or 0 to use as many as
-	 *                available and will fit (not impl)
-	 * @return The number of frames actually written
+	 *                  it should return the number of samples actually written, and be safe to call
+	 *                  with a size of zero. It may be called twice.
+	 *
+	 * @return the number of frames actually written
 	 */
 	template <class Fun>
 	size_type push(Fun &data_fun) {
@@ -78,39 +100,45 @@ public:
 		jack_ringbuffer_data_t vec[2];
 		jack_ringbuffer_get_write_vector(_rb.get(), vec);
 		for (int i = 0; i < 2; ++i) {
-			if (vec[i].len > 0)
-				nsamp += data_fun(reinterpret_cast<data_type *>(vec[i].buf), vec[i].len);
-			jack_ringbuffer_write_advance(_rb.get(), nsamp);
+			if (vec[i].len > 0) {
+				size_type n = data_fun(reinterpret_cast<data_type *>(vec[i].buf), vec[i].len);
+				nsamp += n;
+				// function gave us less than we
+				// requested, so we exit
+				if (n < vec[i].len) break;
+			}
 		}
+		jack_ringbuffer_write_advance(_rb.get(), nsamp);
 		return nsamp;
 	}
-	/** 
+
+	/**
 	 * Read data from the ringbuffer. This version of the function
 	 * copies data to a destination buffer.
-	 * 
-	 * @param dest The destination buffer. Needs to be pre-allocated
-	 * @param nframes The number of frames to read
-	 * 
-	 * @return The number of frames actually read
+	 *
+	 * @param dest the destination buffer, which needs to be pre-allocated
+	 * @param nframes the number of frames to read
+	 *
+	 * @return the number of frames actually read
 	 */
 	size_type pop(data_type *dest, size_type nframes=0) {
-		if (nframes==0) 
+		if (nframes==0)
 			nframes = read_space();
-		return jack_ringbuffer_read(_rb.get(), reinterpret_cast<char *>(dest), 
+		return jack_ringbuffer_read(_rb.get(), reinterpret_cast<char *>(dest),
 					    sizeof(data_type) * nframes) / sizeof(data_type);
 	}
 
-	/** 
-	 * Read data from the ringbuffer. This version sets the input
+	/**
+	 * Peek at data in the ringbuffer. This version sets the input
 	 * argument to the address of an array with the next block of
 	 * data.  To free space after using the data, call
-	 * advance(). Note that if the readable data spans the
+	 * @ref advance. Note that if the readable data spans the
 	 * boundary of the ringbuffer, this call only provides access
 	 * to the first contiguous chunk of data.
-	 * 
-	 * @param buf   Will point to data in ringbuffer after read
-	 * 
-	 * @return  The number of available samples in buf
+	 *
+	 * @param buf   will point to data in ringbuffer after read
+	 *
+	 * @return  the number of available samples in buf
 	 */
 	size_type peek(data_type **buf) {
 		jack_ringbuffer_data_t vec[2];
@@ -149,6 +177,7 @@ public:
 		return jack_ringbuffer_read_space(_rb.get()) / sizeof(data_type);
 	}
 
+	/** @return the total size of the ringbuffer. may be larger than the space requested */
 	size_type size() const { return read_space() + write_space(); }
 
 private:
@@ -162,6 +191,9 @@ std::ostream &operator<< (std::ostream &os, const Ringbuffer<T> &o)
 }
 
 /**
+ * @ingroup buffergroup
+ * @brief ringbuffer that maintains a constant amount of read data
+ *
  * The Prebuffer is a specialization of the Ringbuffer that
  * automatically flushes data when new data is added to maintain a
  * constant quantity of data to be read.  This is useful in
@@ -202,9 +234,9 @@ private:
 	typedef Ringbuffer<T> super;
 	size_type _size;
 };
-	
+
 
 }} // namespace jill::util
 
 
-#endif // _DAS_RINGBUFFER_HH
+#endif

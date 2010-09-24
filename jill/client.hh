@@ -18,12 +18,60 @@
 #include <jack/transport.h>
 #include <string>
 
+/**
+ * @defgroup clientgroup Creating and controlling JACK clients
+ *
+ * JACK clients all have to perform a series of common tasks:
+ *  - connect to the JACK server as a client
+ *  - create input and/or output ports
+ *  - register callback functions to handle various events
+ *     - process callback: handles input and output of samples
+ *     - xrun callback: handles overrun and underrun events
+ *     - timebase callback: handle maintaining extended time information
+ *     - sync callback: handle repositioning requests
+ *     - shutdown callback: handle disconnection or server shutdown
+ *  - connect ports to other clients
+ *
+ * These common tasks, with the exception of port creation and data
+ * handling, are handled by Client.
+ */
+
 namespace jill {
 
+/** The data type holding samples. Inherited from JACK */
 typedef jack_default_audio_sample_t sample_t;
+/** The data type holding information about frame counts. Inherited from JACK */
 typedef jack_nframes_t nframes_t;
+/** A data type holding extended position information. Inherited from JACK */
 typedef jack_position_t position_t;
 
+/**
+ * @ingroup clientgroup
+ * @brief Handle JACK client setup and shutdown
+ *
+ * This class handles the most basic aspects of JACK client setup and
+ * shutdown.  On construction, it registers a new client with the JACK
+ * server. It provides functions to register xrun, shutdown, timebase,
+ * and sync callbacks. It also provides a variety of functions for
+ * inspecting the client and server, and for issuing transport
+ * reposition requests.
+ *
+ * Client::run, by default, will loop endlessly while the client
+ * processes data. The user can modify this behavior by registering a
+ * MainloopCallback, which will be called on each loop of
+ * Client::run. It is also possible to customize this behavior by
+ * overriding various virtual functions.
+ *
+ * Client provides an interface for connecting input and output ports,
+ * but deriving classes are required to implement _connect_input and
+ * _connect_output, and to register the client's ports in order to
+ * have to something to connect to.
+ *
+ * Client does not provide any facility for handling the process
+ * callback, since this will depend on the number of input and output
+ * ports.  Deriving classes are expected to set up this callback if
+ * they actually want to process any data.
+ */
 class Client : boost::noncopyable {
 
 public:
@@ -35,11 +83,11 @@ public:
 		AudioError(std::string const & w) : std::runtime_error(w) { }
 	};
 
-	/** 
+	/**
 	 * The timebase callback is called when the transport system
 	 * is activated and a new position is specified.
 	 *
-	 * @param pos  a structure with information about the 
+	 * @param pos  a structure with information about the
 	 *             position of the transport
 	 */
 	typedef boost::function<void (position_t *pos)> TimebaseCallback;
@@ -141,7 +189,7 @@ public:
 	 */
 	void set_mainloop_delay(unsigned int usec_delay) { _mainloop_delay = usec_delay; }
 
-        /**
+	/**
 	 * Perform various tasks in the main thread while the process
 	 * thread is running.  The default behavior is to loop until
 	 * the process callback throws an error, the server terminates
@@ -175,13 +223,13 @@ public:
 
 	/* -- Inspect state of the client or server -- */
 
-	/// Return the sample rate of the client
+	/** Return the sample rate of the client */
 	nframes_t samplerate() const;
 
-	/// Return true if the run() loop is in progress
+	/**  Return true if the run() loop is in progress */
 	bool is_running() const { return _is_running(); }
 
-	/// Get JACK client name
+	/**  Get JACK client name */
 	std::string client_name() const;
 
 	/* -- Transport related functions -- */
@@ -205,7 +253,7 @@ public:
 	/** Request a new frame position from the transport master */
 	bool set_frame(nframes_t);
 
-	/** 
+	/**
 	 * Set the freewheel state. If freewheel is on, the client
 	 * graph is processed as fast as possible, which means that
 	 * the server may run much faster than real-time.  Potentially
@@ -217,25 +265,32 @@ public:
 
 
 protected:
-	/// store a description of why the run() function is exiting
+	/** store a description of why the run() function is exiting */
 	std::string _status_msg;
 
-	/// The amount of time to sleep between loops in run()
+	/** The amount of time to sleep between loops in run() */
 	unsigned int _mainloop_delay;
 
-	/// Pointer to the JACK client
+	/** Pointer to the JACK client */
 	jack_client_t *_client;
-	
+
 private:
 
 	TimebaseCallback _timebase_cb;
 	XrunCallback _xrun_cb;
 	MainLoopCallback _mainloop_cb;
 
-	/// if true, the run() function will exit at the end of the next loop
+	/** if true, the run() function will exit at the end of the next loop */
 	volatile bool _quit;
 
-	/// The actual callbacks
+	/*
+	 * These are the callback functions that are actually
+	 * registered with the JACK server. The registration functions
+	 * take function pointers, not member function pointers, so
+	 * these functions have to be static.  A pointer to the object
+	 * is passed as a void pointer, and used to access the
+	 * callback functions registered by the user.
+	 */
 	static void timebase_callback_(jack_transport_state_t, nframes_t, position_t *, int, void *);
 	static void shutdown_callback_(void *);
 	static int xrun_callback_(void *);
@@ -245,7 +300,7 @@ private:
 	/**
 	 * Connect a port to the client's input. Customize based on
 	 * the number of ports, etc.
-	 * 
+	 *
 	 * @param port     the name of the port to connect TO
 	 * @param input    the name of the client's port to connect; 0 is default
 	 */
@@ -254,7 +309,7 @@ private:
 	/**
 	 * Connect a port to the client's output. Customize based on
 	 * the number of ports, etc.
-	 * 
+	 *
 	 * @param port     the name of the port to connect TO
 	 * @param output    the name of the client's port to connect; 0 is default
 	 */
@@ -263,7 +318,7 @@ private:
 	/** Disconnect the client from all its connections */
 	virtual void _disconnect_all() = 0;
 
-	/** 
+	/**
 	 * Run the main loop. Default behavior: can be blocking or
 	 * nonblocking depending on _mainloop_delay. In nonblocking
 	 * case, calls _reset() and returns 0; In blocking case, calls

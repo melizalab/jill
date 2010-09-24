@@ -20,26 +20,35 @@ namespace jill { namespace util {
 
 
 /**
+ * @ingroup miscgroup
+ * @brief log data to a stream with some program metadata
+ *
  * Class for logging data to a stream. The logger can be enabled or
  * disabled, and a convenience function is defined for adding a
  * timestamp to logged data.
  */
 class logstream {
 public:
-	/// constants that can be passed to << to output program name, timestamp, etc
+	/** constants that can be passed to << to output program name, timestamp, etc */
 	enum _fixed_fields { program, timestamp, allfields };
 
 	/**
-	 * Construct logger
+	 * Construct logger.
+	 *
 	 * @param s Stream to output log to
-	 * @param p The name of the program doing the logging (when multiple loggers share a file)
 	 */
 	explicit logstream(std::ostream * s=0)
 		: _stream(s) {}
 
-	/// Set or switch streams
+	/** Set or switch streams */
 	void set_stream(std::ostream * s) { _stream = s; }
-	/// Open a file and use it as an output stream, or if file is empty, connect to std::out
+
+	/**
+	 * Open a file and use it as an output stream, or if file is
+	 * empty, connect to std::out
+	 *
+	 * @param file     the path of the file to write to
+	 */
 	void set_stream(const std::string &file) {
 		if (!file.empty()) {
 			_fstream.open(file.c_str());
@@ -48,7 +57,8 @@ public:
 		else
 			_stream = &std::cout;
 	}
-	/// Set or switch program name
+
+	/** Set or switch program name */
 	void set_program(const std::string &p) {
 		_program = p;
 	}

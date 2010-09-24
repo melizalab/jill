@@ -16,9 +16,9 @@
 
 using namespace jill;
 
-SimpleClient::SimpleClient(const char * client_name, 
-				   const char * input_name, 
-				   const char * output_name)
+SimpleClient::SimpleClient(const char * client_name,
+			   const char * input_name,
+			   const char * output_name)
 	: Client(client_name), _output_port(0), _input_port(0)
 {
 	long port_flags;
@@ -48,9 +48,9 @@ SimpleClient::~SimpleClient()
 {
 	_disconnect_all();
 	jack_deactivate(_client);
-}	
+}
 
-int 
+int
 SimpleClient::process_callback_(nframes_t nframes, void *arg)
 {
 	SimpleClient *this_ = static_cast<SimpleClient*>(arg);
@@ -75,7 +75,7 @@ SimpleClient::process_callback_(nframes_t nframes, void *arg)
 }
 
 
-void 
+void
 SimpleClient::_connect_input(const char * port, const char *)
 {
 	if (_input_port) {
@@ -89,7 +89,7 @@ SimpleClient::_connect_input(const char * port, const char *)
 }
 
 
-void 
+void
 SimpleClient::_connect_output(const char * port, const char *)
 {
 	if (_output_port) {
@@ -103,7 +103,7 @@ SimpleClient::_connect_output(const char * port, const char *)
 }
 
 
-void 
+void
 SimpleClient::_disconnect_all()
 {
 	if (_output_port) jack_port_disconnect(_client, _output_port);

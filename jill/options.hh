@@ -17,13 +17,31 @@
 #include <boost/program_options.hpp>
 
 
+/**
+ * @defgroup optionsgroup Parse command-line options
+ *
+ * JILL attempts to provide users with some means of regularizing the
+ * somewhat onerous task of processing command-line options.  It uses
+ * the boost::program_options library to allow applications to
+ * automatically parse JILL-related options while easily adding
+ * options of their own.
+ *
+ * Note that the boost::program_options library is not header-only.
+ *
+ * @see http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
+ */
+
+
 namespace jill {
 
 namespace po = boost::program_options;
 
 /**
- * The Options class is a base class for parsing options. It handles
- * the most basic options common to all programs.
+ * @ingroup optionsgroup
+ * @brief base class for parsing options
+ *
+ * The Options class is an ABC for parsing options. It handles the
+ * most basic options common to all programs.
  *
  * This class is a thin wrapper around boost/program_options. The
  * options_descriptions members and parsed value map are exposed to
@@ -31,32 +49,39 @@ namespace po = boost::program_options;
  * example, to add a single option:
  *
  * options.cmd_opts.add_options()("user_name", po:value<string>(), "the user's name");
- * options.parse();
+ * options.parse(argc, argv);
  * string uname = options.get("blah","");
  *
- * Alternatively, a class can inherit from this class and override the
- * constructor and process_options() functions (possibly the parse()
- * function as well)
+ * Deriving classes need to override process_options, and optionally,
+ * print_version, and print_usage.  It may be necessary to override
+ * parse() for especially complicated cases.
  */
 class Options {
 public:
-	/** All options classes are initialized with the program name and version */
+	/**
+	 * Initialize the options parser with the program's name and
+	 * version.
+	 *
+	 * @param program_name     the name of the program
+	 * @param program_version  the version of the program
+	 */
 	Options(const char *program_name, const char *program_version);
 	virtual ~Options() {}
 
-	/// Description of the options for commandline usage
+	/** Description of the options for commandline usage */
 	po::options_description cmd_opts;
-	/// Description of options visible in the help (a subset of cmd_opts)
+	/** Description of options visible in the help (a subset of cmd_opts) */
 	po::options_description visible_opts;
-	/// Description of options parsed from a config file
+	/** Description of options parsed from a config file */
 	po::options_description cfg_opts;
-	/// Options which are processed positionally
+	/** Options which are processed positionally */
 	po::positional_options_description pos_opts;
-	/// Values for options are stored here after parsing
+	/** Values for options are stored here after parsing */
 	po::variables_map vmap;
 
 	/**
 	 * Parse the command line arguments and store options.
+	 *
 	 * @param argc Number of arguments
 	 * @param argv Array of command-line arguments
 	 * @param config Optional config file name
@@ -75,15 +100,15 @@ public:
 	/**
 	 * Assign a parsed value to a variable, if the value is defined.
 	 *
-	 * @param ref  Reference to variable to recieve new value
-	 * @param name The name of the option
-	 * @returns true if the value was defined
+	 * @param ref      reference to variable to recieve new value
+	 * @param name     the name of the option
+	 * @return         true if the value was defined
 	 * @throws boost::bad_any_cast if the value could not be case appropriately
 	 */
 	template <typename T>
 	bool assign(T &ref, const char *name) {
 		if (vmap.count(name)) {
-			ref = vmap[name].as<T>();//boost::any_cast<T>(vmap[name]);
+			ref = vmap[name].as<T>();
 			return true;
 		}
 		return false;
@@ -93,21 +118,39 @@ protected:
 	std::string _program_name;
 	std::string _program_version;
 
-	/// This function is called once the options are parsed; its job is to load data into the fields
+	/**
+	 * This function is called once the options are parsed; its
+	 * job is to load data into the data members of the
+	 * object. Typically this consists of a series of calls to
+	 * @ref assign.
+	 */
 	virtual void process_options() = 0;
-	/// Print the name and version of the program. Called by parse()
+
+	/**
+	 * Print the name and version of the program. Called by
+	 * parse() when the user specifies the '-v' flag
+	 */
 	virtual void print_version();
-	/// Print the usage information
+
+	/**
+	 * Print the usage information. Called by parse() when the
+	 * user specifies the '-h' flag
+	 */
 	virtual void print_usage();
 
 };
 
 /**
- * A class of exceptions intended to trigger program termination with
- * a specific status value.
+ * @ingroup miscgroup
+ * @brief an exception intended to trigger program termination
  */
 class Exit : public std::exception {
 public:
+	/**
+	 * Trigger program termination with a specific exit value.
+	 *
+	 * @param status    the value to return to the OS
+	 */
 	Exit(int status) : _status(status) { }
 	virtual ~Exit() throw () { }
 

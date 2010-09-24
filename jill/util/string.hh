@@ -15,8 +15,28 @@
 #include <string>
 #include <sstream>
 
+/**
+ * @defgroup miscgroup Miscellaneous classes and functions
+ *
+ * A number of miscellaneous classes to handle miscellaneous tasks
+ * dealing with strings, logging, etc.
+ */
+
 namespace jill { namespace util {
 
+/**
+ * @ingroup miscgroup
+ * @brief a convenient wrapper for stringstream
+ *
+ * Stringstreams are handy for building strings using operator<<, but
+ * the allocation and deallocation is somewhat annoying.  This class
+ * eliminates some of the extra steps.
+ *
+ * string my_string = make_string() << 12 << " + " << ...;
+ *
+ * Conversion operators to std::string and const char* are provided,
+ * allowing this class to be used in argument lists.
+ */
 class make_string
 {
   public:
@@ -43,12 +63,20 @@ class make_string
     std::ostringstream _stream;
 };
 
+/**
+ * @ingroup miscgroup
+ *
+ * Extract the extension of a filename.
+ *
+ * @param filename    the input filename
+ * @return            the extension, minus the period and in lower case
+ */
 inline
 std::string get_filename_extension(const std::string & filename)
 {
     std::string::size_type period = filename.find_last_of('.');
     if (period == std::string::npos) {
-        return "";
+	return "";
     }
 
     std::string ext(filename, period + 1);

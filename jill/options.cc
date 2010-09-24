@@ -78,7 +78,7 @@ JillOptions::JillOptions(const char *program_name, const char *program_version)
 		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
 		("log,l",     po::value<string>(), "set logfile (default stdout)")
 		("out,o",     po::value<vector<string> >(), "add output port")
-		("in,i",      po::value<vector<string> >(), "add input port");
+		("in,i",      po::value<vector<string> >(), "add input port/file");
 	cmd_opts.add(jillopts);
 	visible_opts.add(jillopts);
 }
@@ -92,4 +92,3 @@ JillOptions::process_options()
 	assign(client_name,"name");
 	assign(logfile,"log");
 }
-
