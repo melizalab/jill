@@ -14,6 +14,8 @@
 
 #include <string>
 #include <sstream>
+#include <boost/filesystem/path.hpp>
+#include <boost/filesystem/convenience.hpp>
 
 /**
  * @defgroup miscgroup Miscellaneous classes and functions
@@ -71,18 +73,11 @@ class make_string
  * @param filename    the input filename
  * @return            the extension, minus the period and in lower case
  */
-inline
-std::string get_filename_extension(const std::string & filename)
+std::string 
+get_filename_extension(const std::string & filename)
 {
-    std::string::size_type period = filename.find_last_of('.');
-    if (period == std::string::npos) {
-	return "";
-    }
-
-    std::string ext(filename, period + 1);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    return ext;
+	using namespace boost::filesystem;
+	return basename(path(filename));
 }
 
 }}

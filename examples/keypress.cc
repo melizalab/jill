@@ -39,7 +39,7 @@ int
 main(int argc, char **argv)
 {
 	try {
-		JillOptions options("keypress", "1.1.0rc2");
+		JillOptions options("keypress", "1.1.0rc3");
 		po::options_description keyopts("Keypress options");
 		keyopts.add_options()
 			("sndfile,s", po::value<std::vector<std::string> >(), "soundfile paths");
