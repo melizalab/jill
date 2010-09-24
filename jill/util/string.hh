@@ -14,8 +14,6 @@
 
 #include <string>
 #include <sstream>
-#include <boost/filesystem/path.hpp>
-#include <boost/filesystem/convenience.hpp>
 
 /**
  * @defgroup miscgroup Miscellaneous classes and functions
@@ -64,21 +62,6 @@ class make_string
   private:
     std::ostringstream _stream;
 };
-
-/**
- * @ingroup miscgroup
- *
- * Extract the extension of a filename.
- *
- * @param filename    the input filename
- * @return            the extension, minus the period and in lower case
- */
-std::string 
-get_filename_extension(const std::string & filename)
-{
-	using namespace boost::filesystem;
-	return basename(path(filename));
-}
 
 }}
 

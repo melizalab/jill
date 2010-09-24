@@ -1,5 +1,8 @@
 #include "simple_sndfile.hh"
 #include "string.hh"
+#include <boost/filesystem/path.hpp>
+#include <boost/filesystem/convenience.hpp>
+
 using namespace jill::util;
 
 SimpleSndfile::SimpleSndfile() {}
@@ -23,7 +26,7 @@ SimpleSndfile::_open(const char *filename, size_type samplerate)
 	_sfinfo.channels = 1;
 
 	// detect desired file format based on filename extension
-	std::string ext = get_filename_extension(filename);
+	std::string ext = boost::filesystem::extension(boost::filesystem::path(filename));
 	if (ext == "wav") {
 		_sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
 	} else if (ext == "aiff" || ext == "aif") {
