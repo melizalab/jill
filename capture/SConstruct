@@ -1,14 +1,17 @@
 import os
 
+# debug flags for compliation
+debug = ARGUMENTS.get('debug',1)
+
 if hasattr(os,'uname'):
     system = os.uname()[0]
 else:
     system = 'Windows'
     
 env = Environment(CPPPATH=['..'],
-                  CCFLAGS=['-O2','-g','-Wall'],
+                  CCFLAGS=['-Wall'],
                   LIBPATH=['../jill'],
-                  LIBS=['jack','jill','sndfile','boost_date_time','boost_program_options'],
+                  LIBS=['jack','jill','sndfile','samplerate','boost_date_time','boost_program_options'],
                   tools=['default'])
 
 if system=='Darwin':
@@ -17,5 +20,10 @@ if system=='Darwin':
 else:
     env.Append(LIBS=['boost_thread'])
 
-test = env.Program('capture_test',['capture_test.cc','trigger_writer.cc'])
+if int(debug):
+    env.Append(CCFLAGS=['-g2'])
+else:
+    env.Append(CCFLAGS=['-O2'])
+
+#test = env.Program('capture_test',['capture_test.cc','trigger_writer.cc'])
 prog = env.Program('capture', ['capture.cc', 'trigger_writer.cc'])

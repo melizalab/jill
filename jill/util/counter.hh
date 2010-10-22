@@ -18,6 +18,8 @@
 
 namespace jill { namespace util {
 
+class sndfile;
+
 /**
  * @ingroup miscgroup
  * @brief calculate running sum
@@ -77,6 +79,13 @@ public:
 		return os << ')';
 	}
 
+	/**
+	 * Specify a location to write cumulative count
+	 * information. This can be useful for debugging and
+	 * testing. The sndfile resource can be shared between
+	 * multiple counters as long as access is sequential.
+	 */
+	void set_file_output(sndfile *sf) { _sf = sf; }
 
 private:
 	/// the analysis window
@@ -86,6 +95,8 @@ private:
 	/// a running count
 	data_type _running_count;
 
+	/// for debugging/testing
+	sndfile* _sf;
 };
 
 }}

@@ -207,6 +207,10 @@ public:
 	sample_type &open_thresh() { return _open_counter.thresh(); }
 	sample_type &close_thresh() { return _close_counter.thresh(); }
 
+	void set_file_output(util::sndfile *sf) {
+		_open_counter.set_file_output(sf);
+		_close_counter.set_file_output(sf);
+	}
 
 	friend std::ostream& operator<< (std::ostream &os, const WindowDiscriminator<T> &o) {
 		os << "Gate: " << ((o._open) ? "open" : "closed") << std::endl

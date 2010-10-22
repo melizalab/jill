@@ -12,6 +12,7 @@
 #ifndef _CAPTURE_OPTIONS_HH
 #define _CAPTURE_OPTIONS_HH
 
+#include <jill/jill_options.hh>
 #include <iostream>
 
 namespace jill {
@@ -20,35 +21,10 @@ namespace jill {
  * This class parses options for the capture program from the
  * command-line and/or a configuration file.  As in writer.cc, we also
  * want to parse the default options for the JACK client, so we will
- * derive from a class that handles these options.  This raises an
- * issue, though: the online client should derive from JillOptions,
- * and the offline client should derive from OfflineOptions.  Although
- * C++ supports multiple inheritance, this doesn't give us what we
- * want - the derived class would try to process both Jack- and
- * Offline-specific options.
- *
- * The solution used here makes use of "parameterized
- * inheritance". Instead of specifying a concrete class as the parent,
- * we write a template class that can derive from any Options class.
- *
- * Template programming is a fairly complicated concept; if needed,
- * the reader is encouraged to consult _The C++ Programming Language_
- * by Bjarne Stroustrup, or _Practical C++ Programming_ by Steve
- * Oualline, or one of many online resources.
- *
- * The two primary results of using parameterized inheritance is that
- * we have to declare the base class when we instantiate the
- * CaptureOptions class. In the offline program we'll use an object of
- * type CaptureOptions<OfflineOptions>, and in the online program
- * we'll use an object of type CaptureOptions<JillOptions>. Second,
- * because CaptureOptions<class Base> is a parameterized type (as
- * opposed to a concrete type), the implementation depends on the Base
- * class, which we only know when we're using the class.  Therefore,
- * there is not a separate compilation module, and the member
- * functions have to be defined here.
+ * derive from a class that handles these options. The only main
+ * difference is that the class is defined in a separate file from the application.
  */
-template <typename Base>
-class CaptureOptions : public Base {
+class CaptureOptions : public JillOptions {
 
 public:
 	/**
@@ -57,7 +33,7 @@ public:
 	 * own.
 	 */
 	CaptureOptions(const char *program_name, const char *program_version)
-		: Base(program_name, program_version) { // this calls the superclass constructor 
+		: JillOptions(program_name, program_version) { // this calls the superclass constructor 
 
 		// tropts is a group of options
 		po::options_description tropts("Trigger options");
@@ -77,22 +53,22 @@ public:
 			("close-rate", po::value<float>()->default_value(2),
 			 "set crossing rate thresh for close gate (s^-1)")
 			("close-period", po::value<float>()->default_value(5000), 
-			 "set integration time for close gate (ms)");
+			 "set integration time for close gate (ms)")
+			("write-counts,c", po::value<std::string>(),
+			 "write state of threshold discriminator");
 
 		// we add our group of options to various groups
-		// already defined in the base class. Note that we
-		// have to explicitly reference Base -- this is a
-		// consequence of using parameterized inheritance
-		Base::cmd_opts.add(tropts);
+		// already defined in the base class.
+		cmd_opts.add(tropts);
 		// cfg_opts holds options that are parsed from a configuration file
-		Base::cfg_opts.add(tropts);
+		cfg_opts.add(tropts);
 		// visible_opts holds options that are shown in the help text
-		Base::visible_opts.add(tropts);
+		visible_opts.add(tropts);
 		// the output template is not added to the visible
 		// options, since it's specified positionally.
-		Base::cmd_opts.add_options()
+		cmd_opts.add_options()
 			("output-tmpl", po::value<std::string>(), "output file template");
-		Base::pos_opts.add("output-tmpl", -1);
+		pos_opts.add("output-tmpl", -1);
 	} 
 
 	/*
@@ -101,6 +77,7 @@ public:
 	 */
 
 	std::string output_file_tmpl;
+	std::string debug_file_name;
 
 	float prebuffer_size_ms;  // in ms
 	nframes_t prebuffer_size; // samples
@@ -149,8 +126,8 @@ protected:
 	 * about specifying the output filename template and the configuration file name
 	 */
 	virtual void print_usage() {
-		std::cout << "Usage: " << Base::_program_name << " [options] [output-file-template]\n"
-			  << Base::visible_opts << std::endl
+		std::cout << "Usage: " << _program_name << " [options] [output-file-template]\n"
+			  << visible_opts << std::endl
 			  << "output-file-template:  specify output files (e.g. myrecording_%03d.wav)\n"
 			  << "                       if omitted, events are logged but no data is written\n\n"
 			  << "configuration values will be read from capture.ini, if it exists"
@@ -158,25 +135,26 @@ protected:
 	}
 	
 	/*
-	 * Likewise, we override Base::process_options() to parse the
+	 * Likewise, we override process_options() to parse the
 	 * options specified in this class. We call the Base function
 	 * explicitly so that it parses all of the generic options first.
 	 */
 	virtual void process_options() {
-		Base::process_options();
+		JillOptions::process_options();
 
-		Base::assign(output_file_tmpl, "output-tmpl");
+		assign(output_file_tmpl, "output-tmpl");
+		assign(debug_file_name, "write-counts");
 
-		Base::assign(prebuffer_size_ms, "prebuffer");
-		Base::assign(period_size_ms, "period-size");
+		assign(prebuffer_size_ms, "prebuffer");
+		assign(period_size_ms, "period-size");
 
-		Base::assign(open_threshold, "open-thresh");
-		Base::assign(open_crossing_rate, "open-rate");
-		Base::assign(open_crossing_period_ms, "open-period");
+		assign(open_threshold, "open-thresh");
+		assign(open_crossing_rate, "open-rate");
+		assign(open_crossing_period_ms, "open-period");
 
-		Base::assign(close_threshold, "close-thresh");
-		Base::assign(close_crossing_rate, "close-rate");
-		Base::assign(close_crossing_period_ms, "close-period");
+		assign(close_threshold, "close-thresh");
+		assign(close_crossing_rate, "close-rate");
+		assign(close_crossing_period_ms, "close-period");
 	}
 
 };

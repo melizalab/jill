@@ -37,10 +37,10 @@
 #define _TRIGGER_WRITER_HH
 
 /*
- * We need to import some classes from JILL. The audio_interface
+ * We need to import some types from JILL. The client
  * header provides some basic types (sample_t and nframes_t).
  */
-#include "jill/audio_interface.hh"
+#include "jill/client.hh"
 
 /* 
  * We'll need a ringbuffer to pass data from the real-time thread to
@@ -148,6 +148,14 @@ public:
 	 */
 	const std::string &flush();
 
+	/**
+	 * Close the current entry (if open) and log the stop time
+	 *
+	 * @param time  the time when the gate closed (default the last time data was pushed to the buffer)
+	 */
+	void close_entry(nframes_t time);
+	void close_entry();
+
 protected:
 	/*
 	 * In the protected part of the class interface, we define
@@ -162,13 +170,6 @@ protected:
 	 * @param prebuf  the number of samples in the prebuffer
 	 */
 	void next_entry(nframes_t time, nframes_t prebuf);
-
-	/**
-	 * Close the current entry and log the stop time
-	 *
-	 * @param time  the time when the gate closed
-	 */
-	void close_entry(nframes_t time);
 
 private:
 	/*
@@ -192,7 +193,10 @@ private:
 	util::TimeRingbuffer<sample_t,nframes_t> _ringbuf;
 
 	/// The prebuffer
-	util::BufferAdapter<util::Prebuffer<sample_t>, util::multisndfile> _prebuf;
+	util::BufferedWriter<util::Prebuffer<sample_t>, util::multisndfile> _prebuf;
+
+	/// A reference to the time when the process callback was first called
+	nframes_t _start_time;
 };
 
 /*

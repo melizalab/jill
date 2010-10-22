@@ -47,7 +47,7 @@ TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd,
 				 util::multisndfile &writer, util::logstream &logger,
 				 nframes_t prebuffer_size, nframes_t buffer_size)
 	: _wd(wd), _writer(writer), _logv(logger), _ringbuf(buffer_size, 0), 
-	  _prebuf(prebuffer_size, &writer) {}
+	  _prebuf(prebuffer_size, &writer), _start_time(0) {}
 
 
 /*
@@ -59,12 +59,13 @@ TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd,
 void 
 TriggeredWriter::operator() (sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
 {
-	nframes_t nf = _ringbuf.push(in, nframes, time);
+	if (_start_time==0) _start_time = time;
+	nframes_t nf = _ringbuf.push(in, nframes, time - _start_time);
 	// as in writer, we check for overrun (not enough room in the
 	// ringbuffer for all the samples. However, rather than
 	// throwing an error we log the overrun.
 	if (nf < nframes)
-		_logv << _logv.allfields << "ringbuffer overrun at frame " << time << std::endl;
+		_logv << _logv.allfields << "ringbuffer overrun at frame " << time - _start_time << std::endl;
 }
 
 
@@ -93,6 +94,8 @@ TriggeredWriter::flush()
 	// memory where the data are located.
 	sample_t *buf = 0;
 	nframes_t frames = _ringbuf.peek(&buf);
+	if (frames==0) 
+		return _writer.current_file();
 
 	// Step 2. Pass samples to window discriminator; its state may
 	// change, in which case the return value will be > -1 and
@@ -173,8 +176,16 @@ TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 void
 TriggeredWriter::close_entry(nframes_t time)
 {
-	_logv << _logv.allfields << "Signal stop  @" << time << std::endl;
-	_writer.close();
+	if (_writer) {
+		_logv << _logv.allfields << "Signal stop  @" << time << std::endl;
+		_writer.close();
+	}
+}
+
+void
+TriggeredWriter::close_entry()
+{ 
+	close_entry(_ringbuf.get_time()); 
 }
 
 /*
