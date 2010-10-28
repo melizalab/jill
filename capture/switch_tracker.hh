@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010 C Mike Lusignan <mlusigna@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,14 +33,15 @@
  * By storing the data in the prebuffer we'll have access to this.
  *
  */
-#ifndef _TRIGGER_WRITER_HH
-#define _TRIGGER_WRITER_HH
+#ifndef _SWITCH_TRACKER_HH
+#define _SWITCH_TRACKER_HH
 
 /*
  * We need to import some types from JILL. The client
  * header provides some basic types (sample_t and nframes_t).
  */
 #include "jill/client.hh"
+#include "jill/sndfile_player_client.hh"
 
 /* 
  * We'll need a ringbuffer to pass data from the real-time thread to
@@ -65,6 +66,12 @@
  * any TriggerWriter objects, an operation we don't want to support.
  */
 #include <boost/noncopyable.hpp>
+
+#include <list>
+
+#include "switch_playback_listener.hh"
+#include "switch.hh"
+#include "quotas.hh"
 
 /* 
  * We place the triggered writer into the capture namespace
@@ -95,7 +102,7 @@ namespace util = jill::util;
  *
  * The class derives from boost::noncopyable to prevent copying.
  */
-class TriggeredWriter : boost::noncopyable {
+class SwitchTracker : boost::noncopyable {
 
 public:
         /*
@@ -120,49 +127,25 @@ public:
 	 * @param prebuffer_size  The size of the prebuffer, in samples
 	 * @param buffer_size     The size of the process buffer, in samples
 	 */
-	TriggeredWriter(capture::WindowDiscriminator<sample_t> &wd, 
-			util::MultiSndfile &writer, util::logstream &logger,
-			nframes_t prebuffer_size, nframes_t buffer_size);
+	SwitchTracker(const std::string& output_name,
+	              const std::string& song_name,
+                      int switch_refractory_time,
+                      QuotaInfo& quotas,
+	              boost::shared_ptr<SwitchPlaybackListener> listener,
+	              boost::shared_ptr<Switch> s);
 
 	/**
-	 * This function overloads the () operator; that is, if we
-	 * create an object "tw" of type TriggeredWriter, and call
-	 * tw(), this function gets called.  Since we'll pass a
-	 * TriggerWriter object to
-	 * AudioInterface::set_process_callback, this is what will get
-	 * run in the real-time thread. It has the same signature as
-	 * the process functions we wrote in previous examples.
+	 * Simply returns true or false whether the key press at the time
+	 * of the call.
 	 */
-	void operator() (sample_t *in, sample_t *out, nframes_t nframes, nframes_t time);
+	bool trigger();
 
-	/**
-	 * We also need a function that can be run in the main loop of
-	 * the program to flush data to disk.  Note that because
-	 * different threads are going to be using this class, we need
-	 * to be certain that all of the public functions are
-	 * "re-entrant" - if they are called concurrently by two
-	 * different threads, the internal state of the object will
-	 * remain consistent.
-	 *
-	 * @returns the name of the file we wrote to
-	 */
-	const std::string &flush();
+	bool song_ended();
 
-	/**
-	 * Close the current entry (if open) and log the stop time
-	 *
-	 * @param time  the time when the gate closed (default the last time data was pushed to the buffer)
-	 */
-	void close_entry(nframes_t time);
-	void close_entry();
+	bool stop_playback(const char* msg);
 
-	/**
-	 * Enable or disable the collection of data.  The disabled state (enabled=false)
-	 * is equivalent to all incoming samples being set to 0.
-	 *
-	 * @param enabled  enabled state of the TriggeredWriter object
-	 */
-	void enable(bool enabled);
+	bool connect_playback_output(const char* channel_name);
+
 protected:
 	/*
 	 * In the protected part of the class interface, we define
@@ -170,14 +153,6 @@ protected:
 	 * should not be accessible from outside the class.
 	 */
 	
-	/**
-	 * Open a new entry and log the start time
-	 *
-	 * @param time  the time when the gate opened
-	 * @param prebuf  the number of samples in the prebuffer
-	 */
-	void next_entry(nframes_t time, nframes_t prebuf);
-
 private:
 	/*
 	 * Variables declared in this section are not visible outside
@@ -187,25 +162,24 @@ private:
 	 * threadsafe.
 	 */
 
-	/// This is our reference to the window discriminator
-	capture::WindowDiscriminator<sample_t> &_wd;
+	// tutor client which plays the song
+	boost::shared_ptr<SndfilePlayerClient> _tutor_client;
 
-	/// This is our reference to the soundfile writer
-	util::MultiSndfile &_writer;
+	QuotaInfo _quotas;
+	int _switch_refractory;
 
-	/// Reference to a logger
-	util::logstream &_logv;
+	// end points for waiting to reset switch, recording
+	int _end_switch_refractory;
 
-	/// A ringbuffer that the process thread can write to
-	util::TimeRingbuffer<sample_t,nframes_t> _ringbuf;
+	int _triggering_interval;
+	int _triggering_count;
 
-	/// The prebuffer
-	util::BufferedWriter<util::Prebuffer<sample_t>, util::MultiSndfile> _prebuf;
+	bool _song_ended;
 
-	/// A reference to the time when the process callback was first called
-	nframes_t _start_time;
-
-	bool _enabled;
+	boost::shared_ptr<Switch> _switch;
+	boost::shared_ptr<SwitchPlaybackListener> _listener;
+	std::string _output_name;
+	std::string _song_name;
 };
 
 /*

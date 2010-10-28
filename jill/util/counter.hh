@@ -18,7 +18,7 @@
 
 namespace jill { namespace util {
 
-class sndfile;
+class Sndfile;
 
 /**
  * @ingroup miscgroup
@@ -38,7 +38,7 @@ public:
 	/** the data type stored in the counter */
 	typedef T data_type;
 	/** the data type for size information */
-	typedef std::deque<data_type>::size_type size_type;
+	typedef typename std::deque<data_type>::size_type size_type;
 
 	/** Initialize the counter. @param size  the size of the running sum window */
 	explicit Counter(size_type size)
@@ -74,7 +74,7 @@ public:
 
 	friend std::ostream& operator<< (std::ostream &os, const Counter<T> &o) {
 		os << o._running_count << " [" << o._counts.size() << '/' << o._size << "] (";
-		for (std::deque<T>::const_iterator it = o._counts.begin(); it != o._counts.end(); ++it)
+		for (typename std::deque<T>::const_iterator it = o._counts.begin(); it != o._counts.end(); ++it)
 			os << *it << ' ';
 		return os << ')';
 	}
@@ -85,7 +85,7 @@ public:
 	 * testing. The sndfile resource can be shared between
 	 * multiple counters as long as access is sequential.
 	 */
-	void set_file_output(sndfile *sf) { _sf = sf; }
+	void set_file_output(Sndfile *sf) { _sf = sf; }
 
 private:
 	/// the analysis window
@@ -96,7 +96,7 @@ private:
 	data_type _running_count;
 
 	/// for debugging/testing
-	sndfile* _sf;
+	Sndfile* _sf;
 };
 
 }}

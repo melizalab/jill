@@ -2,6 +2,8 @@
 #include "string.hh"
 using namespace jill::util;
 
+#include <iostream>
+
 SimpleSndfile::SimpleSndfile() {}
 
 SimpleSndfile::SimpleSndfile(const char *filename, size_type samplerate)
@@ -53,7 +55,10 @@ SimpleSndfile::_open(const char *filename, size_type samplerate)
 void
 SimpleSndfile::_close()
 {
-	if(_sndfile) sf_close(_sndfile.get());
+	// boost::shared_ptr will handle deallocation, so the following
+	// line should be commented out.  Otherwise, the underlying
+	// sndfile will be deallocated twice.
+//	if(_sndfile) sf_close(_sndfile.get());
 	_sndfile.reset();
 	_entry.filename.clear();
 	_entry.nframes = 0;

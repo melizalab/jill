@@ -28,8 +28,10 @@
 #include "trigger_writer.hh"
 #include "jill/util/logger.hh"
 /* The 'using' directive allows us to avoid prefixing all the objects in the jill namespace */
-using namespace jill;
 
+namespace capture {
+using namespace jill;
+namespace util = jill::util;
 
 /*
  * This is the constructor for the TriggeredWriter class. The
@@ -43,11 +45,11 @@ using namespace jill;
  * the sound file writer, and the logger) have to be assigned here.
  * We also initialize the ringbuffer and prebuffer.
  */
-TriggeredWriter::TriggeredWriter(filters::WindowDiscriminator<sample_t> &wd, 
-				 util::multisndfile &writer, util::logstream &logger,
+TriggeredWriter::TriggeredWriter(WindowDiscriminator<sample_t> &wd, 
+				 util::MultiSndfile &writer, util::logstream &logger,
 				 nframes_t prebuffer_size, nframes_t buffer_size)
 	: _wd(wd), _writer(writer), _logv(logger), _ringbuf(buffer_size, 0), 
-	  _prebuf(prebuffer_size, &writer), _start_time(0) {}
+	  _prebuf(prebuffer_size, &writer), _start_time(0), _enabled(true) {}
 
 
 /*
@@ -71,8 +73,8 @@ TriggeredWriter::operator() (sample_t *in, sample_t *out, nframes_t nframes, nfr
 
 
 /** This typedef is for convenience; it's used in the flush() function */
-typedef util::multisndfile::size_type (util::multisndfile::*writefun_t)(const sample_t *,
-									util::multisndfile::size_type);
+typedef util::MultiSndfile::size_type (util::MultiSndfile::*writefun_t)(const sample_t *,
+									util::MultiSndfile::size_type);
 
 /*
  * The flush function is called by the main thread. It has several
@@ -97,6 +99,13 @@ TriggeredWriter::flush()
 	if (frames==0) 
 		return _writer.current_file();
 
+	bool buf_allocated = false;
+	if (!_enabled) {
+		// alloc space
+		buf = new sample_t[frames];
+		buf_allocated = true;
+	} // if
+
 	// Step 2. Pass samples to window discriminator; its state may
 	// change, in which case the return value will be > -1 and
 	// indicate the frame in which the gate opened or closed.
@@ -110,7 +119,8 @@ TriggeredWriter::flush()
 		if (offset < 0)
 			// 3AA: gate was already open. Continue
 			// writing to disk.
-			_writer.write(buf, frames);
+			// _writer.write(buf, frames);
+			_writer(buf, frames);
 		else {
 			// 3AB: gate opened in this iteration. offset
 			// holds the time when it opened. Push data
@@ -128,7 +138,8 @@ TriggeredWriter::flush()
  			_prebuf.flush();
 
 			// Write data after the gate opened to the disk
-			_writer.write(buf+offset, frames-offset);
+			// _writer.write(buf+offset, frames-offset);
+			_writer(buf+offset, frames-offset);
 		}
 	}
 	else {	
@@ -143,7 +154,8 @@ TriggeredWriter::flush()
 			// remainder of data to disk; close entry;
 			// write data after the close frame to the
 			// prebuffer.
-			_writer.write(buf, offset);
+			// _writer.write(buf, offset);
+			_writer(buf, offset);
 			close_entry(_ringbuf.get_time()+offset);
 			_prebuf.push(buf+offset, frames-offset);
 		}
@@ -152,8 +164,19 @@ TriggeredWriter::flush()
 	// the data, we tell the ringbuffer to free up the space for
 	// new samples.
 	_ringbuf.advance(frames);
+
+	if (buf_allocated) {
+		delete []buf;
+	} // if
+
 	return _writer.current_file();
 }
+
+void
+TriggeredWriter::enable(bool enabled)
+{
+	_enabled = enabled;
+} // TriggeredWriter::enable()
 
 /*
  * This protected function handles all the tasks associated with the
@@ -163,7 +186,8 @@ void
 TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 {
 	_logv << _logv.allfields << "Signal start @" << time << "; begin entry @" << time - prebuf;
-	std::string s = _writer.next();
+	const util::Sndfile::Entry *entry = _writer.next(NULL);
+	std::string s = entry->filename;
 	if (s != "")
 		_logv << "; writing to file " << s;
 	_logv << std::endl;
@@ -187,6 +211,8 @@ TriggeredWriter::close_entry()
 { 
 	close_entry(_ringbuf.get_time()); 
 }
+
+} // namespace capture
 
 /*
  * This concludes the implementation of the TriggerWriter class. Now

@@ -1,9 +1,18 @@
 import os
 Import('env lib')
 
-menv = env.Clone()
-menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time','boost_program_options'])
+if hasattr(os,'uname'):
+    system = os.uname()[0]
+else:
+    system = 'Windows'
 
-prog = env.Program('capture', ['capture.cc', 'trigger_writer.cc'])
+menv = env.Clone()
+menv.Append(CPPPATH=['#'],
+            LIBS=['jack','jill','sndfile','samplerate','boost_date_time','boost_program_options'])
+
+if not system=='Darwin':
+   env.Append(LIBS=['boost_thread'])
+
+prog = menv.Program('capture', ['capture.cc', 'trigger_writer.cc'])
 
 Return('prog')

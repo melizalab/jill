@@ -20,7 +20,7 @@
 #include <boost/noncopyable.hpp>
 #include <vector>
 #include <jill/util/counter.hh>
-
+#include <jill/util/sndfile.hh>
 
 namespace capture {
 
@@ -29,14 +29,17 @@ namespace capture {
  * the number of times a signal crosses a threshold within a
  * window. 
  */
+using jill::util::Counter;
+
 template<typename T>
-class ThresholdCounter : public jill::util::Counter {
+class ThresholdCounter : public Counter<T> {
 public:
-	using jill::util::Counter;
+	typedef typename Counter<T>::size_type size_type;
+//	using typename Counter<T>::size_type;
 	typedef T sample_type;
 
 	ThresholdCounter(const sample_type &threshold, size_type period_size, size_type period_count)
-		:  Counter(period_count), _thresh(threshold), _period_size(period_size),
+		:  Counter<T>(period_count), _thresh(threshold), _period_size(period_size),
 		  _period_crossings(0), _period_nsamples(0) {}
 
 	/**
@@ -58,7 +61,7 @@ public:
 	 */
  	int push(const sample_type *samples, size_type size, int count_thresh) {
 		int ret = -1, period = 0;
-		ASSERT(size > 1);
+//		ASSERT(size > 1);
 		sample_type last = *samples;
 		for (size_t i = 1; i < size; ++i) {
 			// I only check positive crossings because
@@ -68,20 +71,27 @@ public:
 				_period_crossings += 1;
 			last = samples[i];
 			_period_nsamples += 1;
-			if (_period_nsamples >= _period_size) {
-				if (Counter::push(_period_crossings, count_thresh) && ret < 0)
-					ret = period;
+			if (_period_nsamples >= _period_size)
+			{ 
+				Counter<T>::push(_period_crossings);
+				if (ret < 0) {
+					if (count_thresh > 0 && Counter<T>::running_count() > count_thresh)
+						ret = period;
+					else if (count_thresh < 0 && Counter<T>::running_count() < -count_thresh)
+						ret = period;
+				} // if (ret < 0)
 				period += 1;
 				_period_nsamples = 0;
 				_period_crossings = 0;
 			}
+			// here, ret should be the period in blocks or -1 if no crossing
 		}
 		return ret;
 	}
 
 	/// reset the queue
 	void reset() { 
-		Counter::reset();
+		Counter<T>::reset();
 		_period_crossings = 0;
 		_period_nsamples = 0;
 	}
@@ -207,7 +217,7 @@ public:
 	sample_type &open_thresh() { return _open_counter.thresh(); }
 	sample_type &close_thresh() { return _close_counter.thresh(); }
 
-	void set_file_output(util::sndfile *sf) {
+	void set_file_output(jill::util::Sndfile *sf) {
 		_open_counter.set_file_output(sf);
 		_close_counter.set_file_output(sf);
 	}

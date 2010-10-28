@@ -27,3 +27,6 @@ else:
 
 #test = env.Program('capture_test',['capture_test.cc','trigger_writer.cc'])
 prog = env.Program('capture', ['capture.cc', 'trigger_writer.cc'])
+prog = env.Program('sapsucker', ['sapsucker.cc', 'switch_tracker.cc', 'trigger_writer.cc', 'keypress_switch.cc', 'quotas.cc'])
+prog = env.Program('keypress_test', ['keypress_test.cc', 'keypress_switch.cc'])
+prog = env.Program('quota_test', ['quota_test.cc','quotas.cc'])

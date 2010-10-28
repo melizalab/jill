@@ -21,7 +21,7 @@
 using namespace jill;
 
 SndfilePlayerClient::SndfilePlayerClient(const char * client_name)
-	: PlayerClient(client_name), _buf_pos(0), _buf_size(0)
+	: PlayerClient(client_name), _buf_pos(0), _buf_size(0), _logger(NULL)
 {
 	if (jack_activate(_client))
 		throw AudioError("can't activate client");

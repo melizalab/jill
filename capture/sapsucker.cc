@@ -55,8 +55,17 @@
  * These are headers for the custom classes we're using in this
  * application.
  */
-#include "capture_options.hh"
+#include "sapsucker_options.hh"
 #include "trigger_writer.hh"
+#include "switch_tracker.hh"
+#include "switch.hh"
+#include "keypress_switch.hh"
+#include "file_playback_recorder.hh"
+#ifdef DIO_SUPPORT
+#include "nidaq_dio_switch.hh"
+#else
+#warning Building sapsucker without DIO_SUPPORT
+#endif
 
 namespace capture {
 using namespace jill;
@@ -69,9 +78,16 @@ using namespace jill;
  */
 static boost::scoped_ptr<SimpleClient> client;
 static boost::shared_ptr<SndfilePlayerClient> pclient;
+static boost::shared_ptr<SndfilePlayerClient> tutor_client;
 static boost::shared_ptr<TriggeredWriter> twriter;
+
+static boost::shared_ptr<SwitchTracker> switch_tracker;
+
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
+static bool using_switch = false;
+
+//static int end_time_of_trigger_delay, end_time_of_song_playback;
 
 /*
  * Note that the process function isn't here any more; it's
@@ -85,6 +101,18 @@ static int
 mainloop()
 {
 	std::string outfile = twriter->flush();
+
+	// check nidaq
+	if (using_switch) {
+		if (switch_tracker->trigger()) {
+			twriter->enable(false);
+		} // if
+
+		if (switch_tracker->song_ended()) {
+			twriter->enable(true);
+		} // if
+	} // if (using switch)
+
 	if (pclient && !pclient->is_running()) {
 		logv << logv.allfields << pclient->client_name() << ": completed playback" << std::endl;
 		twriter->close_entry();
@@ -101,6 +129,8 @@ static void signal_handler(int sig)
 
 	client->stop("Received interrupt");
 	if (pclient) pclient->stop("Received interrupt");
+	if (switch_tracker) switch_tracker->stop_playback("Received interrupt");
+	if (tutor_client) tutor_client->stop("Received interrupt");
 }
 
 } // capture
@@ -120,11 +150,44 @@ main(int argc, char **argv)
 		 * which checks for a file "capture.ini" in the
 		 * current directory and parses it if it exists.
 		 */
-		CaptureOptions options("capture", "1.1.0rc1");
-		options.parse(argc,argv,"capture.ini");
+		SapsuckerOptions options("sapsucker", "1.1.0rc1");
+		options.parse(argc,argv,"sapsucker.ini");
 
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);
+
+		using_switch = options.switch_active;
+
+		if (using_switch) {
+			boost::shared_ptr<Switch> sw;
+			if (options.use_keypress) {
+				sw.reset((Switch*) new KeypressSwitch());
+			} else {
+#ifndef DIO_SUPPORT
+				logv << logv.allfields << "Built without DIO support." << std::endl;
+				logv << logv.allfields << "Either use keypress-activated switches or rebuild with -DDIO_SUPPORT." << std::endl;
+				logv << logv.allfields << "Starting with switch triggered playback DISABLED." << std::endl;
+				using_switch = false;
+#else
+				sw.reset((Switch*) new NidaqDioSwitch(options.comedi_device_name.c_str(),
+				                                      options.comedi_subdevice_index,
+				                                      options.dio_line));
+#endif
+			} // if
+			if (using_switch) {
+				sw->initialize();
+
+				boost::shared_ptr<SwitchPlaybackListener> listener;
+				listener.reset((SwitchPlaybackListener*) new FilePlaybackRecorder(options.switch_status_file_name.c_str()));
+
+				switch_tracker.reset(new SwitchTracker(options.client_name.c_str(),
+				                                       options.tutor_song_file_name.c_str(),
+				                                       options.switch_refraction,
+				                                       options.quotas,
+				                                       listener,
+				                                       sw));
+			} // if (using switch)
+		} // if (using switch)
 
 		/*
 		 * Initialize the client. 
@@ -199,6 +262,12 @@ main(int argc, char **argv)
 			client->connect_input(it->c_str());
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
+		if (using_switch) {
+			for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
+				switch_tracker->connect_playback_output(it->c_str());
+				logv << logv.allfields << "Connected output to port " << *it << endl;
+			} // for
+		} // if
 		/*
 		 * Here's where we pass the processing object to the
 		 * client. The semantics are a little tricky, because

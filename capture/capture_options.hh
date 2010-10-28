@@ -129,7 +129,17 @@ protected:
 		std::cout << "Usage: " << _program_name << " [options] [output-file-template]\n"
 			  << visible_opts << std::endl
 			  << "output-file-template:  specify output files (e.g. myrecording_%03d.wav)\n"
-			  << "                       if omitted, events are logged but no data is written\n\n"
+			  << "                       if omitted, events are logged but no data is written\n"
+		          << "                       Positional parameters:\n"
+		          << "                           1: entry number\n"
+		          << "                           2: msec since start of day\n"
+		          << "                           3: full month name\n"
+		          << "                           4: day of month (1-31)\n"
+		          << "                           5: full year\n"
+		          << "                           6: hour (0-23)\n"
+		          << "                           7: minute (0-59)\n"
+		          << "                           8: second (0-59)\n"
+		          << "\n"
 			  << "configuration values will be read from capture.ini, if it exists"
 			  << std::endl;
 	}
