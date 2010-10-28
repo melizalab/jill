@@ -103,6 +103,8 @@ TriggeredWriter::flush()
 	if (!_enabled) {
 		// alloc space
 		buf = new sample_t[frames];
+		for (int i = 0; i < frames; i++)
+			buf[i] = 0.0f;
 		buf_allocated = true;
 	} // if
 
