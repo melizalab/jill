@@ -61,6 +61,7 @@
 #include "switch.hh"
 #include "keypress_switch.hh"
 #include "file_playback_recorder.hh"
+#include "sapsucker_multi_sndfile.hh"
 #ifdef DIO_SUPPORT
 #include "nidaq_dio_switch.hh"
 #else
@@ -213,7 +214,10 @@ main(int argc, char **argv)
 						 options.close_crossing_periods,
 						 options.period_size);
 		
-		jill::util::MultiSndfile writer(options.output_file_tmpl, client->samplerate());
+		SapsuckerMultiSndfile writer(options.output_file_tmpl, 
+		                             client->samplerate(),
+		                             options.permanent_output_destination,
+		                             &logv);
 		twriter.reset(new TriggeredWriter(wd, writer, logv,
 						  options.prebuffer_size,
 						  client->samplerate() * 2));

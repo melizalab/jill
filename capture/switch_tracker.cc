@@ -79,7 +79,7 @@ bool SwitchTracker::trigger() {
 		if (time_of_day > start_time && time_of_day < end_time) {
 			if (_triggering_interval == i) {
 				// check that we don't exceed count
-				if (_triggering_count < max_count) {
+				if (max_count < 0 || _triggering_count < max_count) {
 					_triggering_count++;
 					trigger = 1;
 				} else {

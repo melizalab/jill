@@ -51,6 +51,8 @@ public:
 			 "respond to the tutoring switch")
 			("switch-keypress", jill::po::value<int>()->default_value(1), 
 			 "use keypress instead of nidaq")
+			("permanent-output-destination", jill::po::value<std::string>()->default_value(""), 
+			 "if set, specifies a permanent destination to which recordings are moved once finished")
 			("dio-device-name", jill::po::value<std::string>()->default_value("/dev/comedi0"), 
 			 "nidaq device name")
 			("dio-device-line", jill::po::value<int>()->default_value(0),
@@ -78,6 +80,7 @@ public:
 	std::string tutor_song_file_name;
 	std::string interval_file_name;
 	std::string switch_status_file_name;
+	std::string permanent_output_destination;
 	int switch_refraction;
 	int use_keypress;
 	int switch_active;
@@ -97,6 +100,7 @@ public:
 		assign(dio_line, "dio-device-line");
 		assign(use_keypress, "switch-keypress");
 		assign(switch_status_file_name, "switch-status-file");
+		assign(permanent_output_destination, "permanent-output-destination");
 
 		quotas = load_quotas_from_file(interval_file_name.c_str());
 		std::cout << "Done!" << std::endl;

@@ -57,10 +57,13 @@ public:
 	/** @return the currently open file */
 	const std::string &current_file() const { return _entry.filename; }
 
-private:
+protected:
 
 	virtual void _open(const char *templ, size_type samplerate);
 	virtual void _close();
+
+private:
+
 	virtual const Entry* _next(const char *);
 
 	Entry _entry;
