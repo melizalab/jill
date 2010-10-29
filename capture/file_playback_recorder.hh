@@ -6,6 +6,8 @@
 #include <fstream>
 #include <iostream>
 
+#include <jill/util/simple_template.hh>
+
 namespace capture {
 
 class FilePlaybackRecorder : public SwitchPlaybackListener {
@@ -29,10 +31,16 @@ public:
 			} // if
 		} // for
 
+		// munge filename
+		jill::util::SimpleTemplate templ;
+		templ.process(_filename);
+		jill::util::add_time_values(templ);
+		std::string str_filename = templ.str();
+
 		// open file
 		std::fstream f_log;
 
-		f_log.open(_filename.c_str(), std::ios::out | std::ios::app);
+		f_log.open(str_filename.c_str(), std::ios::out | std::ios::app);
 		f_log << name << '\t' << song << '\t' << ctime_buf << std::endl;
 		f_log.close();
 	} // playback
