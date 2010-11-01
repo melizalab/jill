@@ -99,6 +99,8 @@ TriggeredWriter::flush()
 	if (frames==0) 
 		return _writer.current_file();
 
+	// This code allocates an empty buffer for zeroing out samples
+	// when the window discriminator is disabled (during playback).
 	bool buf_allocated = false;
 	if (!_enabled) {
 		// alloc space

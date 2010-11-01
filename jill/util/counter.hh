@@ -63,6 +63,15 @@ public:
 		return back;
 	}
 
+	/**
+	 * Return whether the queue is full or not
+	 *
+	 * @return true iff the queue is at capacity
+	 */
+	bool is_full() const {
+		return _counts.size() == _size;
+	} 
+
 	/** @return the running total */
 	data_type running_count() const { return _running_count; }
 

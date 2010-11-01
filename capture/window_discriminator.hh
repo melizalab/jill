@@ -74,7 +74,7 @@ public:
 			if (_period_nsamples >= _period_size)
 			{ 
 				Counter<T>::push(_period_crossings);
-				if (ret < 0) {
+				if (this->is_full() && ret < 0) {
 					if (count_thresh > 0 && Counter<T>::running_count() > count_thresh)
 						ret = period;
 					else if (count_thresh < 0 && Counter<T>::running_count() < -count_thresh)
@@ -206,7 +206,7 @@ public:
 				_open = true;
 				_open_counter.reset();
 				// push samples after offset to close counter
-				_close_counter.push(samples+offset, size-offset, _open_count_thresh);
+				_close_counter.push(samples+offset, size-offset, _close_count_thresh);
 				return offset;
 			}
 		}
