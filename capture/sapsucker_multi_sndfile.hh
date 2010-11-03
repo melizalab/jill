@@ -4,6 +4,7 @@
 
 #include <jill/util/multi_sndfile.hh>
 #include <jill/util/logger.hh>
+#include <jill/util/copy_queue.hh>
 
 namespace capture {
 
@@ -12,22 +13,18 @@ public:
 	SapsuckerMultiSndfile(const char* templ,
 	                      size_type samplerate,
 	                      const char* final_dest,
-	                      jill::util::logstream *logv = NULL) :
-		jill::util::MultiSndfile(templ, samplerate),
-		_final_dest(final_dest),
-		_logv(logv) {};
+	                      jill::util::logstream *logv = NULL);
 	SapsuckerMultiSndfile(const std::string &templ,
 	                      size_type samplerate,
 	                      const std::string &final_dest,
-	                      jill::util::logstream *logv = NULL) :
-		jill::util::MultiSndfile(templ, samplerate),
-	        _final_dest(final_dest),
-		_logv(logv) {};
+	                      jill::util::logstream *logv = NULL);
+	virtual ~SapsuckerMultiSndfile();
 protected:
 	virtual void _close();
 private:
 	std::string _final_dest;
 	jill::util::logstream *_logv;
+	jill::util::FileCopyQueue *_file_mover;
 }; //
 
 }

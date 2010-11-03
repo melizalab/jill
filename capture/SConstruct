@@ -24,7 +24,8 @@ if dio_support:
 
 if system=='Darwin':
   env.Append(CPPPATH=['/opt/local/include'],
-             LIBPATH=['/opt/local/lib'])
+             LIBPATH=['/opt/local/lib'],
+             LIBS=['boost_thread-mt'])
 else:
   env.Append(LIBS=['boost_thread'])
 

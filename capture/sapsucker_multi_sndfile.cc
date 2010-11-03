@@ -6,50 +6,63 @@
 
 namespace capture {
 
+SapsuckerMultiSndfile::SapsuckerMultiSndfile(const char* templ,
+                                             size_type samplerate,
+                                             const char* final_dest,
+                                             jill::util::logstream *logv) :
+		jill::util::MultiSndfile(templ, samplerate),
+		_final_dest(final_dest),
+		_logv(logv),
+		_file_mover(NULL)
+{
+	if (_logv) {
+		(*_logv) << "Setting permanent output to "
+		         << _final_dest
+		         << std::endl;
+	} 
+	if (!_final_dest.empty()) {
+		_file_mover = 
+			new jill::util::FileCopyQueue(_final_dest, 30, _logv);
+		_file_mover->run();
+	} // if
+}
+
+SapsuckerMultiSndfile::SapsuckerMultiSndfile(const std::string &templ,
+                                             size_type samplerate,
+                                             const std::string &final_dest,
+                                             jill::util::logstream *logv) :
+		jill::util::MultiSndfile(templ, samplerate),
+		_final_dest(final_dest),
+		_logv(logv),
+		_file_mover(NULL)
+{
+	if (_logv) {
+		(*_logv) << "Setting permanent output to "
+		         << _final_dest
+		         << std::endl;
+	} 
+	if (!_final_dest.empty()) {
+		_file_mover = 
+			new jill::util::FileCopyQueue(_final_dest, 30, _logv);
+		_file_mover->run();
+	} // if
+}
+
+SapsuckerMultiSndfile::~SapsuckerMultiSndfile() 
+{
+	if (_file_mover) {
+		_file_mover->stop();
+		delete _file_mover;
+	} // if
+}
+
 void SapsuckerMultiSndfile::_close() {
 	jill::util::MultiSndfile::_close();
 
-	if (_final_dest.length() == 0)
+	if (!_file_mover)
 		return;
 
-	// attempt to move file
-	// first stat the location and verify that it is a directory
-	struct stat stat_info;
-	int stat_ret = stat(_final_dest.c_str(), &stat_info);
-	if (stat_ret) {
-		if (_logv) {
-			(*_logv) << "Failure to stat final destination: "
-			         << _final_dest
-			         << std::endl;
-		} // if
-		return;
-	} // if
-	if (!S_ISDIR(stat_info.st_mode)) {
-		if (_logv) {
-			(*_logv) << "Final destination is not a directory!"
-			         << std::endl;
-		} // if
-		return;
-	} // if
-	std::string old_name = current_file();
-	std::string new_name = old_name;
-	if (new_name.find_last_of("/") != std::string::npos) {
-		new_name = new_name.substr(new_name.find_last_of("/")+1);
-	} // if
-	new_name = _final_dest + "/" + new_name;
-
-	int rename_ret = rename(old_name.c_str(), new_name.c_str());
-	if (_logv) {
-		if (rename_ret == 0) {
-			(*_logv) << "Moving "
-			         << old_name
-			         << " to "
-			         << new_name
-			         << std::endl;
-		} else {
-			(*_logv) << "File move failed!" << std::endl;
-		} // if
-	} // if
+	_file_mover->add_file(current_file());
 }
 
 }
