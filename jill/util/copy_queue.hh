@@ -13,6 +13,7 @@
 #ifndef __FILE_COPY_QUEUE__H__
 #define __FILE_COPY_QUEUE__H__
 
+#include <sys/time.h>
 #include <list>
 #include <string>
 #include <boost/thread/mutex.hpp>
@@ -49,12 +50,17 @@ public:
 	              logstream *logv=NULL);
 	~FileCopyQueue();
 
+	typedef struct _utimes_timeval {
+		struct timeval timeval1;
+		struct timeval timeval2;
+	} utimes_timeval;
+
 	/**
 	 * Adds a file to the queue.
 	 *
 	 * @param  s file to add to the queue
 	 */
-	void add_file(std::string s);
+	void add_file(const std::string& s, const utimes_timeval& tv);
 
 	/**
 	 * Stops the copying procedure.  If a move is in progress, the move
@@ -81,14 +87,14 @@ public:
 	 */
 	bool is_running() { return _running; };
 protected:
-	std::string get_file();
-	bool move_file(std::string str_file);
+	bool get_file(std::string&s, utimes_timeval& tv);
+	bool move_file(std::string str_file, const utimes_timeval& tv);
 private:
 	bool _running;
 	std::string _final_dest;
 	boost::mutex *_file_list_lock;
 	boost::thread *_thread;
-	std::list<std::string> _files;
+	std::list<std::pair<std::string, utimes_timeval> > _files;
 
 	int _max_files;
 	logstream *_logv;

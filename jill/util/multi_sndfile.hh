@@ -57,6 +57,12 @@ public:
 	/** @return the currently open file */
 	const std::string &current_file() const { return _entry.filename; }
 
+	/** @return the current entry time */
+	void get_entry_time(struct timeval* ptv) const { 
+		ptv[0] = _entry.time[0];
+		ptv[1] = _entry.time[1];
+	};
+
 protected:
 
 	virtual void _open(const char *templ, size_type samplerate);

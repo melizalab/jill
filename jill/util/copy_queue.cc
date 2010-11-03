@@ -19,8 +19,8 @@ FileCopyQueue::FileCopyQueue(std::string str_dest,
                              logstream *logv) :
                 _final_dest(str_dest), 
                 _max_files(max_files), 
-                _logv(logv),
-		_running(false) {
+		_running(false), 
+                _logv(logv) {
 	_file_list_lock = new boost::mutex();
 	_thread = NULL;
 	_files.clear();
@@ -33,11 +33,12 @@ FileCopyQueue::~FileCopyQueue() {
 	_files.clear();
 } 
 
-void FileCopyQueue::add_file(std::string filename) 
+void FileCopyQueue::add_file(const std::string& filename, 
+                             const FileCopyQueue::utimes_timeval& tv)
 {
 	// attempt to lock
 	boost::mutex::scoped_lock(*_file_list_lock);
-	this->_files.push_front(filename);
+	this->_files.push_front(std::make_pair(filename, tv));
 }
 
 void FileCopyQueue::stop()
@@ -69,12 +70,10 @@ void FileCopyQueue::run()
 
 void FileCopyQueue::operator()()
 {
-	bool found_file = true;
 	while (this->is_running()) {
-		std::string str = this->get_file();
-		found_file = !str.empty();
-		if (found_file) {
-			this->move_file(str);
+		std::string str;
+		utimes_timeval tv;
+		if (this->get_file(str, tv)) {
 #ifdef __FILE_COPY_QUEUE_USE_DELAY
 			// delay
 			boost::posix_time::ptime t = boost::get_system_time();
@@ -84,6 +83,7 @@ void FileCopyQueue::operator()()
 				t = boost::get_system_time();
 			} // while
 #endif
+			this->move_file(str, tv);
 		} else {
 			// sleep
 			boost::posix_time::ptime t = boost::get_system_time();
@@ -93,23 +93,26 @@ void FileCopyQueue::operator()()
 	} // while
 }
 
-std::string FileCopyQueue::get_file()
+bool FileCopyQueue::get_file(std::string &str, 
+                             FileCopyQueue::utimes_timeval& tv)
 {
 	boost::mutex::scoped_lock(*_file_list_lock);
 	int n = this->_files.size();
 	if (n == 0)
-		return std::string();
+		return false;
 
 	while (this->_files.size() > this->_max_files) {
 		this->_files.pop_back();
 	} // while
 
-	std::string str = this->_files.front();
+	str = this->_files.front().first;
+	tv  = this->_files.front().second;
 	this->_files.pop_front();		
-	return str;
+	return true;
 }
 
-bool FileCopyQueue::move_file(std::string old_name)
+bool FileCopyQueue::move_file(std::string old_name,
+                              const FileCopyQueue::utimes_timeval& tv)
 {
        // attempt to move file
         // first stat the location and verify that it is a directory
@@ -158,8 +161,8 @@ bool FileCopyQueue::move_file(std::string old_name)
 
                         struct stat stat_info;
                         if (stat(new_name.c_str(), &stat_info) == 0) {
-                                // utimes(new_name.c_str(), new_time);
-                                //remove(old_name.c_str());
+                                utimes(new_name.c_str(), &(tv.timeval1));
+                                remove(old_name.c_str());
                                 copied = true;
                         } // if
                 } // if

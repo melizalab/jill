@@ -58,11 +58,12 @@ SapsuckerMultiSndfile::~SapsuckerMultiSndfile()
 
 void SapsuckerMultiSndfile::_close() {
 	jill::util::MultiSndfile::_close();
-
 	if (!_file_mover)
 		return;
 
-	_file_mover->add_file(current_file());
+	jill::util::FileCopyQueue::utimes_timeval tv;
+	get_entry_time(&(tv.timeval1));
+	_file_mover->add_file(current_file(), tv);
 }
 
 }
