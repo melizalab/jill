@@ -2,12 +2,13 @@
 #include "copy_queue.hh"
 
 #include <boost/thread/thread.hpp>
-#include <boost/thread/thread_time.hpp>
+//#include <boost/thread/thread_time.hpp>
 
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <iostream>
+#include <unistd.h>
 
 //#define __FILE_COPY_QUEUE_USE_DELAY
 
@@ -86,9 +87,10 @@ void FileCopyQueue::operator()()
 			this->move_file(str, tv);
 		} else {
 			// sleep
-			boost::posix_time::ptime t = boost::get_system_time();
-			t = t + boost::posix_time::seconds(1);
-			boost::thread::sleep(t);
+			::sleep(1);
+//			boost::posix_time::ptime t = boost::get_system_time();
+//			t = t + boost::posix_time::seconds(1);
+//			boost::thread::sleep(t);
 		} // if
 	} // while
 }
