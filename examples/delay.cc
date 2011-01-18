@@ -22,9 +22,9 @@
 #include <signal.h>
 
 /*
- * Here we include the relevant JILL headers.  We've added an
- * additional header which gives us access to the
- * DelayBuffer class.
+ * Here we include the relevant JILL headers.  We've dropped the
+ * SndfilePlayerClient (sort of pointless), and added an additional
+ * header which gives us access to the DelayBuffer class.
  */
 #include "jill/simple_client.hh"
 #include "jill/jill_options.hh"
@@ -44,15 +44,31 @@ static int ret = EXIT_SUCCESS;
 static util::DelayBuffer<sample_t> buffer;
 
 /*
- * In this app, we write incoming data to the delay buffer and read
- * the outgoing data from the buffer.  The buffer will pad the output
- * with zeros if not enough data is available.
+ * In principle, this application is quite similar to mixer, in that
+ * we are moving data from the input port to the output port.
+ * However, now we want to insert a delay between the input and
+ * output.  This is accomplished by the DelayBuffer class, which acts
+ * like a pipe.  After pushing N samples into the top of the pipe, N
+ * samples are available at the other end, which are copied to the
+ * output port.  The interface for this is quite simple, since all the
+ * internals are hidden in the DelayBuffer class.
+ *
+ * We also introduce the concept of a control line.  For this client,
+ * the control line is interpreted like a mask; it's multiplied by the
+ * output signal, so if the control line is 0 the output will be
+ * silent.  This allows the user to hook the delay module up to a
+ * trigger module to control when delayed playback occurs.
  *
  */
 void
-process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
+process(sample_t *in, sample_t *out, sample_t *ctrl, nframes_t nframes, nframes_t time)
 {
 	buffer.push_pop(in, out, nframes);
+	// the ctrl pointer will be NULL if user didn't register a control port
+	if (ctrl) {
+		for (unsigned int i = 0; i < nframes; ++i)
+			out[i] *= ctrl[i];
+	}
 }
 
 void 
@@ -77,8 +93,13 @@ main(int argc, char **argv)
 		 * boost library that makes it very easy to add
 		 * additional options. For more details see
 		 * http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
+		 *
+		 * Also, note the additional third argument. By
+		 * default, the user doesn't get an option to create a
+		 * control port, but this can be changed with an
+		 * argument.
 		 */	
-		JillOptions options("delay", "1.1.0rc3");
+		JillOptions options("delay", "1.1.0rc3", true);
 		po::options_description delopts("Delay options");
 		delopts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
@@ -92,11 +113,13 @@ main(int argc, char **argv)
 
 		/*
 		 * We need to start up the client to get access to the
-		 * JACK server's sample rate; however, we cant' start
-		 * the process loop until the buffer has been
+		 * JACK server's sample rate, but first need to figure
+		 * out if the user wants a control port.  Delay
+		 * starting the process loop until the buffer has been
 		 * allocated.
 		 */
-		client.reset(new SimpleClient(options.client_name.c_str(), "in", "out"));
+		const char *ctrl_port = (options.control_ports.empty()) ? NULL : "control";
+		client.reset(new SimpleClient(options.client_name.c_str(), "in", "out", ctrl_port));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		/*
@@ -117,13 +140,18 @@ main(int argc, char **argv)
 
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_input(it->c_str());
+			client->connect_port(it->c_str(), "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_output(it->c_str());
+			client->connect_port("out", it->c_str());
 			logv << logv.allfields << "Connected output to port " << *it << endl;
+		}
+
+		for (it = options.control_ports.begin(); it != options.control_ports.end(); ++it) {
+			client->connect_port(it->c_str(), ctrl_port);
+			logv << logv.allfields << "Connected control to port " << *it << endl;
 		}
 
 		/* 

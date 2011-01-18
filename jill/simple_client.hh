@@ -21,7 +21,7 @@ namespace jill {
  * @brief a simple Client with up to one input and one output port
  *
  * This class implements the Client interface, providing up to one
- * input, one output, and one trigger port.  It also provides the
+ * input, one output, and one control port.  It also provides the
  * appropriate callback for this configuration, which is passed an
  * input and and output buffer of equal size.  It can be used for
  * almost all simple applications, which need only to connect the
@@ -40,11 +40,11 @@ public:
 	 *
 	 * @param in the buffer for the input port
 	 * @param out the buffer for the output port
-	 * @param trig the buffer for the trigger port
+	 * @param ctrl the buffer for the control port
 	 * @param size the number of samples in each buffer
 	 * @param time the time elapsed (in samples) since the client started
 	 */
-	typedef boost::function<void (sample_t *in, sample_t *out, sample_t *trig, 
+	typedef boost::function<void (sample_t *in, sample_t *out, sample_t *ctrl, 
 				      nframes_t size, nframes_t time)> ProcessCallback;
 
 	/**
@@ -55,12 +55,12 @@ public:
 	 * @param client_name  the name of the client (as represented to JACK)
 	 * @param input_name  the name of the input port. If 0, none is registered
 	 * @param output_name the name of the output port. If 0, none is registered
-	 * @param trig_name the name of the trigger port. If 0, none is registered.
+	 * @param ctrl_name the name of the control port. If 0, none is registered.
 	 */
 	SimpleClient(const char * client_name,
 		     const char * input_name=0,
 		     const char * output_name=0,
-		     const char * trig_name=0);
+		     const char * ctrl_name=0);
 	virtual ~SimpleClient();
 
 	/**
@@ -81,7 +81,7 @@ protected:
 
 	jack_port_t *_output_port;
 	jack_port_t *_input_port;
-	jack_port_t *_trig_port;
+	jack_port_t *_ctrl_port;
 
 private:
 

@@ -70,15 +70,18 @@ Options::parse(int argc, char **argv, const char *configfile)
 
 
 
-JillOptions::JillOptions(const char *program_name, const char *program_version)
+JillOptions::JillOptions(const char *program_name, const char *program_version, bool supports_control)
 	: Options(program_name, program_version), client_name(program_name)
 {
 	po::options_description jillopts("JILL options");
 	jillopts.add_options()
 		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
 		("log,l",     po::value<string>(), "set logfile (default stdout)")
-		("out,o",     po::value<vector<string> >(), "add output port")
-		("in,i",      po::value<vector<string> >(), "add input port/file");
+		("out,o",     po::value<vector<string> >(), "add connection to output port")
+		("in,i",      po::value<vector<string> >(), "add connection to input port/file");
+	if (supports_control)
+		jillopts.add_options()
+			("ctrl,c",    po::value<vector<string> >(), "add connection to control port");
 	cmd_opts.add(jillopts);
 	visible_opts.add(jillopts);
 }
@@ -89,6 +92,7 @@ JillOptions::process_options()
 {
 	assign(output_ports,"out");
 	assign(input_ports,"in");
+	assign(control_ports,"ctrl");
 	assign(client_name,"name");
 	assign(logfile,"log");
 }

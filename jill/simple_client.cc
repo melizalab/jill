@@ -17,8 +17,8 @@ using namespace jill;
 SimpleClient::SimpleClient(const char * client_name,
 			   const char * input_name,
 			   const char * output_name,
-			   const char * trig_name)
-	: Client(client_name), _output_port(0), _input_port(0), _trig_port(0)
+			   const char * ctrl_name)
+	: Client(client_name), _output_port(0), _input_port(0), _ctrl_port(0)
 {
 	long port_flags;
 
@@ -38,11 +38,11 @@ SimpleClient::SimpleClient(const char * client_name,
 			throw AudioError("can't register output port");
 	}
 
-	if (trig_name != 0) {
+	if (ctrl_name != 0) {
 		port_flags = JackPortIsInput | JackPortIsTerminal;
-		if ((_output_port = jack_port_register(_client, trig_name, JACK_DEFAULT_AUDIO_TYPE,
+		if ((_ctrl_port = jack_port_register(_client, ctrl_name, JACK_DEFAULT_AUDIO_TYPE,
 						       port_flags, 0))==NULL)
-			throw AudioError("can't register trigger port");
+			throw AudioError("can't register control port");
 	}
 
 	if (jack_activate(_client))
@@ -63,16 +63,16 @@ SimpleClient::process_callback_(nframes_t nframes, void *arg)
 
 	if (this_->_process_cb) {
 		try {
-			sample_t *in=NULL, *out=NULL, *trig=NULL;
+			sample_t *in=NULL, *out=NULL, *ctrl=NULL;
 			if (this_->_input_port)
 				in = (sample_t *)jack_port_get_buffer(this_->_input_port, nframes);
 			if (this_->_output_port)
 				out = (sample_t *)jack_port_get_buffer(this_->_output_port, nframes);
-			if (this_->_trig_port)
-				trig = (sample_t *)jack_port_get_buffer(this_->_trig_port, nframes);
+			if (this_->_ctrl_port)
+				ctrl = (sample_t *)jack_port_get_buffer(this_->_ctrl_port, nframes);
 			nframes_t time = jack_last_frame_time(this_->_client);
 
-			this_->_process_cb(in, out, trig, nframes, time);
+			this_->_process_cb(in, out, ctrl, nframes, time);
 		}
 		catch (const std::runtime_error &e) {
 			this_->stop(e.what());
@@ -87,5 +87,5 @@ SimpleClient::_disconnect_all()
 {
 	if (_output_port) jack_port_disconnect(_client, _output_port);
 	if (_input_port) jack_port_disconnect(_client, _input_port);
-	if (_trig_port) jack_port_disconnect(_client, _trig_port);
+	if (_ctrl_port) jack_port_disconnect(_client, _ctrl_port);
 }

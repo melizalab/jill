@@ -30,11 +30,12 @@ namespace po = boost::program_options;
  * -l : log file
  * -i : input ports
  * -o : output ports
+ * -c : control ports  [not included by default]
  *
  */
 class JillOptions : public Options {
 public:
-	JillOptions(const char *program_name, const char *program_version);
+	JillOptions(const char *program_name, const char *program_version, bool supports_control=false);
 	virtual ~JillOptions() {}
 
 	/** The client name (used in internal JACK representations) */
@@ -43,6 +44,8 @@ public:
 	std::vector<std::string> input_ports;
 	/** A vector of outputs to connect to the client */
 	std::vector<std::string> output_ports;
+	/** A vector of ports to connect to the client's control port */
+	std::vector<std::string> control_ports;
 	/** The log file to write application events to */
 	std::string logfile;
 
