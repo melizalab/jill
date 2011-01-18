@@ -12,33 +12,26 @@
 #ifndef _SNDFILE_PLAYER_CLIENT_HH
 #define _SNDFILE_PLAYER_CLIENT_HH
 
-#include "player_client.hh"
+#include "simple_client.hh"
+#include "sndfile_player.hh"
+#include "util/logger.hh"
 #include <boost/shared_ptr.hpp>
-#include <boost/shared_array.hpp>
 #include <string>
-#include <map>
 
 namespace jill {
-
-namespace util { class logstream; }
 
 /**
  * @ingroup clientgroup
  * @brief play soundfiles to output port
  *
- * Implements PlayerClient using sound files as the source of its
- * data. Provides functions to load data from sound files, or from
- * other buffers.  Data are resampled, on loading, to match the
- * samplerate of the JACK server.  Multiple files can be loaded and
- * accessed by key.
+ * An implementation of @a SimpleClient that plays back sound files.
+ * Reading, resampling, and buffering sound files is handled by @a
+ * SndfilePlayer. Has a single output port.
  *
  * To load a new waveform:
  * load_file(key, filename);
  *
- * To load pre-existing data, resampling as needed:
- * load_data(key, data, sampling_rate);
- *
- * To select an item:
+ * To select a loaded file for playback:
  * select(key);
  *
  * To start playback of the last loaded item:
@@ -47,23 +40,11 @@ namespace util { class logstream; }
  * oneshot();
  *
  */
-class SndfilePlayerClient : public PlayerClient {
+class SndfilePlayerClient : public SimpleClient {
 
 public:
-	/** the type of the key used to index sound buffers */
-	typedef std::string key_type;
-
-	/** the type of variable to store sound in */
-	typedef boost::shared_array<sample_t> data_array;
-
-	/** thrown when the user tries to access a non-existent buffer */
-	struct NoSuchKeyError : public std::runtime_error {
-		NoSuchKeyError(const key_type &k) : std::runtime_error(k + " does not exist") {}
-	};
-
 	SndfilePlayerClient(const char * client_name);
 	virtual ~SndfilePlayerClient();
-
 
 	/**
 	 * Parse a list of input ports; if one input is of the form
@@ -86,8 +67,9 @@ public:
 				string path = it->substr(8,string::npos);
 				it->assign(path + ":out");
 				ret.reset(new SndfilePlayerClient(path.c_str()));
-				ret->set_logger(os);
+				ret->_sounds.set_logger(os);
 				ret->load_file(path, path.c_str());
+				std::cout << ret->_sounds << std::endl;
 				return ret;
 			}
 		}
@@ -104,21 +86,9 @@ public:
 	 *
 	 *  @return number of samples loaded (adjusted for resampling)
 	 */
-	nframes_t load_file(const key_type & key, const char * audiofile);
-
-	/**
-	 *  Copy data from another buffer to the object. The data are
-	 *  resampled to match the server's sampling rate, so this can
-	 *  be a computationally expensive call.
-	 *
-	 *  @param key    an identifying key
-	 *  @param buf    the data buffer
-	 *  @param size   the number of samples in the buffer
-	 *  @param rate   the sampling rate of the data
-	 *
-	 *  @return number of samples loaded (adjusted for resampling)
-	 */
-	nframes_t load_data(const key_type &key, data_array buf, nframes_t size, nframes_t rate);
+	nframes_t load_file(const SndfilePlayer::key_type & key, const char * audiofile) {
+		return _sounds.load_file(key, audiofile);
+	}
 
 	/**
 	 * Select which item to play.
@@ -128,45 +98,20 @@ public:
 	 * @throws NoSuchKey  if the key is invalid
 	 * @return            the number of frames in the selected dataset
 	 */
-	nframes_t select(const key_type &key);
-
-	/**
-	 * Return true if the key is valid
-	 */
-	bool has_key(const key_type &key) const { return (_buffers.find(key) != _buffers.end()); }
-
-	/**
-	 * Resampling can take quite a while for long signals, so it's
-	 * useful to give the user some feedback. If a logger is
-	 * supplied, notifications will be sent to it.
-	 *
-	 * @param os     the @a logstream object
-	 */
-	void set_logger(util::logstream *os) { _logger = os; }
-
-	friend std::ostream & operator<< (std::ostream &os, const SndfilePlayerClient &client);
-
-protected:
-	// for logging resampling events; derivers might enjoy using it too
-	util::logstream *_logger;
+	nframes_t select(const SndfilePlayer::key_type & key) {
+		return _sounds.select(key);
+	}
 
 private:
 
-	void fill_buffer(sample_t *buffer, nframes_t frames);
-
+	SndfilePlayer _sounds;
 	virtual void _stop(const char *reason);
-	virtual void _reset() { _buf_pos = 0; }
-	virtual bool _is_running() const { return (_buf_pos < _buf_size); }
+	virtual void _reset() { 
+		_sounds.reset();
+		_status_msg = "Completed playback";
+	}
+	virtual bool _is_running() const { return (_sounds.position() > 0); }
 
-	// the currently selected dataset
-	key_type _buf_name;
-	data_array _buf;
-	volatile nframes_t _buf_pos;
-	nframes_t _buf_size;
-
-	// the stored buffers
-	std::map<key_type, data_array> _buffers;
-	std::map<key_type, nframes_t> _buffer_sizes;
 
 };
 

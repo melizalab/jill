@@ -21,23 +21,31 @@ namespace jill {
  * @brief a simple Client with up to one input and one output port
  *
  * This class implements the Client interface, providing up to one
- * input and one output port.  It also provides the appropriate
- * callback for this configuration, which is passed an input and and
- * output buffer of equal size.  It can be used for almost all simple
- * applications.
+ * input, one output, and one trigger port.  It also provides the
+ * appropriate callback for this configuration, which is passed an
+ * input and and output buffer of equal size.  It can be used for
+ * almost all simple applications, which need only to connect the
+ * ports to the appropriate sources and destinations, and register a
+ * callback to handle the data.
  */
 class SimpleClient : public Client {
 
 public:
 	/**
-	 * Type of the process callback.
+	 * Type of the process callback. The input and output buffers
+	 * are provided along with information about their sizes and
+	 * the current time.  Important: if a port is not connected,
+	 * the corresponding pointer will be NULL; callbacks need to
+	 * check for this.
 	 *
-	 * @param in the input buffer
-	 * @param out the output buffer
+	 * @param in the buffer for the input port
+	 * @param out the buffer for the output port
+	 * @param trig the buffer for the trigger port
 	 * @param size the number of samples in each buffer
 	 * @param time the time elapsed (in samples) since the client started
 	 */
-	typedef boost::function<void (sample_t *in, sample_t *out, nframes_t size, nframes_t time)> ProcessCallback;
+	typedef boost::function<void (sample_t *in, sample_t *out, sample_t *trig, 
+				      nframes_t size, nframes_t time)> ProcessCallback;
 
 	/**
 	 * Instantiate a new client.  Connects the client to the JACK
@@ -47,10 +55,12 @@ public:
 	 * @param client_name  the name of the client (as represented to JACK)
 	 * @param input_name  the name of the input port. If 0, none is registered
 	 * @param output_name the name of the output port. If 0, none is registered
+	 * @param trig_name the name of the trigger port. If 0, none is registered.
 	 */
 	SimpleClient(const char * client_name,
 		     const char * input_name=0,
-		     const char * output_name=0);
+		     const char * output_name=0,
+		     const char * trig_name=0);
 	virtual ~SimpleClient();
 
 	/**
@@ -71,6 +81,7 @@ protected:
 
 	jack_port_t *_output_port;
 	jack_port_t *_input_port;
+	jack_port_t *_trig_port;
 
 private:
 
@@ -78,8 +89,6 @@ private:
 
 	static int process_callback_(nframes_t, void *);
 
-	virtual void _connect_input(const char * port, const char * input=0);
-	virtual void _connect_output(const char * port, const char * output=0);
 	virtual void _disconnect_all();
 
 };

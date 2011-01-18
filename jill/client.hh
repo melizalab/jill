@@ -12,10 +12,9 @@
 #ifndef _JILL_CLIENT_HH
 #define _JILL_CLIENT_HH
 
+#include "types.hh"
 #include <boost/noncopyable.hpp>
 #include <boost/function.hpp>
-#include <jack/types.h>
-#include <jack/transport.h>
 #include <string>
 
 /**
@@ -37,13 +36,6 @@
  */
 
 namespace jill {
-
-/** The data type holding samples. Inherited from JACK */
-typedef jack_default_audio_sample_t sample_t;
-/** The data type holding information about frame counts. Inherited from JACK */
-typedef jack_nframes_t nframes_t;
-/** A data type holding extended position information. Inherited from JACK */
-typedef jack_position_t position_t;
 
 /**
  * @ingroup clientgroup
@@ -157,27 +149,21 @@ public:
 	}
 
 	/**
-	 * Connect the client's input to an output port
+	 * Connect one the client's ports to another
+	 * port. Implemention depends on a virtual function, but by
+	 * default the long name (e.g. client:in) is looked up first, and
+	 * if this fails then it attempts to find it on the local client.
 	 *
-	 * @param port The name of the port to connect to
-	 * @param input The name of the client's input port, or 0 for default
+	 * @param src   The name of the source port.
+	 * @param dest  The name of the destination port.
+	 *
 	 */
-	void connect_input(const char * port, const char * input = 0) {
-		_connect_input(port, input);
+	void connect_port(const char * src, const char * dest) {
+		_connect_port(src, dest);
 	}
 
 	/**
-	 * Connect the client's output to an input port
-	 *
-	 * @param port The name of the port to connect to
-	 * @param output The name of the client's output port, or 0 for default
-	 */
-	void connect_output(const char * port, const char * output = 0) {
-		_connect_output(port, output);
-	}
-
-	/**
-	 * Disconnect the client from all its ports
+	 * Disconnect the client from all its ports.
 	 */
 	void disconnect_all() {
 		_disconnect_all();
@@ -298,22 +284,15 @@ private:
 	/* virtual functions! */
 
 	/**
-	 * Connect a port to the client's input. Customize based on
-	 * the number of ports, etc.
+	 * Connect ports. Default implementation is a simple
+	 * name-based lookup, but can be customized based on the
+	 * number of ports, etc.  Fails silently if the ports are
+	 * already connected.
 	 *
-	 * @param port     the name of the port to connect TO
-	 * @param input    the name of the client's port to connect; 0 is default
+	 * @param src     the name of the source port
+	 * @param dest    the name of the destination port
 	 */
-	virtual void _connect_input(const char * port, const char * input=0) = 0;
-
-	/**
-	 * Connect a port to the client's output. Customize based on
-	 * the number of ports, etc.
-	 *
-	 * @param port     the name of the port to connect TO
-	 * @param output    the name of the client's port to connect; 0 is default
-	 */
-	virtual void _connect_output(const char * port, const char * output=0) = 0;
+	virtual void _connect_port(const char * src, const char * dest);
 
 	/** Disconnect the client from all its connections */
 	virtual void _disconnect_all() = 0;

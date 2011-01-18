@@ -10,8 +10,10 @@
  * (at your option) any later version.
  */
 #include "client.hh"
+#include "util/string.hh"
 #include <jack/jack.h>
 #include <jack/statistics.h>
+#include <cerrno>
 
 using namespace jill;
 
@@ -171,3 +173,32 @@ Client::_stop(const char *reason)
 	_status_msg = (reason==0) ? "main loop terminated" : reason;
 	_quit = true;
 }
+
+void
+Client::_connect_port(const char * src, const char * dest)
+{
+	// simple name-based lookup
+	jack_port_t *p1, *p2;
+	p1 = jack_port_by_name(_client, src);
+	if (p1==0) {
+		std::string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
+		p1 = jack_port_by_name(_client, n.c_str());
+		if (p1==0)
+			throw AudioError(util::make_string() << "the port " << n << " does not exist");
+	}
+
+	p2 = jack_port_by_name(_client, dest);
+	if (p2==0) {
+		std::string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
+		p2 = jack_port_by_name(_client, n.c_str());
+		if (p2==0)
+			throw AudioError(util::make_string() << "the port " << n << " does not exist");
+	}
+	
+	int error = jack_connect(_client, jack_port_name(p1), jack_port_name(p2));
+	if (error && error != EEXIST)
+		// no easy way to trap error message; it gets printed to stdout
+		throw AudioError(util::make_string() << "can't connect "
+				 << src << " to " << dest);
+}
+	

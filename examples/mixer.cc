@@ -26,7 +26,7 @@
  * Here we include the relevant JILL headers.  Most applications will
  * use the simple_client.hh header. If you plan to support
  * offline input (i.e. from a wav file), you will also need to include
- * player_jill_client.hh.  In addition, jill_options.hh contains a
+ * sndfile_player_client.hh.  In addition, jill_options.hh contains a
  * class used to parse command-line options, and jill/util/logger.hh
  * contains code for writing a timestamped logfile.
  */
@@ -54,7 +54,7 @@ using namespace jill;
  * application exits.
  *
  * The pclient is also a smart pointer, but to an object of type
- * PlayerClient. This object is a second client that is only
+ * SndfilePlayerClient. This object is a second client that is only
  * instantiated if the user specifies a sound file as input.  It's
  * responsible for reading that file and sending the samples to JACK.
  * 
@@ -84,18 +84,23 @@ static int ret = EXIT_SUCCESS;
  * connected to the application's input port, the streams will be
  * mixed.
  *
+ * The __restrict keyword is a promise to the compiler that in and out
+ * point to different buffers, which can allow some additional
+ * optimization.
+ *
  * @param in Pointer to the input buffer. NULL if the client has no
  *           input port 
  * @param out Pointer to the output buffer. NULL if no
  *            output port 
+ * @param trig Pointer to the trigger signal. Not used here.
  * @param nframes The number of frames in the data 
  * @param time The frame count at the beginning of the process loop. This is
  * guaranteed to be unique for all loops in this process
  */
 void
-process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
+process(sample_t * __restrict in, sample_t * __restrict out, sample_t *trig, 
+	nframes_t nframes, nframes_t time)
 {
-	//std::cout << time << std::endl;
 	memcpy(out, in, sizeof(sample_t) * nframes);
 }
 
@@ -206,12 +211,12 @@ main(int argc, char **argv)
 		 */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_input(it->c_str());
+			client->connect_port(it->c_str(), "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_output(it->c_str());
+			client->connect_port("out", it->c_str());
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 
