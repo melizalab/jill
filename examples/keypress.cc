@@ -61,15 +61,15 @@ main(int argc, char **argv)
 		
 		vector<string>::const_iterator it;
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_output(it->c_str());
+			client->connect_port("out",it->c_str());
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 
 		/* load soundfiles into client */
-		client->set_logger(&logv);
+		client->_sounds.set_logger(&logv);
 		options.assign(soundfiles,"sndfile");
 		for (vector<string>::iterator it = soundfiles.begin(); it != soundfiles.end(); ++it)
-			client->load_file(*it, it->c_str());
+			client->_sounds.load_file(*it, it->c_str());
 
 		for (;;) {
 			string val;
@@ -81,13 +81,13 @@ main(int argc, char **argv)
 			cin >> val;
 			try {
 				i = boost::lexical_cast<int>(val);
-				client->select(soundfiles.at(i));
+				client->_sounds.select(soundfiles.at(i));
 			}
 			catch (std::exception const &e) {
 				logv << logv.allfields << "Exiting" << endl;
 				break;
 			}
-			cout << *client << endl;
+			cout << client->_sounds << endl;
 			client->run();
 		}
 

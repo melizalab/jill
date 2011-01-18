@@ -68,7 +68,7 @@ public:
 				it->assign(path + ":out");
 				ret.reset(new SndfilePlayerClient(path.c_str()));
 				ret->_sounds.set_logger(os);
-				ret->load_file(path, path.c_str());
+				ret->_sounds.load_file(path, path.c_str());
 				std::cout << ret->_sounds << std::endl;
 				return ret;
 			}
@@ -76,35 +76,14 @@ public:
 		return ret;
 	}
 
-	/**
-	 *  Load data from a file into the buffer. The data are
-	 *  resampled to match the server's sampling rate, so this can
-	 *  be a computationally expensive call.
-	 *
-	 *  @param key    an identifying key
-	 *  @param path   the location of the file to load
-	 *
-	 *  @return number of samples loaded (adjusted for resampling)
+	/* the SndfilePlayer is exposed to allow clients to load and
+	 * select files, and because I am loathe to write wrapper
+	 * methods.
 	 */
-	nframes_t load_file(const SndfilePlayer::key_type & key, const char * audiofile) {
-		return _sounds.load_file(key, audiofile);
-	}
-
-	/**
-	 * Select which item to play.
-	 *
-	 * @param key      an identifying key
-	 *
-	 * @throws NoSuchKey  if the key is invalid
-	 * @return            the number of frames in the selected dataset
-	 */
-	nframes_t select(const SndfilePlayer::key_type & key) {
-		return _sounds.select(key);
-	}
+	SndfilePlayer _sounds;
 
 private:
 
-	SndfilePlayer _sounds;
 	virtual void _stop(const char *reason);
 	virtual void _reset() { 
 		_sounds.reset();

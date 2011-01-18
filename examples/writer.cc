@@ -32,10 +32,7 @@
 #include <signal.h>
 
 /*
- * In this example, we're going to leave out the PlayerClient,
- * because that functionality is pretty pointless for this client. It
- * also introduces some issues with threading that we can defer to a
- * later chapter.
+ * As before, include the relevant JILL headers
  */
 #include "jill/simple_client.hh"
 #include "jill/jill_options.hh"
@@ -55,10 +52,10 @@ using namespace jill;
 
 
 /**
- * First, we need to subclass Options to handle the additional
- * command-line options for this module.  The additional option is
- * positional; that is, it doesn't have any flags, which means we have
- * to add it to the positional options list.
+ * First, let's set up options. Rather than using the default
+ * JillOptions class, we're going to create a subclass.  This allows
+ * us to override the process_options() member function so that we can
+ * deal with the positional argument, which doesn't have any flags.
  */
 class WriterOptions : public JillOptions {
 
@@ -114,10 +111,11 @@ static util::BufferedWriter<util::Ringbuffer<sample_t>, util::SimpleSndfile> out
  * which saves them in the ringbuffer.  If the ringbuffer is full, it
  * will not be able to write all the samples.  This is a serious
  * error, so we throw an exception.  This will be caught by the caller
- * of this function and the application will exit gracefully.
+ * of this function and the application will exit gracefully.  The
+ * control port is ignored.
  */
 void
-process(sample_t *in, sample_t *out, nframes_t nframes, nframes_t time)
+process(sample_t *in, sample_t *out, sample_t *, nframes_t nframes, nframes_t time)
 {
 	nframes_t nf = output.push(in, nframes);
 	if (nf < nframes)
@@ -213,7 +211,7 @@ main(int argc, char **argv)
 		/* Connect the inputs */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_input(it->c_str());
+			client->connect_port(it->c_str(), "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
