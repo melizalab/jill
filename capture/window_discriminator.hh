@@ -37,7 +37,9 @@ public:
 
 	ThresholdCounter(const sample_type &threshold, size_type period_size, size_type period_count)
 		:  Counter<T>(period_count), _thresh(threshold), _period_size(period_size),
-		   _period_crossings(0), _period_nsamples(0), _nperiods(0) {}
+		   _period_crossings(0), _period_nsamples(0) {
+		_max_crossings = period_count * _period_size / 2;
+	}
 
 	/**
 	 * Analyze a block of samples. The samples are blocked into
@@ -52,17 +54,19 @@ public:
 	 * @param size         The number of samples in the buffer. Must be at least 2
 	 * @param count_thresh The count threshold. Can be negative or positive,
 	 *                     to indicate which crossing direction to look for.
+	 * @param state        If this is not null, copies the running count in each sample
+	 *                     to this buffer. Needs to be at least same size as samples. 
+	 *                     Useful for debug.
 	 *
 	 * @returns  -1 if no crossing occurred (including calls with samples < period_size)
 	 *           N=0+ if a crossing occurred in the Nth block of data
 	 *
-	 * Note: to access the counts for the last push()-ed block of
-	 * samples, use @a last_counts()
 	 */
- 	int push(const sample_type *samples, size_type size, int count_thresh) {
+ 	int push(const sample_type * samples, size_type size, int count_thresh, sample_type * state=0) {
 		int ret = -1, period = 0;
-		_nperiods = 0;
 		sample_type last = *samples;
+		if (state)
+			state[0] = float(Counter<T>::running_count()) / _max_crossings;
 		for (size_t i = 1; i < size; ++i) {
 			// I only check positive crossings because
 			// it's faster and there's not much point in
@@ -74,7 +78,6 @@ public:
 			if (_period_nsamples >= _period_size)
 			{ 
 				Counter<T>::push(_period_crossings);
-				_nperiods += 1;
 				if (this->is_full() && ret < 0) {
 					if (count_thresh > 0 && Counter<T>::running_count() > count_thresh)
 						ret = period;
@@ -85,6 +88,8 @@ public:
 				_period_nsamples = 0;
 				_period_crossings = 0;
 			}
+			if (state)
+				state[i] = float(Counter<T>::running_count()) / _max_crossings;
 			// here, ret should be the period in blocks or -1 if no crossing
 		}
 		return ret;
@@ -93,7 +98,6 @@ public:
 	/**
 	 * Access the counts from the last block of samples. Can be
 	 * upsampled to match the current sampling rate. Not implemented yet
-	 * 
 	 */
 	int last_counts() { return 0; }
 
@@ -119,8 +123,7 @@ private:
 	int _period_crossings;
 	/// number of samples analyzed in the current period
 	size_type _period_nsamples;
-	/// number of periods analyzed in the last block of samples
-	size_type _nperiods;
+	int _max_crossings;
 
 };
 
@@ -193,30 +196,32 @@ public:
 	 *
 	 *  @param samples    The input samples
 	 *  @param size       The number of available samples
+	 *  @param counts     A buffer, at least as large as samples, to store the current state
+	 *                    of whatever gate is active.
 	 *  @returns          The sample offset where a state change occurred, or 
                               -1 if no state change occurred
 	 *                    
 	 */
-	int push(const sample_type *samples, size_type size) {
+	int push(const sample_type * samples, size_type size, sample_type * counts=0) {
 		if (_open) {
-			int per = _close_counter.push(samples, size, _close_count_thresh);
+			int per = _close_counter.push(samples, size, _close_count_thresh, counts);
 			if (per > -1) {
 				int offset = per * _close_counter.period_size();
 				_open = false;
 				_close_counter.reset();
 				// push samples after offset to open counter
-				_open_counter.push(samples+offset, size-offset, _open_count_thresh);
+				_open_counter.push(samples+offset, size-offset, _open_count_thresh, counts+offset);
 				return offset;
 			}
 		}
 		else {
-			int per = _open_counter.push(samples, size, _open_count_thresh);
+			int per = _open_counter.push(samples, size, _open_count_thresh, counts);
 			if (per > -1) {
 				int offset = per * _open_counter.period_size();
 				_open = true;
 				_open_counter.reset();
 				// push samples after offset to close counter
-				_close_counter.push(samples+offset, size-offset, _close_count_thresh);
+				_close_counter.push(samples+offset, size-offset, _close_count_thresh, counts+offset);
 				return offset;
 			}
 		}

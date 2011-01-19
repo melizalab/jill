@@ -47,8 +47,10 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 	int frame;
 	// Step 1: Pass samples to window discriminator; its state may
 	// change, in which case the return value will be > -1 and
-	// indicate the frame in which the gate opened or closed.
-	int offset = wdiscrim->push(in, nframes);
+	// indicate the frame in which the gate opened or closed. It
+	// also takes care of copying the current state of the buffer
+	// to the control port (if not NULL)
+	int offset = wdiscrim->push(in, nframes, control);
 
 	// Step 2: Check state of gate
 	if (wdiscrim->open()) {
@@ -56,17 +58,14 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 		for (frame = 0; frame < offset; ++frame)
 			out[frame] = 0.0f;
 		for (; frame < nframes; ++frame)
-			out[frame] = 1.0f;
+			out[frame] = 0.7f;
 	}
 	else {
 		// 2B: gate is closed; write 1 before offset and 0 after
 		for (frame = 0; frame < offset; ++frame)
-			out[frame] = 1.0f;
+			out[frame] = 0.7f;
 		for (; frame < nframes; ++frame)
 			out[frame] = 0.0f;
-	}
-	if (control) {
-		// not implemented
 	}
 	// that's it!  It's up to the downstream client to decide what
 	// to do with this information.
@@ -93,8 +92,7 @@ class TriggerOptions : public jill::JillOptions {
 
 public:
 	TriggerOptions(const char *program_name, const char *program_version)
-		: JillOptions(program_name, program_version), // this calls the superclass constructor 
-		  create_count_port(false) { 
+		: JillOptions(program_name, program_version, true) { // this calls the superclass constructor 
 
 		// tropts is a group of options
 		po::options_description tropts("Trigger options");
@@ -112,9 +110,7 @@ public:
 			("close-rate", po::value<float>()->default_value(2),
 			 "set crossing rate thresh for close gate (s^-1)")
 			("close-period", po::value<float>()->default_value(5000), 
-			 "set integration time for close gate (ms)")
-			("output-counts",
-			 "create count port with state of threshold discriminator");
+			 "set integration time for close gate (ms)");
 
 		// we add our group of options to various groups
 		// already defined in the base class.
@@ -140,8 +136,6 @@ public:
 	int open_crossing_periods;
 	float close_crossing_period_ms;
 	int close_crossing_periods;
-
-	bool create_count_port;
 
 	/**
 	 * Some of the values are specified in terms of time, but the
@@ -180,13 +174,16 @@ protected:
 		assign(close_threshold, "close-thresh");
 		assign(close_crossing_rate, "close-rate");
 		assign(close_crossing_period_ms, "close-period");
-		assign(create_count_port, "output-counts");
 	}
 
-	/* also override print_usage to tell user where to stick configuration options */
+	/* also override print_usage to give user some additional help */
 	virtual void print_usage() {
 		std::cout << "Usage: " << _program_name << " [options] [output-file-template]\n"
 			  << visible_opts << std::endl
+			  << "Ports:\n"
+			  << " * in:         for input of the signal(s) to be monitored\n"
+			  << " * trig_out:   is >0.6 when the gate is open\n"
+			  << " * count_out:  (optional) the current estimate of signal power\n"
 		          << "\nconfiguration values will be read from window_discriminator.ini, if it exists"
 			  << std::endl;
 	}
@@ -212,7 +209,7 @@ main(int argc, char **argv)
 		 * (for debugging), we use the control port on
 		 * SimpleClient, setting it as an output.
 		 */
-		const char *count_port = (options.create_count_port) ? "count" : 0;
+		const char *count_port = (options.control_ports.empty()) ? NULL : "count_out";
 		client.reset(new SimpleClient(options.client_name.c_str(), "in", "trig_out", 
 					      count_port, false));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
@@ -225,6 +222,15 @@ main(int argc, char **argv)
 					      options.close_count_thresh, 
 					      options.close_crossing_periods,
 					      options.period_size));
+		/* Log parameters */
+		logv << logv.program << "sampling rate: " << client->samplerate() << endl
+		     << logv.program << "period size (samples): " << options.period_size << endl
+		     << logv.program << "open threshold: " << options.open_threshold << endl
+		     << logv.program << "open count thresh: " << options.open_count_thresh << endl
+		     << logv.program << "open periods: " << options.open_crossing_periods << endl
+		     << logv.program << "close threshold: " << options.close_threshold << endl
+		     << logv.program << "close count thresh: " << options.close_count_thresh << endl
+		     << logv.program << "close periods: " << options.close_crossing_periods << endl;
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -239,6 +245,11 @@ main(int argc, char **argv)
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
 			client->connect_port("trig_out", it->c_str());
 			logv << logv.allfields << "Connected output to port " << *it << endl;
+		}
+
+		for (it = options.control_ports.begin(); it != options.control_ports.end(); ++it) {
+			client->connect_port(count_port, it->c_str());
+			logv << logv.allfields << "Connected counter to port " << *it << endl;
 		}
 
 		client->set_process_callback(process);
