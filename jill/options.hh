@@ -103,7 +103,7 @@ public:
 	 * @param ref      reference to variable to recieve new value
 	 * @param name     the name of the option
 	 * @return         true if the value was defined
-	 * @throws boost::bad_any_cast if the value could not be case appropriately
+	 * @throws boost::bad_any_cast if the value could not be cast appropriately
 	 */
 	template <typename T>
 	bool assign(T &ref, const char *name) {
@@ -113,6 +113,7 @@ public:
 		}
 		return false;
 	}
+	// some specializations below
 
 protected:
 	std::string _program_name;
@@ -139,6 +140,13 @@ protected:
 	virtual void print_usage();
 
 };
+
+template <> inline
+bool Options::assign<bool>(bool &ref, const char *name) 
+{
+	ref = (vmap.count(name) > 0);
+	return ref;
+}
 
 /**
  * @ingroup miscgroup
