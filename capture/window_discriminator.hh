@@ -1,18 +1,16 @@
 /*
  * JILL - C++ framework for JACK
  *
- * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- *! @file
- *! @brief Various filters for processing audio streams
+ *! @file window_discriminator.hh
+ *! @brief Implements the window discriminator class
  *! 
- *! This file contains interfaces and templates for filtering audio streams
  */
 #ifndef _WINDOW_DISCRIMINATOR_HH
 #define _WINDOW_DISCRIMINATOR_HH
@@ -35,12 +33,11 @@ template<typename T>
 class ThresholdCounter : public Counter<T> {
 public:
 	typedef typename Counter<T>::size_type size_type;
-//	using typename Counter<T>::size_type;
 	typedef T sample_type;
 
 	ThresholdCounter(const sample_type &threshold, size_type period_size, size_type period_count)
 		:  Counter<T>(period_count), _thresh(threshold), _period_size(period_size),
-		  _period_crossings(0), _period_nsamples(0) {}
+		   _period_crossings(0), _period_nsamples(0), _nperiods(0) {}
 
 	/**
 	 * Analyze a block of samples. The samples are blocked into
@@ -58,10 +55,13 @@ public:
 	 *
 	 * @returns  -1 if no crossing occurred (including calls with samples < period_size)
 	 *           N=0+ if a crossing occurred in the Nth block of data
+	 *
+	 * Note: to access the counts for the last push()-ed block of
+	 * samples, use @a last_counts()
 	 */
  	int push(const sample_type *samples, size_type size, int count_thresh) {
 		int ret = -1, period = 0;
-//		ASSERT(size > 1);
+		_nperiods = 0;
 		sample_type last = *samples;
 		for (size_t i = 1; i < size; ++i) {
 			// I only check positive crossings because
@@ -74,6 +74,7 @@ public:
 			if (_period_nsamples >= _period_size)
 			{ 
 				Counter<T>::push(_period_crossings);
+				_nperiods += 1;
 				if (this->is_full() && ret < 0) {
 					if (count_thresh > 0 && Counter<T>::running_count() > count_thresh)
 						ret = period;
@@ -88,6 +89,13 @@ public:
 		}
 		return ret;
 	}
+
+	/**
+	 * Access the counts from the last block of samples. Can be
+	 * upsampled to match the current sampling rate. Not implemented yet
+	 * 
+	 */
+	int last_counts() { return 0; }
 
 	/// reset the queue
 	void reset() { 
@@ -111,6 +119,8 @@ private:
 	int _period_crossings;
 	/// number of samples analyzed in the current period
 	size_type _period_nsamples;
+	/// number of periods analyzed in the last block of samples
+	size_type _nperiods;
 
 };
 
@@ -217,28 +227,12 @@ public:
 	sample_type &open_thresh() { return _open_counter.thresh(); }
 	sample_type &close_thresh() { return _close_counter.thresh(); }
 
-	void set_file_output(jill::util::Sndfile *sf) {
-		_open_counter.set_file_output(sf);
-		_close_counter.set_file_output(sf);
-	}
-
 	friend std::ostream& operator<< (std::ostream &os, const WindowDiscriminator<T> &o) {
 		os << "Gate: " << ((o._open) ? "open" : "closed") << std::endl
 		   << "Open counter (" << o._open_count_thresh << "): " << o._open_counter << std::endl
 		   << "Close counter (" << o._close_count_thresh << "): " << o._close_counter << std::endl;
 		return os;
 	}
-
-#ifndef NDEBUG
-	void print_counters(std::ostream &os) {
-		for (int i = 0; i < _open_counter._count_storage.size() ; ++i)
-			os << _open_counter._count_storage[i] << ',';
-		os << std::endl;
-		for (int i = 0; i < _close_counter._count_storage.size() ; ++i)
-			os << _close_counter._count_storage[i] << ',';
-		os << std::endl;
-	}
-#endif
 
 private:
 
