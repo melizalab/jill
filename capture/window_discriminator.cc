@@ -23,6 +23,7 @@
 #include <jill/simple_client.hh>
 #include <jill/util/logger.hh>
 #include <jill/jill_options.hh>
+#include <jill/util/ringbuffer.hh>
 using namespace jill;
 
 #include "window_discriminator.hh"
@@ -33,6 +34,12 @@ static boost::scoped_ptr<SimpleClient> client;
 static boost::scoped_ptr<wdiscrim_t> wdiscrim;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
+
+/* 
+ * Store open and close times in a ringbuffer for logging. Use longs
+ * in order to use sign for open vs close.
+ */
+util::Ringbuffer<int64_t> gate_times(128);
 
 /*
  * The process callback has fairly simple behavior; it stuffs samples
@@ -54,6 +61,8 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 
 	// Step 2: Check state of gate
 	if (wdiscrim->open()) {
+		if (offset >= 0)
+			gate_times.push_one(int64_t(time + offset));
 		// 2A: gate is open; write 0 before offset and 1 after
 		for (frame = 0; frame < offset; ++frame)
 			out[frame] = 0.0f;
@@ -62,6 +71,8 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 	}
 	else {
 		// 2B: gate is closed; write 1 before offset and 0 after
+		if (offset >= 0)
+			gate_times.push_one(int64_t(time + offset)*-1);
 		for (frame = 0; frame < offset; ++frame)
 			out[frame] = 0.7f;
 		for (; frame < nframes; ++frame)
@@ -79,6 +90,21 @@ signal_handler(int sig)
 		ret = EXIT_FAILURE;
 
 	client->stop("Received interrupt");
+}
+
+int 
+mainloop()
+{
+	int64_t *times;
+	int ntimes = gate_times.peek(&times);
+	for (int i = 0; i < ntimes; ++i) {
+		if (times[i] > 0)
+			logv << logv.allfields << "Signal start @ "  << times[i] << std::endl;
+		else
+			logv << logv.allfields << "Signal stop  @ "  << -times[i] << std::endl;
+	}
+	gate_times.advance(ntimes);
+	return 0;
 }
 
 /**
@@ -252,6 +278,8 @@ main(int argc, char **argv)
 			logv << logv.allfields << "Connected counter to port " << *it << endl;
 		}
 
+		client->set_mainloop_callback(mainloop);
+		client->set_mainloop_delay(1000);
 		client->set_process_callback(process);
 		client->run();
 		logv << logv.allfields << client->get_status() << endl;
