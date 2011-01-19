@@ -17,7 +17,7 @@ using namespace jill;
 SimpleClient::SimpleClient(const char * client_name,
 			   const char * input_name,
 			   const char * output_name,
-			   const char * ctrl_name)
+			   const char * ctrl_name, bool ctrl_input)
 	: Client(client_name), _output_port(0), _input_port(0), _ctrl_port(0)
 {
 	long port_flags;
@@ -39,7 +39,7 @@ SimpleClient::SimpleClient(const char * client_name,
 	}
 
 	if (ctrl_name != 0) {
-		port_flags = JackPortIsInput | JackPortIsTerminal;
+		port_flags = ((ctrl_input) ? JackPortIsInput : JackPortIsOutput) | JackPortIsTerminal;
 		if ((_ctrl_port = jack_port_register(_client, ctrl_name, JACK_DEFAULT_AUDIO_TYPE,
 						       port_flags, 0))==NULL)
 			throw AudioError("can't register control port");
