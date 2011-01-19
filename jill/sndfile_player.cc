@@ -70,6 +70,9 @@ SndfilePlayer::operator()(sample_t * __restrict buffer, nframes_t nframes) __res
 		memcpy(buffer, _buf.get()+_buf_pos, avail * sizeof(sample_t));
 		_buf_pos += avail;
 	}
+	if (avail < nframes)
+		memset(buffer+avail, 0, (nframes-avail) * sizeof(sample_t));
+
 }
 
 
