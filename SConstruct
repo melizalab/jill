@@ -51,7 +51,6 @@ else:
     env.Append(CCFLAGS=['-O2'])
 
 lib = SConscript('jill/SConscript', exports='env libname')
-examples = SConscript('examples/SConscript', exports='env lib')
-capture = SConscript('capture/SConscript', exports='env lib')
+modules = SConscript('modules/SConscript', exports='env lib')
 
-env.Alias('examples',examples)
+env.Alias('modules',modules)

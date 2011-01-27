@@ -11,6 +11,9 @@
  *! @file window_discriminator.hh
  *! @brief Implements the window discriminator class
  *! 
+ *
+ * There are a number of template classes in this file.  The main one
+ * of interest is WindowDiscriminator.
  */
 #ifndef _WINDOW_DISCRIMINATOR_HH
 #define _WINDOW_DISCRIMINATOR_HH
@@ -18,9 +21,8 @@
 #include <boost/noncopyable.hpp>
 #include <vector>
 #include <jill/util/counter.hh>
-#include <jill/util/sndfile.hh>
 
-namespace capture {
+namespace jill {
 
 /**
  * The ThresholdCounter is a simple window discriminator that counts
@@ -248,5 +250,5 @@ private:
 	int _close_count_thresh;
 };
 
-} // namespace capture
+} // namespace
 #endif

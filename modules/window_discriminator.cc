@@ -24,10 +24,10 @@
 #include <jill/util/logger.hh>
 #include <jill/jill_options.hh>
 #include <jill/util/ringbuffer.hh>
+#include "window_discriminator.hh"
 using namespace jill;
 
-#include "window_discriminator.hh"
-typedef capture::WindowDiscriminator<sample_t> wdiscrim_t;
+typedef jill::WindowDiscriminator<sample_t> wdiscrim_t;
 
 /* A smart pointer to the window discriminator */
 static boost::scoped_ptr<SimpleClient> client;
@@ -108,10 +108,10 @@ mainloop()
 }
 
 /**
- * This class parses options for the capture program from the
- * command-line and/or a configuration file.  As in writer.cc, we also
- * want to parse the default options for the JACK client, so we will
- * derive from a class that handles these options. There are a lot of
+ * This class parses options for the program from the command-line
+ * and/or a configuration file.  As in writer.cc, we also want to
+ * parse the default options for the JACK client, so we will derive
+ * from a class that handles these options. There are a lot of
  * options, so this class requires a lot of boilerplate code.
  */
 class TriggerOptions : public jill::JillOptions {
@@ -186,9 +186,10 @@ public:
 protected:
 	
 	/*
-	 * Need to override process_options() to parse the
-	 * options specified in this class. We call the Base function
-	 * explicitly so that it parses all of the generic options first.
+	 * Need to override process_options() to parse the options
+	 * specified in this class. We call the function from the base
+	 * class explicitly so that it parses all of the generic
+	 * options first.
 	 */
 	virtual void process_options() {
 		JillOptions::process_options();
@@ -210,7 +211,7 @@ protected:
 			  << " * in:         for input of the signal(s) to be monitored\n"
 			  << " * trig_out:   is >0.6 when the gate is open\n"
 			  << " * count_out:  (optional) the current estimate of signal power\n"
-		          << "\nconfiguration values will be read from window_discriminator.ini, if it exists"
+		          << "\nconfiguration values will be read from jill_thresh.ini, if it exists"
 			  << std::endl;
 	}
 
@@ -224,8 +225,8 @@ main(int argc, char **argv)
 	try {
 
 		/* Note the additional argument to load options from a configuration file */
-		TriggerOptions options("window_discriminator", "1.1.0rc3");
-		options.parse(argc,argv,"window_discriminator.ini");
+		TriggerOptions options("jill_thresh", "1.1.0rc3");
+		options.parse(argc,argv,"jill_thresh.ini");
 
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);

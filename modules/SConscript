@@ -5,10 +5,12 @@ menv = env.Clone()
 menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time',
 	 			'boost_program_options'])
 
-programs = {'mixer' : ['mixer.cc'],
-            'delay' : ['delay.cc'],
-            'writer' : ['writer.cc'],
-            'keypress' : ['keypress.cc'],
+programs = {'jill_mixer' : ['mixer.cc'],
+            'jill_delay' : ['delay.cc'],
+            'jill_writer' : ['writer.cc'],
+            'jill_play' : ['player.cc'],
+            'jill_thresh' : ['window_discriminator.cc'],
+            'jill_capture' : ['triggered_writer.cc', 'capture.cc']
             }
 
 out = []

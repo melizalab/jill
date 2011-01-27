@@ -85,6 +85,10 @@ public:
 					     sizeof(data_type) * nframes) / sizeof(data_type);
 	}
 
+	size_type push_one(const data_type & src) {
+		return push(&src, 1);
+	}
+
 	/**
 	 * Write data to the ringbuffer using a generator function.
 	 *

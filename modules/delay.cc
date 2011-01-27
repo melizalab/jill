@@ -99,7 +99,7 @@ main(int argc, char **argv)
 		 * control port, but this can be changed with an
 		 * argument.
 		 */	
-		JillOptions options("delay", "1.1.0rc3", true);
+		JillOptions options("jill_delay", "1.1.0rc3", true);
 		po::options_description delopts("Delay options");
 		delopts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");

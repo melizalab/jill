@@ -43,7 +43,7 @@ namespace jill {
 class SndfilePlayerClient : public SimpleClient {
 
 public:
-	SndfilePlayerClient(const char * client_name);
+	SndfilePlayerClient(const char * client_name, util::logstream * logger=0);
 	virtual ~SndfilePlayerClient();
 
 	/**
@@ -76,11 +76,18 @@ public:
 		return ret;
 	}
 
-	/* the SndfilePlayer is exposed to allow clients to load and
-	 * select files, and because I am loathe to write wrapper
-	 * methods.
-	 */
-	SndfilePlayer _sounds;
+	nframes_t load_file(const SndfilePlayer::key_type & key, const char * audiofile) {
+		return _sounds.load_file(key, audiofile);
+	}
+
+	nframes_t load_data(const SndfilePlayer::key_type & key, SndfilePlayer::data_array buf, 
+			    nframes_t size, nframes_t rate) {
+		return _sounds.load_data(key, buf, size, rate);
+	}
+
+	nframes_t select(const SndfilePlayer::key_type & key) {
+		return _sounds.select(key);
+	}
 
 private:
 
@@ -91,6 +98,7 @@ private:
 	}
 	virtual bool _is_running() const { return (_sounds.position() > 0); }
 
+	SndfilePlayer _sounds;
 
 };
 

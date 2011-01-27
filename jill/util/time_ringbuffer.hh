@@ -24,7 +24,7 @@ namespace jill { namespace util {
  *
  * The TimeRingbuffer is a specialization of Ringbuffer that stores
  * timing information about the position of the read and write
- * pointers.  The interface is the same as Ringbuffer, with the
+ * pointers.  The interface is the same as Ringbuffer, with
  * an extended @ref push and a new function,  @ref get_time.
  *
  * The TimeRingbuffer has to lock on the time variable to avoid race

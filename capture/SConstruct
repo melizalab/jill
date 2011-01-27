@@ -43,7 +43,8 @@ sapsucker_files = ['sapsucker.cc',
 if dio_support:
   env.Append(LIBS=['jack','jill','sndfile','samplerate','boost_date_time','boost_program_options','comedi'])
   sapsucker_files.append('nidaq_dio_switch.cc')
-  
+
+prog = env.Program('window_discriminator', ['window_discriminator.cc'])
 prog = env.Program('capture', ['capture.cc', 'trigger_writer.cc'])
 prog = env.Program('keypress_test', ['keypress_test.cc', 'keypress_switch.cc'])
 prog = env.Program('quota_test', ['quota_test.cc','quotas.cc'])
