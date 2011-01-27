@@ -15,7 +15,6 @@
 #include <iostream>
 #include <signal.h>
 
-
 /*
  * Here we include some headers from the JILL framework. Note
  * that we're using angle-brackets to reference the headers stored in

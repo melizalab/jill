@@ -18,7 +18,6 @@
 #define _MULTI_SNDFILE_HH
 
 #include "simple_sndfile.hh"
-
 #include <sys/time.h>
 
 namespace jill { namespace util {

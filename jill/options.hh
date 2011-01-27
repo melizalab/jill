@@ -16,7 +16,6 @@
 #include <stdexcept>
 #include <boost/program_options.hpp>
 
-
 /**
  * @defgroup optionsgroup Parse command-line options
  *

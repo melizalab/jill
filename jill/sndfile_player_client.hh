@@ -14,11 +14,12 @@
 
 #include "simple_client.hh"
 #include "sndfile_player.hh"
-#include "util/logger.hh"
 #include <boost/shared_ptr.hpp>
 #include <string>
 
 namespace jill {
+
+namespace util{ class logger;}
 
 /**
  * @ingroup clientgroup
@@ -69,7 +70,6 @@ public:
 				ret.reset(new SndfilePlayerClient(path.c_str()));
 				ret->_sounds.set_logger(os);
 				ret->_sounds.load_file(path, path.c_str());
-				std::cout << ret->_sounds << std::endl;
 				return ret;
 			}
 		}
