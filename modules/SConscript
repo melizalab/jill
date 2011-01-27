@@ -1,9 +1,12 @@
 import os
 Import('env lib')
 
+# clone environment and add libraries for modules
 menv = env.Clone()
-menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time',
-	 			'boost_program_options'])
+menv.Append(CPPPATH=['#'],LIBS=['sndfile','boost_date_time','boost_program_options'])
+if hasattr(os,'uname') and os.uname()[0]=="Linux":
+    # it may be necessary to adjust these for a given system
+    menv.Append(LIBS=['boost_thread'])
 
 programs = {'jill_mixer' : ['mixer.cc'],
             'jill_delay' : ['delay.cc'],

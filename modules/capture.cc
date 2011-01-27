@@ -109,7 +109,7 @@ public:
 	float trig_threshold;
 
 	void adjust_values(nframes_t samplerate) {
-		prebuffer_size = prebuffer_size_ms * samplerate / 1000;
+		prebuffer_size = (nframes_t)(prebuffer_size_ms * samplerate / 1000);
 	}
 		
 

@@ -102,7 +102,7 @@ play_untriggered(vector<string> &soundfiles)
 				client->set_freewheel(false);
 			}
 			if (ret != EXIT_SUCCESS) return;
-			::usleep(gap * 1e3);
+			::usleep(gap * 1000);
 		}
 	}
 }

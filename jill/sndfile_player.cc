@@ -64,9 +64,11 @@ SndfilePlayer::select(const key_type &key)
 void
 SndfilePlayer::operator()(sample_t * __restrict buffer, nframes_t nframes) __restrict
 {
-	int avail = _buf_size - _buf_pos;
+	// this code is potentially problematic due to unsigned/signed comparisons
+	// _buf_size should be >= _buf_pos at all times so make it unsigned for now
+	nframes_t avail = _buf_size - _buf_pos;
 	if (avail > 0) {
-		if (avail > int(nframes)) avail = nframes;
+		if (avail > nframes) avail = nframes;
 		memcpy(buffer, _buf.get()+_buf_pos, avail * sizeof(sample_t));
 		_buf_pos += avail;
 	}

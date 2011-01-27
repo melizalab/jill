@@ -66,7 +66,7 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 		// 2A: gate is open; write 0 before offset and 1 after
 		for (frame = 0; frame < offset; ++frame)
 			out[frame] = 0.0f;
-		for (; frame < nframes; ++frame)
+		for (; frame < (int)nframes; ++frame)
 			out[frame] = 0.7f;
 	}
 	else {
@@ -75,7 +75,7 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 			gate_times.push_one(int64_t(time + offset)*-1);
 		for (frame = 0; frame < offset; ++frame)
 			out[frame] = 0.7f;
-		for (; frame < nframes; ++frame)
+		for (; frame < (int)nframes; ++frame)
 			out[frame] = 0.0f;
 	}
 	// that's it!  It's up to the downstream client to decide what
@@ -174,12 +174,12 @@ public:
 	 * close_count_thresh, open_crossing_periods, close_crossing_periods
 	 */
 	void adjust_values(nframes_t samplerate) {
-		period_size = period_size_ms * samplerate / 1000;
-		open_crossing_periods = open_crossing_period_ms / period_size_ms;
-		close_crossing_periods = close_crossing_period_ms / period_size_ms;
+		period_size = (nframes_t)(period_size_ms * samplerate / 1000);
+		open_crossing_periods = (int)(open_crossing_period_ms / period_size_ms);
+		close_crossing_periods = (int)(close_crossing_period_ms / period_size_ms);
 		// count thresh is count rate * integration period
-		open_count_thresh = open_crossing_rate * period_size / 1000 * open_crossing_periods;
-		close_count_thresh = close_crossing_rate * period_size / 1000 * close_crossing_periods;
+		open_count_thresh = (int)(open_crossing_rate * period_size / 1000 * open_crossing_periods);
+		close_count_thresh = (int)(close_crossing_rate * period_size / 1000 * close_crossing_periods);
 	}
 		
 

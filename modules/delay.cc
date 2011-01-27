@@ -128,7 +128,7 @@ main(int argc, char **argv)
 		 * sampling rate.
 		 */
 		float delay_time = options.get<float>("delay");
-		unsigned int buffer_size = ceil(delay_time / 1000 * client->samplerate());
+		nframes_t buffer_size = (nframes_t)ceil(delay_time / 1000 * client->samplerate());
 		logv << logv.allfields << "Allocating delay buffer of size " << buffer_size 
 		     << " (" << delay_time << " ms)" << endl;
 		buffer.resize(buffer_size);
