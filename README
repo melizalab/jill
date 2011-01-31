@@ -12,6 +12,12 @@ reasonably modern C++ compiler.  To install these packages using yum:
 
 # yum install boost-devel jack-audio-connection-kit-devel
 
+JACK may require additional ALSA or coreaudio libraries to be installed
+depending on the platform. Other dependencies include libsndfile and 
+libsamplerate:
+
+# yum install libsndfile-devel libsamplerate-devel
+
 To compile the library:
 
 $ scons -Q library
