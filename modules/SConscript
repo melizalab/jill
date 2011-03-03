@@ -8,12 +8,12 @@ if hasattr(os,'uname') and os.uname()[0]=="Linux":
     # it may be necessary to adjust these for a given system
     menv.Append(LIBS=['boost_thread'])
 
-programs = {'jill_mixer' : ['mixer.cc'],
-            'jill_delay' : ['delay.cc'],
-            'jill_writer' : ['writer.cc'],
-            'jill_play' : ['player.cc'],
-            'jill_thresh' : ['window_discriminator.cc'],
-            'jill_capture' : ['triggered_writer.cc', 'capture.cc']
+programs = {'jill_mixer' : ['jill_mixer.cc'],
+            'jill_delay' : ['jill_delay.cc'],
+            'jill_writer' : ['jill_writer.cc'],
+            'jill_play' : ['jill_play.cc'],
+            'jill_thresh' : ['jill_thresh.cc'],
+            'jill_capture' : ['triggered_writer.cc', 'jill_capture.cc']
             }
 
 out = []
