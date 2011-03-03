@@ -22,6 +22,11 @@ for progname,srcs in programs.items():
     prog = menv.Program(progname,srcs+[lib])
     menv.Alias(progname,prog)
     out.append(prog)
+    env.Alias('install', env.Install(os.path.join(env['PREFIX'],'bin'),prog))
+
+# scripts
+scripts = ['jill_trigger_capture']
+env.Alias('install', env.Install(os.path.join(env['PREFIX'],'bin'),scripts))
 
 Return('out')
 

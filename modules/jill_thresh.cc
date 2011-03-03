@@ -205,7 +205,7 @@ protected:
 
 	/* also override print_usage to give user some additional help */
 	virtual void print_usage() {
-		std::cout << "Usage: " << _program_name << " [options] [output-file-template]\n"
+		std::cout << "Usage: " << _program_name << " [options]\n"
 			  << visible_opts << std::endl
 			  << "Ports:\n"
 			  << " * in:         for input of the signal(s) to be monitored\n"

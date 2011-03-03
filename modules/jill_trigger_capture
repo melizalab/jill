@@ -1,0 +1,28 @@
+#!/bin/bash
+
+if [[ -z "$2" ]]; then 
+    echo Starts a jill_thresh process and a jill_capture process that triggers off it.
+    echo usage: $0 "[options] src_port template"
+    echo
+    echo Options are passed to both programs; specify values using '=' 
+    exit
+fi
+
+CMDOPTS=""
+while [[ $# -gt 2 ]]; do
+    CMDOPTS="$CMDOPTS $1"
+    shift
+done
+
+SRCPORT=$1
+TCLIENTNAME="jthresh-${SRCPORT/:/_}"
+CCLIENTNAME="jcapture-${SRCPORT/:/_}"
+TEMPL=$2
+
+./jill_thresh $CMDOPTS -i $SRCPORT -n $TCLIENTNAME &
+THRESHPID="$!"
+sleep 1
+if kill -0 $THRESHPID; then
+    ./jill_capture $CMDOPTS -i $SRCPORT -c ${TCLIENTNAME}:trig_out -n $CCLIENTNAME $TEMPL
+fi
+

@@ -48,7 +48,7 @@ Options::print_usage()
 void
 Options::parse(int argc, char **argv, const char *configfile)
 {
-	po::store(po::command_line_parser(argc, argv).options(cmd_opts).positional(pos_opts).run(), vmap);
+	po::store(po::command_line_parser(argc, argv).options(cmd_opts).positional(pos_opts).allow_unregistered().run(), vmap);
 	if (configfile) {
 		std::ifstream ff(configfile);
 		if (ff.good())
