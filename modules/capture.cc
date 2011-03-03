@@ -82,6 +82,8 @@ public:
 		tropts.add_options()
 			("prebuffer", po::value<float>()->default_value(1000), 
 			 "set prebuffer size (ms)")
+			("buffer", po::value<float>()->default_value(2000), 
+			 "set file output buffer size (ms)")
 			("trig-thresh", po::value<float>()->default_value(0.6), 
 			 "set threshold for trigger signal (-1.0-1.0)");
 
@@ -105,11 +107,14 @@ public:
 	 */
 	std::string output_file_tmpl;
 	float prebuffer_size_ms;  // in ms
+	float buffer_size_ms;  // in ms
 	nframes_t prebuffer_size; // samples
+	nframes_t buffer_size; // samples
 	float trig_threshold;
 
 	void adjust_values(nframes_t samplerate) {
 		prebuffer_size = (nframes_t)(prebuffer_size_ms * samplerate / 1000);
+		buffer_size = (nframes_t)(buffer_size_ms * samplerate / 1000);
 	}
 		
 
@@ -142,6 +147,7 @@ protected:
 		JillOptions::process_options();
 		assign(output_file_tmpl, "output-tmpl");
 		assign(prebuffer_size_ms, "prebuffer");
+		assign(buffer_size_ms, "buffer");
 		assign(trig_threshold, "trig-thresh");
 	}
 
@@ -152,7 +158,7 @@ main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-		CaptureOptions options("jill_capture", "1.1.0rc1");
+		CaptureOptions options("jill_capture", "1.2.0b1");
 		options.parse(argc,argv,"jill_capture.ini");
 
 		logv.set_program(options.client_name);
@@ -161,15 +167,18 @@ main(int argc, char **argv)
 		/* Initialize the client. */
 		client.reset(new SimpleClient(options.client_name.c_str(), "in", 0, "trig_in"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
+		options.adjust_values(client->samplerate());
 
 		/* Initialize writer object and triggered writer */
 		jill::util::MultiSndfile writer(options.output_file_tmpl, client->samplerate());
 		twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
-						  client->samplerate() * 2, options.trig_threshold));
+						  options.buffer_size, options.trig_threshold));
 
 		/* Log parameters */
 		logv << logv.program << "output template: " << options.output_file_tmpl << endl
 		     << logv.program << "sampling rate: " << client->samplerate() << endl
+		     << logv.program << "buffer size: " << options.buffer_size << endl
+		     << logv.program << "prebuffer size: " << options.prebuffer_size << endl
 		     << logv.program << "trigger threshold: " << options.trig_threshold << endl;
 
 
