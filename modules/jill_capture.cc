@@ -23,7 +23,7 @@
  */
 #include <jill/simple_client.hh>
 #include <jill/util/logger.hh>
-#include <jill/util/multi_sndfile.hh>
+#include <jill/util/arf_sndfile.hh>
 #include <jill/jill_options.hh>
 
 /*
@@ -80,11 +80,11 @@ public:
 
 		po::options_description tropts("Capture options");
 		tropts.add_options()
-			("prebuffer", po::value<float>()->default_value(1000), 
+			("prebuffer", po::value<float>()->default_value(1000),
 			 "set prebuffer size (ms)")
-			("buffer", po::value<float>()->default_value(2000), 
+			("buffer", po::value<float>()->default_value(2000),
 			 "set file output buffer size (ms)")
-			("trig-thresh", po::value<float>()->default_value(0.6), 
+			("trig-thresh", po::value<float>()->default_value(0.6),
 			 "set threshold for trigger signal (-1.0-1.0)");
 
 		// we add our group of options to various groups
@@ -97,15 +97,15 @@ public:
 		// the output template is not added to the visible
 		// options, since it's specified positionally.
 		cmd_opts.add_options()
-			("output-tmpl", po::value<std::string>(), "output file template");
-		pos_opts.add("output-tmpl", -1);
-	} 
+			("output-file", po::value<std::string>(), "output filename");
+		pos_opts.add("output-file", -1);
+	}
 
 	/*
 	 * The public member variables are filled when we parse the
 	 * options, and subsequently accessed by external clients
 	 */
-	std::string output_file_tmpl;
+	std::string output_file;
 	float prebuffer_size_ms;  // in ms
 	float buffer_size_ms;  // in ms
 	nframes_t prebuffer_size; // samples
@@ -116,7 +116,7 @@ public:
 		prebuffer_size = (nframes_t)(prebuffer_size_ms * samplerate / 1000);
 		buffer_size = (nframes_t)(buffer_size_ms * samplerate / 1000);
 	}
-		
+
 
 protected:
 
@@ -125,27 +125,16 @@ protected:
 	 * about specifying the output filename template and the configuration file name
 	 */
 	virtual void print_usage() {
-		std::cout << "Usage: " << _program_name << " [options] [output-file-template]\n"
+		std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
 			  << visible_opts << std::endl
-			  << "output-file-template:  specify output files (e.g. myrecording_%entry%.wav)\n"
-			  << "                       if omitted, events are logged but no data is written\n"
-		          << "                       Template parameters:\n"
-		          << "                           %entry%        entry number\n"
-		          << "                           %total_msec%   msec since start of day\n"
-		          << "                           %month%        full month name\n"
-		          << "                           %day%          day of month (1-31)\n"
-		          << "                           %year%         full year\n"
-		          << "                           %hour%         hour (0-23)\n"
-		          << "                           %min%          minute (0-59)\n"
-		          << "                           %sec%          second (0-59)\n"
 		          << "\n"
 			  << "configuration values will be read from jill_capture.ini, if it exists"
 			  << std::endl;
 	}
-	
+
 	virtual void process_options() {
 		JillOptions::process_options();
-		assign(output_file_tmpl, "output-tmpl");
+		assign(output_file, "output-file");
 		assign(prebuffer_size_ms, "prebuffer");
 		assign(buffer_size_ms, "buffer");
 		assign(trig_threshold, "trig-thresh");
@@ -170,12 +159,12 @@ main(int argc, char **argv)
 		options.adjust_values(client->samplerate());
 
 		/* Initialize writer object and triggered writer */
-		jill::util::MultiSndfile writer(options.output_file_tmpl, client->samplerate());
+		jill::util::ArfSndfile writer(options.output_file, client->samplerate());
 		twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
 						  options.buffer_size, options.trig_threshold));
 
 		/* Log parameters */
-		logv << logv.program << "output template: " << options.output_file_tmpl << endl
+		logv << logv.program << "output file: " << options.output_file << endl
 		     << logv.program << "sampling rate: " << client->samplerate() << endl
 		     << logv.program << "buffer size: " << options.buffer_size << endl
 		     << logv.program << "prebuffer size: " << options.prebuffer_size << endl

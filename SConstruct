@@ -35,10 +35,10 @@ Options:
 """ % install_prefix)
 
 
-    
+
 env = Environment(CCFLAGS=['-Wall'],
                   CPPDEFINES = [('VERSION', '\\"%s\\"' % version)],
-                  LIBS=['jack','samplerate'],
+                  LIBS=['jack','samplerate','hdf5','hdf5_hl'],
                   PREFIX=install_prefix,
                   tools=['default'])
 

@@ -62,10 +62,12 @@ public:
 	 * Structure holding information about a file/entry
 	 */
 	struct Entry {
+		Entry() : nframes(0) {}
 		std::string filename;
+		size_type nframes;
 	};
 
-	virtual ~Sndfile() {}
+	virtual ~Sndfile() { }
 
 	/**
 	 * Open a new file or file group for writing.
@@ -107,6 +109,11 @@ public:
 		return _write(buf, samples);
 	}
 
+	/// Return the total number of frames written
+	size_type nframes() const {
+		return (current_entry()) ? current_entry()->nframes : 0;
+	}
+
 private:
 
 	/**
@@ -128,7 +135,11 @@ private:
 	virtual size_type _write(const int *buf, size_type nframes) = 0;
 	virtual size_type _write(const short *buf, size_type nframes) = 0;
 
-	/** Close the currently open file */
+	/**
+	 * Close the currently open file. NB: this gets called by
+	 * close() but not by the base class destructor.  Deriving
+	 * classes are required to clean up their own resources.
+	 */
 	virtual void _close() = 0;
 
 	/** Advance to the next entry */

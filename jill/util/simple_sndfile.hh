@@ -30,17 +30,9 @@ namespace jill { namespace util {
 class SimpleSndfile : public Sndfile {
 
 public:
-	struct Entry : public Sndfile::Entry {
-		Entry() : nframes(0) {}
-		size_type nframes;
-	};
 
 	SimpleSndfile();
 	SimpleSndfile(const std::string &filename, size_type samplerate);
-	virtual ~SimpleSndfile() {}
-
-	/// Return the total number of frames written
-	size_type nframes() const { return _entry.nframes; }
 
 protected:
 	virtual void _open(std::string const &filename, size_type samplerate);

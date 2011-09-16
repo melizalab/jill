@@ -22,7 +22,6 @@ To compile the library:
 
 $ scons -Q library
 
-
 ** Tutorial/Modules **
 
 The modules/ directory contains a number of useful JILL modules that

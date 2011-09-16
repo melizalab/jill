@@ -162,7 +162,7 @@ void
 TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 {
 	_logv << _logv.allfields << "Signal start @" << time << "; begin entry @" << time - prebuf;
-	const util::Sndfile::Entry *entry = _writer.next(NULL);
+	const util::Sndfile::Entry *entry = _writer.next("");
 	std::string s = entry->filename;
 	if (s != "")
 		_logv << "; writing to file " << s;
@@ -178,7 +178,6 @@ TriggeredWriter::close_entry(nframes_t time)
 {
 	if (_writer) {
 		_logv << _logv.allfields << "Signal stop  @" << time << std::endl;
-		_writer.close();
 	}
 }
 

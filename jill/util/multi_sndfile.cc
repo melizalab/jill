@@ -32,6 +32,8 @@ MultiSndfile::_next(const std::string &)  {
 	catch (const boost::io::format_error &e) {
 		throw FileError(make_string() << "invalid filename template: " << _fn_templ);
 	}
+	// close previous entry
+	_close();
 	SimpleSndfile::_open(_entry.filename.c_str(), _samplerate);
 	return &_entry;
 }

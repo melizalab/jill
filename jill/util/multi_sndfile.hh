@@ -52,6 +52,12 @@ public:
 	 */
 	MultiSndfile(const std::string &templ, size_type samplerate) { _open(templ, samplerate); }
 
+	/**
+	 * Destructor needs to call _close to make sure timestamp is
+	 * set correctly. Be careful in deriving classes.
+	 */
+	virtual ~MultiSndfile() { _close(); }
+
 	/** @return the current entry time */
 	void get_entry_time(struct timeval* ptv) const {
 		ptv[0] = _entry.time[0];

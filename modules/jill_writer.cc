@@ -13,8 +13,8 @@
  * learn how to implement a function that runs in the main loop.  The
  * main loop runs with a lower priority, and any tasks that do not
  * need realtime priority should be run here.  This includes any file
- * or network I/O, which can take an indeterminate amount of time.  
- * 
+ * or network I/O, which can take an indeterminate amount of time.
+ *
  * As in the previous chapter, we need somewhere to store the data,
  * but in this case we need a structure that can be safely accessed by
  * multiple threads.  This is called a ringbuffer, which has separate
@@ -23,6 +23,13 @@
  * pointer.  As long as the write process can deal with large chunks
  * of data and keep up with the faster process, the buffer will
  * prevent underruns.
+ *
+ * Data can be stored to an ARF file, or to any file format supported
+ * by libsndfile. These formats are supplied by different classes that
+ * inherit from Sndfile.  Because of this inheritance relationship, we
+ * can use polymorphism, which was introduced in jill_mixer. We access
+ * the class through a pointer to the base class and then decide at
+ * runtime which actual class will be used.
  *
  * We'll also see how to subclass Options to handle positional
  * arguments.
@@ -37,16 +44,18 @@
 #include "jill/simple_client.hh"
 #include "jill/jill_options.hh"
 #include "jill/util/logger.hh"
+#include "jill/util/string.hh"
 
 /*
  * After including the JILL headers we used in mixer, we also add some
  * headers related to handling disk IO.  The buffer_adapter.hh header
  * gives us access to the BufferedWriter class; we also need the
- * Ringbuffer class, from ringbuffer.hh, and the SimpleSndfile class from
- * simple_sndfile.hh
+ * Ringbuffer class, from ringbuffer.hh, the ArfSndfile class from
+ * arf_sndfile.hh, and the SimpleSndfile class from simple_sndfile.hh
  */
 #include "jill/util/buffer_adapter.hh"
 #include "jill/util/ringbuffer.hh"
+#include "jill/util/arf_sndfile.hh"
 #include "jill/util/simple_sndfile.hh"
 using namespace jill;
 
@@ -65,7 +74,7 @@ public:
 		cmd_opts.add_options()
 			("output_file", po::value<std::string>(), "set output file");
 		pos_opts.add("output_file", -1);
-	} 
+	}
 
 	std::string output_file;
 
@@ -83,7 +92,7 @@ protected:
 
 	void print_usage() {
 		std::cout << "Usage: " << _program_name << " [options] output_file\n\n"
-			  << "output_file can be any file format supported by libsndfile\n"
+			  << "output_file can be an ARF file or any file format supported by libsndfile\n"
 			  << visible_opts;
 	}
 };
@@ -102,7 +111,7 @@ protected:
 static boost::scoped_ptr<SimpleClient> client;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
-static util::BufferedWriter<util::Ringbuffer<sample_t>, util::SimpleSndfile> output(50000);
+static util::BufferedWriter<util::Ringbuffer<sample_t>, util::Sndfile> output(50000);
 
 /**
  * The process function is similar to the ones in the previous
@@ -122,19 +131,19 @@ process(sample_t *in, sample_t *out, sample_t *, nframes_t nframes, nframes_t ti
 		throw std::runtime_error("ringbuffer filled up");
 }
 
-/* 
+/*
  * We now introduce another callback function.  This function is
  * called by the Application class, which runs in the main thread of
  * the program.  Any actions that don't require realtime priority
  * should be placed in this loop.  In this program, we use the main
  * thread to write data from the RingbufferAdapter to disk, which is
  * done by calling the () operator on the buffer.
- * 
+ *
  * The function returns 0 if writing was successful, and a nonzero
  * code if it doesn't.  Returning anything other than 0 causes the
  * main loop to terminate.
  */
-int 
+int
 mainloop()
 {
 	output.flush();
@@ -152,7 +161,7 @@ mainloop()
  * report xruns to the logfile so that we can later figure out if and
  * where bad data were generated.
  */
-int 
+int
 log_xrun(float usec)
 {
 	logv << logv.allfields << "xrun: " << usec << " us" << std::endl;
@@ -160,7 +169,7 @@ log_xrun(float usec)
 }
 
 
-void 
+void
 signal_handler(int sig)
 {
 	if (sig != SIGINT)
@@ -193,16 +202,23 @@ main(int argc, char **argv)
 		client->set_xrun_callback(log_xrun);
 
 		/*
-		 * Open the output file here. We use the JACK server's
-		 * samplerate to specify the samplerate of the output
-		 * file. We then pass a pointer to the output file to
-		 * the RingbufferAdapter so it has somewhere to write
-		 * the data.
+		 * Open the output file here. Here's where we make a
+		 * runtime decision which class to use. We use the
+		 * JACK server's samplerate to specify the samplerate
+		 * of the output file. We then pass a pointer to the
+		 * output file to the RingbufferAdapter so it has
+		 * somewhere to write the data.
 		 */
-		logv << logv.allfields << "Opening " << options.output_file 
+		logv << logv.allfields << "Opening " << options.output_file
 		     << " for output; Fs = " << client->samplerate() << endl;
-		util::SimpleSndfile outfile(options.output_file.c_str(), client->samplerate());
-		output.set_sink(&outfile);
+		boost::scoped_ptr<util::Sndfile> outfile;
+		if (util::get_filename_extension(options.output_file)=="arf")
+			outfile.reset(new util::ArfSndfile(options.output_file, client->samplerate()));
+		else
+			outfile.reset(new util::SimpleSndfile(options.output_file, client->samplerate()));
+		/* Some sndfile classes require next() to be called before writing */
+		outfile->next("");
+		output.set_sink(outfile.get());
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -215,7 +231,7 @@ main(int argc, char **argv)
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
-		/* 
+		/*
 		 * This is where we tell the client what function to
 		 * call while running the main loop.  This is
 		 * important because it's what flushes samples from
@@ -227,7 +243,7 @@ main(int argc, char **argv)
 		client->set_process_callback(process);
 		client->run();
 		logv << logv.allfields << client->get_status() << endl;
-		logv << logv.allfields << "Total frames written: " << outfile.nframes() << endl;
+		logv << logv.allfields << "Total frames written: " << outfile->nframes() << endl;
 		return ret;
 	}
 	catch (Exit const &e) {
