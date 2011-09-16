@@ -27,11 +27,13 @@ In addition, JILL comes with classes to perform other common tasks:
   - @ref iogroup
   - @ref miscgroup
 
-@section Capture client
+@section Modules 
 
-Some specific information about capture and the classes it uses.
+A number of applications, or modules, have been written to perform
+common tasks.  Many complex operations can be performed with chains of
+modules.  More information about the supplied modules:
 
-  - @ref capturegroup
+  - @ref modulegroup
 
 @section license Licence
 

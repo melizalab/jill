@@ -8,7 +8,7 @@ using namespace jill::util;
 #include <iostream>
 
 const MultiSndfile::Entry*
-MultiSndfile::_next(const char *)  {
+MultiSndfile::_next(const std::string &)  {
 	if (_fn_templ.empty()) return &_entry;
 
 	struct timeval etime;
@@ -37,7 +37,7 @@ MultiSndfile::_next(const char *)  {
 }
 
 void
-MultiSndfile::_open(const char *templ, size_type samplerate)
+MultiSndfile::_open(const std::string &templ, size_type samplerate)
 {
 	_fn_templ = templ;
 	_samplerate = samplerate;

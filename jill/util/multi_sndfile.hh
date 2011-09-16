@@ -50,26 +50,22 @@ public:
 	 *
 	 * @param sprintf-style template with one numeric argument, e.g. "myfile_%04d.wav"
 	 */
-	MultiSndfile(const char *templ, size_type samplerate) { _open(templ, samplerate); }
-	MultiSndfile(const std::string &templ, size_type samplerate)  { _open(templ.c_str(), samplerate); }
-
-	/** @return the currently open file */
-	const std::string &current_file() const { return _entry.filename; }
+	MultiSndfile(const std::string &templ, size_type samplerate) { _open(templ, samplerate); }
 
 	/** @return the current entry time */
-	void get_entry_time(struct timeval* ptv) const { 
+	void get_entry_time(struct timeval* ptv) const {
 		ptv[0] = _entry.time[0];
 		ptv[1] = _entry.time[1];
 	};
 
 protected:
 
-	virtual void _open(const char *templ, size_type samplerate);
+	virtual void _open(const std::string &templ, size_type samplerate);
 	virtual void _close();
 
 private:
 
-	virtual const Entry* _next(const char *);
+	virtual const Entry* _next(const std::string &);
 
 	Entry _entry;
 	std::string _fn_templ;

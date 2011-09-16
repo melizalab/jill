@@ -20,7 +20,7 @@
  * greater than some threshold.  Instances of this class can act as
  * function objects, which means they can be registered as callbacks
  * in JILL.
- * 
+ *
  */
 #ifndef _TRIGGERED_WRITER_HH
 #define _TRIGGERED_WRITER_HH
@@ -29,9 +29,9 @@
 #include <jill/types.hh>
 #include <jill/util/time_ringbuffer.hh>
 #include <jill/util/buffer_adapter.hh>
-#include <jill/util/multi_sndfile.hh>
+#include <jill/util/sndfile.hh>
 
-/* 
+/*
  * This header lets us declare the TriggeredWriter class noncopyable;
  * this prevents downstream users from accidentally creating a copy of
  * any TriggeredWriter objects, an operation we don't want to support.
@@ -74,15 +74,15 @@ public:
 	 * any internal variables.  The arguments to the constructor
 	 * are as follows:
 	 *
-	 * @param writer          A reference to a file output object. We 
+	 * @param writer          A reference to a file output object. We
 	 *                        need one that can write to multiple files.
          * @param logger          A reference to a logstream object, for logging
-         *                        start and stop information. 
+         *                        start and stop information.
 	 * @param prebuffer_size  The size of the prebuffer, in samples
 	 * @param buffer_size     The size of the process buffer, in samples
 	 * @param trig_thresh     The breakpoint for the trigger signal
 	 */
-	TriggeredWriter(util::MultiSndfile &writer, util::logstream &logger,
+	TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
 			nframes_t prebuffer_size, nframes_t buffer_size, sample_t trig_thresh);
 
 	/**
@@ -124,7 +124,7 @@ public:
  * should not be accessible from outside the class.
  */
 protected:
-	
+
 	/**
 	 * Open a new entry and log the start time
 	 *
@@ -147,10 +147,10 @@ private:
 	util::Ringbuffer<sample_t> _trig;
 
 	/// This is our reference to the soundfile writer, only accessed in flush()
-	util::MultiSndfile &_writer;
+	util::Sndfile &_writer;
 
 	/// Prebuffer; link to the writer to simplify dumping samples to disk; only used in flush()
-	util::BufferedWriter<util::Prebuffer<sample_t>, util::MultiSndfile> _prebuf;
+	util::BufferedWriter<util::Prebuffer<sample_t>, util::Sndfile> _prebuf;
 
 	/// Reference to a logstream to provide fine-scaled timestamp info
 	util::logstream &_logv;

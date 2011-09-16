@@ -43,10 +43,10 @@ using namespace jill;
  * the sound file writer, and the logger) have to be assigned here.
  * We also initialize the ringbuffer and prebuffer.
  */
-TriggeredWriter::TriggeredWriter(util::MultiSndfile &writer, util::logstream &logger, 
+TriggeredWriter::TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
 				 nframes_t prebuffer_size, nframes_t buffer_size, sample_t trig_thresh)
 	: _data(buffer_size, 0), _trig(buffer_size),
-	  _writer(writer), _prebuf(prebuffer_size, &writer), 
+	  _writer(writer), _prebuf(prebuffer_size, &writer),
 	  _logv(logger), _start_time(0), _trig_thresh(trig_thresh), _last_state(false){}
 
 
@@ -56,7 +56,7 @@ TriggeredWriter::TriggeredWriter(util::MultiSndfile &writer, util::logstream &lo
  * we just dump the data into the ringbuffers. This function is
  * essentially copied from writer.cc
  */
-void 
+void
 TriggeredWriter::operator() (sample_t *in, sample_t *, sample_t *trig, nframes_t nframes, nframes_t time)
 {
 	if (_start_time==0) _start_time = time;
@@ -71,8 +71,8 @@ TriggeredWriter::operator() (sample_t *in, sample_t *, sample_t *trig, nframes_t
 }
 
 /** This typedef is for convenience; it's used in the flush() function */
-typedef util::MultiSndfile::size_type (util::MultiSndfile::*writefun_t)(const sample_t *,
-									util::MultiSndfile::size_type);
+typedef util::Sndfile::size_type (util::Sndfile::*writefun_t)(const sample_t *,
+									util::Sndfile::size_type);
 
 /*
  * The flush function is called by the main thread. It runs through
@@ -90,8 +90,8 @@ TriggeredWriter::flush()
 	nframes_t frames = _trig.read_space();
 	nframes_t nf2 = _data.read_space();
 	if (nf2 < frames) frames = nf2;
-	if (frames==0) 
-		return _writer.current_file();
+	if (frames==0)
+		return _writer.current_entry()->filename;
 
 	// allocate buffers and copy out data. Though less efficient
 	// than directly accessing the memory, it spares some
@@ -108,7 +108,7 @@ TriggeredWriter::flush()
 	nframes_t last_state_change = 0;
 	bool state;
 	for (nframes_t i = 0; i <= frames; ++i) {
-		if (i < frames) 
+		if (i < frames)
 			state = (trig[i] > _trig_thresh);
 		if ((state != _last_state)||(i==frames)) {
 			sample_t * buf = data.get() + last_state_change;
@@ -128,7 +128,7 @@ TriggeredWriter::flush()
 					// and logs the time when the gate opened.
 					next_entry(time+i, _prebuf.read_space());
 
-					// The prebuffer is a BufferAdapter and can be flushed to disk. 
+					// The prebuffer is a BufferAdapter and can be flushed to disk.
 					_prebuf.flush();
 				}
 			}
@@ -151,7 +151,7 @@ TriggeredWriter::flush()
 		}
 	}
 
-	return _writer.current_file();
+	return _writer.current_entry()->filename;
 }
 
 /*
@@ -184,8 +184,8 @@ TriggeredWriter::close_entry(nframes_t time)
 
 void
 TriggeredWriter::close_entry()
-{ 
-	close_entry(_data.get_time()); 
+{
+	close_entry(_data.get_time());
 }
 
 /*

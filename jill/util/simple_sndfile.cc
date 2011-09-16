@@ -6,18 +6,14 @@ using namespace jill::util;
 
 SimpleSndfile::SimpleSndfile() {}
 
-SimpleSndfile::SimpleSndfile(const char *filename, size_type samplerate)
+
+SimpleSndfile::SimpleSndfile(const std::string &filename, size_type samplerate)
 {
 	_open(filename, samplerate);
 }
 
-SimpleSndfile::SimpleSndfile(const std::string &filename, size_type samplerate)
-{
-	_open(filename.c_str(), samplerate);
-}
-
 void
-SimpleSndfile::_open(const char *filename, size_type samplerate)
+SimpleSndfile::_open(const std::string &filename, size_type samplerate)
 {
 	std::memset(&_sfinfo, 0, sizeof(_sfinfo));
 
@@ -43,7 +39,7 @@ SimpleSndfile::_open(const char *filename, size_type samplerate)
 	}
 
 	// open output file for writing
-	SNDFILE *f = sf_open(filename, SFM_WRITE, &_sfinfo);
+	SNDFILE *f = sf_open(filename.c_str(), SFM_WRITE, &_sfinfo);
 	if (!f) {
 		throw FileError(make_string() << "couldn't open '" << filename << "' for output");
 	}

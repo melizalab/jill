@@ -54,7 +54,7 @@ struct FileError : public std::runtime_error {
  * extend this struct to add additional information.
  */
 class Sndfile : boost::noncopyable {
-	
+
 public:
 	typedef std::size_t size_type;
 
@@ -69,11 +69,11 @@ public:
 
 	/**
 	 * Open a new file or file group for writing.
-	 * 
+	 *
 	 * @param filename    the name of the file, the template for the group, etc
 	 * @param samplerate  the sampling rate of the file
 	 */
-	void open(const char *filename, size_type samplerate) { _open(filename, samplerate); }
+	void open(const std::string &filename, size_type samplerate) { _open(filename, samplerate); }
 
 	/** Close the currently open file */
 	void close() { _close(); }
@@ -84,7 +84,7 @@ public:
 	 *
 	 * @return  information about the new entry
 	 */
-	const Entry* next(const char *entry_name) { return _next(entry_name); }
+	const Entry* next(const std::string &entry_name) { return _next(entry_name); }
 
 	/**
 	 * @return information about the currently open entry
@@ -115,7 +115,7 @@ private:
  	 * @param filename    the name of the file, the template for the group, etc
 	 * @param samplerate  the sampling rate of the file
 	 */
-	virtual void _open(const char *filename, size_type samplerate) = 0;
+	virtual void _open(const std::string &filename, size_type samplerate) = 0;
 
 	/**
 	 * Write a buffer to the file
@@ -130,9 +130,9 @@ private:
 
 	/** Close the currently open file */
 	virtual void _close() = 0;
-	
+
 	/** Advance to the next entry */
-	virtual const Entry* _next(const char *entry_name) { return 0; }
+	virtual const Entry* _next(const std::string &entry_name) { return 0; }
 
 	/**
 	 * @return information about the currently open entry

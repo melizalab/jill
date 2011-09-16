@@ -37,14 +37,13 @@ public:
 
 	SimpleSndfile();
 	SimpleSndfile(const std::string &filename, size_type samplerate);
-	SimpleSndfile(const char *filename, size_type samplerate);
 	virtual ~SimpleSndfile() {}
 
 	/// Return the total number of frames written
 	size_type nframes() const { return _entry.nframes; }
 
 protected:
-	virtual void _open(const char *filename, size_type samplerate);
+	virtual void _open(std::string const &filename, size_type samplerate);
 	virtual void _close();
 
 	virtual bool _valid() const;
@@ -55,7 +54,7 @@ protected:
 	virtual size_type _write(const short *buf, size_type nframes);
 
 private:
-	virtual const Entry* _next(const char *entry_name) { return &_entry; }
+	virtual const Entry* _next(std::string const &entry_name) { return &_entry; }
 	virtual const Entry* _current_entry() const { return &_entry; }
 
 	Entry _entry;
