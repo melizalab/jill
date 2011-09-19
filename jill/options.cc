@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <fstream>
+
 #include "jill_options.hh"
 
 using namespace jill;
@@ -78,7 +79,8 @@ JillOptions::JillOptions(const char *program_name, const char *program_version, 
 		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
 		("log,l",     po::value<string>(), "set logfile (default stdout)")
 		("out,o",     po::value<vector<string> >(), "add connection to output port")
-		("in,i",      po::value<vector<string> >(), "add connection to input port/file");
+		("in,i",      po::value<vector<string> >(), "add connection to input port/file")
+		("key,k",     po::value<vector<string> >(), "set additional option (key=value)");
 	if (supports_control)
 		jillopts.add_options()
 			("ctrl,c",    po::value<vector<string> >(), "add connection to control port");
@@ -95,4 +97,15 @@ JillOptions::process_options()
 	assign(control_ports,"ctrl");
 	assign(client_name,"name");
 	assign(logfile,"log");
+
+	// parse key/value pairs
+	if (vmap.count("key")==0) return;
+	vector<string> const & kv = vmap["key"].as<vector<string> >();
+	for (vector<string>::const_iterator it = kv.begin(); it != kv.end(); ++it) {
+		string::size_type eq = it->find_last_of("=");
+		if (eq == string::npos)
+			throw po::invalid_option_value(" additional option syntax: key=value"),
+		additional_options[it->substr(0,eq)] = it->substr(eq+1);
+		std::cout << it->substr(0,eq) << " = " << it->substr(eq+1);
+	}
 }

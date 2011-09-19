@@ -44,10 +44,13 @@ using namespace jill;
  * We also initialize the ringbuffer and prebuffer.
  */
 TriggeredWriter::TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
-				 nframes_t prebuffer_size, nframes_t buffer_size, sample_t trig_thresh)
+				 nframes_t prebuffer_size, nframes_t buffer_size, sample_t trig_thresh,
+				 std::map<std::string, std::string> *entry_attrs)
 	: _data(buffer_size, 0), _trig(buffer_size),
 	  _writer(writer), _prebuf(prebuffer_size, &writer),
-	  _logv(logger), _start_time(0), _trig_thresh(trig_thresh), _last_state(false){}
+	  _logv(logger), _start_time(0), _trig_thresh(trig_thresh), _last_state(false),
+	  _entry_attrs(entry_attrs)
+{}
 
 
 /*
@@ -162,7 +165,11 @@ void
 TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 {
 	_logv << _logv.allfields << "Signal start @" << time << "; begin entry @" << time - prebuf;
-	const util::Sndfile::Entry *entry = _writer.next("");
+	util::Sndfile::Entry *entry = _writer.next("");
+	entry->set_attribute("sample_count",static_cast<int64_t>(time));
+	entry->set_attribute("signal_trigger",static_cast<int64_t>(time - prebuf));
+	if (_entry_attrs)
+		entry->set_attributes(*_entry_attrs);
 	std::string s = entry->filename;
 	if (s != "")
 		_logv << "; writing to file " << s;

@@ -31,6 +31,8 @@
 #include <jill/util/buffer_adapter.hh>
 #include <jill/util/sndfile.hh>
 
+#include <map>
+
 /*
  * This header lets us declare the TriggeredWriter class noncopyable;
  * this prevents downstream users from accidentally creating a copy of
@@ -81,9 +83,13 @@ public:
 	 * @param prebuffer_size  The size of the prebuffer, in samples
 	 * @param buffer_size     The size of the process buffer, in samples
 	 * @param trig_thresh     The breakpoint for the trigger signal
+	 * @param entry_attrs     If not NULL, set attributes on newly created entries
 	 */
 	TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
-			nframes_t prebuffer_size, nframes_t buffer_size, sample_t trig_thresh);
+			nframes_t prebuffer_size,
+			nframes_t buffer_size,
+			sample_t trig_thresh,
+			std::map<std::string, std::string> * entry_attrs=0);
 
 	/**
 	 * This function overloads the () operator; that is, if we
@@ -160,6 +166,7 @@ private:
 
 	sample_t _trig_thresh;
 	bool _last_state;
+	std::map<std::string, std::string> *_entry_attrs;
 };
 
 /*

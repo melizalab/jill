@@ -15,6 +15,24 @@
 using namespace jill::util;
 
 void
+ArfSndfile::Entry::set_attribute(std::string const & name, std::string const & value)
+{
+	if (entry) entry->write_attribute(name, value);
+}
+
+void
+ArfSndfile::Entry::set_attribute(std::string const & name, int64_t value)
+{
+	if (entry) entry->write_attribute(name, value);
+}
+
+void
+ArfSndfile::Entry::set_attribute(std::string const & name, float value)
+{
+	if (entry) entry->write_attribute(name, value);
+}
+
+void
 ArfSndfile::_open(const std::string &filename, size_type samplerate)
 {
 	_file.reset(new arf::file(filename, "a"));
@@ -33,7 +51,7 @@ ArfSndfile::_valid() const
 	return (_file && _entry.entry);
 }
 
-const ArfSndfile::Entry *
+ArfSndfile::Entry *
 ArfSndfile::_next(const std::string &entry_name)
 {
 	if (!_file)
@@ -55,8 +73,8 @@ ArfSndfile::_next(const std::string &entry_name)
 	return &_entry;
 }
 
-const ArfSndfile::Entry *
-ArfSndfile::_current_entry() const
+ArfSndfile::Entry *
+ArfSndfile::_current_entry()
 {
 	return &_entry;
 }

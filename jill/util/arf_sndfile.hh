@@ -39,6 +39,9 @@ public:
 	typedef jack_default_audio_sample_t storage_type;
 
 	struct Entry : public Sndfile::Entry {
+		virtual void set_attribute(std::string const & name, std::string const & value);
+		virtual void set_attribute(std::string const & name, int64_t value);
+		virtual void set_attribute(std::string const & name, float value);
 		arf::entry::ptr_type entry;
 		arf::h5pt::packet_table<storage_type>::ptr_type dataset;
 	};
@@ -66,8 +69,8 @@ protected:
 	virtual size_type _write(const short *buf, size_type nframes);
 private:
 
-	virtual const Entry* _next(const std::string &);
-	virtual const Entry* _current_entry() const;
+	virtual Entry* _next(const std::string &);
+	virtual Entry* _current_entry();
 
 	Entry _entry;
 	boost::scoped_ptr<arf::file> _file;

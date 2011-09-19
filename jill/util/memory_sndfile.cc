@@ -19,7 +19,7 @@ MemorySndfile::_close()
 	_entry.data.clear();
 }
 
-const MemorySndfile::Entry*
+MemorySndfile::Entry*
 MemorySndfile::_next(const std::string &)
 {
 	_close();

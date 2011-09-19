@@ -16,6 +16,7 @@
 #include <boost/noncopyable.hpp>
 #include <stdexcept>
 #include <string>
+#include <map>
 
 
 /**
@@ -59,10 +60,29 @@ public:
 	typedef std::size_t size_type;
 
 	/**
-	 * Structure holding information about a file/entry
+	 * Structure holding information about a file/entry. Several
+	 * virtual functions are provided for setting attributes on
+	 * the entry, if the file format supports it.  If not, the
+	 * functions are a no-op.
 	 */
 	struct Entry {
 		Entry() : nframes(0) {}
+		/**
+		 * Set an attribute of the entry. May be a no-op if
+		 * the file format doesn't support attributes.
+		 * @param name  the name of the attribute
+		 * @param value the value to set
+		 */
+		virtual void set_attribute(std::string const & name, std::string const & value) {}
+		virtual void set_attribute(std::string const & name, int64_t value) {}
+		virtual void set_attribute(std::string const & name, float value) {}
+
+		template <typename Value>
+		void set_attributes(std::map<std::string, Value> const & dict) {
+			typedef typename std::map<std::string, Value>::const_iterator iterator;
+			for (iterator it = dict.begin(); it != dict.end(); ++it)
+				set_attribute(it->first, it->second);
+		}
 		std::string filename;
 		size_type nframes;
 	};
@@ -86,12 +106,12 @@ public:
 	 *
 	 * @return  information about the new entry
 	 */
-	const Entry* next(const std::string &entry_name) { return _next(entry_name); }
+	Entry* next(const std::string &entry_name) { return _next(entry_name); }
 
 	/**
 	 * @return information about the currently open entry
 	 */
-	const Entry* current_entry() const { return _current_entry(); }
+	Entry* current_entry() { return _current_entry(); }
 
 	/** @return true if the sndfile is valid for writing data */
 	operator bool() const { return _valid(); }
@@ -110,7 +130,7 @@ public:
 	}
 
 	/// Return the total number of frames written
-	size_type nframes() const {
+	size_type nframes() {
 		return (current_entry()) ? current_entry()->nframes : 0;
 	}
 
@@ -143,12 +163,12 @@ private:
 	virtual void _close() = 0;
 
 	/** Advance to the next entry */
-	virtual const Entry* _next(const std::string &entry_name) { return 0; }
+	virtual Entry* _next(const std::string &entry_name) { return 0; }
 
 	/**
 	 * @return information about the currently open entry
 	 */
-	virtual const Entry* _current_entry() const { return 0; }
+	virtual Entry* _current_entry() { return 0; }
 
 	/** @return true if the sndfile is valid for writing data */
 	virtual bool _valid() const { return true; }

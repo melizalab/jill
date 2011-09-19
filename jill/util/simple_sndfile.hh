@@ -46,8 +46,8 @@ protected:
 	virtual size_type _write(const short *buf, size_type nframes);
 
 private:
-	virtual const Entry* _next(std::string const &entry_name) { return &_entry; }
-	virtual const Entry* _current_entry() const { return &_entry; }
+	virtual Entry* _next(std::string const &entry_name) { return &_entry; }
+	virtual Entry* _current_entry() { return &_entry; }
 
 	Entry _entry;
 	SF_INFO _sfinfo;

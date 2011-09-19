@@ -46,6 +46,8 @@ public:
 	std::vector<std::string> output_ports;
 	/** A vector of ports to connect to the client's control port */
 	std::vector<std::string> control_ports;
+	/** A vector of key/value additional options */
+	std::map<std::string, std::string> additional_options;
 	/** The log file to write application events to */
 	std::string logfile;
 

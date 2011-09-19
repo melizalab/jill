@@ -66,8 +66,8 @@ protected:
 	}
 
 private:
-	virtual const Entry* _next(const std::string &entry_name);
-	virtual const Entry* _current_entry() const { return &_entry; }
+	virtual Entry* _next(const std::string &entry_name);
+	virtual Entry* _current_entry() { return &_entry; }
 
 	template <class T>
 	size_type insert_data(const T *buf, size_type nframes) {

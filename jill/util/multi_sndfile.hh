@@ -59,7 +59,7 @@ public:
 	virtual ~MultiSndfile() { _close(); }
 
 	/** @return the current entry time */
-	void get_entry_time(struct timeval* ptv) const {
+	void get_entry_time(struct timeval* ptv) {
 		ptv[0] = _entry.time[0];
 		ptv[1] = _entry.time[1];
 	};
@@ -71,7 +71,7 @@ protected:
 
 private:
 
-	virtual const Entry* _next(const std::string &);
+	virtual Entry* _next(const std::string &);
 
 	Entry _entry;
 	std::string _fn_templ;

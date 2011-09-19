@@ -10,13 +10,13 @@
  *
  *! @file window_discriminator.cc
  *! @brief window discriminator module
- *! 
+ *!
  */
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
 #include <signal.h>
 #include <iostream>
-/* 
+/*
  * Note that the references to jill headers use angle brackets; do
  * likewise if the program lives outside the jill hierarchy.
  */
@@ -35,7 +35,7 @@ static boost::scoped_ptr<wdiscrim_t> wdiscrim;
 static util::logstream logv;
 static int ret = EXIT_SUCCESS;
 
-/* 
+/*
  * Store open and close times in a ringbuffer for logging. Use longs
  * in order to use sign for open vs close.
  */
@@ -81,9 +81,9 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 	// that's it!  It's up to the downstream client to decide what
 	// to do with this information.
 }
-		
+
 /* The usual signal handler */
-static void 
+static void
 signal_handler(int sig)
 {
 	if (sig != SIGINT)
@@ -92,16 +92,16 @@ signal_handler(int sig)
 	client->stop("Received interrupt");
 }
 
-int 
+int
 mainloop()
 {
 	int64_t *times;
 	int ntimes = gate_times.peek(&times);
 	for (int i = 0; i < ntimes; ++i) {
 		if (times[i] > 0)
-			logv << logv.allfields << "Signal start @ "  << times[i] << std::endl;
+			logv << logv.allfields << "Signal start @"  << times[i] << std::endl;
 		else
-			logv << logv.allfields << "Signal stop  @ "  << -times[i] << std::endl;
+			logv << logv.allfields << "Signal stop  @"  << -times[i] << std::endl;
 	}
 	gate_times.advance(ntimes);
 	return 0;
@@ -118,24 +118,24 @@ class TriggerOptions : public jill::JillOptions {
 
 public:
 	TriggerOptions(const char *program_name, const char *program_version)
-		: JillOptions(program_name, program_version, true) { // this calls the superclass constructor 
+		: JillOptions(program_name, program_version, true) { // this calls the superclass constructor
 
 		// tropts is a group of options
 		po::options_description tropts("Trigger options");
 		tropts.add_options()
-			("period-size", po::value<float>()->default_value(20), 
+			("period-size", po::value<float>()->default_value(20),
 			 "set analysis period size (ms)")
-			("open-thresh", po::value<float>()->default_value(0.01), 
+			("open-thresh", po::value<float>()->default_value(0.01),
 			 "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>()->default_value(20), 
+			("open-rate", po::value<float>()->default_value(20),
 			 "set crossing rate thresh for open gate (s^-1)")
-			("open-period", po::value<float>()->default_value(500), 
+			("open-period", po::value<float>()->default_value(500),
 			 "set integration time for open gate (ms)")
-			("close-thresh", po::value<float>()->default_value(0.01), 
+			("close-thresh", po::value<float>()->default_value(0.01),
 			 "set sample threshold for close gate")
 			("close-rate", po::value<float>()->default_value(2),
 			 "set crossing rate thresh for close gate (s^-1)")
-			("close-period", po::value<float>()->default_value(5000), 
+			("close-period", po::value<float>()->default_value(5000),
 			 "set integration time for close gate (ms)");
 
 		// we add our group of options to various groups
@@ -145,7 +145,7 @@ public:
 		cfg_opts.add(tropts);
 		// visible_opts holds options that are shown in the help text
 		visible_opts.add(tropts);
-	} 
+	}
 
 	float open_threshold;
 	float close_threshold;
@@ -154,7 +154,7 @@ public:
 	int open_count_thresh; // raw count
 	float close_crossing_rate;
 	int close_count_thresh;
-	
+
 	float period_size_ms; // in ms
 	nframes_t period_size; // in samples
 
@@ -181,10 +181,10 @@ public:
 		open_count_thresh = (int)(open_crossing_rate * period_size / 1000 * open_crossing_periods);
 		close_count_thresh = (int)(close_crossing_rate * period_size / 1000 * close_crossing_periods);
 	}
-		
+
 
 protected:
-	
+
 	/*
 	 * Need to override process_options() to parse the options
 	 * specified in this class. We call the function from the base
@@ -231,22 +231,22 @@ main(int argc, char **argv)
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);
 
-		/* 
+		/*
 		 * if the user asks for a count port to be created
 		 * (for debugging), we use the control port on
 		 * SimpleClient, setting it as an output.
 		 */
 		const char *count_port = (options.control_ports.empty()) ? NULL : "count_out";
-		client.reset(new SimpleClient(options.client_name.c_str(), "in", "trig_out", 
+		client.reset(new SimpleClient(options.client_name.c_str(), "in", "trig_out",
 					      count_port, false));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		options.adjust_values(client->samplerate());
 		wdiscrim.reset(new wdiscrim_t(options.open_threshold,
-					      options.open_count_thresh, 
+					      options.open_count_thresh,
 					      options.open_crossing_periods,
 					      options.close_threshold,
-					      options.close_count_thresh, 
+					      options.close_count_thresh,
 					      options.close_crossing_periods,
 					      options.period_size));
 		/* Log parameters */

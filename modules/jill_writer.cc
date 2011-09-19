@@ -217,7 +217,7 @@ main(int argc, char **argv)
 		else
 			outfile.reset(new util::SimpleSndfile(options.output_file, client->samplerate()));
 		/* Some sndfile classes require next() to be called before writing */
-		outfile->next("");
+		outfile->next("")->set_attributes(options.additional_options);
 		output.set_sink(outfile.get());
 
 		signal(SIGINT,  signal_handler);

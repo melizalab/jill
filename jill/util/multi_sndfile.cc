@@ -7,7 +7,7 @@ using namespace jill::util;
 
 #include <iostream>
 
-const MultiSndfile::Entry*
+MultiSndfile::Entry*
 MultiSndfile::_next(const std::string &)  {
 	if (_fn_templ.empty()) return &_entry;
 
