@@ -37,7 +37,6 @@ Options:
 
 
 env = Environment(ENV=os.environ,
-                  CCFLAGS=['-Wall'],
                   LIBS=['jack','samplerate','hdf5','hdf5_hl'],
                   PREFIX=install_prefix,
                   tools=['default'])
@@ -46,7 +45,7 @@ if system=='Darwin':
     env.Append(CPPPATH=['/opt/local/include'],
                LIBPATH=['/opt/local/lib'])
 if int(debug):
-    env.Append(CCFLAGS=['-g2'])
+    env.Append(CCFLAGS=['-g2', '-Wall'])
 else:
     env.Append(CCFLAGS=['-O2'])
 

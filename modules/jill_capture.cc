@@ -169,7 +169,11 @@ main(int argc, char **argv)
 		     << logv.program << "sampling rate: " << client->samplerate() << endl
 		     << logv.program << "buffer size: " << options.buffer_size << endl
 		     << logv.program << "prebuffer size: " << options.prebuffer_size << endl
-		     << logv.program << "trigger threshold: " << options.trig_threshold << endl;
+		     << logv.program << "trigger threshold: " << options.trig_threshold << endl
+		     << logv.program << "additional metadata:" << endl;
+		for (map<string,string>::const_iterator it = options.additional_options.begin();
+		     it != options.additional_options.end(); ++it)
+			logv << logv.program << "  " << it->first << "=" << it->second << endl;
 
 
 		signal(SIGINT,  signal_handler);

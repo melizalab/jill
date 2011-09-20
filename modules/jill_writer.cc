@@ -199,6 +199,9 @@ main(int argc, char **argv)
 		 */
 		client.reset(new SimpleClient(options.client_name.c_str(), "in"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
+		for (map<string,string>::const_iterator it = options.additional_options.begin();
+		     it != options.additional_options.end(); ++it)
+			logv << logv.program << "  " << it->first << "=" << it->second << endl;
 		client->set_xrun_callback(log_xrun);
 
 		/*

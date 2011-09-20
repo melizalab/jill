@@ -86,8 +86,8 @@ JillOptions::JillOptions(const char *program_name, const char *program_version, 
 		jillopts.add_options()
 			("ctrl,c",    po::value<vector<string> >(), "add connection to control port");
 	cmd_opts.add(jillopts);
-	// cfg_opts.add_options()
-	// 	("key,k",     po::value<vector<string> >(), "set additional option (key=value)");
+	cfg_opts.add_options()
+		("key,k",     po::value<vector<string> >(), "set additional option (key=value)");
 	visible_opts.add(jillopts);
 }
 
@@ -107,8 +107,7 @@ JillOptions::process_options()
 	for (vector<string>::const_iterator it = kv.begin(); it != kv.end(); ++it) {
 		string::size_type eq = it->find_last_of("=");
 		if (eq == string::npos)
-			throw po::invalid_option_value(" additional option syntax: key=value"),
+			throw po::invalid_option_value(" additional option syntax: key=value");
 		additional_options[it->substr(0,eq)] = it->substr(eq+1);
-		std::cout << it->substr(0,eq) << " = " << it->substr(eq+1) << std::endl;
 	}
 }
