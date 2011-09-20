@@ -17,7 +17,7 @@ programs = {'jill_mixer' : ['jill_mixer.cc'],
             }
 
 out = []
-            
+
 for progname,srcs in programs.items():
     prog = menv.Program(progname,srcs+[lib])
     menv.Alias(progname,prog)

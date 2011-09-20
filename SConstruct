@@ -36,8 +36,8 @@ Options:
 
 
 
-env = Environment(CCFLAGS=['-Wall'],
-                  CPPDEFINES = [('VERSION', '\\"%s\\"' % version)],
+env = Environment(ENV=os.environ,
+                  CCFLAGS=['-Wall'],
                   LIBS=['jack','samplerate','hdf5','hdf5_hl'],
                   PREFIX=install_prefix,
                   tools=['default'])

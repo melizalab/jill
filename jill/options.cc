@@ -14,6 +14,7 @@
 #include <fstream>
 
 #include "jill_options.hh"
+#include "version.hh"
 
 using namespace jill;
 using std::string;
@@ -34,7 +35,7 @@ void
 Options::print_version()
 {
 	std::cout << _program_name << " " << _program_version
-		  << " (JILL " VERSION ")" << std::endl;
+		  << " (JILL " << JILL_VERSION << ")" << std::endl;
 }
 
 
