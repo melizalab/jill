@@ -21,7 +21,7 @@ ArfSndfile::Entry::set_attribute(std::string const & name, std::string const & v
 }
 
 void
-ArfSndfile::Entry::set_attribute(std::string const & name, int64_t value)
+ArfSndfile::Entry::set_attribute(std::string const & name, boost::int64_t value)
 {
 	if (entry) entry->write_attribute(name, value);
 }

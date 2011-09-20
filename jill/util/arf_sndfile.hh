@@ -40,7 +40,7 @@ public:
 
 	struct Entry : public Sndfile::Entry {
 		virtual void set_attribute(std::string const & name, std::string const & value);
-		virtual void set_attribute(std::string const & name, int64_t value);
+		virtual void set_attribute(std::string const & name, boost::int64_t value);
 		virtual void set_attribute(std::string const & name, float value);
 		arf::entry::ptr_type entry;
 		arf::h5pt::packet_table<storage_type>::ptr_type dataset;

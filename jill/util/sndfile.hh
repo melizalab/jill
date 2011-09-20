@@ -14,6 +14,7 @@
 #define _SNDFILE_HH
 
 #include <boost/noncopyable.hpp>
+#include <boost/cstdint.hpp>
 #include <stdexcept>
 #include <string>
 #include <map>
@@ -74,7 +75,7 @@ public:
 		 * @param value the value to set
 		 */
 		virtual void set_attribute(std::string const & name, std::string const & value) {}
-		virtual void set_attribute(std::string const & name, int64_t value) {}
+		virtual void set_attribute(std::string const & name, boost::int64_t value) {}
 		virtual void set_attribute(std::string const & name, float value) {}
 
 		template <typename Value>

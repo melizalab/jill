@@ -2,7 +2,7 @@
 #include "string.hh"
 using namespace jill::util;
 
-#include <iostream>
+#include <cstring>
 
 SimpleSndfile::SimpleSndfile() {}
 

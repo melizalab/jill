@@ -33,7 +33,7 @@ void SimpleTemplate::process(const std::string& tmpl_str)
 	const char* tmpl = tmpl_str.c_str();
 	_template_string = tmpl;
 	_template.clear();
-	int template_len = strlen(tmpl);
+	int template_len = tmpl_str.length();
 	int start = 0;
 	bool in_template = false;
 	for (int n=0; n < template_len; n++) {
@@ -51,9 +51,9 @@ void SimpleTemplate::process(const std::string& tmpl_str)
 	std::list<std::string>::iterator iter;
 	for (iter = _template.begin(); iter != _template.end(); iter++) {
 	} // for
-} 
+}
 
-int SimpleTemplate::_calc_size() 
+int SimpleTemplate::_calc_size()
 {
 	int size = 0;
 	std::list<std::string>::iterator iter;
@@ -76,14 +76,14 @@ int SimpleTemplate::_calc_size()
 			} // if
 		} else {
 			size += s.length();
-		} // if	
+		} // if
 	} // for
 	return size;
 }
 
 std::string SimpleTemplate::str()
 {
-	int s = this->_calc_size(); 
+	int s = this->_calc_size();
 
 	// build string
 	std::string str;
@@ -109,7 +109,7 @@ std::string SimpleTemplate::str()
 			} // if
 		} else {
 			str.append(s);
-		} // if	
+		} // if
 	} // for
 
 	return str;
