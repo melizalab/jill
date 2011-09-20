@@ -93,7 +93,7 @@ protected:
 	void print_usage() {
 		std::cout << "Usage: " << _program_name << " [options] output_file\n\n"
 			  << "output_file can be an ARF file or any file format supported by libsndfile\n"
-			  << visible_opts;
+			  << visible_opts << std::endl;
 	}
 };
 

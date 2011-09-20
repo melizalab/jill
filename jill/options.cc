@@ -26,7 +26,8 @@ Options::Options(const char *program_name, const char *program_version)
 	po::options_description generic("General options");
 	generic.add_options()
 		("version,v", "print version string")
-		("help,h",      "print help message");
+		("help,h",    "print help message")
+		("config,C",  po::value<string>(), "load options from a ini file (overruled by command-line)");
 	cmd_opts.add(generic);
 	visible_opts.add(generic);
 }
@@ -48,17 +49,12 @@ Options::print_usage()
 
 
 void
-Options::parse(int argc, char **argv, const char *configfile)
+Options::parse(int argc, char **argv)
 {
-	po::store(po::command_line_parser(argc, argv).options(cmd_opts).positional(pos_opts).allow_unregistered().run(), vmap);
-	if (configfile) {
-		std::ifstream ff(configfile);
-		if (ff.good())
-			std::cout << "[Parsing " << configfile << ']' << std::endl;
-			po::store(po::parse_config_file(ff, cfg_opts), vmap);
-	}
-	po::notify(vmap);
 
+	// need two passes, one to find out if we need to read a config file
+	po::store(po::command_line_parser(argc, argv).options(cmd_opts).
+		  positional(pos_opts).allow_unregistered().run(), vmap);
 	if (vmap.count("help")) {
 		print_usage();
 		throw Exit(EXIT_SUCCESS);
@@ -67,6 +63,23 @@ Options::parse(int argc, char **argv, const char *configfile)
 		print_version();
 		throw Exit(EXIT_SUCCESS);
 	}
+
+	string configfile;
+	assign(configfile,"config");
+	if (!configfile.empty()) {
+		std::ifstream ff(configfile.c_str());
+		if (ff.good()) {
+			std::cout << "[Parsing " << configfile << ']' << std::endl;
+			po::parsed_options parsed = po::parse_config_file(ff, cfg_opts, true);
+			po::store(parsed, vmap);
+		}
+	}
+	// second pass to override configfile values
+	po::parsed_options parsed = po::command_line_parser(argc, argv).options(cmd_opts).
+		positional(pos_opts).allow_unregistered().run();
+	po::store(parsed, vmap);
+
+	po::notify(vmap);
 	process_options();
 }
 
@@ -81,13 +94,13 @@ JillOptions::JillOptions(const char *program_name, const char *program_version, 
 		("log,l",     po::value<string>(), "set logfile (default stdout)")
 		("out,o",     po::value<vector<string> >(), "add connection to output port")
 		("in,i",      po::value<vector<string> >(), "add connection to input port/file")
-		("key,k",     po::value<vector<string> >(), "set additional option (key=value)");
+		("attr,a",     po::value<vector<string> >(), "set additional attribute (key=value)");
 	if (supports_control)
 		jillopts.add_options()
 			("ctrl,c",    po::value<vector<string> >(), "add connection to control port");
-	cmd_opts.add(jillopts);
 	cfg_opts.add_options()
-		("key,k",     po::value<vector<string> >(), "set additional option (key=value)");
+		("attr,a",     po::value<vector<string> >());
+	cmd_opts.add(jillopts);
 	visible_opts.add(jillopts);
 }
 
@@ -102,8 +115,8 @@ JillOptions::process_options()
 	assign(logfile,"log");
 
 	// parse key/value pairs
-	if (vmap.count("key")==0) return;
-	vector<string> const & kv = vmap["key"].as<vector<string> >();
+	if (vmap.count("attr")==0) return;
+	vector<string> const & kv = vmap["attr"].as<vector<string> >();
 	for (vector<string>::const_iterator it = kv.begin(); it != kv.end(); ++it) {
 		string::size_type eq = it->find_last_of("=");
 		if (eq == string::npos)

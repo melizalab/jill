@@ -127,8 +127,9 @@ protected:
 	virtual void print_usage() {
 		std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
 			  << visible_opts << std::endl
-		          << "\n"
-			  << "configuration values will be read from jill_capture.ini, if it exists"
+			  << "Ports:\n"
+			  << " * in:         for input of the signal(s) to be recorded\n"
+			  << " * trig_in:    when >0.6, starts recording"
 			  << std::endl;
 	}
 
@@ -148,7 +149,7 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		CaptureOptions options("jill_capture", "1.2.0b1");
-		options.parse(argc,argv,"jill_capture.ini");
+		options.parse(argc,argv);
 
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);

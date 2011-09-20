@@ -83,9 +83,8 @@ public:
 	 *
 	 * @param argc Number of arguments
 	 * @param argv Array of command-line arguments
-	 * @param config Optional config file name
 	 */
-	virtual void parse(int argc, char **argv, const char *configfile=0);
+	virtual void parse(int argc, char **argv);
 
 	/**
 	 * Retrieve the value of an option from storage. It's
@@ -141,7 +140,7 @@ protected:
 };
 
 template <> inline
-bool Options::assign<bool>(bool &ref, const char *name) 
+bool Options::assign<bool>(bool &ref, const char *name)
 {
 	ref = (vmap.count(name) > 0);
 	return ref;

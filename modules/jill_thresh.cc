@@ -210,8 +210,7 @@ protected:
 			  << "Ports:\n"
 			  << " * in:         for input of the signal(s) to be monitored\n"
 			  << " * trig_out:   is >0.6 when the gate is open\n"
-			  << " * count_out:  (optional) the current estimate of signal power\n"
-		          << "\nconfiguration values will be read from jill_thresh.ini, if it exists"
+			  << " * count_out:  (optional) the current estimate of signal power"
 			  << std::endl;
 	}
 
@@ -226,7 +225,7 @@ main(int argc, char **argv)
 
 		/* Note the additional argument to load options from a configuration file */
 		TriggerOptions options("jill_thresh", "1.1.0rc3");
-		options.parse(argc,argv,"jill_thresh.ini");
+		options.parse(argc,argv);
 
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);
