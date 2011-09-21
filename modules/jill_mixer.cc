@@ -57,7 +57,7 @@ using namespace jill;
  * SndfilePlayerClient. This object is a second client that is only
  * instantiated if the user specifies a sound file as input.  It's
  * responsible for reading that file and sending the samples to JACK.
- * 
+ *
  * We also create a logstream, and an integer to hold the exit status
  * of the application.  We don't really need the logstream at module
  * scope for this application, but it will come in handy in later
@@ -89,16 +89,16 @@ static int ret = EXIT_SUCCESS;
  * optimization.
  *
  * @param in Pointer to the input buffer. NULL if the client has no
- *           input port 
+ *           input port
  * @param out Pointer to the output buffer. NULL if no
- *            output port 
+ *            output port
  * @param trig Pointer to the trigger signal. Not used here.
- * @param nframes The number of frames in the data 
+ * @param nframes The number of frames in the data
  * @param time The frame count at the beginning of the process loop. This is
  * guaranteed to be unique for all loops in this process
  */
 void
-process(sample_t * __restrict in, sample_t * __restrict out, sample_t *trig, 
+process(sample_t * __restrict in, sample_t * __restrict out, sample_t *trig,
 	nframes_t nframes, nframes_t time)
 {
 	memcpy(out, in, sizeof(sample_t) * nframes);
@@ -139,7 +139,7 @@ main(int argc, char **argv)
 		 * name of the application, the version, and pass it
 		 * the command line arguments.
 		 */
-		JillOptions options("jill_mixer", "1.1.0rc3");
+		JillOptions options("jill_mixer", "1.2.0rc1");
 		options.parse(argc,argv);
 
 		/*
@@ -166,7 +166,7 @@ main(int argc, char **argv)
 		 * function to call with the set_process_callback()
 		 * function.
 		 */
-		client.reset(new SimpleClient(options.client_name.c_str(), "in", "out"));
+		client.reset(new SimpleClient(options.client_name, "in", "out"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		/*
@@ -211,12 +211,12 @@ main(int argc, char **argv)
 		 */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(it->c_str(), "in");
+			client->connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_port("out", it->c_str());
+			client->connect_port("out", *it);
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 

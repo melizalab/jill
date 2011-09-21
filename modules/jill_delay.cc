@@ -71,7 +71,7 @@ process(sample_t *in, sample_t *out, sample_t *ctrl, nframes_t nframes, nframes_
 	}
 }
 
-void 
+void
 signal_handler(int sig)
 {
 	if (sig != SIGINT)
@@ -98,8 +98,8 @@ main(int argc, char **argv)
 		 * default, the user doesn't get an option to create a
 		 * control port, but this can be changed with an
 		 * argument.
-		 */	
-		JillOptions options("jill_delay", "1.1.0rc3", true);
+		 */
+		JillOptions options("jill_delay", "1.2.0rc1", true);
 		po::options_description delopts("Delay options");
 		delopts.add_options()
 			("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
@@ -118,8 +118,8 @@ main(int argc, char **argv)
 		 * starting the process loop until the buffer has been
 		 * allocated.
 		 */
-		const char *ctrl_port = (options.control_ports.empty()) ? NULL : "control";
-		client.reset(new SimpleClient(options.client_name.c_str(), "in", "out", ctrl_port));
+		std::string ctrl_port = (options.control_ports.empty()) ? "" : "control";
+		client.reset(new SimpleClient(options.client_name, "in", "out", ctrl_port));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		/*
@@ -129,7 +129,7 @@ main(int argc, char **argv)
 		 */
 		float delay_time = options.get<float>("delay");
 		nframes_t buffer_size = (nframes_t)ceil(delay_time / 1000 * client->samplerate());
-		logv << logv.allfields << "Allocating delay buffer of size " << buffer_size 
+		logv << logv.allfields << "Allocating delay buffer of size " << buffer_size
 		     << " (" << delay_time << " ms)" << endl;
 		buffer.resize(buffer_size);
 
@@ -140,21 +140,21 @@ main(int argc, char **argv)
 
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(it->c_str(), "in");
+			client->connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_port("out", it->c_str());
+			client->connect_port("out", *it);
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 
 		for (it = options.control_ports.begin(); it != options.control_ports.end(); ++it) {
-			client->connect_port(it->c_str(), ctrl_port);
+			client->connect_port(*it, ctrl_port);
 			logv << logv.allfields << "Connected control to port " << *it << endl;
 		}
 
-		/* 
+		/*
 		 * start the client running; it will continue until
 		 * the user hits ctrl-c or an error occurs
 		 */

@@ -44,7 +44,7 @@ public:
 	 * @param size the number of samples in each buffer
 	 * @param time the time elapsed (in samples) since the client started
 	 */
-	typedef boost::function<void (sample_t *in, sample_t *out, sample_t *ctrl, 
+	typedef boost::function<void (sample_t *in, sample_t *out, sample_t *ctrl,
 				      nframes_t size, nframes_t time)> ProcessCallback;
 
 	/**
@@ -56,15 +56,15 @@ public:
 	 * client, but it can also be used to send debug data.
 	 *
 	 * @param client_name  the name of the client (as represented to JACK)
-	 * @param input_name   the name of the input port. If 0, none is registered
-	 * @param output_name  the name of the output port. If 0, none is registered
-	 * @param ctrl_name    the name of the control port. If 0, none is registered.
+	 * @param input_name   the name of the input port. If empty, none is registered
+	 * @param output_name  the name of the output port. If empty, none is registered
+	 * @param ctrl_name    the name of the control port. If empty, none is registered.
 	 * @param ctrl_input   whether the control is an input or output port (default input)
 	 */
-	SimpleClient(const char * client_name,
-		     const char * input_name=0,
-		     const char * output_name=0,
-		     const char * ctrl_name=0,
+	SimpleClient(std::string const & client_name,
+		     std::string const & input_name="",
+		     std::string const & output_name="",
+		     std::string const & ctrl_name="",
 		     bool ctrl_input=true);
 	virtual ~SimpleClient();
 

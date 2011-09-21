@@ -21,7 +21,7 @@ using namespace jill;
 using std::string;
 using std::vector;
 
-Options::Options(const char *program_name, const char *program_version)
+Options::Options(std::string const &program_name, std::string const &program_version)
 	:  _program_name(program_name), _program_version(program_version)
 {
 	po::options_description generic("General options");
@@ -83,7 +83,7 @@ Options::parse(int argc, char **argv)
 
 
 
-JillOptions::JillOptions(const char *program_name, const char *program_version, bool supports_control)
+JillOptions::JillOptions(std::string const &program_name, std::string const &program_version, bool supports_control)
 	: Options(program_name, program_version), client_name(program_name)
 {
 	po::options_description jillopts("JILL options");

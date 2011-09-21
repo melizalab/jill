@@ -75,7 +75,7 @@ static void signal_handler(int sig)
 class CaptureOptions : public JillOptions {
 
 public:
-	CaptureOptions(const char *program_name, const char *program_version)
+	CaptureOptions(std::string const &program_name, std::string const &program_version)
 		: JillOptions(program_name, program_version, true) {
 
 		po::options_description tropts("Capture options");
@@ -152,14 +152,14 @@ main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-		CaptureOptions options("jill_capture", "1.2.0b1");
+		CaptureOptions options("jill_capture", "1.2.0rc1");
 		options.parse(argc,argv);
 
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);
 
 		/* Initialize the client. */
-		client.reset(new SimpleClient(options.client_name.c_str(), "in", 0, "trig_in"));
+		client.reset(new SimpleClient(options.client_name, "in", "", "trig_in"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 		options.adjust_values(client->samplerate());
 
@@ -192,12 +192,12 @@ main(int argc, char **argv)
 		/* connect ports */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(it->c_str(), "in");
+			client->connect_port(*it, "in");
 			logv << logv.allfields << "Connected " << *it << " to input port" << endl;
 		}
 
 		for (it = options.control_ports.begin(); it != options.control_ports.end(); ++it) {
-			client->connect_port(it->c_str(), "trig_in");
+			client->connect_port(*it, "trig_in");
 			logv << logv.allfields << "Connected " << *it << " to trigger port" << endl;
 		}
 		/*

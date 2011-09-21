@@ -69,7 +69,7 @@ using namespace jill;
 class WriterOptions : public JillOptions {
 
 public:
-	WriterOptions(const char *program_name, const char *program_version)
+	WriterOptions(std::string const &program_name, std::string const &program_version)
 		: JillOptions(program_name, program_version) { // this calls the superclass constructor
 		cmd_opts.add_options()
 			("output_file", po::value<std::string>(), "set output file");
@@ -184,7 +184,7 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		// parse options, using our custom options class
-		WriterOptions options("jill_writer", "1.1.0rc3");
+		WriterOptions options("jill_writer", "1.2.0rc1");
 		options.parse(argc,argv);
 
 		// fire up the logger
@@ -197,7 +197,7 @@ main(int argc, char **argv)
 		 * omit that argument. We also register our
 		 * xrun-logging function using set_xrun_callback.
 		 */
-		client.reset(new SimpleClient(options.client_name.c_str(), "in"));
+		client.reset(new SimpleClient(options.client_name, "in"));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 		for (map<string,string>::const_iterator it = options.additional_options.begin();
 		     it != options.additional_options.end(); ++it)
@@ -230,7 +230,7 @@ main(int argc, char **argv)
 		/* Connect the inputs */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(it->c_str(), "in");
+			client->connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 

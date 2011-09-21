@@ -44,7 +44,7 @@ namespace util{ class logger;}
 class SndfilePlayerClient : public SimpleClient {
 
 public:
-	SndfilePlayerClient(const char * client_name, util::logstream * logger=0);
+	SndfilePlayerClient(std::string const & client_name, util::logstream * logger=0);
 	virtual ~SndfilePlayerClient();
 
 	/**
@@ -67,20 +67,20 @@ public:
 			if (p!=string::npos) {
 				string path = it->substr(8,string::npos);
 				it->assign(path + ":out");
-				ret.reset(new SndfilePlayerClient(path.c_str()));
+				ret.reset(new SndfilePlayerClient(path));
 				ret->_sounds.set_logger(os);
-				ret->_sounds.load_file(path, path.c_str());
+				ret->_sounds.load_file(path, path);
 				return ret;
 			}
 		}
 		return ret;
 	}
 
-	nframes_t load_file(const SndfilePlayer::key_type & key, const char * audiofile) {
+	nframes_t load_file(const SndfilePlayer::key_type & key, std::string const & audiofile) {
 		return _sounds.load_file(key, audiofile);
 	}
 
-	nframes_t load_data(const SndfilePlayer::key_type & key, SndfilePlayer::data_array buf, 
+	nframes_t load_data(const SndfilePlayer::key_type & key, SndfilePlayer::data_array buf,
 			    nframes_t size, nframes_t rate) {
 		return _sounds.load_data(key, buf, size, rate);
 	}
@@ -91,8 +91,8 @@ public:
 
 private:
 
-	virtual void _stop(const char *reason);
-	virtual void _reset() { 
+	virtual void _stop(std::string const & reason);
+	virtual void _reset() {
 		_sounds.reset();
 		_status_msg = "Completed playback";
 	}

@@ -14,33 +14,33 @@
 
 using namespace jill;
 
-SimpleClient::SimpleClient(const char * client_name,
-			   const char * input_name,
-			   const char * output_name,
-			   const char * ctrl_name, bool ctrl_input)
+SimpleClient::SimpleClient(std::string const & client_name,
+			   std::string const & input_name,
+			   std::string const & output_name,
+			   std::string const & ctrl_name, bool ctrl_input)
 	: Client(client_name), _output_port(0), _input_port(0), _ctrl_port(0)
 {
 	long port_flags;
 
 	jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
 
-	if (input_name != 0) {
-		port_flags = JackPortIsInput | ((output_name==0) ? JackPortIsTerminal : 0);
-		if ((_input_port = jack_port_register(_client, input_name, JACK_DEFAULT_AUDIO_TYPE,
+	if (!input_name.empty()) {
+		port_flags = JackPortIsInput | ((output_name.empty()) ? JackPortIsTerminal : 0);
+		if ((_input_port = jack_port_register(_client, input_name.c_str(), JACK_DEFAULT_AUDIO_TYPE,
 						      port_flags, 0))==NULL)
 			throw AudioError("can't register input port");
 	}
 
-	if (output_name != 0) {
-		port_flags = JackPortIsOutput | ((input_name==0) ? JackPortIsTerminal : 0);
-		if ((_output_port = jack_port_register(_client, output_name, JACK_DEFAULT_AUDIO_TYPE,
+	if (!output_name.empty()) {
+		port_flags = JackPortIsOutput | ((input_name.empty()) ? JackPortIsTerminal : 0);
+		if ((_output_port = jack_port_register(_client, output_name.c_str(), JACK_DEFAULT_AUDIO_TYPE,
 						       port_flags, 0))==NULL)
 			throw AudioError("can't register output port");
 	}
 
-	if (ctrl_name != 0) {
+	if (!ctrl_name.empty()) {
 		port_flags = ((ctrl_input) ? JackPortIsInput : JackPortIsOutput) | JackPortIsTerminal;
-		if ((_ctrl_port = jack_port_register(_client, ctrl_name, JACK_DEFAULT_AUDIO_TYPE,
+		if ((_ctrl_port = jack_port_register(_client, ctrl_name.c_str(), JACK_DEFAULT_AUDIO_TYPE,
 						       port_flags, 0))==NULL)
 			throw AudioError("can't register control port");
 	}

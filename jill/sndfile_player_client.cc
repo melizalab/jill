@@ -17,8 +17,8 @@
 
 using namespace jill;
 
-SndfilePlayerClient::SndfilePlayerClient(const char * client_name, util::logstream * logger)
-	: SimpleClient(client_name, 0, "out"), _sounds(samplerate())
+SndfilePlayerClient::SndfilePlayerClient(std::string const & client_name, util::logstream * logger)
+	: SimpleClient(client_name, "", "out"), _sounds(samplerate())
 {
 	set_process_callback(boost::ref(_sounds));
 	_sounds.set_logger(logger);
@@ -27,7 +27,7 @@ SndfilePlayerClient::SndfilePlayerClient(const char * client_name, util::logstre
 SndfilePlayerClient::~SndfilePlayerClient() {}
 
 void
-SndfilePlayerClient::_stop(const char *reason)
+SndfilePlayerClient::_stop(std::string const & reason)
 {
 	_sounds.reset(false);
 	_status_msg = reason;

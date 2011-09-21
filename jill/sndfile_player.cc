@@ -6,9 +6,9 @@
 using namespace jill;
 
 nframes_t
-SndfilePlayer::load_file(const key_type &key, const char * audiofile)
+SndfilePlayer::load_file(const key_type &key, boost::filesystem::path const & audiofile)
 {
-	if (audiofile == 0) return 0;
+	if (!boost::filesystem::is_regular_file(audiofile)) return 0;
 	util::SndfileReader sf(audiofile);
 	nframes_t nframes = sf.frames();
 	data_array buf(new sample_t[nframes]);
@@ -83,7 +83,7 @@ namespace jill {
 std::ostream &
 operator<< (std::ostream &os, const SndfilePlayer &player)
 {
-	os << player._buf_name << ": " << player._buf_pos << '/' << player._buf_size 
+	os << player._buf_name << ": " << player._buf_pos << '/' << player._buf_size
 	   << " @ " << player._samplerate << " Hz";
 	return os;
 }

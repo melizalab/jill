@@ -18,10 +18,10 @@
 using namespace jill;
 
 
-Client::Client(const char * name)
+Client::Client(std::string const & name)
 	: _mainloop_delay(10000), _quit(false)
 {
-	if ((_client = jack_client_open(name, JackNullOption, NULL)) == 0)
+	if ((_client = jack_client_open(name.c_str(), JackNullOption, NULL)) == 0)
 		throw AudioError("can't connect to jack server");
 
 	jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
@@ -168,18 +168,18 @@ Client::_reset()
 }
 
 void
-Client::_stop(const char *reason)
+Client::_stop(std::string const &reason)
 {
-	_status_msg = (reason==0) ? "main loop terminated" : reason;
+	_status_msg = (reason.empty()) ? "main loop terminated" : reason;
 	_quit = true;
 }
 
 void
-Client::_connect_port(const char * src, const char * dest)
+Client::_connect_port(std::string const & src, std::string const & dest)
 {
 	// simple name-based lookup
 	jack_port_t *p1, *p2;
-	p1 = jack_port_by_name(_client, src);
+	p1 = jack_port_by_name(_client, src.c_str());
 	if (p1==0) {
 		std::string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
 		p1 = jack_port_by_name(_client, n.c_str());
@@ -187,18 +187,18 @@ Client::_connect_port(const char * src, const char * dest)
 			throw AudioError(util::make_string() << "the port " << n << " does not exist");
 	}
 
-	p2 = jack_port_by_name(_client, dest);
+	p2 = jack_port_by_name(_client, dest.c_str());
 	if (p2==0) {
 		std::string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
 		p2 = jack_port_by_name(_client, n.c_str());
 		if (p2==0)
 			throw AudioError(util::make_string() << "the port " << n << " does not exist");
 	}
-	
+
 	int error = jack_connect(_client, jack_port_name(p1), jack_port_name(p2));
 	if (error && error != EEXIST)
 		// no easy way to trap error message; it gets printed to stdout
 		throw AudioError(util::make_string() << "can't connect "
 				 << src << " to " << dest);
 }
-	
+

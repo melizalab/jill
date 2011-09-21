@@ -13,6 +13,7 @@
 
 #include "types.hh"
 #include <boost/shared_array.hpp>
+#include <boost/filesystem.hpp>
 #include <map>
 #include <string>
 
@@ -55,7 +56,7 @@ public:
 		NoSuchKeyError(const key_type &k) : std::runtime_error(k + " does not exist") {}
 	};
 
-	SndfilePlayer(nframes_t samplerate) 
+	SndfilePlayer(nframes_t samplerate)
 		:  _logger(NULL), _samplerate(samplerate), _buf_pos(0), _buf_size(0) {}
 	~SndfilePlayer() {}
 
@@ -69,7 +70,7 @@ public:
 	 *
 	 *  @return number of samples loaded (adjusted for resampling)
 	 */
-	nframes_t load_file(const key_type & key, const char * audiofile);
+	nframes_t load_file(const key_type & key, boost::filesystem::path const & audiofile);
 
 	/**
 	 *  Copy data from another buffer to the object. The data are
@@ -100,9 +101,9 @@ public:
 	 *
 	 * @return            the number of frames in the current buffer
 	 */
-	nframes_t reset(bool start=true) { 
-		_buf_pos = (start) ? 0 : _buf_size; 
-		return _buf_size; 
+	nframes_t reset(bool start=true) {
+		_buf_pos = (start) ? 0 : _buf_size;
+		return _buf_size;
 	}
 
 	/**
@@ -120,7 +121,7 @@ public:
 	 * @param nsamples the number of samples to copy
 	 */
 	void operator() (sample_t * buffer, nframes_t nsamples);
-	void operator() (sample_t * , sample_t *out, sample_t * , 
+	void operator() (sample_t * , sample_t *out, sample_t * ,
 			 nframes_t nsamples, nframes_t ) {
 		operator()(out, nsamples);
 	}

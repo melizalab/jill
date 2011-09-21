@@ -36,7 +36,10 @@ ArfSndfile::Entry::set_attribute(std::string const & name, float value)
 std::string
 ArfSndfile::Entry::name() const
 {
-	return make_string() << entry->file()->name() << "/" << entry->name();
+	if (entry)
+		return make_string() << entry->file()->name() << entry->name();
+	else
+		return "";
 }
 
 Sndfile::size_type

@@ -64,7 +64,7 @@ public:
 	 * @param program_name     the name of the program
 	 * @param program_version  the version of the program
 	 */
-	Options(const char *program_name, const char *program_version);
+	Options(std::string const &program_name, std::string const &program_version);
 	virtual ~Options() {}
 
 	/** Description of the options for commandline usage */
@@ -93,10 +93,10 @@ public:
 	 * @param name  The name of the option
 	 */
 	template <typename T>
-	T get(const char *name) { return vmap[name].as<T>();}
+	T get(std::string const &name) { return vmap[name].as<T>();}
 
 	template <typename T>
-	T get(const char *name, T const & default_value) {
+	T get(std::string const &name, T const & default_value) {
 		if (vmap.count(name) == 0)
 			return default_value;
 		else
@@ -112,7 +112,7 @@ public:
 	 * @throws boost::bad_any_cast if the value could not be cast appropriately
 	 */
 	template <typename T>
-	bool assign(T &ref, const char *name) {
+	bool assign(T &ref, std::string const &name) {
 		if (vmap.count(name)) {
 			ref = vmap[name].as<T>();
 			return true;
@@ -148,7 +148,7 @@ protected:
 };
 
 template <> inline
-bool Options::assign<bool>(bool &ref, const char *name)
+bool Options::assign<bool>(bool &ref, std::string const &name)
 {
 	ref = (vmap.count(name) > 0);
 	return ref;

@@ -36,19 +36,19 @@ static void signal_handler(int sig)
 
 struct PlayerOptions : public JillOptions {
 
-	PlayerOptions(const char *program_name, const char *program_version)
+	PlayerOptions(std::string const &program_name, std::string const &program_version)
 		: JillOptions(program_name, program_version, true) {
 
 		po::options_description opts("Player options");
 		opts.add_options()
-			("trigger,t", po::value<string>()->default_value("none"), 
+			("trigger,t", po::value<string>()->default_value("none"),
 			 "trigger type (none|key|dio|ctrl)")
 			("random,r", "randomize playback order")
 			("count,C", po::value<int>()->default_value(1), "number of times to repeat (0=infinite)")
 			("gap,g", po::value<int>()->default_value(100), "ms to pause between files")
 			("fast,F", "play files in faster than realtime")
 			("dio-line", po::value<int>(), "digital io line for trigger")
-			("trig-thresh", po::value<float>()->default_value(0.6), 
+			("trig-thresh", po::value<float>()->default_value(0.6),
 			 "set threshold for trigger signal (-1.0-1.0)");
 		cmd_opts.add(opts);
 		visible_opts.add(opts);
@@ -75,10 +75,10 @@ struct PlayerOptions : public JillOptions {
 	}
 };
 
-PlayerOptions options("jill_play", "1.1.0rc3");
+PlayerOptions options("jill_play", "1.2.0rc1");
 
 void
-play_untriggered(vector<string> &soundfiles) 
+play_untriggered(vector<string> &soundfiles)
 {
 	int gap, count;
 	bool random, fast;
@@ -143,12 +143,12 @@ main(int argc, char **argv)
 		logv.set_program(options.client_name);
 		logv.set_stream(options.logfile);
 
-		client.reset(new SndfilePlayerClient(options.client_name.c_str(), &logv));
+		client.reset(new SndfilePlayerClient(options.client_name, &logv));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
-		
+
 		vector<string>::const_iterator it;
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_port("out",it->c_str());
+			client->connect_port("out",*it);
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 
@@ -156,7 +156,7 @@ main(int argc, char **argv)
 		vector<string> soundfiles;
 		options.assign(soundfiles,"sndfile");
 		for (vector<string>::iterator it = soundfiles.begin(); it != soundfiles.end(); ++it)
-			client->load_file(*it, it->c_str());
+			client->load_file(*it, *it);
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);

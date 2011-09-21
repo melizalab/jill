@@ -18,7 +18,7 @@
 #include <iostream>
 /*
  * Note that the references to jill headers use angle brackets; do
- * likewise if the program lives outside the jill hierarchy.
+ * likewise if the program lives outside the current directory
  */
 #include <jill/simple_client.hh>
 #include <jill/util/logger.hh>
@@ -117,7 +117,7 @@ mainloop()
 class TriggerOptions : public jill::JillOptions {
 
 public:
-	TriggerOptions(const char *program_name, const char *program_version)
+	TriggerOptions(std::string const &program_name, std::string const &program_version)
 		: JillOptions(program_name, program_version, true) { // this calls the superclass constructor
 
 		// tropts is a group of options
@@ -224,7 +224,7 @@ main(int argc, char **argv)
 	try {
 
 		/* Note the additional argument to load options from a configuration file */
-		TriggerOptions options("jill_thresh", "1.1.0rc3");
+		TriggerOptions options("jill_thresh", "1.2.0rc1");
 		options.parse(argc,argv);
 
 		logv.set_program(options.client_name);
@@ -235,9 +235,8 @@ main(int argc, char **argv)
 		 * (for debugging), we use the control port on
 		 * SimpleClient, setting it as an output.
 		 */
-		const char *count_port = (options.control_ports.empty()) ? NULL : "count_out";
-		client.reset(new SimpleClient(options.client_name.c_str(), "in", "trig_out",
-					      count_port, false));
+		std::string count_port = (options.control_ports.empty()) ? "" : "count_out";
+		client.reset(new SimpleClient(options.client_name, "in", "trig_out", count_port, false));
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		options.adjust_values(client->samplerate());
@@ -264,17 +263,17 @@ main(int argc, char **argv)
 
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(it->c_str(), "in");
+			client->connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_port("trig_out", it->c_str());
+			client->connect_port("trig_out", *it);
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 
 		for (it = options.control_ports.begin(); it != options.control_ports.end(); ++it) {
-			client->connect_port(count_port, it->c_str());
+			client->connect_port(count_port, *it);
 			logv << logv.allfields << "Connected counter to port " << *it << endl;
 		}
 

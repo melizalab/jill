@@ -10,7 +10,6 @@ menv.Append(CPPPATH=['#'],
 programs = {'jill_mixer' : ['jill_mixer.cc'],
             'jill_delay' : ['jill_delay.cc'],
             'jill_writer' : ['jill_writer.cc'],
-            'test_writer' : ['test_writer.cpp'],
             'jill_play' : ['jill_play.cc'],
             'jill_thresh' : ['jill_thresh.cc'],
             'jill_capture' : ['triggered_writer.cc', 'jill_capture.cc']

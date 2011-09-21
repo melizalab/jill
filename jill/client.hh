@@ -107,7 +107,7 @@ public:
 	 *
 	 * @param name   the name of the client as represented to the server
 	 */
-	Client(const char * name);
+	Client(std::string const & name);
 	virtual ~Client();
 
 	/**
@@ -158,7 +158,7 @@ public:
 	 * @param dest  The name of the destination port.
 	 *
 	 */
-	void connect_port(const char * src, const char * dest) {
+	void connect_port(std::string const & src, std::string const & dest) {
 		_connect_port(src, dest);
 	}
 
@@ -202,7 +202,7 @@ public:
 	/**
 	 * Terminate the client at the next opportunity.
 	 */
-	void stop(const char * reason=0) { _stop(reason); }
+	void stop(std::string const & reason=0) { _stop(reason); }
 
 	/** Return a reason for the run() loop's termination */
 	const std::string &get_status() const { return _status_msg; }
@@ -292,7 +292,7 @@ private:
 	 * @param src     the name of the source port
 	 * @param dest    the name of the destination port
 	 */
-	virtual void _connect_port(const char * src, const char * dest);
+	virtual void _connect_port(std::string const & src, std::string const & dest);
 
 	/** Disconnect the client from all its connections */
 	virtual void _disconnect_all() = 0;
@@ -325,7 +325,7 @@ private:
 	 * returns false. It may also be desirable to change the
 	 * behavior of the process loop.
 	 */
-	virtual void _stop(const char *reason);
+	virtual void _stop(std::string const & reason);
 
 	/**
 	 * Return true if the client is still valid and the run()
