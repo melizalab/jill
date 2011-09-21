@@ -13,6 +13,7 @@
 #ifndef _SNDFILE_READER_HH
 #define _SNDFILE_READER_HH
 
+#include <boost/filesystem.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 #include <sndfile.h>
@@ -33,11 +34,11 @@ class SndfileReader : boost::noncopyable {
 public:
 	typedef sf_count_t size_type;
 
-	SndfileReader();
-	explicit SndfileReader(const std::string &path);
-	explicit SndfileReader(const char *path);
-
-	void open(const char *path);
+	SndfileReader() {}
+	explicit SndfileReader(boost::filesystem::path const & path) {
+		open(path);
+	}
+	void open(boost::filesystem::path const & path);
 
 	operator bool () const { return _sndfile; };
 	size_type samplerate() const { return (_sndfile) ? _sfinfo.samplerate : 0; }

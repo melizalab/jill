@@ -93,7 +93,15 @@ public:
 	 * @param name  The name of the option
 	 */
 	template <typename T>
-	const T &get(const char *name) { return vmap[name].as<T>();}
+	T get(const char *name) { return vmap[name].as<T>();}
+
+	template <typename T>
+	T get(const char *name, T const & default_value) {
+		if (vmap.count(name) == 0)
+			return default_value;
+		else
+			return vmap[name].as<T>();
+	}
 
 	/**
 	 * Assign a parsed value to a variable, if the value is defined.
@@ -111,7 +119,7 @@ public:
 		}
 		return false;
 	}
-	// some specializations below
+
 
 protected:
 	std::string _program_name;

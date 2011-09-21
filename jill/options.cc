@@ -11,7 +11,8 @@
  */
 
 #include <iostream>
-#include <fstream>
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/fstream.hpp>
 
 #include "jill_options.hh"
 #include "version.hh"
@@ -64,15 +65,12 @@ Options::parse(int argc, char **argv)
 		throw Exit(EXIT_SUCCESS);
 	}
 
-	string configfile;
-	assign(configfile,"config");
-	if (!configfile.empty()) {
-		std::ifstream ff(configfile.c_str());
-		if (ff.good()) {
-			std::cout << "[Parsing " << configfile << ']' << std::endl;
-			po::parsed_options parsed = po::parse_config_file(ff, cfg_opts, true);
-			po::store(parsed, vmap);
-		}
+	boost::filesystem::path configfile = get<string>("config","");
+	if (boost::filesystem::is_regular_file(configfile)) {
+		boost::filesystem::ifstream ff(configfile);
+		std::cout << "[Parsing " << configfile.string() << ']' << std::endl;
+		po::parsed_options parsed = po::parse_config_file(ff, cfg_opts, true);
+		po::store(parsed, vmap);
 	}
 	// second pass to override configfile values
 	po::parsed_options parsed = po::command_line_parser(argc, argv).options(cmd_opts).

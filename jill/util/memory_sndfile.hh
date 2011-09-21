@@ -38,6 +38,10 @@ public:
 	 * Structure holding information about a file/entry
 	 */
 	struct Entry : public Sndfile::Entry {
+		/** Return name of entry */
+		std::string name() const { return "memory"; }
+		/** Return size of entry, in frames */
+		size_type nframes() const { return data.size(); }
 		std::vector<data_type> data;
 		size_type framerate;
 	};
@@ -49,7 +53,7 @@ public:
 	std::vector<data_type> & data() { return _entry.data; }
 
 protected:
-	virtual void _open(const std::string &filename, size_type samplerate);
+	virtual void _open(path const & filename, size_type samplerate);
 	virtual void _close();
 
 	virtual size_type _write(const float *buf, size_type nframes) {

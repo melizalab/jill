@@ -37,7 +37,6 @@ Options:
 
 
 env = Environment(ENV=os.environ,
-                  LIBS=['jack','samplerate','hdf5','hdf5_hl'],
                   PREFIX=install_prefix,
                   tools=['default'])
 

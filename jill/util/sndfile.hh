@@ -14,6 +14,7 @@
 #define _SNDFILE_HH
 
 #include <boost/noncopyable.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/cstdint.hpp>
 #include <stdexcept>
 #include <string>
@@ -38,6 +39,7 @@ struct FileError : public std::runtime_error {
 	FileError(const std::string & w) : std::runtime_error(w) { }
 };
 
+using boost::filesystem::path;
 
 /**
  * @ingroup iogroup
@@ -67,7 +69,7 @@ public:
 	 * functions are a no-op.
 	 */
 	struct Entry {
-		Entry() : nframes(0) {}
+		virtual ~Entry() {}
 		/**
 		 * Set an attribute of the entry. May be a no-op if
 		 * the file format doesn't support attributes.
@@ -84,8 +86,11 @@ public:
 			for (iterator it = dict.begin(); it != dict.end(); ++it)
 				set_attribute(it->first, it->second);
 		}
-		std::string filename;
-		size_type nframes;
+
+		/** Return name of entry */
+		virtual std::string name() const = 0;
+		/** Return size of entry, in frames */
+		virtual size_type nframes() const = 0;
 	};
 
 	virtual ~Sndfile() { }
@@ -96,7 +101,7 @@ public:
 	 * @param filename    the name of the file, the template for the group, etc
 	 * @param samplerate  the sampling rate of the file
 	 */
-	void open(const std::string &filename, size_type samplerate) { _open(filename, samplerate); }
+	void open(path const & filename, size_type samplerate) { _open(filename, samplerate); }
 
 	/** Close the currently open file */
 	void close() { _close(); }
@@ -130,10 +135,6 @@ public:
 		return _write(buf, samples);
 	}
 
-	/// Return the total number of frames written
-	size_type nframes() {
-		return (current_entry()) ? current_entry()->nframes : 0;
-	}
 
 private:
 
@@ -143,7 +144,7 @@ private:
  	 * @param filename    the name of the file, the template for the group, etc
 	 * @param samplerate  the sampling rate of the file
 	 */
-	virtual void _open(const std::string &filename, size_type samplerate) = 0;
+	virtual void _open(path const & filename, size_type samplerate) = 0;
 
 	/**
 	 * Write a buffer to the file

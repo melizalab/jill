@@ -27,14 +27,14 @@ MultiSndfile::_next(const std::string &)  {
 		add_time_values(templ);
 		templ.add_variable("entry", ++_entry.file_idx);
 		templ.add_variable("total_msecs", msecs);
-		_entry.filename = templ.str();
+		_entry._filename = templ.str();
 	}
 	catch (const boost::io::format_error &e) {
 		throw FileError(make_string() << "invalid filename template: " << _fn_templ);
 	}
 	// close previous entry
 	_close();
-	SimpleSndfile::_open(_entry.filename.c_str(), _samplerate);
+	SimpleSndfile::_open(_entry._filename, _samplerate);
 	return &_entry;
 }
 
@@ -49,6 +49,6 @@ void
 MultiSndfile::_close()
 {
 	SimpleSndfile::_close();
-	utimes(_entry.filename.c_str(), _entry.time);
+	utimes(_entry._filename.string().c_str(), _entry.time);
 }
 

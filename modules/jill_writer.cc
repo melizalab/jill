@@ -215,7 +215,7 @@ main(int argc, char **argv)
 		logv << logv.allfields << "Opening " << options.output_file
 		     << " for output; Fs = " << client->samplerate() << endl;
 		boost::scoped_ptr<util::Sndfile> outfile;
-		if (util::get_filename_extension(options.output_file)=="arf")
+		if (util::splitext(options.output_file).second=="arf")
 			outfile.reset(new util::ArfSndfile(options.output_file, client->samplerate()));
 		else
 			outfile.reset(new util::SimpleSndfile(options.output_file, client->samplerate()));
@@ -246,7 +246,8 @@ main(int argc, char **argv)
 		client->set_process_callback(process);
 		client->run();
 		logv << logv.allfields << client->get_status() << endl;
-		logv << logv.allfields << "Total frames written: " << outfile->nframes() << endl;
+		logv << logv.allfields << "Total frames written: "
+		     << outfile->current_entry()->nframes() << endl;
 		return ret;
 	}
 	catch (Exit const &e) {

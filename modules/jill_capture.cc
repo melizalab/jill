@@ -56,7 +56,7 @@ static int ret = EXIT_SUCCESS;
 static int
 mainloop()
 {
-	std::string outfile = twriter->flush();
+	twriter->flush();
 	return 0;
 }
 
@@ -85,7 +85,9 @@ public:
 			("buffer", po::value<float>()->default_value(2000),
 			 "set file output buffer size (ms)")
 			("trig-thresh", po::value<float>()->default_value(0.6),
-			 "set threshold for trigger signal (-1.0-1.0)");
+			 "set threshold for trigger signal (-1.0-1.0)")
+			("max-size", po::value<int>()->default_value(100),
+			 "save data to serially numbered files with max size");
 
 		// we add our group of options to various groups
 		// already defined in the base class.
@@ -111,6 +113,7 @@ public:
 	nframes_t prebuffer_size; // samples
 	nframes_t buffer_size; // samples
 	float trig_threshold;
+	int max_size;  // in MB
 
 	void adjust_values(nframes_t samplerate) {
 		prebuffer_size = (nframes_t)(prebuffer_size_ms * samplerate / 1000);
@@ -139,6 +142,7 @@ protected:
 		assign(prebuffer_size_ms, "prebuffer");
 		assign(buffer_size_ms, "buffer");
 		assign(trig_threshold, "trig-thresh");
+		assign(max_size, "max-size");
 	}
 
 };
@@ -160,18 +164,22 @@ main(int argc, char **argv)
 		options.adjust_values(client->samplerate());
 
 		/* Initialize writer object and triggered writer */
-		jill::util::ArfSndfile writer(options.output_file, client->samplerate());
+		jill::util::ArfSndfile writer(options.output_file, client->samplerate(), options.max_size);
 		twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
 						  options.buffer_size, options.trig_threshold,
 				      &options.additional_options));
 
 		/* Log parameters */
-		logv << logv.program << "output file: " << options.output_file << endl
-		     << logv.program << "sampling rate: " << client->samplerate() << endl
-		     << logv.program << "buffer size: " << options.buffer_size << endl
-		     << logv.program << "prebuffer size: " << options.prebuffer_size << endl
-		     << logv.program << "trigger threshold: " << options.trig_threshold << endl
-		     << logv.program << "additional metadata:" << endl;
+		if (options.max_size > 0)
+			logv << logv.program << "output file base: " << options.output_file << endl
+			     << logv.program << "max file size (MB): " << options.max_size << endl;
+		else
+			logv << logv.program << "output file name: " << options.output_file << endl;
+		logv << logv.program << "sampling rate (Hz): " << client->samplerate() << endl
+		     << logv.program << "buffer size (samples): " << options.buffer_size << endl
+		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl
+		     << logv.program << "trigger threshold: " << options.trig_threshold << endl;
+		logv << logv.program << "additional metadata:" << endl;
 		for (map<string,string>::const_iterator it = options.additional_options.begin();
 		     it != options.additional_options.end(); ++it)
 			logv << logv.program << "  " << it->first << "=" << it->second << endl;

@@ -84,7 +84,7 @@ typedef util::Sndfile::size_type (util::Sndfile::*writefun_t)(const sample_t *,
  * does add some extra copying.
  *
  */
-const std::string&
+std::string
 TriggeredWriter::flush()
 {
 	// Step 1. Read samples from the buffers.  First make sure
@@ -94,7 +94,7 @@ TriggeredWriter::flush()
 	nframes_t nf2 = _data.read_space();
 	if (nf2 < frames) frames = nf2;
 	if (frames==0)
-		return _writer.current_entry()->filename;
+		return _writer.current_entry()->name();
 
 	// allocate buffers and copy out data. Though less efficient
 	// than directly accessing the memory, it spares some
@@ -154,7 +154,7 @@ TriggeredWriter::flush()
 		}
 	}
 
-	return _writer.current_entry()->filename;
+	return _writer.current_entry()->name();
 }
 
 /*
@@ -170,10 +170,7 @@ TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 	entry->set_attribute("signal_trigger",static_cast<int64_t>(time - prebuf));
 	if (_entry_attrs)
 		entry->set_attributes(*_entry_attrs);
-	std::string s = entry->filename;
-	if (s != "")
-		_logv << "; writing to file " << s;
-	_logv << std::endl;
+	_logv << "; writing to " << entry->name() << std::endl;
 }
 
 /*

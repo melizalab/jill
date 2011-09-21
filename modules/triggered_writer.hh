@@ -111,9 +111,9 @@ public:
 	 * different threads, the internal state of the object will
 	 * remain consistent.
 	 *
-	 * @returns the name of the file we wrote to
+	 * @returns the path of the file we wrote to
 	 */
-	const std::string &flush();
+	std::string flush();
 
 	/**
 	 * Close the current entry (if open) and log the stop time

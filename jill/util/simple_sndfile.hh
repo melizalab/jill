@@ -31,11 +31,21 @@ class SimpleSndfile : public Sndfile {
 
 public:
 
+	struct Entry : public Sndfile::Entry {
+		/** Return name of entry */
+		std::string name() const { return _filename.string(); }
+		/** Return size of entry, in frames */
+		size_type nframes() const { return _nframes; }
+
+		path _filename;
+		size_type _nframes;
+	};
+
 	SimpleSndfile();
-	SimpleSndfile(const std::string &filename, size_type samplerate);
+	SimpleSndfile(path const & filename, size_type samplerate);
 
 protected:
-	virtual void _open(std::string const &filename, size_type samplerate);
+	virtual void _open(path const &filename, size_type samplerate);
 	virtual void _close();
 
 	virtual bool _valid() const;

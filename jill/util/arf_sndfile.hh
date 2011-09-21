@@ -19,7 +19,6 @@
 
 #include "sndfile.hh"
 #include <arf.hpp>
-#include <sys/time.h>
 #include <boost/scoped_ptr.hpp>
 #include <jack/types.h>
 
@@ -39,26 +38,40 @@ public:
 	typedef jack_default_audio_sample_t storage_type;
 
 	struct Entry : public Sndfile::Entry {
-		virtual void set_attribute(std::string const & name, std::string const & value);
-		virtual void set_attribute(std::string const & name, boost::int64_t value);
-		virtual void set_attribute(std::string const & name, float value);
+		void set_attribute(std::string const & name, std::string const & value);
+		void set_attribute(std::string const & name, boost::int64_t value);
+		void set_attribute(std::string const & name, float value);
+
+		/** Return name of entry */
+		std::string name() const;
+		/** Return size of entry, in frames */
+		size_type nframes() const;
+
 		arf::entry::ptr_type entry;
 		arf::h5pt::packet_table<storage_type>::ptr_type dataset;
 	};
 
 	/**
-	 * Open a new or existing ARF file for writing.
-	 * replaced by a template.  Note: object is not valid until
-	 * next() is called.
+	 * Open a new or existing ARF file for writing.  Note: object
+	 * is not valid until next() is called to create a new entry.
 	 *
 	 * @param filename   the name of the file
 	 * @param samplerate the default sampling rate of the data
+	 * @param max_size   the maximum size the file can get, in
+	 *                   MB. If zero or less, file is allowed to grow
+	 *                   indefinitely. If nonnegative, files will be indexed, and
+	 *                   when the file size exceeds this (checked after
+	 *                   each entry is closed), a new file will be
+	 *                   created.
 	 */
-	ArfSndfile(const std::string &filename, size_type samplerate) { _open(filename, samplerate); }
+	ArfSndfile(path const & filename, size_type samplerate, int max_size=-1)
+		: _max_size(max_size), _file_index(-1) {
+		_open(filename, samplerate);
+	}
 
 protected:
 
-	virtual void _open(const std::string &filename, size_type samplerate);
+	virtual void _open(path const & filename, size_type samplerate);
 	virtual void _close();
 	virtual bool _valid() const;
 	virtual size_type _write(const float *buf, size_type nframes);
@@ -72,9 +85,15 @@ private:
 	virtual Entry* _next(const std::string &);
 	virtual Entry* _current_entry();
 
+	/** Handles creation of serially numbered files */
+	void check_filesize();
+
 	Entry _entry;
 	boost::scoped_ptr<arf::file> _file;
 	size_type _samplerate;
+	int _max_size;
+	path _base_filename;
+	int  _file_index;
 };
 
 }} // namespace jill::util

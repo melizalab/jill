@@ -67,23 +67,25 @@ class make_string
 /**
  * @ingroup miscgroup
  *
- * Extract the extension of a filename.
+ * Split a filename into base and extension.
  *
  * @param filename    the input filename
- * @return            the extension, minus the period and in lower case
+ * @return            std::pair, the basename and the extension,
+ *                    minus the period and in lower case
  */
 inline
-std::string get_filename_extension(const std::string & filename)
+std::pair<std::string,std::string>
+splitext(const std::string & filename)
 {
     std::string::size_type period = filename.find_last_of('.');
     if (period == std::string::npos) {
-	return "";
+	    return make_pair(filename,std::string(""));
     }
 
     std::string ext(filename, period + 1);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
-    return ext;
+    return make_pair(filename.substr(0,period),ext);
 }
 
 }}

@@ -6,7 +6,7 @@ MemorySndfile::MemorySndfile() {}
 MemorySndfile::~MemorySndfile() {}
 
 void
-MemorySndfile::_open(const std::string &, size_type framerate)
+MemorySndfile::_open(path const &, size_type framerate)
 {
 	_close();
 	_entry.framerate = framerate;
