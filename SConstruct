@@ -17,7 +17,7 @@ AddOption('--prefix',
           metavar='DIR',
           help='installation prefix')
 # debug flags for compliation
-debug = ARGUMENTS.get('debug',1)
+debug = ARGUMENTS.get('debug',0)
 
 if not GetOption('prefix')==None:
     install_prefix = GetOption('prefix')
@@ -49,6 +49,8 @@ else:
     env.Append(CCFLAGS=['-O2'])
 
 lib = SConscript('jill/SConscript', exports='env libname')
-modules = SConscript('modules/SConscript', exports='env lib')
+SConscript('modules/SConscript', exports='env lib')
 
-env.Alias('modules',modules)
+if hasattr(env,'Doxygen'):
+    dox = env.Doxygen('doc/doxy.cfg')
+    env.Alias("docs",dox)

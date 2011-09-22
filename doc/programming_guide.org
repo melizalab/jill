@@ -1,0 +1,220 @@
+#-*- mode: org -*-
+#+STARTUP:    align fold hidestars oddeven
+#+TITLE:    JILL Real-Time Audio Framework - Programmer's Guide
+#+AUTHOR:    Dan Meliza
+#+EMAIL:     dan@meliza.org
+#+LANGUAGE:   en
+#+OPTIONS: ^:nil H:2
+#+STYLE:    <link rel="stylesheet" href="org.css" type="text/css" />
+
+The purpose of JILL is to provide a convenient programming interface
+for writing JACK clients (or modules).  JACK modules have to perform
+the following tasks:
+
++ Connect to the JACK server as a client (jack_client_open)
++ Register callback functions to handle various events:
+  + Process callback: gets called every time the JACK server has
+      (input) samples to be processed or needs (output) samples.
+  + Xrun callback: gets called every time there is an overrun (too
+    many input samples) or an underrun (too few output samples)
+  + Shutdown callback: gets called when the JACK server terminates
+  + Timebase callback: gets called for JACK transport events (see below)
++ Optionally, connect to input and output ports that will serve as
+  sources of input samples and sinks for output samples
+
+The process callback runs in a real-time thread and should only
+perform high-priority tasks.  As a result, many clients will need to
+execute tasks in a lower-priority thread; for example, writing samples
+to disk.
+
+This document describes the basic architecture of the JILL
+framework. Full reference on function and class interfaces is provided
+through doxygen comments (link).  In addition, the source code for
+several of the modules is extensively commented and can be used as
+tutorials and templates for writing new modules.
+
+* The Client class
+
+The main tasks of a JACK module are handled by the jill::Client
+class.  Programmers have the option of extending the Client class,
+which is abstract, to provide specific functionality, or of using one
+of the derived classes provided with JILL.  In the latter case, much
+of the functionality will be provided through callback functions.
+
+The public interface of jill::Client comprises the following
+functions:
+
++ set_timebase_callback(), set_xrun_callback() and
+  set_mainloop_callback() for registering control callbacks
++ connect_port() for connection to other JACK ports and clients
++ inspection functions - samplerate(), transport_rolling(),
+  position(), frame()
++ transport control functions - set_position(), set_frame()
++ main loop control functions - run(), stop() 
+
+The interface also specifies a number of virtual functions to be
+overridden by deriving classes:
+
++ _connect_port(source_port, dest_port) - the default implementation
+  does a simple name-based lookup
++ _run(), _reset(), _stop(), _is_running() - provide alternate
+  behavior in the main loop
++ _disconnect_all() - disconnect the client from the JACK server 
+
+All the virtual functions come with default implementations except for
+_disconnect_all(), which is purely virtual and must be supplied by a
+deriving class.
+
+** The SimpleClient class
+
+The Client base class provides no logic for handling data, because
+this will inevitably depend on the number of ports and their
+significance.  SimpleClient is a simple implementation that supports
+one input, one output, and one control port.  Users of the
+jill::SimpleClient class can register a function that handles the data
+from these three ports.  The signature of this callback function is
+defined by the public typedef jill::SimpleClient::ProcessCallback.
+This type is a boost::function, which means a variety of objects
+including raw function pointers, function objects, and boost::bind
+closures can be used.
+    
+When the SimpleClient object is initialized, the constructor takes
+arguments that determine which ports are registered (and what their
+names are). These ports can be connected later using
+connect_port(). The callback function receives pointers for each of
+the three ports that can exist, but if the port is undefined these
+pointers are NULL.
+
+Most applications can use SimpleClient out of the box, unless they
+need more than three ports, or their performance demands are so high
+that the runtime lookups (callback indirection and checks for NULL
+pointers) need to be eliminated.  In these cases the programmer will
+need to write a subclass of Client that registers its own process
+callback function, typically a static member or free function, thus
+eliminating the callback overhead.
+
+** The SndfilePlayerClient class
+
+One of the major design considerations of JILL is that it should be
+possible to run clients in an offline mode to test their operation on
+known input signals (i.e. pre-recorded sound files). This is
+implemented in the framework as a special Client subclass
+that reads data from a sound file. Modules using this class can
+instantiate it directly and then load sound files, for example:
+
+#+begin_src c
+  SndfilePlayerClient client("client name");
+  client.load_file("key", "soundfile_path.wav");
+  client.select("key");
+  client.run();
+#+end_src
+
+Another option is to use SndfilePlayerClient::from_port_list(), a
+static factory function, to parse a list of input ports and determine
+whether one of them corresponds to a sound file.  This allows users to
+specify sound file inputs on the command line using a natural syntax,
+e.g:
+
+#+begin_src sh
+my_client -i sndfile:test.wav -o system:playback_1
+#+end_src
+
+The factory function will only create the SndfilePlayerClient object
+if the user asked to read in a sound file, so one has to check whether
+the returned pointer is valid:
+
+#+begin_src c
+boost::shared_ptr<PlayerJillClient> pclient;
+pclient = PlayerJillClient::from_port_list(input_ports);
+if (pclient) pclient->run();
+#+end_src
+
+* Options handling
+
+All the JILL modules use a common architecture for parsing
+command-line arguments.  Of course the programmer is free to use
+whatever mechanism s/he prefers, but an advantage to using the
+supplied framework is that it enforces a common syntax for making
+connections, and is fairly straightforward to extend.
+
+Options handling is based on the boost::program_options library; a set
+of standard options are provided by the JillOptions class.  To add one
+or two options is extremely easy. This is the code from jill_delay:
+
+#+begin_src c
+  // create an options handler
+  JillOptions options("jill_delay", "1.2.0rc1", true);
+  // create a group of options for this program
+  po::options_description delopts("Delay options");
+  // add options to the group
+  delopts.add_options()
+  ("delay,d", po::value<float>()->default_value(10), "set delay time (ms)");
+  // add the group to the options that will be set on the command line (cmd_opts)
+  options.cmd_opts.add(delopts);
+  // and add them to the options that will be listed in the help file
+  options.visible_opts.add(delopts);
+  // then pass the handler the command-line arguments
+  options.parse(argc,argv);
+#+end_src
+
+More complex options handling, as in jill_writer, jill_thresh, and
+jill_capture, may require extension of the JillOptions class.  Consult
+the tutorials and the [[http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html][boost::program_options documentation]] for more details.
+
+* File output
+
+The JILL framework also provides classes for storing data to disk.  It
+supports a number of different file formats, include ARF, an
+hdf5-based format that can store multiple entries in a single file.
+All the file output classes derive from jill::util::Sndfile and can be
+used polymorphically.
+
+* Tutorials
+
+Probably the best way to learn how to write a new module is by
+example. The sources for the following clients are extensively
+commented.  If they are examined in this order, the concepts will
+build from simple to complex.  The examples can also be used as
+templates for writing new modules.
+
+** jill_mixer
+
+This module is fairly simple, copying its input to its
+output. Introduces basic concepts of the process loop, registering
+callbacks, and handling options.  Also supports playback from sound
+files.
+
+** jill_delay
+
+Adds a fixed time delay between input and output. Introduces
+buffering.
+
+** jill_writer
+
+Records samples to disk.  Deals with the concept of splitting tasks
+between a high-priority realtime thread, and a low-priority thread.
+
+** jill_thresh
+
+Detects when a signal is present.  Introduces the use of auxiliary
+classes.
+
+** jill_capture
+
+Writes data to a sound file under the control of a trigger.  Shows how
+to use a function object as a callback.
+
+** jill_play
+
+This module isn't as extensively commented but contains some useful
+code for playback.
+
+## Copyright 2011 Daniel Meliza
+##
+## Author: dmeliza@dylan.uchicago.edu
+## Keywords: 
+
+
+
+
+
