@@ -31,6 +31,9 @@
 /* The 'using' directive allows us to avoid prefixing all the objects in the jill namespace */
 using namespace jill;
 
+/** Prototype for a time function we'll define later */
+static void adjusted_entry_time(std::vector<boost::int64_t> & timestamp, double diff);
+
 /*
  * This is the constructor for the TriggeredWriter class. The
  * constructor is called whenever a new object of type TriggerWriter
@@ -44,12 +47,13 @@ using namespace jill;
  * We also initialize the ringbuffer and prebuffer.
  */
 TriggeredWriter::TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
-				 nframes_t prebuffer_size, nframes_t buffer_size, sample_t trig_thresh,
+				 nframes_t prebuffer_size, nframes_t buffer_size, 
+				 nframes_t sampling_rate, sample_t trig_thresh, 
 				 std::map<std::string, std::string> *entry_attrs)
 	: _data(buffer_size, 0), _trig(buffer_size),
 	  _writer(writer), _prebuf(prebuffer_size, &writer),
 	  _logv(logger), _start_time(0), _trig_thresh(trig_thresh), _last_state(false),
-	  _entry_attrs(entry_attrs)
+	  _samplerate(sampling_rate), _entry_attrs(entry_attrs)
 {}
 
 
@@ -164,10 +168,13 @@ TriggeredWriter::flush()
 void
 TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 {
+	std::vector<boost::int64_t> timestamp;
+	adjusted_entry_time(timestamp, 1.0 / _samplerate * prebuf);
 	_logv << _logv.allfields << "Signal start @" << time << "; begin entry @" << time - prebuf;
 	util::Sndfile::Entry *entry = _writer.next("");
 	entry->set_attribute("sample_count",static_cast<int64_t>(time));
 	entry->set_attribute("signal_trigger",static_cast<int64_t>(time - prebuf));
+	entry->set_attribute("timestamp", timestamp);
 	if (_entry_attrs)
 		entry->set_attributes(*_entry_attrs);
 	_logv << "; writing to " << entry->name() << std::endl;
@@ -196,3 +203,24 @@ TriggeredWriter::close_entry()
  * we're ready to use it in the offline test program.  Return to
  * capture_test.cc.
  */
+
+/*
+ * This concludes the implementation of the TriggerWriter class. Now
+ * we're ready to use it in the offline test program.  Return to
+ * capture_test.cc.
+ */
+
+void adjusted_entry_time(std::vector<boost::int64_t> & timestamp, double diff) 
+{
+	struct timeval tp;
+	gettimeofday(&tp,0);
+	long sec = long(floor(diff));
+	timestamp.resize(2);
+	timestamp[0] = tp.tv_sec - sec;
+	timestamp[1] = tp.tv_usec - long(floor((diff - sec)*1000000));
+	if (timestamp[1] < 0)
+	{
+		timestamp[1] += 1000000;
+		timestamp[0] -= 1;
+	}
+}	

@@ -166,8 +166,9 @@ main(int argc, char **argv)
 		/* Initialize writer object and triggered writer */
 		jill::util::ArfSndfile writer(options.output_file, client->samplerate(), options.max_size);
 		twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
-						  options.buffer_size, options.trig_threshold,
-				      &options.additional_options));
+						  options.buffer_size, client->samplerate(),
+						  options.trig_threshold,
+						  &options.additional_options));
 
 		/* Log parameters */
 		if (options.max_size > 0)

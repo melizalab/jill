@@ -82,12 +82,14 @@ public:
          *                        start and stop information.
 	 * @param prebuffer_size  The size of the prebuffer, in samples
 	 * @param buffer_size     The size of the process buffer, in samples
+	 * @param sampling_rate   The client sampling rate
 	 * @param trig_thresh     The breakpoint for the trigger signal
 	 * @param entry_attrs     If not NULL, set attributes on newly created entries
 	 */
 	TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
 			nframes_t prebuffer_size,
 			nframes_t buffer_size,
+			nframes_t sampling_rate,
 			sample_t trig_thresh,
 			std::map<std::string, std::string> * entry_attrs=0);
 
@@ -166,6 +168,7 @@ private:
 
 	sample_t _trig_thresh;
 	bool _last_state;
+	nframes_t _samplerate;
 	std::map<std::string, std::string> *_entry_attrs;
 };
 

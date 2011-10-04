@@ -78,6 +78,8 @@ public:
 		 */
 		virtual void set_attribute(std::string const & name, std::string const & value) {}
 		virtual void set_attribute(std::string const & name, boost::int64_t value) {}
+		virtual void set_attribute(std::string const & name, 
+					   std::vector<boost::int64_t> & value) {}
 		virtual void set_attribute(std::string const & name, float value) {}
 
 		template <typename Value>

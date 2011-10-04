@@ -40,6 +40,8 @@ public:
 	struct Entry : public Sndfile::Entry {
 		void set_attribute(std::string const & name, std::string const & value);
 		void set_attribute(std::string const & name, boost::int64_t value);
+		void set_attribute(std::string const & name, 
+				   std::vector<boost::int64_t> & value);
 		void set_attribute(std::string const & name, float value);
 
 		/** Return name of entry */
