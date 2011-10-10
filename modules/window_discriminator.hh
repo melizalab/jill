@@ -212,7 +212,8 @@ public:
 				_open = false;
 				_close_counter.reset();
 				// push samples after offset to open counter
-				_open_counter.push(samples+offset, size-offset, _open_count_thresh, counts+offset);
+				_open_counter.push(samples+offset, size-offset, _open_count_thresh, 
+						   (counts!=0) ? counts+offset : 0);
 				return offset;
 			}
 		}
@@ -223,7 +224,8 @@ public:
 				_open = true;
 				_open_counter.reset();
 				// push samples after offset to close counter
-				_close_counter.push(samples+offset, size-offset, _close_count_thresh, counts+offset);
+				_close_counter.push(samples+offset, size-offset, _close_count_thresh, 
+						    (counts!=0) ? counts+offset : 0);
 				return offset;
 			}
 		}
