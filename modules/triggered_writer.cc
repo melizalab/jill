@@ -114,49 +114,53 @@ TriggeredWriter::flush()
 	// Object stores state from last call to flush().
 	nframes_t last_state_change = 0;
 	bool state;
-	for (nframes_t i = 0; i <= frames; ++i) {
-		if (i < frames)
-			state = (trig[i] > _trig_thresh);
-		if ((state != _last_state)||(i==frames)) {
+	for (nframes_t i = 0; i < frames; ++i) {
+		state = (trig[i] > _trig_thresh);
+		if (state != _last_state) {
+			// handle changes in gate state
 			sample_t * buf = data.get() + last_state_change;
 			if (state) {
-				// Step 2A: gate is open. Test if it was closed earlier.
-				if (_last_state) {
-					// 2AA: gate was already open. Continue writing to disk
-					_writer(buf, i - last_state_change);
-				}
-				else {
-					// 2AB: gate opened in this iteration. Push remaining
-					// data to prebuffer.
-					_prebuf.push(buf, i - last_state_change);
+				// state is true, _last_state is false -> newly opened gate
+				// 2AB: gate opened in this iteration. Push remaining
+				// data to prebuffer.
+				_prebuf.push(buf, i - last_state_change);
 
-					// call next_entry, which instructs the
-					// multisndfile writer to open a new entry,
-					// and logs the time when the gate opened.
-					next_entry(time+i, _prebuf.read_space());
+				// call next_entry, which instructs the
+				// multisndfile writer to open a new entry,
+				// and logs the time when the gate opened.
+				next_entry(time+i, _prebuf.read_space());
 
-					// The prebuffer is a BufferAdapter and can be flushed to disk.
-					_prebuf.flush();
-				}
+				// The prebuffer is a BufferAdapter and can be flushed to disk.
+				_prebuf.flush();
 			}
 			else {
+				// _last_state is true, state is false -> newly closed gate
 				// Step 2B: gate is closed. Test if it just closed.
-				if (!_last_state)
-					// 2BA: gate was already closed. Continue
-					// storing data in prebuffer.
-					_prebuf.push(buf, i - last_state_change);
-				else {
-					// 2BB: gate closed in this iteration. Write
-					// remainder of data to disk; close entry
-					_writer(buf, i - last_state_change);
-					close_entry(time+i);
-				}
+				// 2BB: gate closed in this iteration. Write
+				// remainder of data to disk; close entry
+				_writer(buf, i - last_state_change);
+				close_entry(time+i);
 			}
 			// update variables for previous state
 			last_state_change = i;
 			_last_state = state;
 		}
+	} // for
+
+	// handle end of signal
+	sample_t * buf = data.get() + last_state_change;
+	if (state) {
+		// 2AA: gate was already open. Continue writing to disk
+		_writer(buf, frames - last_state_change);
 	}
+	else {
+		// 2BA: gate was already closed. Continue
+		// storing data in prebuffer.
+		_prebuf.push(buf, frames - last_state_change);
+	}
+	// update variables for previous state
+	last_state_change = frames;
+	_last_state = state;
 
 	return _writer.current_entry()->name();
 }
