@@ -204,7 +204,7 @@ jill_capture clients can connect to the same jill_thresh module.
 
 #+begin_src sh
   # trigger from the audio channel
-  jill_thresh -i alsa_pcm:capture_0 & 
+  jill_thresh -i alsa_pcm:capture_0 &
   # record the audio channel to audio.arf
   jill_capture -i alsa_pcm:capture_0 -c jill_thresh:trig_out audio.arf &
   # record the physiological channel to physiology.arf
@@ -253,6 +253,17 @@ commands:
 rpm -Uvh http://ccrma.stanford.edu/planetccrma/mirror/centos/linux/planetccrma/5/i386/planetccrma-repo-1.1-1.el5.ccrma.noarch.rpm
 yum install qjackctl
 #+end_src
+
+Note that yum by default will attempt to install JACK as a dependency
+of qjackctl.  If this is not desired, use the following commands
+instead of yum install (yum-utils must be installed, and the version
+of qjackctl downloaded will change as the repository is updated):
+
+#+begin_src sh
+yumdownloader qjackctl
+rpm -Uvh --nodeps qjackctl-0.3.1a-5.el5.ccrma.x86_64.rpm
+#+end_src
+
 
 http://qjackctl.sourceforge.net/
 

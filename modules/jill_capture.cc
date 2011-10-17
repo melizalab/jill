@@ -138,7 +138,10 @@ protected:
 
 	virtual void process_options() {
 		JillOptions::process_options();
-		assign(output_file, "output-file");
+		if (!assign(output_file, "output-file")) {
+			std::cerr << "Error: missing required output file name " << std::endl;
+			throw Exit(EXIT_FAILURE);
+		}
 		assign(prebuffer_size_ms, "prebuffer");
 		assign(buffer_size_ms, "buffer");
 		assign(trig_threshold, "trig-thresh");
