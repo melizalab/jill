@@ -5,7 +5,7 @@ subdirs = ['.','util','filters']
 
 lib = env.Library(libname, [env.Glob(os.path.join(d,'*.cc')) for d in subdirs])
 env.Alias('library',lib)
-env.Alias('install', env.Install(os.path.join(env['PREFIX'],'lib'), lib))
+env.Alias('install', env.Install(env['LIBDIR'], lib))
 
 for d in subdirs:
     env.Alias('install', env.Install(os.path.join(env['PREFIX'],'include',libname,d),

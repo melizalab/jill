@@ -5,7 +5,7 @@ Import('env lib')
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],
             LIBS=['jack','samplerate','hdf5','hdf5_hl','sndfile',
-                  'boost_date_time','boost_program_options','boost_filesystem'])
+                  'boost_system','boost_date_time','boost_program_options','boost_filesystem'])
 
 programs = {'jill_mixer' : ['jill_mixer.cc'],
             'jill_delay' : ['jill_delay.cc'],
@@ -21,11 +21,11 @@ for progname,srcs in programs.items():
     prog = menv.Program(progname,srcs+[lib])
     menv.Alias(progname,prog)
     out.append(prog)
-    env.Alias('install', env.Install(os.path.join(env['PREFIX'],'bin'),prog))
+env.Alias('install', env.Install(env['BINDIR'],prog))
 
 env.Alias('modules',out)
     
 # scripts
 scripts = ['jill_trigger_capture']
-env.Alias('install', env.Install(os.path.join(env['PREFIX'],'bin'),scripts))
+env.Alias('install', env.Install(env['BINDIR'],scripts))
 
