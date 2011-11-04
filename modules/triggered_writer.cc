@@ -25,7 +25,6 @@
  * classes that were only forward-declared in the header)
  *
  */
-#include <boost/scoped_array.hpp>
 #include "triggered_writer.hh"
 #include "jill/util/logger.hh"
 /* The 'using' directive allows us to avoid prefixing all the objects in the jill namespace */
@@ -50,11 +49,14 @@ TriggeredWriter::TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
 				 nframes_t prebuffer_size, nframes_t buffer_size, 
 				 nframes_t sampling_rate, sample_t trig_thresh, 
 				 std::map<std::string, std::string> *entry_attrs)
-	: _data(buffer_size, 0), _trig(buffer_size),
-	  _writer(writer), _prebuf(prebuffer_size, &writer),
-	  _logv(logger), _start_time(0), _trig_thresh(trig_thresh), _last_state(false),
+	: _data(buffer_size), _trig(buffer_size), _buffer_size(buffer_size),
+	  _prebuf(prebuffer_size), _writer(writer),
+	  _logv(logger), _trig_thresh(trig_thresh), _last_state(false),
 	  _samplerate(sampling_rate), _entry_attrs(entry_attrs)
-{}
+{
+	_databuf.reset(new sample_t[buffer_size]);
+	_trigbuf.reset(new sample_t[buffer_size]);
+}
 
 
 /*
@@ -66,20 +68,22 @@ TriggeredWriter::TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
 void
 TriggeredWriter::operator() (sample_t *in, sample_t *, sample_t *trig, nframes_t nframes, nframes_t time)
 {
-	if (_start_time==0) _start_time = time;
-	nframes_t nf1 = _data.push(in, nframes, time);
-	nframes_t nf2 = _trig.push(trig, nframes);
+	nframes_t nf1, nf2;
+	{
+		boost::timed_mutex::scoped_lock lock(_mux);
+		nf1 = _data.push(in, nframes);
+		nf2 = _trig.push(trig, nframes);
+		_time = time + nframes;
+	}
 
 	// as in writer, we check for overrun (not enough room in the
 	// ringbuffer for all the samples. However, rather than
-	// throwing an error we log the overrun.
+	// throwing an error we log the overrun.  This is a little
+	// dangerous to do in the realtime thread.
 	if ((nf1 < nframes) || (nf2 < nframes))
 		_logv << _logv.allfields << "ringbuffer overrun at frame " << time << std::endl;
 }
 
-/** This typedef is for convenience; it's used in the flush() function */
-typedef util::Sndfile::size_type (util::Sndfile::*writefun_t)(const sample_t *,
-									util::Sndfile::size_type);
 
 /*
  * The flush function is called by the main thread. It runs through
@@ -91,22 +95,26 @@ typedef util::Sndfile::size_type (util::Sndfile::*writefun_t)(const sample_t *,
 std::string
 TriggeredWriter::flush()
 {
-	// Step 1. Read samples from the buffers.  First make sure
-	// there's data, and make sure we get the same number of
-	// samples from the trigger and data buffers.
-	nframes_t frames = _trig.read_space();
-	nframes_t nf2 = _data.read_space();
-	if (nf2 < frames) frames = nf2;
+	// Step 1. Read samples from the buffers.  We need to lock to
+	// keep the two ringbuffers and the time variable in sync
+	nframes_t frames,nf2,time;
+	{
+		boost::system_time const timeout= boost::get_system_time() + 
+			boost::posix_time::seconds(1);
+		boost::timed_mutex::scoped_timed_lock lock(_mux, timeout);
+		if (lock.owns_lock()) {
+			frames = _data.pop(_databuf.get(), _buffer_size);
+			nf2 = _trig.pop(_trigbuf.get(), _buffer_size);
+			time = _time;
+		}
+		else
+			// jack server probably died
+			throw std::runtime_error("jill_capture can't get lock from realtime thread");
+	}
+	if (frames!=nf2)
+		throw std::runtime_error("jill_capture ringbuffers are different sizes");
 	if (frames==0)
 		return _writer.current_entry()->name();
-
-	// allocate buffers and copy out data. Though less efficient
-	// than directly accessing the memory, it spares some
-	// additional issues with peek() not returning all the data.
-	boost::scoped_array<sample_t> data(new sample_t[frames]), trig(new sample_t[frames]);
-	nframes_t time = _data.get_time();
-	_data.pop(data.get(), frames);
-	_trig.pop(trig.get(), frames);
 
 	// Step 2. Run through the trigger signal and look for state
 	// changes.  Whenever the state changes (or at the end of
@@ -115,14 +123,13 @@ TriggeredWriter::flush()
 	nframes_t last_state_change = 0;
 	bool state;
 	for (nframes_t i = 0; i < frames; ++i) {
-		state = (trig[i] > _trig_thresh);
+		state = (_trigbuf[i] > _trig_thresh);
 		if (state != _last_state) {
 			// handle changes in gate state
-			sample_t * buf = data.get() + last_state_change;
+			sample_t * buf = _databuf.get() + last_state_change;
 			if (state) {
 				// state is true, _last_state is false -> newly opened gate
-				// 2AB: gate opened in this iteration. Push remaining
-				// data to prebuffer.
+				// push remaining pre-trigger data to prebuffer
 				_prebuf.push(buf, i - last_state_change);
 
 				// call next_entry, which instructs the
@@ -130,8 +137,8 @@ TriggeredWriter::flush()
 				// and logs the time when the gate opened.
 				next_entry(time+i, _prebuf.read_space());
 
-				// The prebuffer is a BufferAdapter and can be flushed to disk.
-				_prebuf.flush();
+				// flush the prebuffer
+				_prebuf.pop(_writer);
 			}
 			else {
 				// _last_state is true, state is false -> newly closed gate
@@ -148,7 +155,7 @@ TriggeredWriter::flush()
 	} // for
 
 	// handle end of signal
-	sample_t * buf = data.get() + last_state_change;
+	sample_t * buf = _databuf.get() + last_state_change;
 	if (state) {
 		// 2AA: gate was already open. Continue writing to disk
 		_writer(buf, frames - last_state_change);
@@ -199,7 +206,7 @@ TriggeredWriter::close_entry(nframes_t time)
 void
 TriggeredWriter::close_entry()
 {
-	close_entry(_data.get_time());
+	close_entry(_time);
 }
 
 /*

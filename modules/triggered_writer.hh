@@ -27,10 +27,11 @@
 
 /* include various JILL headers */
 #include <jill/types.hh>
-#include <jill/util/time_ringbuffer.hh>
-#include <jill/util/buffer_adapter.hh>
+#include <jill/util/ringbuffer.hh>
 #include <jill/util/sndfile.hh>
 
+#include <boost/thread/mutex.hpp>
+#include <boost/scoped_array.hpp>
 #include <map>
 
 /*
@@ -150,21 +151,28 @@ protected:
  */
 private:
 	/// Ringbuffer for data
-	util::TimeRingbuffer<sample_t,nframes_t> _data;
+	util::Ringbuffer<sample_t> _data;
 	/// Ringbuffer for trigger
 	util::Ringbuffer<sample_t> _trig;
+	/// Store the time of the last sample written to the ringbuffer
+	nframes_t _time;
+	/// Mutex for synchronizing access to ringbuffers and time variable
+	boost::timed_mutex _mux;
 
-	/// This is our reference to the soundfile writer, only accessed in flush()
+	/* all objects below here are only accessed by the non-realtime thread */
+
+	/// these buffers are used to copy out data from the ringbuffer.
+	nframes_t _buffer_size;
+	boost::scoped_array<sample_t> _databuf, _trigbuf;
+
+	/// Prebuffer for temporary storage of samples before trigger
+	util::Prebuffer<sample_t> _prebuf;
+
+	/// Reference to output file
 	util::Sndfile &_writer;
-
-	/// Prebuffer; link to the writer to simplify dumping samples to disk; only used in flush()
-	util::BufferedWriter<util::Prebuffer<sample_t>, util::Sndfile> _prebuf;
 
 	/// Reference to a logstream to provide fine-scaled timestamp info
 	util::logstream &_logv;
-
-	/// A reference to the time when the process callback was first called
-	nframes_t _start_time;
 
 	sample_t _trig_thresh;
 	bool _last_state;

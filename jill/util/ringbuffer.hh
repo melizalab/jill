@@ -133,6 +133,26 @@ public:
 	}
 
 	/**
+	 * Read data from the ringbuffer using a visitor function. The
+	 * function signature must be size_type (data_type*, size_type), and it
+	 * may be called 0--2 times.
+	 */
+	template <typename Fun>
+	size_type pop(Fun &data_fun) {
+		size_type cnt = 0;
+		jack_ringbuffer_data_t vec[2];
+		jack_ringbuffer_get_read_vector(_rb.get(), vec);
+		for (int i = 0; i < 2; ++i) {
+			if (vec[i].len > 0) {
+				cnt += data_fun(reinterpret_cast<data_type *>(vec[i].buf),
+						vec[i].len / sizeof(data_type));
+			}
+		}
+		jack_ringbuffer_read_advance(_rb.get(), cnt * sizeof(data_type));
+		return cnt;
+	}	
+
+	/**
 	 * Peek at data in the ringbuffer. This version sets the input
 	 * argument to the address of an array with the next block of
 	 * data.  To free space after using the data, call
