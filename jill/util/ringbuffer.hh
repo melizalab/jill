@@ -2,7 +2,8 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * based on JACK ringbuffer.h/c  Copyright (C) 2000 Paul Davis Copyright (C) 2003 Rohan Drape
+ * additions Copyright (C) 2010-2012 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,10 +15,9 @@
 #define _RINGBUFFER_HH
 
 #include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
-#include <iostream>
-#include <jack/ringbuffer.h>
-
+#include <boost/function.hpp>
+#include <sys/mman.h>
+#include <stdexcept>
 
 /**
  * @defgroup buffergroup Buffer data in a thread-safe manner
@@ -40,17 +40,16 @@ namespace jill { namespace util {
 
 /**
  * @ingroup buffergroup
- * @brief a wrapper around the JACK ringbuffer
+ * @brief a lockfree ringbuffer
  *
  *  Many JILL applications will access an audio stream in both the
- *  real-time thread and a lower-priority main thread.  This class,
- *  which is a thin wrapper around the JACK ringbuffer interface,
- *  allows simultaneous access by read and write threads.
+ *  real-time thread and a lower-priority main thread.  This class
+ *  is based on JACK's ringbuffer, with the following changes:
  *
- *  Client applications can derive from this class or encapsulate it
- *  to provide a wide variety of data handling functionality; note,
- *  however, that due to the performance demands of running in the
- *  real-time thread, none of the member functions are virtual.
+ *  1) memory is always mlocked to avoid paging
+ *  2) data type is set as a template argument to simplify pointer arithmetic
+ *     and avoid byteshift corruptions
+ *  3) instead of cumbersome peek functions, uses a visitor paradigm
  *
  *  @param T the type of object to store in the ringbuffer. Should be POD.
  */
@@ -60,6 +59,7 @@ class Ringbuffer : boost::noncopyable
 public:
 	typedef T data_type;
 	typedef std::size_t size_type;
+	typedef typename boost::function<size_type (data_type const * src, size_type cnt)> visitor_type;
 
 	/**
 	 * Construct a ringbuffer with enough room to hold @a size
@@ -67,197 +67,238 @@ public:
 	 *
 	 * @param size The size of the ringbuffer (in objects)
 	 */
-	explicit Ringbuffer(size_type size) {
-		_rb.reset(jack_ringbuffer_create(size * sizeof(T)),
-			  jack_ringbuffer_free);
-	}
+	explicit Ringbuffer(size_type size);
+
+	virtual ~Ringbuffer();
+
+	/// @return the number of items that can be written to the ringbuffer
+	size_type write_space() const;
+
+	/// @return the number of items that can be read from the ringbuffer
+	size_type read_space() const;
+
+	/** @return the total size of the ringbuffer. may be larger than the space requested */
+	size_type size() const { return _size;}
 
 	/**
 	 * Write data to the ringbuffer.
 	 *
 	 * @param src Pointer to source buffer
-	 * @param nframes The number of frames in the source buffer
+	 * @param cnt The number of elements in the source buffer
 	 *
-	 * @return The number of frames actually written
+	 * @return The number of elements actually written
 	 */
-	size_type push(const data_type *src, size_type nframes) {
-		return jack_ringbuffer_write(_rb.get(), reinterpret_cast<char const *>(src),
-					     sizeof(data_type) * nframes) / sizeof(data_type);
-	}
-
-	size_type push_one(const data_type & src) {
-		return push(&src, 1);
-	}
-
-	/**
-	 * Write data to the ringbuffer using a generator function.
-	 *
-	 * @param data_fun  function or object of type size_type(*)(*data_type, size_type)
-	 *                  it should return the number of samples actually written, and be safe to call
-	 *                  with a size of zero. It may be called twice.
-	 *
-	 * @return the number of frames actually written
-	 */
-	template <class Fun>
-	size_type push(Fun &data_fun) {
-		size_type nsamp = 0;
-		jack_ringbuffer_data_t vec[2];
-		jack_ringbuffer_get_write_vector(_rb.get(), vec);
-		for (int i = 0; i < 2; ++i) {
-			if (vec[i].len > 0) {
-				size_type n = data_fun(reinterpret_cast<data_type *>(vec[i].buf), vec[i].len);
-				nsamp += n;
-				// function gave us less than we
-				// requested, so we exit
-				if (n < vec[i].len) break;
-			}
-		}
-		jack_ringbuffer_write_advance(_rb.get(), nsamp);
-		return nsamp;
-	}
+	size_type push(data_type const * src, size_type cnt);
+	size_type push(data_type const & src) { return push(&src, 1); }
 
 	/**
 	 * Read data from the ringbuffer. This version of the function
 	 * copies data to a destination buffer.
 	 *
 	 * @param dest the destination buffer, which needs to be pre-allocated
-	 * @param nframes the number of frames to read
+	 * @param cnt the number of elements to read (0 for all)
 	 *
-	 * @return the number of frames actually read
+	 * @return the number of elements actually read
 	 */
-	size_type pop(data_type *dest, size_type nframes=0) {
-		if (nframes==0)
-			nframes = read_space();
-		return jack_ringbuffer_read(_rb.get(), reinterpret_cast<char *>(dest),
-					    sizeof(data_type) * nframes) / sizeof(data_type);
-	}
+	size_type pop(data_type *dest, size_type cnt=0);
 
 	/**
-	 * Read data from the ringbuffer using a visitor function. The
-	 * function signature must be size_type (data_type*, size_type), and it
-	 * may be called 0--2 times.
+	 * Read data from the ringbuffer using a visitor function.
+	 *
+	 * @param data_fun The visitor function. NB: to avoid copying
+	 *                 the underlying object use boost::ref
+	 * @param cnt      The number of elements to process, or 0 for all
+	 * (@see visitor_type). Note that the function is passed by
+	 * @return the number of elements actually read
 	 */
-	template <typename Fun>
-	size_type pop(Fun &data_fun) {
-		size_type cnt = 0;
-		jack_ringbuffer_data_t vec[2];
-		jack_ringbuffer_get_read_vector(_rb.get(), vec);
-		for (int i = 0; i < 2; ++i) {
-			if (vec[i].len > 0) {
-				cnt += data_fun(reinterpret_cast<data_type *>(vec[i].buf),
-						vec[i].len / sizeof(data_type));
-			}
-		}
-		jack_ringbuffer_read_advance(_rb.get(), cnt * sizeof(data_type));
-		return cnt;
-	}	
+	size_type pop(visitor_type data_fun, size_type cnt=0);
 
 	/**
-	 * Peek at data in the ringbuffer. This version sets the input
-	 * argument to the address of an array with the next block of
-	 * data.  To free space after using the data, call
-	 * @ref advance. Note that if the readable data spans the
-	 * boundary of the ringbuffer, this call only provides access
-	 * to the first contiguous chunk of data.
-	 *
-	 * @param buf   will point to data in ringbuffer after read
-	 *
-	 * @return  the number of available samples in buf
-	 */
-	size_type peek(data_type **buf) {
-		jack_ringbuffer_data_t vec[2];
-		jack_ringbuffer_get_read_vector(_rb.get(), vec);
-		for (int i = 0; i < 2; ++i) {
-			if (vec[i].len > 0) {
-				*buf = reinterpret_cast<data_type *>(vec[i].buf);
-				return vec[i].len / sizeof(data_type);
-			}
-		}
-		return 0;
-	}
-
-	/**
-	 * Advance the read pointer by @a nframes, or up to the write
+	 * Advance the read pointer by @a cnt, or up to the write
 	 * pointer, whichever is less.
 	 *
-	 * @param nframes   The number of frames to advance. If 0, advance
-	 *                  as far as possible
-	 * @return the number of frames actually advanced
+	 * @param cnt   The number of elements to advance, or 0 to advance
+	 *                  up to the write pointer
+	 * @return the number of elements actually advanced
 	 */
-	size_type advance(size_type nframes=0) {
-		// the underlying call can advance the read pointer past the write pointer
-		nframes = (nframes==0) ? read_space() : std::min(read_space(), nframes);
-		jack_ringbuffer_read_advance(_rb.get(), nframes * sizeof(data_type));
-		return nframes;
-	}
-
-	/// @return the number of items that can be written to the ringbuffer
-	size_type write_space() const {
-		return jack_ringbuffer_write_space(_rb.get()) / sizeof(data_type);
-	}
-
-	/// @return the number of items that can be read from the ringbuffer
-	size_type read_space() const {
-		return jack_ringbuffer_read_space(_rb.get()) / sizeof(data_type);
-	}
-
-	/** @return the total size of the ringbuffer. may be larger than the space requested */
-	size_type size() const { return read_space() + write_space(); }
-
-private:
-	boost::shared_ptr<jack_ringbuffer_t> _rb;
-};
-
-template<typename T>
-std::ostream &operator<< (std::ostream &os, const Ringbuffer<T> &o)
-{
-	return os << "read space " << o.read_space() << "; write space " << o.write_space();
-}
-
-/**
- * @ingroup buffergroup
- * @brief ringbuffer that maintains a constant amount of read data
- *
- * The Prebuffer is a specialization of the Ringbuffer that
- * automatically flushes data when new data is added to maintain a
- * constant quantity of data to be read.  This is useful in
- * maintaining a prebuffer of some fixed time period.
- *
- * Note: this class is NOT thread-safe, because the push function
- * manipulates both the read and write pointers.
- */
-template <typename T>
-class Prebuffer : public Ringbuffer<T> {
-
-public:
-	typedef T data_type;
-	typedef typename Ringbuffer<T>::size_type size_type;
-
-	explicit Prebuffer(size_type size) : Ringbuffer<T>(size), _size(size) {}
+	size_type advance(size_type cnt=0);
 
 	/**
-	 * Push data onto the prebuffer. If the size of the data
-	 * exceeds the size of the ringbuffer, only the last size
-	 * items will be written.  The read pointer is advanced so
-	 * that it is at most size behind the write pointer. Because
-	 * of this, this operation is not reentrant with the read functions
+	 * Advance the read pointer until at least @a cnt elements
+	 * remain in the buffer. Useful for maintaining a
+	 * prebuffer. If read_size() < @a cnt, does nothing.  Note
+	 * that additional samples may be added to the buffer by the
+	 * writer thread during the flush, in which case read_size() >
+	 * @a cnt.
 	 *
-	 * @param in  The input data
-	 * @param nframes  The number of items in the data
-	 * @return  The number of items actually written
+	 * @param cnt The number of elements to keep
+	 * @return The number of elements flushed
 	 */
-	size_type push(const data_type *in, size_type nframes) {
-		size_type nwrite = std::min(_size, nframes);
-		int nflush = super::read_space() + nwrite - _size;
-		if (nflush > 0)
-			super::advance(nflush);
-		return super::push(in+(nframes-nwrite), nwrite);
-	}
+	size_type flush(size_type cnt);
 
 private:
-	typedef Ringbuffer<T> super;
-	size_type _size;
+	data_type *_buf;
+	volatile size_type _write_ptr;
+	volatile size_type _read_ptr;
+	size_type	  _size;
+	size_type	  _size_mask;
 };
+
+
+/* IMPLEMENTATIONS */
+
+template <typename T>
+Ringbuffer<T>::Ringbuffer(size_type size)
+   : _write_ptr(0), _read_ptr(0)
+{
+	int power_of_two;
+	for (power_of_two = 1; 1 << power_of_two < size; power_of_two++);
+	_size = 1 << power_of_two;
+	_size_mask = _size - 1;
+	_buf = new data_type[_size];
+
+	if (mlock (_buf, _size))
+		throw std::runtime_error("Error mlocking ringbuffer");
+}
+
+template <typename T>
+Ringbuffer<T>::~Ringbuffer()
+{
+	munlock(_buf, _size);
+	delete[] _buf;
+}
+
+template<typename T>
+typename Ringbuffer<T>::size_type
+Ringbuffer<T>::read_space() const
+{
+	size_type w = _write_ptr;
+	size_type r = _read_ptr;
+
+	if (w > r)
+		return w - r;
+	else if (w < r)
+		return (w - r + _size) & _size_mask;
+	else
+		return 0;
+}
+
+template<typename T>
+typename Ringbuffer<T>::size_type
+Ringbuffer<T>::write_space() const
+{
+	size_type w = _write_ptr;
+	size_type r = _read_ptr;
+
+	if (w > r)
+		return ((r - w + _size) & _size_mask) - 1;
+	else if (w < r)
+		return (r - w) - 1;
+	else
+		return _size - 1;
+}
+
+template<typename T>
+typename Ringbuffer<T>::size_type
+Ringbuffer<T>::advance(size_type cnt)
+{
+	cnt = (cnt==0) ? read_space() : std::min(read_space(), cnt);
+	_read_ptr = (_read_ptr + cnt) & _size_mask;
+	return cnt;
+}
+
+template<typename T>
+typename Ringbuffer<T>::size_type
+Ringbuffer<T>::flush(size_type cnt)
+{
+	size_type to_flush = read_space() - cnt;
+	if (to_flush <= 0)
+		return 0;
+	_read_ptr = (_read_ptr + to_flush) & _size_mask;
+	return to_flush;
+}
+
+template<typename T>
+typename Ringbuffer<T>::size_type
+Ringbuffer<T>::push(data_type const * src, size_type cnt)
+{
+	size_type free_cnt = write_space();
+	if (free_cnt == 0) return 0;
+
+	size_type to_write = cnt > free_cnt ? free_cnt : cnt;
+	size_type cnt2 = _write_ptr + to_write;
+
+	size_type n1, n2;
+	if (cnt2 > _size) {
+		n1 = _size - _write_ptr;
+		n2 = cnt2 & _size_mask;
+	} else {
+		n1 = to_write;
+		n2 = 0;
+	}
+
+	memcpy (_buf + _write_ptr, src, n1 * sizeof(data_type));
+	_write_ptr = (_write_ptr + n1) & _size_mask;
+
+	if (n2) {
+		memcpy (_buf + _write_ptr, src + n1, n2 * sizeof(data_type));
+		_write_ptr = (_write_ptr + n2) & _size_mask;
+	}
+
+	return to_write;
+}
+
+namespace detail {
+
+template <typename T>
+struct memcopier {
+	typedef T data_type;
+	typedef std::size_t size_type;
+
+	data_type* _dest;
+	memcopier(data_type * dest) : _dest(dest) {}
+	size_type operator() (data_type const * src, size_type cnt) {
+		memcpy(_dest, src, cnt * sizeof(data_type));
+	}
+};
+
+}
+
+template<typename T>
+typename Ringbuffer<T>::size_type
+Ringbuffer<T>::pop(data_type * dst, size_type cnt)
+{
+	detail::memcopier<data_type> copier(dst);
+	return pop(copier, cnt);
+}
+
+template <typename T>
+typename Ringbuffer<T>::size_type
+Ringbuffer<T>::pop(visitor_type data_fun, size_type cnt)
+{
+	size_type to_read = (cnt==0) ? read_space() : std::min(read_space(), cnt);
+	if (to_read==0) return 0;
+
+	size_type cnt2 = _read_ptr + to_read;
+	size_type n1, n2;
+	if (cnt2 > _size) {
+		n1 = _size - _read_ptr;
+		n2 = cnt2 & _size_mask;
+	} else {
+		n1 = to_read;
+		n2 = 0;
+	}
+
+	data_fun (_buf + _read_ptr, n1);
+	_read_ptr = (_read_ptr + n1) & _size_mask;
+
+	if (n2) {
+		data_fun (_buf + _read_ptr, n2);
+		_read_ptr = (_read_ptr + n2) & _size_mask;
+	}
+
+	return to_read;
+}
 
 
 }} // namespace jill::util

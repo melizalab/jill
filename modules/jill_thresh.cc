@@ -62,7 +62,7 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 	// Step 2: Check state of gate
 	if (wdiscrim->open()) {
 		if (offset >= 0)
-			gate_times.push_one(int64_t(time + offset));
+			gate_times.push(int64_t(time + offset));
 		// 2A: gate is open; write 0 before offset and 1 after
 		for (frame = 0; frame < offset; ++frame)
 			out[frame] = 0.0f;
@@ -72,7 +72,7 @@ process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nfram
 	else {
 		// 2B: gate is closed; write 1 before offset and 0 after
 		if (offset >= 0)
-			gate_times.push_one(int64_t(time + offset)*-1);
+			gate_times.push(int64_t(time + offset)*-1);
 		for (frame = 0; frame < offset; ++frame)
 			out[frame] = 0.7f;
 		for (; frame < (int)nframes; ++frame)
@@ -92,18 +92,21 @@ signal_handler(int sig)
 	client->stop("Received interrupt");
 }
 
-int
-mainloop()
+/** visitor function for gate time ringbuffer */
+nframes_t log_times(int64_t const * times, nframes_t count)
 {
-	int64_t *times;
-	int ntimes = gate_times.peek(&times);
-	for (int i = 0; i < ntimes; ++i) {
+	for (int i = 0; i < count; ++i) {
 		if (times[i] > 0)
 			logv << logv.allfields << "Signal start @"  << times[i] << std::endl;
 		else
 			logv << logv.allfields << "Signal stop  @"  << -times[i] << std::endl;
 	}
-	gate_times.advance(ntimes);
+}
+
+int
+mainloop()
+{
+	gate_times.pop(log_times);
 	return 0;
 }
 

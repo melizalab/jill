@@ -102,13 +102,11 @@ protected:
 /*
  * We've added some additional module-scope variables related to the
  * file output. We need a ringbuffer to move data between the realtime
- * thread and the writer thread, a buffer to store data temporarily,
- * and an object for writing to disk.
+ * thread and the writer thread, and an object for writing to disk.
  */
 boost::scoped_ptr<SimpleClient> client;
 util::logstream logv;
 int ret = EXIT_SUCCESS;
-std::size_t buffer_size;
 boost::scoped_ptr<util::Ringbuffer<sample_t> > ringbuffer;
 boost::scoped_ptr<util::Sndfile> outfile;
 
@@ -144,7 +142,7 @@ process(sample_t *in, sample_t *out, sample_t *, nframes_t nframes, nframes_t ti
 int
 mainloop()
 {
-	ringbuffer->pop(*outfile);
+	ringbuffer->pop(boost::ref(*outfile));
 	return 0;
 }
 
@@ -205,10 +203,10 @@ main(int argc, char **argv)
 		client->set_xrun_callback(log_xrun);
 
 		/*
-		 * Allocate the buffer and open the output file
-		 * here. Here's where we make a runtime decision which
-		 * class to use. We use the JACK server's samplerate
-		 * to specify the samplerate of the output file.
+		 * Open the output file here. Here's where we make a
+		 * runtime decision which class to use. We use the
+		 * JACK server's samplerate to specify the samplerate
+		 * of the output file.
 		 */
 		logv << logv.allfields << "Opening " << options.output_file
 		     << " for output; Fs = " << client->samplerate() << endl;
@@ -220,7 +218,8 @@ main(int argc, char **argv)
 		/* Some sndfile classes require next() to be called before writing */
 		outfile->next("")->set_attributes(options.additional_options);
 
-		buffer_size = 0.001 * options.buffer_size_ms * client->samplerate();
+		/* Allocate the ringbuffer based on the user option and the samplerate */
+		std::size_t buffer_size = 0.001 * options.buffer_size_ms * client->samplerate();
 		ringbuffer.reset(new util::Ringbuffer<sample_t> (buffer_size));
 
 		signal(SIGINT,  signal_handler);
