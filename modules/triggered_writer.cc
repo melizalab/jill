@@ -46,8 +46,8 @@ static void adjusted_entry_time(std::vector<boost::int64_t> & timestamp, double 
  * We also initialize the ringbuffer and prebuffer.
  */
 TriggeredWriter::TriggeredWriter(util::Sndfile &writer, util::logstream &logger,
-				 nframes_t prebuffer_size, nframes_t buffer_size, 
-				 nframes_t sampling_rate, sample_t trig_thresh, 
+				 nframes_t prebuffer_size, nframes_t buffer_size,
+				 nframes_t sampling_rate, sample_t trig_thresh,
 				 std::map<std::string, std::string> *entry_attrs)
 	: _data(buffer_size), _trig(buffer_size), _buffer_size(buffer_size),
 	  _prebuf(prebuffer_size), _writer(writer),
@@ -99,7 +99,7 @@ TriggeredWriter::flush()
 	// keep the two ringbuffers and the time variable in sync
 	nframes_t frames,nf2,time;
 	{
-		boost::system_time const timeout= boost::get_system_time() + 
+		boost::system_time const timeout= boost::get_system_time() +
 			boost::posix_time::seconds(1);
 		boost::timed_mutex::scoped_timed_lock lock(_mux, timeout);
 		if (lock.owns_lock()) {
@@ -183,8 +183,8 @@ TriggeredWriter::next_entry(nframes_t time, nframes_t prebuf)
 	adjusted_entry_time(timestamp, 1.0 / _samplerate * prebuf);
 	_logv << _logv.allfields << "Signal start @" << time << "; begin entry @" << time - prebuf;
 	util::Sndfile::Entry *entry = _writer.next("");
-	entry->set_attribute("sample_count",static_cast<int64_t>(time));
-	entry->set_attribute("signal_trigger",static_cast<int64_t>(time - prebuf));
+	entry->set_attribute("sample_count",time);
+	entry->set_attribute("signal_trigger",time - prebuf);
 	entry->set_attribute("timestamp", timestamp);
 	if (_entry_attrs)
 		entry->set_attributes(*_entry_attrs);
@@ -221,7 +221,7 @@ TriggeredWriter::close_entry()
  * capture_test.cc.
  */
 
-void adjusted_entry_time(std::vector<boost::int64_t> & timestamp, double diff) 
+void adjusted_entry_time(std::vector<boost::int64_t> & timestamp, double diff)
 {
 	struct timeval tp;
 	gettimeofday(&tp,0);
@@ -234,4 +234,4 @@ void adjusted_entry_time(std::vector<boost::int64_t> & timestamp, double diff)
 		timestamp[1] += 1000000;
 		timestamp[0] -= 1;
 	}
-}	
+}
