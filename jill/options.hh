@@ -131,7 +131,7 @@ protected:
 	 * object. Typically this consists of a series of calls to
 	 * @ref assign.
 	 */
-	virtual void process_options() = 0;
+        virtual void process_options() {};
 
 	/**
 	 * Print the name and version of the program. Called by
