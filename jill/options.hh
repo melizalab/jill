@@ -14,6 +14,7 @@
 
 #include <string>
 #include <stdexcept>
+#include <vector>
 #include <boost/program_options.hpp>
 
 /**
@@ -103,6 +104,10 @@ public:
 			return vmap[name].as<T>();
 	}
 
+        int count(std::string const & name) {
+                return vmap.count(name);
+        }
+
 	/**
 	 * Assign a parsed value to a variable, if the value is defined.
 	 *
@@ -146,6 +151,42 @@ protected:
 	virtual void print_usage();
 
 };
+
+/**
+ * @ingroup optionsgroup
+ * @brief implement Options with basic JILL options
+ *
+ * The JillOptions class stores options for JILL applications. Options
+ * handled are:
+ *
+ * -n : client name
+ * -l : log file
+ * -i : input ports
+ * -o : output ports
+ * -c : control ports  [not included by default]
+ *
+ */
+class JillOptions : public Options {
+public:
+	JillOptions(std::string const &program_name, std::string const &program_version);
+	virtual ~JillOptions() {}
+
+	/** The client name (used in internal JACK representations) */
+	std::string client_name;
+	/** A vector of inputs to connect to the client */
+	std::vector<std::string> input_ports;
+	/** A vector of outputs to connect to the client */
+	std::vector<std::string> output_ports;
+	/** A vector of key/value additional options */
+	std::map<std::string, std::string> additional_options;
+	/** The log file to write application events to */
+	std::string logfile;
+
+protected:
+	virtual void process_options();
+
+};
+
 
 template <> inline
 bool Options::assign<bool>(bool &ref, std::string const &name)

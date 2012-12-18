@@ -14,7 +14,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
-#include "jill_options.hh"
+#include "options.hh"
 #include "version.hh"
 
 using namespace jill;
@@ -83,7 +83,7 @@ Options::parse(int argc, char **argv)
 
 
 
-JillOptions::JillOptions(std::string const &program_name, std::string const &program_version, bool supports_control)
+JillOptions::JillOptions(std::string const &program_name, std::string const &program_version)
 	: Options(program_name, program_version), client_name(program_name)
 {
 	po::options_description jillopts("JILL options");
@@ -91,11 +91,8 @@ JillOptions::JillOptions(std::string const &program_name, std::string const &pro
 		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
 		("log,l",     po::value<string>(), "set logfile (default stdout)")
 		("out,o",     po::value<vector<string> >(), "add connection to output port")
-		("in,i",      po::value<vector<string> >(), "add connection to input port/file")
+		("in,i",      po::value<vector<string> >(), "add connection to input port")
 		("attr,a",     po::value<vector<string> >(), "set additional attribute (key=value)");
-	if (supports_control)
-		jillopts.add_options()
-			("ctrl,c",    po::value<vector<string> >(), "add connection to control port");
 	cfg_opts.add_options()
 		("attr,a",     po::value<vector<string> >());
 	cmd_opts.add(jillopts);
@@ -108,7 +105,6 @@ JillOptions::process_options()
 {
 	assign(output_ports,"out");
 	assign(input_ports,"in");
-	assign(control_ports,"ctrl");
 	assign(client_name,"name");
 	assign(logfile,"log");
 

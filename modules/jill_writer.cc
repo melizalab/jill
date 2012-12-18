@@ -120,7 +120,7 @@ boost::scoped_ptr<util::Sndfile> outfile;
  * will exit gracefully.  The control port is ignored.
  */
 void
-process(sample_t *in, sample_t *out, sample_t *, nframes_t nframes, nframes_t time)
+process(sample_t *in, sample_t *out, event_list *, nframes_t nframes, nframes_t time)
 {
 	nframes_t nf = ringbuffer->push(in, nframes);
 	if (nf < nframes)
@@ -241,7 +241,7 @@ main(int argc, char **argv)
 		 * Try commenting out this line and see what happens.
 		 */
 		client->set_mainloop_callback(mainloop);
-		client->set_mainloop_delay(250000);
+		client->set_mainloop_delay(50000);
 		client->set_process_callback(process);
 		client->run();
 		logv << logv.allfields << client->get_status() << endl;

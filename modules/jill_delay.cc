@@ -52,23 +52,11 @@ static util::DelayBuffer<sample_t> buffer;
  * samples are available at the other end, which are copied to the
  * output port.  The interface for this is quite simple, since all the
  * internals are hidden in the DelayBuffer class.
- *
- * We also introduce the concept of a control line.  For this client,
- * the control line is interpreted like a mask; it's multiplied by the
- * output signal, so if the control line is 0 the output will be
- * silent.  This allows the user to hook the delay module up to a
- * trigger module to control when delayed playback occurs.
- *
  */
 void
-process(sample_t *in, sample_t *out, sample_t *ctrl, nframes_t nframes, nframes_t time)
+process(sample_t *in, sample_t *out, void *, nframes_t nframes, nframes_t time)
 {
 	buffer.push_pop(in, out, nframes);
-	// the ctrl pointer will be NULL if user didn't register a control port
-	if (ctrl) {
-		for (unsigned int i = 0; i < nframes; ++i)
-			out[i] *= ctrl[i];
-	}
 }
 
 void

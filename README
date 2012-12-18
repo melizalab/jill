@@ -92,7 +92,6 @@ The RT kernel will not boot by default. To change this, edit
 /boot/grub/grub.conf and change the line "default=1" so that the
 number corresponds to the 2.6.24.7-65.el5rt.centos kernel.
 
-
 * Installation
 
 JILL comprises a library, a set of headers, and a number of modules.

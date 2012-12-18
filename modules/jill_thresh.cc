@@ -1,95 +1,74 @@
 /*
- * JILL - C++ framework for JACK
- *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * A client that broadcasts data over the network using zeroMQ
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- *! @file window_discriminator.cc
- *! @brief window discriminator module
- *!
  */
-#include <boost/scoped_ptr.hpp>
 #include <iostream>
 #include <signal.h>
-#include <iostream>
-/*
- * Note that the references to jill headers use angle brackets; do
- * likewise if the program lives outside the current directory
- */
-#include <jill/simple_client.hh>
-#include <jill/util/logger.hh>
-#include <jill/jill_options.hh>
-#include <jill/util/ringbuffer.hh>
-#include "window_discriminator.hh"
+
+#include <boost/scoped_ptr.hpp>
+
+#include "jill/jack_client.hh"
+#include "jill/options.hh"
+#include "jill/logger.hh"
+#include "jill/ringbuffer.hh"
+#include "jill/dsp/crossing_trigger.hh"
 using namespace jill;
 
-typedef jill::WindowDiscriminator<sample_t> wdiscrim_t;
 
-/* A smart pointer to the window discriminator */
-static boost::scoped_ptr<SimpleClient> client;
-static boost::scoped_ptr<wdiscrim_t> wdiscrim;
-static util::logstream logv;
-static int ret = EXIT_SUCCESS;
+boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
+jack_port_t *port_in, *port_trig, *port_count;
+logstream logv;
+int ret = EXIT_SUCCESS;
 
 /*
  * Store open and close times in a ringbuffer for logging. Use longs
  * in order to use sign for open vs close.
  */
-util::Ringbuffer<int64_t> gate_times(128);
+Ringbuffer<int64_t> gate_times(128);
 
-/*
- * The process callback has fairly simple behavior; it stuffs samples
- * into the window discriminator, determines if the threshold was
- * crossed, and then generates the output signal.  The control port
- * may or may not be defined; if it is, it's for outputting count
- * data.
- */
-static void
-process(sample_t *in, sample_t *out, sample_t *control, nframes_t nframes, nframes_t time)
+
+int
+process(JackClient *client, nframes_t nframes, nframes_t time)
 {
 	int frame;
+	sample_t *in = client->buffer(port_in, nframes);
+
 	// Step 1: Pass samples to window discriminator; its state may
 	// change, in which case the return value will be > -1 and
 	// indicate the frame in which the gate opened or closed. It
 	// also takes care of copying the current state of the buffer
 	// to the control port (if not NULL)
-	int offset = wdiscrim->push(in, nframes, control);
+	int offset = trigger->push(in, nframes, 0);
 
 	// Step 2: Check state of gate
-	if (wdiscrim->open()) {
-		if (offset >= 0)
-			gate_times.push(int64_t(time + offset));
+	if (trigger->open()) {
+		// if (offset >= 0)
+		// 	gate_times.push(int64_t(time + offset));
 		// 2A: gate is open; write 0 before offset and 1 after
-		for (frame = 0; frame < offset; ++frame)
-			out[frame] = 0.0f;
-		for (; frame < (int)nframes; ++frame)
-			out[frame] = 0.7f;
+		// for (frame = 0; frame < offset; ++frame)
+		// 	out[frame] = 0.0f;
+		// for (; frame < (int)nframes; ++frame)
+		// 	out[frame] = 0.7f;
 	}
 	else {
 		// 2B: gate is closed; write 1 before offset and 0 after
-		if (offset >= 0)
-			gate_times.push(int64_t(time + offset)*-1);
-		for (frame = 0; frame < offset; ++frame)
-			out[frame] = 0.7f;
-		for (; frame < (int)nframes; ++frame)
-			out[frame] = 0.0f;
+		// if (offset >= 0)
+		// 	gate_times.push(int64_t(time + offset)*-1);
+		// for (frame = 0; frame < offset; ++frame)
+		// 	out[frame] = 0.7f;
+		// for (; frame < (int)nframes; ++frame)
+		// 	out[frame] = 0.0f;
 	}
 	// that's it!  It's up to the downstream client to decide what
 	// to do with this information.
-}
+        gate_times.push(int64_t(trigger->count()));
 
-/* The usual signal handler */
-static void
-signal_handler(int sig)
-{
-	if (sig != SIGINT)
-		ret = EXIT_FAILURE;
-
-	client->stop("Received interrupt");
+	return 0;
 }
 
 /** visitor function for gate time ringbuffer */
@@ -103,11 +82,17 @@ nframes_t log_times(int64_t const * times, nframes_t count)
 	}
 }
 
-int
-mainloop()
+
+void
+jack_shutdown(void *arg)
 {
-	gate_times.pop(log_times);
-	return 0;
+	exit(1);
+}
+
+void
+signal_handler(int sig)
+{
+        exit(ret);
 }
 
 /**
@@ -121,24 +106,25 @@ class TriggerOptions : public jill::JillOptions {
 
 public:
 	TriggerOptions(std::string const &program_name, std::string const &program_version)
-		: JillOptions(program_name, program_version, true) { // this calls the superclass constructor
+		: JillOptions(program_name, program_version) { // this calls the superclass constructor
 
 		// tropts is a group of options
 		po::options_description tropts("Trigger options");
 		tropts.add_options()
-			("period-size", po::value<float>()->default_value(20),
+                        ("count-port", "create port to output integrator state")
+			("period-size", po::value<float>(&period_size_ms)->default_value(20),
 			 "set analysis period size (ms)")
-			("open-thresh", po::value<float>()->default_value(0.01),
+			("open-thresh", po::value<float>(&open_threshold)->default_value(0.01),
 			 "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>()->default_value(20),
+			("open-rate", po::value<float>(&open_crossing_rate)->default_value(20),
 			 "set crossing rate thresh for open gate (s^-1)")
-			("open-period", po::value<float>()->default_value(500),
+			("open-period", po::value<float>(&open_crossing_period_ms)->default_value(500),
 			 "set integration time for open gate (ms)")
-			("close-thresh", po::value<float>()->default_value(0.01),
+			("close-thresh", po::value<float>(&close_threshold)->default_value(0.01),
 			 "set sample threshold for close gate")
-			("close-rate", po::value<float>()->default_value(2),
+			("close-rate", po::value<float>(&close_crossing_rate)->default_value(2),
 			 "set crossing rate thresh for close gate (s^-1)")
-			("close-period", po::value<float>()->default_value(5000),
+			("close-period", po::value<float>(&close_crossing_period_ms)->default_value(5000),
 			 "set integration time for close gate (ms)");
 
 		// we add our group of options to various groups
@@ -188,71 +174,62 @@ public:
 
 protected:
 
-	/*
-	 * Need to override process_options() to parse the options
-	 * specified in this class. We call the function from the base
-	 * class explicitly so that it parses all of the generic
-	 * options first.
-	 */
-	virtual void process_options() {
-		JillOptions::process_options();
-
-		assign(period_size_ms, "period-size");
-		assign(open_threshold, "open-thresh");
-		assign(open_crossing_rate, "open-rate");
-		assign(open_crossing_period_ms, "open-period");
-		assign(close_threshold, "close-thresh");
-		assign(close_crossing_rate, "close-rate");
-		assign(close_crossing_period_ms, "close-period");
-	}
-
-	/* also override print_usage to give user some additional help */
+	/* additional help */
 	virtual void print_usage() {
 		std::cout << "Usage: " << _program_name << " [options]\n"
 			  << visible_opts << std::endl
 			  << "Ports:\n"
-			  << " * in:         for input of the signal(s) to be monitored\n"
-			  << " * trig_out:   is >0.6 when the gate is open\n"
-			  << " * count_out:  (optional) the current estimate of signal power"
+			  << " * in:       for input of the signal(s) to be monitored\n"
+			  << " * trigger:  MIDI port with gate open and close events\n"
+			  << " * count:    (optional) the current estimate of signal power"
 			  << std::endl;
 	}
 
 }; // TriggerOptions
 
-/* the main function looks a lot like mixer or delay */
+
 int
 main(int argc, char **argv)
 {
 	using namespace std;
 	try {
 
-		/* Note the additional argument to load options from a configuration file */
 		TriggerOptions options("jill_thresh", "1.2.0rc1");
 		options.parse(argc,argv);
 
-		logv.set_program(options.client_name);
+		signal(SIGINT,  signal_handler);
+		signal(SIGTERM, signal_handler);
+		signal(SIGHUP,  signal_handler);
+
+                JackClient client(options.client_name);
+		logv.set_program(client.name());
 		logv.set_stream(options.logfile);
 
-		/*
-		 * if the user asks for a count port to be created
-		 * (for debugging), we use the control port on
-		 * SimpleClient, setting it as an output.
-		 */
-		std::string count_port = (options.control_ports.empty()) ? "" : "count_out";
-		client.reset(new SimpleClient(options.client_name, "in", "trig_out", count_port, false));
-		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
-		options.adjust_values(client->samplerate());
-		wdiscrim.reset(new wdiscrim_t(options.open_threshold,
-					      options.open_count_thresh,
-					      options.open_crossing_periods,
-					      options.close_threshold,
-					      options.close_count_thresh,
-					      options.close_crossing_periods,
-					      options.period_size));
+                port_in = client.register_port("in", JACK_DEFAULT_AUDIO_TYPE,
+                                               JackPortIsInput | JackPortIsTerminal, 0);
+                port_trig = client.register_port("trigger",JACK_DEFAULT_MIDI_TYPE,
+                                                JackPortIsOutput | JackPortIsTerminal, 0);
+                if (options.count("count-port")) {
+                        port_count = client.register_port("count",JACK_DEFAULT_AUDIO_TYPE,
+                                                          JackPortIsOutput | JackPortIsTerminal, 0);
+                }
+
+                client.set_process_callback(process);
+                client.activate();
+		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
+
+		options.adjust_values(client.samplerate());
+		trigger.reset(new dsp::CrossingTrigger<sample_t>(options.open_threshold,
+                                                                  options.open_count_thresh,
+                                                                  options.open_crossing_periods,
+                                                                  options.close_threshold,
+                                                                  options.close_count_thresh,
+                                                                  options.close_crossing_periods,
+                                                                  options.period_size));
+
 		/* Log parameters */
-		logv << logv.program << "sampling rate: " << client->samplerate() << endl
-		     << logv.program << "period size (samples): " << options.period_size << endl
+		logv << logv.program << "period size (samples): " << options.period_size << endl
 		     << logv.program << "open threshold: " << options.open_threshold << endl
 		     << logv.program << "open count thresh: " << options.open_count_thresh << endl
 		     << logv.program << "open periods: " << options.open_crossing_periods << endl
@@ -260,35 +237,27 @@ main(int argc, char **argv)
 		     << logv.program << "close count thresh: " << options.close_count_thresh << endl
 		     << logv.program << "close periods: " << options.close_crossing_periods << endl;
 
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
-
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(*it, "in");
+			client.connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
-		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_port("trig_out", *it);
-			logv << logv.allfields << "Connected output to port " << *it << endl;
-		}
-
-		for (it = options.control_ports.begin(); it != options.control_ports.end(); ++it) {
-			client->connect_port(count_port, *it);
-			logv << logv.allfields << "Connected counter to port " << *it << endl;
-		}
-
-		client->set_mainloop_callback(mainloop);
-		client->set_mainloop_delay(1000);
-		client->set_process_callback(process);
-		client->run();
-		logv << logv.allfields << client->get_status() << endl;
+                while(1) {
+                        sleep(1);
+                        gate_times.pop(log_times);
+                }
 
 		return ret;
 	}
-
+	/*
+	 * These catch statements handle two kinds of exceptions.  The
+	 * Exit exception is thrown to terminate the application
+	 * normally (i.e. if the user asked for the app version or
+	 * usage); other exceptions are typically thrown if there's a
+	 * serious error, in which case the user is notified on
+	 * stderr.
+	 */
 	catch (Exit const &e) {
 		return e.status();
 	}
@@ -296,4 +265,6 @@ main(int argc, char **argv)
 		std::cerr << "Error: " << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
+
+	/* Because we used smart pointers and locally scoped variables, there is no cleanup to do! */
 }

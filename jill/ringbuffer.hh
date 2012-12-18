@@ -36,7 +36,7 @@
  */
 
 
-namespace jill { namespace util {
+namespace jill {
 
 /**
  * @ingroup buffergroup
@@ -301,7 +301,7 @@ Ringbuffer<T>::pop(visitor_type data_fun, size_type cnt)
 }
 
 
-}} // namespace jill::util
+} // namespace jill
 
 
 #endif

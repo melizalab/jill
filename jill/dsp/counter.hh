@@ -1,8 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +15,7 @@
 #include <boost/noncopyable.hpp>
 #include <deque>
 
-namespace jill { namespace util {
+namespace jill { namespace dsp {
 
 /**
  * @ingroup miscgroup
@@ -52,9 +51,9 @@ public:
 	data_type push(data_type count) {
 		_counts.push_front(count);
 		_running_count += count;
-		if (_counts.size() <= _size) 
+		if (_counts.size() <= _size)
 			return 0;
-		
+
 		data_type back = _counts.back();
 		_running_count -=  back;
 		_counts.pop_back();
@@ -68,7 +67,7 @@ public:
 	 */
 	bool is_full() const {
 		return _counts.size() == _size;
-	} 
+	}
 
 	/** @return the running total */
 	data_type running_count() const { return _running_count; }

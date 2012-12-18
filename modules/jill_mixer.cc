@@ -18,55 +18,32 @@
  * 2. Parse command-line options and set up data logging
  * 3. Handle application startup and shutdown
  */
-#include <boost/scoped_ptr.hpp>
 #include <iostream>
 #include <signal.h>
 
 /*
  * Here we include the relevant JILL headers.  Most applications will
- * use the simple_client.hh header. If you plan to support
- * offline input (i.e. from a wav file), you will also need to include
- * sndfile_player_client.hh.  In addition, jill_options.hh contains a
- * class used to parse command-line options, and jill/util/logger.hh
+ * use the jack_client.hh header. In addition, options.hh contains a
+ * class used to parse command-line options, and jill/logger.hh
  * contains code for writing a timestamped logfile.
  */
-#include "jill/simple_client.hh"
-#include "jill/sndfile_player_client.hh"
-#include "jill/jill_options.hh"
-#include "jill/util/logger.hh"
+#include "jill/jack_client.hh"
+#include "jill/options.hh"
+#include "jill/logger.hh"
 using namespace jill;
 
 
 /*
- * Next, we define several variables with module scope. These refer to
- * objects that need to be accessible to multiple functions in this
- * compilation module.  The SimpleClient, for example, is used by
- * both main() and signal_handler().
- *
- * Note, however, that the constructor for SimpleClient requires
- * that we specify the audio client and a logger, and we have no way
- * of initializing the client until we've parsed the command-line
- * options.  The solution is to create a pointer to an object of type
- * SimpleClient, and then initialize the object once we have enough
- * information to do so.  Using pointers introduces some issues in
- * resource management; to deal with these we use a "smart pointer",
- * which guarantees that the object will be cleaned up when the
- * application exits.
- *
- * The pclient is also a smart pointer, but to an object of type
- * SndfilePlayerClient. This object is a second client that is only
- * instantiated if the user specifies a sound file as input.  It's
- * responsible for reading that file and sending the samples to JACK.
- *
- * We also create a logstream, and an integer to hold the exit status
- * of the application.  We don't really need the logstream at module
- * scope for this application, but it will come in handy in later
- * examples.
+ * Next, we define several variables with module scope. These refer to objects
+ * that need to be accessible to multiple functions in this compilation module.
+ * The most important objects are the ports we'll use to communicate with input
+ * and output data. We also allocate a logstream, and an integer to hold the
+ * exit status of the application. We don't really need the logstream at module
+ * scope for this application, but it will come in handy in later examples.
  */
-static boost::scoped_ptr<SimpleClient> client;
-static boost::shared_ptr<SndfilePlayerClient> pclient;
-static util::logstream logv;
-static int ret = EXIT_SUCCESS;
+jack_port_t *port_in, *port_out;
+logstream logv;
+int ret = EXIT_SUCCESS;
 
 /*
  * This function is the processing loop, which is how the application
@@ -92,33 +69,31 @@ static int ret = EXIT_SUCCESS;
  *           input port
  * @param out Pointer to the output buffer. NULL if no
  *            output port
- * @param trig Pointer to the trigger signal. Not used here.
+ * @param trig Pointer to the event list. Not used here.
  * @param nframes The number of frames in the data
  * @param time The frame count at the beginning of the process loop. This is
  * guaranteed to be unique for all loops in this process
  */
-void
-process(sample_t * __restrict in, sample_t * __restrict out, sample_t *trig,
-	nframes_t nframes, nframes_t time)
+int
+process(JackClient *client, nframes_t nframes, nframes_t time)
 {
+        sample_t *in = client->buffer(port_in, nframes);
+        sample_t *out = client->buffer(port_out, nframes);
 	memcpy(out, in, sizeof(sample_t) * nframes);
+        return 0;
 }
 
 /*
  * We also need to handle signals from the user and the operating
  * system and shut down in a graceful manner. This function is called
  * by the OS when the user hits Ctrl-C, or the application is killed
- * with kill(1). It calls the signal_quit() method of the application,
- * which tells it to shut down.
+ * with kill(1).
  */
 static void signal_handler(int sig)
 {
 	if (sig != SIGINT)
 		ret = EXIT_FAILURE;
-
-	// here we have to check to see if the pclient object actually got allocated
-	if (pclient) pclient->stop("Received interrupt");
-	client->stop("Received interrupt");
+        exit(ret);
 }
 
 /*
@@ -166,8 +141,16 @@ main(int argc, char **argv)
 		 * function to call with the set_process_callback()
 		 * function.
 		 */
-		client.reset(new SimpleClient(options.client_name, "in", "out"));
-		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
+		JackClient client(options.client_name);
+
+                port_in = client.register_port("in", JACK_DEFAULT_AUDIO_TYPE,
+                                               JackPortIsInput | JackPortIsTerminal, 0);
+                port_out = client.register_port("out",JACK_DEFAULT_AUDIO_TYPE,
+                                                JackPortIsOutput | JackPortIsTerminal, 0);
+
+                client.set_process_callback(process);
+                client.activate();
+		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
 
 		/*
 		 * Similarly, we need to tell the OS what function to
@@ -180,28 +163,6 @@ main(int argc, char **argv)
 		signal(SIGHUP,  signal_handler);
 
 		/*
-		 * Here, we handle the case where the user wants to
-		 * use a sound file as input, rather than a JACK
-		 * port. This is done by creating a second client
-		 * whose job it is to read in the sound file and
-		 * output the samples to the JACK server, which will
-		 * send them to the primary client. This may seem
-		 * unecessarily complicated, but by doing it this way,
-		 * we use the JACK framework as much as possible and
-		 * we don't have to write a separate set of code for
-		 * handling the offline case.
-		 *
-		 * The PlayerClient has a static factory function,
-		 * from_port_list(), that will parse our list of input
-		 * ports and determine if any of them refer to a file.
-		 * If so, it creates a PlayerClient object to
-		 * handle the file, and returns a pointer to the newly
-		 * created client.  At various points we'll have to
-		 * check to make sure whether this happened or not.
-		 */
-		pclient = SndfilePlayerClient::from_port_list(options.input_ports, &logv);
-
-		/*
 		 * Next, we connect our client to the input and output
 		 * ports specified by the user. When we called
 		 * from_port_list(), it modified the list of input
@@ -211,12 +172,12 @@ main(int argc, char **argv)
 		 */
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(*it, "in");
+			client.connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_port("out", *it);
+			client.connect_port("out", *it);
 			logv << logv.allfields << "Connected output to port " << *it << endl;
 		}
 
@@ -231,20 +192,16 @@ main(int argc, char **argv)
 		 * Depending on whether the user specified an input
 		 * file, we either wait indefinitely in the main loop,
 		 * or wait until the playback is finished. We could
-		 * make the choice using a simple if construction, but
+		 * make the choice using a jack if construction, but
 		 * just to illustrate, we take advantage of the fact
-		 * that SimpleClient and PlayerClient share a
+		 * that JackClient and PlayerClient share a
 		 * common base class (Client) and use a
 		 * polymorphic pointer.
 		 */
-		Client *cl = client.get();
-		if (pclient)
-			cl = pclient.get();
 
-		client->set_process_callback(process);
-
-		cl->run();
-		logv << logv.allfields << cl->get_status() << endl;
+                while(1) {
+                        sleep(1);
+                }
 
 		return ret;
 	}

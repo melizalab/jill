@@ -16,7 +16,7 @@
 #include <fstream>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-namespace jill { namespace util {
+namespace jill {
 
 
 /**
@@ -97,5 +97,5 @@ logstream & logstream::operator<<(const logstream::_fixed_fields &p)
 	return *this;
 }
 
-}}
+}
 #endif /* _LOGGER_H */

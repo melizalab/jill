@@ -157,7 +157,9 @@ private:
 	/// Store the time of the last sample written to the ringbuffer
 	nframes_t _time;
 	/// Mutex for synchronizing access to ringbuffers and time variable
-	boost::timed_mutex _mux;
+	boost::mutex _mux;
+	/// Condition variable is true when buffers are synchronized
+
 
 	/* all objects below here are only accessed by the non-realtime thread */
 

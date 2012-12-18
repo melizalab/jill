@@ -15,7 +15,7 @@
 #include <boost/noncopyable.hpp>
 #include <deque>
 
-namespace jill { namespace util {
+namespace jill { namespace dsp {
 
 /**
  * @ingroup buffergroup
@@ -58,6 +58,7 @@ public:
 	size_type push_pop(const T *in, T *out, size_type size, const T &def=0) {
 		size_type i;
 		// push data into the buffer
+
 		for (i = 0; i < size; ++i,++in)
 			_buf.push_front(*in);
 
@@ -94,5 +95,5 @@ private:
 
 };
 
-}} // namespace jill::util
+}} // namespace jill::dsp
 #endif

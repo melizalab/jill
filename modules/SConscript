@@ -5,9 +5,11 @@ Import('env lib')
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],
             LIBS=['jack','samplerate','hdf5','hdf5_hl','sndfile',
-                  'boost_system','boost_date_time','boost_program_options','boost_filesystem'])
+                  # need to auto-detect this
+                  'boost_system-mt','boost_date_time-mt','boost_program_options-mt','boost_filesystem-mt'])
 
 programs = {'jill_mixer' : ['jill_mixer.cc'],
+            'jill_netmon' : ['jill_netmon.cc'],
             'jill_delay' : ['jill_delay.cc'],
             'jill_writer' : ['jill_writer.cc'],
             'jill_play' : ['jill_play.cc'],
@@ -24,7 +26,7 @@ for progname,srcs in programs.items():
 env.Alias('install', env.Install(env['BINDIR'],prog))
 
 env.Alias('modules',out)
-    
+
 # scripts
 scripts = ['jill_trigger_capture']
 env.Alias('install', env.Install(env['BINDIR'],scripts))
