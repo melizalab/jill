@@ -237,11 +237,11 @@ Ringbuffer<T>::push(data_type const * src, size_type cnt)
 		n2 = 0;
 	}
 
-	memcpy (_buf + _write_ptr, src, n1 * sizeof(data_type));
-	_write_ptr = (_write_ptr + n1) & _size_mask;
+        std::copy (src, src + n1, _buf + _write_ptr);
+	_write_ptr = (_write_ptr + n1) & _size_mask; // FIXME: IS THIS SAFE?
 
 	if (n2) {
-		memcpy (_buf + _write_ptr, src + n1, n2 * sizeof(data_type));
+                std::copy (src + n1, src + n1 + n2, _buf + _write_ptr);
 		_write_ptr = (_write_ptr + n2) & _size_mask;
 	}
 

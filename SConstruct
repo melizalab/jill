@@ -82,6 +82,7 @@ else:
 
 lib = SConscript('jill/SConscript', exports='env libname')
 SConscript('modules/SConscript', exports='env lib')
+SConscript('test/SConscript', exports='env lib')
 
 if hasattr(env,'Doxygen'):
     dox = env.Doxygen('doc/doxy.cfg')

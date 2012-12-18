@@ -48,21 +48,36 @@ struct event_t : public jack_midi_event_t {
                 control = 0xb0
         };
 
-        /** Construct a new event with data
+        /** Allocate midi event AND buffer. Not RT safe */
+        event_t(size_t size=3);
+        /** Copy constructor copies entire data buffer. Not RT safe. */
+        event_t(jack_midi_event_t const & evt);
+        /** Assigment operator copies as much of data as will fit. Realtime safe */
+        event_t & operator=(jack_midi_event_t const & evt);
+
+	event_t(nframes_t offset, char type, char channel, size_t data_size, void * data);
+
+        ~event_t();
+
+        /**
+         * Set data in object. Only copies as much data as allocated, so it's RT safe.
          * @param offset  the time of the event
          * @param status  the type of the event (top four bytes only)
          * @param channel the channel of the event (0-16)
+         * @param size    the number of bytes in the data
          * @param data    the data of the event
+         * @return the number of bytes copied from data buffer
          */
-	event_t(nframes_t offset, char type, char channel=0, short data=0);
+        std::size_t set(nframes_t offset, char type, char channel, short data=0);
+        std::size_t set(nframes_t offset, char type, char channel, size_t data_size, void * data);
 
-        /** Construct event_t by reading from a port buffer
-         *  port_buffer: JACK port buffer
-         *  idx: the index of the event to read
+        /**
+         * Read data from a JACK port buffer
+         * @param  port_buffer JACK port buffer
+         * @param  idx the index of the event to read
+         * @return the number of bytes copied from the data buffer
          */
-        event_t(void * port_buffer, uint32_t event_index);
-
-        ~event_t();
+        std::size_t set(void * port_buffer, uint32_t event_index);
 
         // type of the event
         int type() const { return size && (buffer[0] & 0xf0);}
@@ -86,6 +101,7 @@ struct event_t : public jack_midi_event_t {
 
 	/// Less-than operator to make this object sortable
 	bool operator< (event_t const & other);
+
 };
 
 template<typename OutputIterator>

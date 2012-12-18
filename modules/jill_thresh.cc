@@ -20,7 +20,7 @@
 #include "jill/dsp/crossing_trigger.hh"
 using namespace jill;
 
-
+boost::scoped_ptr<JackClient> client;
 boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
 logstream logv;
@@ -30,7 +30,8 @@ int ret = EXIT_SUCCESS;
  * Store open and close times in a ringbuffer for logging. Use longs
  * in order to use sign for open vs close.
  */
-Ringbuffer<int64_t> gate_times(128);
+Ringbuffer<event_t> gate_times(128);
+event_t evt;
 
 int
 process(JackClient *client, nframes_t nframes, nframes_t time)
@@ -46,19 +47,17 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
 	// also takes care of copying the current state of the buffer
 	// to the count monitor port (if not NULL)
 	int offset = trigger->push(in, nframes, out);
+        if (offset < 0) return 0;
 
 	// Step 2: Check state of gate
 	if (trigger->open()) {
-		if (offset >= 0)
-			gate_times.push(int64_t(time + offset));
-                event_t evt(offset, event_t::note_on);
+                evt.set(offset, event_t::note_on, 0);
+                gate_times.push(evt);
                 evt.write(trig);
 	}
 	else {
-		// 2B: gate is closed; write 1 before offset and 0 after
-		if (offset >= 0)
-			gate_times.push(int64_t(time + offset)*-1);
-                event_t evt(offset, event_t::note_off);
+                evt.set(offset, event_t::note_off, 0);
+                gate_times.push(evt);
                 evt.write(trig);
 	}
 	// that's it!  It's up to the downstream client to decide what
@@ -70,6 +69,7 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
 /** visitor function for gate time ringbuffer */
 nframes_t log_times(int64_t const * times, nframes_t count)
 {
+
 	for (int i = 0; i < count; ++i) {
 		if (times[i] > 0)
 			logv << logv.allfields << "Signal start @"  << times[i] << std::endl;
@@ -197,27 +197,27 @@ main(int argc, char **argv)
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
-                JackClient client(options.client_name);
-		logv.set_program(client.name());
+                client.reset(new JackClient(options.client_name));
+		logv.set_program(client->name());
 		logv.set_stream(options.logfile);
 
 
-                port_in = client.register_port("in", JACK_DEFAULT_AUDIO_TYPE,
+                port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
-                port_trig = client.register_port("trigger",JACK_DEFAULT_MIDI_TYPE,
+                port_trig = client->register_port("trigger",JACK_DEFAULT_MIDI_TYPE,
                                                 JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("count-port")) {
-                        port_count = client.register_port("count",JACK_DEFAULT_AUDIO_TYPE,
+                        port_count = client->register_port("count",JACK_DEFAULT_AUDIO_TYPE,
                                                           JackPortIsOutput | JackPortIsTerminal, 0);
                 }
 
                 std::cout << event_t::note_off << std::endl;
 
-                client.set_process_callback(process);
-                client.activate();
-		logv << logv.allfields << "Started client; samplerate " << client.samplerate() << endl;
+                client->set_process_callback(process);
+                client->activate();
+		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
-		options.adjust_values(client.samplerate());
+		options.adjust_values(client->samplerate());
 		trigger.reset(new dsp::CrossingTrigger<sample_t>(options.open_threshold,
                                                                   options.open_count_thresh,
                                                                   options.open_crossing_periods,
@@ -237,13 +237,13 @@ main(int argc, char **argv)
 
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client.connect_port(*it, "in");
+			client->connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
                 while(1) {
                         sleep(1);
-                        gate_times.pop(log_times);
+                        //gate_times.pop(log_times);
                 }
 
 		return ret;
