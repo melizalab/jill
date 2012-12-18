@@ -53,9 +53,7 @@ struct event_t : public jack_midi_event_t {
         /** Copy constructor copies entire data buffer. Not RT safe. */
         event_t(jack_midi_event_t const & evt);
         /** Assigment operator copies as much of data as will fit. Realtime safe */
-        event_t & operator=(jack_midi_event_t const & evt);
-
-	event_t(nframes_t offset, char type, char channel, size_t data_size, void * data);
+        event_t & operator=(event_t const & evt);
 
         ~event_t();
 
@@ -80,10 +78,10 @@ struct event_t : public jack_midi_event_t {
         std::size_t set(void * port_buffer, uint32_t event_index);
 
         // type of the event
-        int type() const { return size && (buffer[0] & 0xf0);}
+        int type() const { return (size) ? (buffer[0] & 0xf0) : 0;}
 
         // channel of the event
-        int channel() const { return size && (buffer[0] & 0x0f);}
+        int channel() const { return (size) ?  (buffer[0] & 0x0f) : 0;}
 
 	/**
 	 * Read the event message as a short
@@ -102,6 +100,7 @@ struct event_t : public jack_midi_event_t {
 	/// Less-than operator to make this object sortable
 	bool operator< (event_t const & other);
 
+
 };
 
 template<typename OutputIterator>
@@ -116,6 +115,8 @@ int copy(void * port_buffer, OutputIterator it)
 
 
 }
+
+std::ostream& operator<< (std::ostream &os, jill::event_t const &evt);
 
 #endif /* _MIDI_HH */
 

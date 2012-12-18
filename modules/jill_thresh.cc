@@ -36,7 +36,6 @@ event_t evt;
 int
 process(JackClient *client, nframes_t nframes, nframes_t time)
 {
-	int frame;
 	sample_t *in = client->samples(port_in, nframes);
         sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
         void *trig = client->events(port_trig, nframes);
@@ -50,32 +49,28 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
         if (offset < 0) return 0;
 
 	// Step 2: Check state of gate
-	if (trigger->open()) {
-                evt.set(offset, event_t::note_on, 0);
-                gate_times.push(evt);
-                evt.write(trig);
-	}
-	else {
-                evt.set(offset, event_t::note_off, 0);
-                gate_times.push(evt);
-                evt.write(trig);
-	}
-	// that's it!  It's up to the downstream client to decide what
-	// to do with this information.
+        evt.set(offset, (trigger->open()) ? event_t::note_on : event_t::note_off, 0);
+        evt.write(trig);
+        // adjust time for logger
+        evt.time += time;
+        gate_times.push(evt);
 
 	return 0;
 }
 
 /** visitor function for gate time ringbuffer */
-nframes_t log_times(int64_t const * times, nframes_t count)
+std::size_t log_times(event_t const * events, std::size_t count)
 {
-
+        event_t const *e;
 	for (int i = 0; i < count; ++i) {
-		if (times[i] > 0)
-			logv << logv.allfields << "Signal start @"  << times[i] << std::endl;
-		else
-			logv << logv.allfields << "Signal stop  @"  << -times[i] << std::endl;
-	}
+                e = events+i;
+                logv << logv.allfields;
+                if (e->type()==event_t::note_on)
+                        logv << "signal onset:";
+                else
+                        logv << "signal offset:";
+                logv << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
+        }
 }
 
 
@@ -211,8 +206,6 @@ main(int argc, char **argv)
                                                           JackPortIsOutput | JackPortIsTerminal, 0);
                 }
 
-                std::cout << event_t::note_off << std::endl;
-
                 client->set_process_callback(process);
                 client->activate();
 		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
@@ -243,7 +236,7 @@ main(int argc, char **argv)
 
                 while(1) {
                         sleep(1);
-                        //gate_times.pop(log_times);
+                        gate_times.pop(log_times);
                 }
 
 		return ret;

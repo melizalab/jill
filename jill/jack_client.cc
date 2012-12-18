@@ -196,6 +196,12 @@ JackClient::frame(nframes_t frame)
 	return (jack_transport_locate(_client, frame) == 0);
 }
 
+jack_time_t
+JackClient::time(nframes_t frame) const
+{
+        return jack_frames_to_time(_client, frame);
+}
+
 int
 JackClient::process_callback_(nframes_t nframes, void *arg)
 {

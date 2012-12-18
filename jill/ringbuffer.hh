@@ -33,6 +33,17 @@
  * JACK provides a thread-safe, lock-free ringbuffer.  Classes in this
  * group provide interfaces to the ringbuffer, and adapters for using
  * the ringbuffer with various output formats.
+ *
+ * A note on resource management. For native and aggregate/POD datatypes this is
+ * not relevant. However, if the objects contain references to other memory,
+ * that memory needs to be allocated by the object on construction (which will
+ * occurw hen the ringbuffer is initialized). Then, when objects are pushed to
+ * the ringbuffer, the referenced data needs to be copied into the preallocated
+ * memory. The push() method in Ringbuffer facilitates this by using std::copy,
+ * which will use the object's assignment operator. Similarly, the pull() method
+ * uses std::copy, to avoid allocation, to avoid having the memory
+ * overwritten by the writer thread after the objects are released by the reader
+ * thread, and to avoid double freeing memory when the ringbuffer is destroyed.
  */
 
 
@@ -81,7 +92,9 @@ public:
 	size_type size() const { return _size;}
 
 	/**
-	 * Write data to the ringbuffer.
+	 * Write data to the ringbuffer.  Uses std::copy, so object assignment
+	 * operator semantics matter. Specifically, make sure objects in the
+	 * ringbuffer own their resources.
 	 *
 	 * @param src Pointer to source buffer
 	 * @param cnt The number of elements in the source buffer
@@ -93,7 +106,8 @@ public:
 
 	/**
 	 * Read data from the ringbuffer. This version of the function
-	 * copies data to a destination buffer.
+	 * copies data to a destination buffer.  In contrast to push, this
+	 * performs a shallow copy (using memcpy), so the
 	 *
 	 * @param dest the destination buffer, which needs to be pre-allocated
 	 * @param cnt the number of elements to read (0 for all)
@@ -151,9 +165,9 @@ template <typename T>
 Ringbuffer<T>::Ringbuffer(size_type size)
    : _write_ptr(0), _read_ptr(0)
 {
-	int power_of_two;
-	for (power_of_two = 1; 1 << power_of_two < size; power_of_two++);
-	_size = 1 << power_of_two;
+	unsigned int power_of_two;
+	for (power_of_two = 1; 1U << power_of_two < size; power_of_two++);
+	_size = 1U << power_of_two;
 	_size_mask = _size - 1;
 	_buf = new data_type[_size];
 
@@ -258,7 +272,8 @@ struct memcopier {
 	data_type* _dest;
 	memcopier(data_type * dest) : _dest(dest) {}
 	size_type operator() (data_type const * src, size_type cnt) {
-		memcpy(_dest, src, cnt * sizeof(data_type));
+                std::copy(src, src + cnt, _dest); // assume uses memcpy for POD
+                return cnt;
 	}
 };
 

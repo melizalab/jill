@@ -55,10 +55,6 @@ namespace jill {
 class JackClient : boost::noncopyable {
 
 public:
-	/** Type for jack errors */
-	struct JackError : public std::runtime_error {
-		JackError(std::string const & w) : std::runtime_error(w) { }
-	};
 
 	/**
 	 * Type of the process callback. Provides a pointer to a client object
@@ -152,6 +148,9 @@ public:
 
 	/** Request a new frame position from the transport master */
 	bool frame(nframes_t);
+
+        /** Convert frame count to microseconds */
+        jack_time_t time(nframes_t) const;
 
 	/// Return true if the client is receiving data
 	bool transport_rolling() const;

@@ -30,13 +30,6 @@ event_t::event_t(jack_midi_event_t const & evt)
         std::copy(evt.buffer, evt.buffer + evt.size, buffer);
 }
 
-event_t::event_t(nframes_t offset, char type, char channel, size_t data_size, void * data)
-{
-        size = data_size+1;
-        buffer = new jack_midi_data_t[size];
-        set(offset, type, channel, data_size, data);
-}
-
 std::size_t
 event_t::set(nframes_t offset, char type, char channel, short data)
 {
@@ -65,9 +58,8 @@ event_t::set(void *port_buffer, uint32_t idx)
 
 
 event_t &
-event_t::operator=(jack_midi_event_t const & evt)
+event_t::operator=(event_t const & evt)
 {
-        std::cout << "assignment" << std::endl;
         if (this != &evt) {
                 std::size_t nb = ((size > evt.size) ? evt.size : size) * sizeof(jack_midi_data_t);
                 time = evt.time;
@@ -96,11 +88,35 @@ event_t::message() const
 void
 event_t::write(void *port_buffer) const
 {
-	jack_midi_event_write(port_buffer, time, buffer, size);
+        jack_midi_data_t *buf = jack_midi_event_reserve(port_buffer, time, size);
+        if (buf == 0)
+                throw JackError("event buffer is full");  // FIXME: handle more gracefully
+        memcpy(buf, buffer, size * sizeof(jack_midi_data_t));
 }
 
 bool
 event_t::operator< (event_t const & other)
 {
 	return time < other.time;
+}
+
+std::ostream&
+operator<< (std::ostream &os, jill::event_t const &evt)
+{
+        os << evt.time << ", size " << evt.size << ", ";
+        switch(evt.type()) {
+        case event_t::note_on:
+                os << "note on, channel " << evt.channel();
+                break;
+        case event_t::note_off:
+                os << "note off, channel " << evt.channel();
+                break;
+        case 0x0:
+                os << "empty";
+                break;
+        default:
+                os << "unknown type";
+                break;
+        }
+        return os;
 }
