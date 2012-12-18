@@ -14,67 +14,45 @@
 
 using namespace jill;
 
-event_t::event_t(jack_midi_event_t const & t)
-	: offset(t.time)
-{
-	std::back_insert_iterator<std::vector<jack_midi_data_t> > ii(data);
-	std::copy(t.buffer, t.buffer+t.size, ii);
-}
-
-void
-event_t::set(nframes_t time, short value)
-{
-	offset = time;
-	jack_midi_data_t *buf = reinterpret_cast<jack_midi_data_t*>(&value);
-	data.resize(message_size+1);
-	data[0] = 0x80;
-	std::copy(buf, buf+message_size, data.begin()+1);
-}
-
-void
-event_t::read(void *port_buffer, nframes_t idx)
-{
-	jack_midi_event_t t;
-	jack_midi_event_get(&t, port_buffer, idx);
-	offset = t.time;
-	data.resize(t.size);
-	std::copy(t.buffer, t.buffer+t.size, data.begin());
-}
-
 short
 event_t::message() const
 {
-	if (data.size() < message_size+1) return 0;
-	const short *val = reinterpret_cast<const short*>(&data[1]);
-	return *val;
+        if (size > 2) {
+                const short *val = reinterpret_cast<const short*>(buffer+1);
+                return *val;
+        }
+        else
+                return 0;
+}
+
+
+event_t::event_t(nframes_t offset, char type, char channel, short data)
+{
+        time = offset;
+        size = 3;
+        buffer = new jack_midi_data_t[3];
+        buffer[0] = (type & 0xf0) | (channel & 0x0f);
+        memcpy(buffer+1, &data, sizeof(short));
+}
+
+event_t::event_t(void *port_buffer, uint32_t idx)
+{
+	jack_midi_event_get(static_cast<jack_midi_event_t*>(this), port_buffer, idx);
+}
+
+event_t::~event_t()
+{
+        delete[](buffer);
 }
 
 void
 event_t::write(void *port_buffer) const
 {
-	jack_midi_event_write(port_buffer, offset, &data[0], data.size());
+	jack_midi_event_write(port_buffer, time, buffer, size);
 }
 
 bool
 event_t::operator< (event_t const & other)
 {
-	return offset < other.offset;
-}
-
-void
-event_list::read(void * port_buffer)
-{
-	nframes_t nevents = jack_midi_get_event_count(port_buffer);
-	resize(nevents);
-	iterator it = begin();
-	for (nframes_t i = 0; i < nevents; ++i, ++it) {
-		it->read(port_buffer, i);
-	}
-}
-
-void
-event_list::write(void * port_buffer) const
-{
-	for (const_iterator it = begin(); it != end(); ++it)
-		it->write(port_buffer);
+	return time < other.time;
 }

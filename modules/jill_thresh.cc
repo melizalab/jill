@@ -16,6 +16,7 @@
 #include "jill/options.hh"
 #include "jill/logger.hh"
 #include "jill/ringbuffer.hh"
+#include "jill/midi.hh"
 #include "jill/dsp/crossing_trigger.hh"
 using namespace jill;
 
@@ -31,42 +32,37 @@ int ret = EXIT_SUCCESS;
  */
 Ringbuffer<int64_t> gate_times(128);
 
-
 int
 process(JackClient *client, nframes_t nframes, nframes_t time)
 {
 	int frame;
-	sample_t *in = client->buffer(port_in, nframes);
+	sample_t *in = client->samples(port_in, nframes);
+        sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
+        void *trig = client->events(port_trig, nframes);
 
 	// Step 1: Pass samples to window discriminator; its state may
 	// change, in which case the return value will be > -1 and
 	// indicate the frame in which the gate opened or closed. It
 	// also takes care of copying the current state of the buffer
-	// to the control port (if not NULL)
-	int offset = trigger->push(in, nframes, 0);
+	// to the count monitor port (if not NULL)
+	int offset = trigger->push(in, nframes, out);
 
 	// Step 2: Check state of gate
 	if (trigger->open()) {
-		// if (offset >= 0)
-		// 	gate_times.push(int64_t(time + offset));
-		// 2A: gate is open; write 0 before offset and 1 after
-		// for (frame = 0; frame < offset; ++frame)
-		// 	out[frame] = 0.0f;
-		// for (; frame < (int)nframes; ++frame)
-		// 	out[frame] = 0.7f;
+		if (offset >= 0)
+			gate_times.push(int64_t(time + offset));
+                event_t evt(offset, event_t::note_on);
+                evt.write(trig);
 	}
 	else {
 		// 2B: gate is closed; write 1 before offset and 0 after
-		// if (offset >= 0)
-		// 	gate_times.push(int64_t(time + offset)*-1);
-		// for (frame = 0; frame < offset; ++frame)
-		// 	out[frame] = 0.7f;
-		// for (; frame < (int)nframes; ++frame)
-		// 	out[frame] = 0.0f;
+		if (offset >= 0)
+			gate_times.push(int64_t(time + offset)*-1);
+                event_t evt(offset, event_t::note_off);
+                evt.write(trig);
 	}
 	// that's it!  It's up to the downstream client to decide what
 	// to do with this information.
-        gate_times.push(int64_t(trigger->count()));
 
 	return 0;
 }
@@ -214,6 +210,8 @@ main(int argc, char **argv)
                         port_count = client.register_port("count",JACK_DEFAULT_AUDIO_TYPE,
                                                           JackPortIsOutput | JackPortIsTerminal, 0);
                 }
+
+                std::cout << event_t::note_off << std::endl;
 
                 client.set_process_callback(process);
                 client.activate();

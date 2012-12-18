@@ -12,6 +12,7 @@
 #include "jack_client.hh"
 #include "util/string.hh"
 #include <jack/statistics.h>
+#include <jack/midiport.h>
 #include <cerrno>
 #include <algorithm>
 
