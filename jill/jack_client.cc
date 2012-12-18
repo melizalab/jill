@@ -120,20 +120,32 @@ JackClient::disconnect_all()
 }
 
 sample_t*
-JackClient::buffer(std::string const & name, nframes_t nframes)
+JackClient::samples(std::string const & name, nframes_t nframes)
 {
-        return buffer(jack_port_by_name(_client, name.c_str()), nframes);
+        return samples(jack_port_by_name(_client, name.c_str()), nframes);
 }
 
 
 sample_t*
-JackClient::buffer(jack_port_t *port, nframes_t nframes)
+JackClient::samples(jack_port_t *port, nframes_t nframes)
 {
         if (port)
                 return static_cast<sample_t*>(jack_port_get_buffer(port, nframes));
         else
                 return 0;
 }
+
+void*
+JackClient::events(jack_port_t *port, nframes_t nframes)
+{
+        if (port) {
+                void *buf = jack_port_get_buffer(port, nframes);
+                if (jack_port_flags(port) & JackPortIsOutput) jack_midi_clear_buffer(buf);
+        }
+        else
+                return 0;
+}
+
 
 
 nframes_t

@@ -128,11 +128,10 @@ public:
 	 */
 	void disconnect_all();
 
-        /**
-         * Get buffer for port
-         */
-        sample_t* buffer(std::string const & name, nframes_t nframes);
-        sample_t* buffer(jack_port_t *port, nframes_t nframes);
+        /** Get sample or event buffer for ports */
+        sample_t* samples(std::string const & name, nframes_t nframes);
+        sample_t* samples(jack_port_t *port, nframes_t nframes);
+        void* events(jack_port_t *port, nframes_t);
 
 	/* -- Inspect state of the client or server -- */
 
