@@ -14,7 +14,7 @@ programs = {'jill_mixer' : ['jill_mixer.cc'],
             'jill_writer' : ['jill_writer.cc'],
             'jill_play' : ['jill_play.cc'],
             'jill_thresh' : ['jill_thresh.cc'],
-            'jill_capture' : ['triggered_writer.cc', 'jill_capture.cc']
+            'jill_capture' : ['jill_capture.cc']
             }
 
 out = []

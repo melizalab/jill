@@ -125,6 +125,15 @@ public:
 		return false;
 	}
 
+        /**
+         * Assign key-value pairs to a map. Use a vector of strings, e.g.
+         * ("attr,a",     po::value<vector<string> >(), "set additional attribute (key=value)");
+         *
+         * @param dict    the map to store values in
+         * @param name   the name of the option
+         * @throws boost::bad_any_cast if values could not be cast to strings
+         */
+        int keyvals(std::map<std::string, std::string> & dict, std::string const & name);
 
 protected:
 	std::string _program_name;
@@ -149,41 +158,6 @@ protected:
 	 * user specifies the '-h' flag
 	 */
 	virtual void print_usage();
-
-};
-
-/**
- * @ingroup optionsgroup
- * @brief implement Options with basic JILL options
- *
- * The JillOptions class stores options for JILL applications. Options
- * handled are:
- *
- * -n : client name
- * -l : log file
- * -i : input ports
- * -o : output ports
- * -c : control ports  [not included by default]
- *
- */
-class JillOptions : public Options {
-public:
-	JillOptions(std::string const &program_name, std::string const &program_version);
-	virtual ~JillOptions() {}
-
-	/** The client name (used in internal JACK representations) */
-	std::string client_name;
-	/** A vector of inputs to connect to the client */
-	std::vector<std::string> input_ports;
-	/** A vector of outputs to connect to the client */
-	std::vector<std::string> output_ports;
-	/** A vector of key/value additional options */
-	std::map<std::string, std::string> additional_options;
-	/** The log file to write application events to */
-	std::string logfile;
-
-protected:
-	virtual void process_options();
 
 };
 

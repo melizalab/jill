@@ -1,8 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,83 +10,70 @@
  *
  *
  */
-#include <boost/scoped_ptr.hpp>
 #include <iostream>
 #include <signal.h>
 
-/*
- * Here we include some headers from the JILL framework. Note
- * that we're using angle-brackets to reference the headers stored in
- * standard locations. This will be necessary when developing
- * standalone clients.
- */
-#include <jill/simple_client.hh>
-#include <jill/util/logger.hh>
-#include <jill/util/arf_sndfile.hh>
-#include <jill/jill_options.hh>
+#include <boost/scoped_ptr.hpp>
 
-/*
- * These are headers for the custom class we're using in this
- * application.
- */
-#include "triggered_writer.hh"
-
+#include "jill/jack_client.hh"
+#include "jill/options.hh"
+#include "jill/logger.hh"
+#include "jill/ringbuffer.hh"
+#include "jill/midi.hh"
+#include "jill/util/string.hh"
+#include "jill/sndfile/arf_sndfile.hh"
 using namespace jill;
 
-/*
- * This section is similar to writer.cc and mixer.cc. The
- * PlayerJillClass will be used in offline testing. We also declare a
- * pointer to our custom TriggerWriter class (which will be
- * initialized after we read in the options.
- */
-static boost::scoped_ptr<SimpleClient> client;
-static boost::shared_ptr<TriggeredWriter> twriter;
-static util::logstream logv;
-static int ret = EXIT_SUCCESS;
+boost::scoped_ptr<JackClient> client;
+std::map<std::string, jack_port_t*> ports_in;
+jack_port_t *port_trig;
+// boost::shared_ptr<TriggeredWriter> twriter;
+logstream logv;
+int ret = EXIT_SUCCESS;
 
-/*
- * Note that the process function isn't here any more; it's
- * encapsulated in the TriggeredWriter class.  However, we do still
- * need to write a function that will be called in the main loop.  In
- * theory, we could pass a pointer to the flush() member function
- * directly to the Client class, but this requires some extra
- * work, and in many cases writing a wrapper function is much simpler.
- */
-static int
-mainloop()
+void
+jack_shutdown(void *arg)
 {
-	twriter->flush();
-	return 0;
+	exit(1);
 }
 
-static void signal_handler(int sig)
+void
+signal_handler(int sig)
 {
-	if (sig != SIGINT)
-		ret = EXIT_FAILURE;
-
-	client->stop("Received interrupt");
+        exit(ret);
 }
 
-
-/**
- * As in jill_thresh we define a class for parsing options
- */
-class CaptureOptions : public JillOptions {
+/* commandline options */
+class CaptureOptions : public Options {
 
 public:
 	CaptureOptions(std::string const &program_name, std::string const &program_version)
-		: JillOptions(program_name, program_version, true) {
+		: Options(program_name, program_version) {
+
+                using std::string;
+                using std::vector;
+
+                po::options_description jillopts("JILL options");
+                jillopts.add_options()
+                        ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
+                         "set client name")
+                        ("log,l",     po::value<string>(&logfile), "set logfile (default stdout)")
+                        ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
+                        ("trig,t",     po::value<vector<string> >(&trig_ports), "add connection to trigger port")
+                        ("attr,a",     po::value<vector<string> >(), "set additional attribute (key=value)");
+                cfg_opts.add_options()
+                        ("attr,a",     po::value<vector<string> >());
+                cmd_opts.add(jillopts);
+                visible_opts.add(jillopts);
 
 		po::options_description tropts("Capture options");
 		tropts.add_options()
-			("prebuffer", po::value<float>()->default_value(1000),
+			("prebuffer", po::value<float>(&prebuffer_size_ms)->default_value(1000),
 			 "set prebuffer size (ms)")
-			("buffer", po::value<float>()->default_value(2000),
+			("buffer", po::value<float>(&buffer_size_ms)->default_value(2000),
 			 "set file output buffer size (ms)")
-			("trig-thresh", po::value<float>()->default_value(0.6),
-			 "set threshold for trigger signal (-1.0-1.0)")
-			("max-size", po::value<int>()->default_value(100),
-			 "save data to serially numbered files with max size");
+			("max-size", po::value<int>(&max_size)->default_value(100),
+			 "save data to serially numbered files with max size (MB)");
 
 		// we add our group of options to various groups
 		// already defined in the base class.
@@ -107,12 +93,23 @@ public:
 	 * The public member variables are filled when we parse the
 	 * options, and subsequently accessed by external clients
 	 */
+	/** The client name (used in internal JACK representations) */
+	std::string client_name;
+	/** The log file to write application events to */
+	std::string logfile;
+
+	/** A vector of inputs to connect to the client */
+	std::vector<std::string> input_ports;
+	/** A vector of outputs to connect to the client */
+	std::vector<std::string> trig_ports;
+
+        std::map<std::string, std::string> additional_options;
+
 	std::string output_file;
 	float prebuffer_size_ms;  // in ms
 	float buffer_size_ms;  // in ms
 	nframes_t prebuffer_size; // samples
 	nframes_t buffer_size; // samples
-	float trig_threshold;
 	int max_size;  // in MB
 
 	void adjust_values(nframes_t samplerate) {
@@ -131,21 +128,18 @@ protected:
 		std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
 			  << visible_opts << std::endl
 			  << "Ports:\n"
-			  << " * in:         for input of the signal(s) to be recorded\n"
-			  << " * trig_in:    when >0.6, starts recording"
+			  << " * in_NN:      for input of the signal(s) to be recorded\n"
+			  << " * trig_in:    MIDI port to receive events triggering recording"
 			  << std::endl;
 	}
 
 	virtual void process_options() {
-		JillOptions::process_options();
+		Options::process_options();
 		if (!assign(output_file, "output-file")) {
 			std::cerr << "Error: missing required output file name " << std::endl;
 			throw Exit(EXIT_FAILURE);
 		}
-		assign(prebuffer_size_ms, "prebuffer");
-		assign(buffer_size_ms, "buffer");
-		assign(trig_threshold, "trig-thresh");
-		assign(max_size, "max-size");
+                keyvals(additional_options, "attr");
 	}
 
 };
@@ -158,20 +152,34 @@ main(int argc, char **argv)
 		CaptureOptions options("jill_capture", "1.2.0rc1");
 		options.parse(argc,argv);
 
-		logv.set_program(options.client_name);
-		logv.set_stream(options.logfile);
+		signal(SIGINT,  signal_handler);
+		signal(SIGTERM, signal_handler);
+		signal(SIGHUP,  signal_handler);
 
-		/* Initialize the client. */
-		client.reset(new SimpleClient(options.client_name, "in", "", "trig_in"));
-		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
-		options.adjust_values(client->samplerate());
+                client.reset(new JackClient(options.client_name));
+		logv.set_program(client->name());
+		logv.set_stream(options.logfile);
+		logv << logv.allfields << "Created client" << endl;
+
+                /* create ports, one for each input */
+		vector<string>::const_iterator it;
+                int i = 0;
+		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it, ++i) {
+                        jack_port_t *port_in = client->register_port(util::make_string() << "in_" << i,
+                                                                     JACK_DEFAULT_AUDIO_TYPE,
+                                                                     JackPortIsInput | JackPortIsTerminal, 0);
+                        ports_in[*it] = port_in;
+		}
+                port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
+                                                  JackPortIsInput | JackPortIsTerminal, 0);
 
 		/* Initialize writer object and triggered writer */
-		jill::util::ArfSndfile writer(options.output_file, client->samplerate(), options.max_size);
-		twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
-						  options.buffer_size, client->samplerate(),
-						  options.trig_threshold,
-						  &options.additional_options));
+		options.adjust_values(client->samplerate());
+		// jill::util::ArfSndfile writer(options.output_file, client->samplerate(), options.max_size);
+		// twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
+		// 				  options.buffer_size, client->samplerate(),
+		// 				  options.trig_threshold,
+		// 				  &options.additional_options));
 
 		/* Log parameters */
 		if (options.max_size > 0)
@@ -181,45 +189,37 @@ main(int argc, char **argv)
 			logv << logv.program << "output file name: " << options.output_file << endl;
 		logv << logv.program << "sampling rate (Hz): " << client->samplerate() << endl
 		     << logv.program << "buffer size (samples): " << options.buffer_size << endl
-		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl
-		     << logv.program << "trigger threshold: " << options.trig_threshold << endl;
+		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl;
 		logv << logv.program << "additional metadata:" << endl;
 		for (map<string,string>::const_iterator it = options.additional_options.begin();
 		     it != options.additional_options.end(); ++it)
 			logv << logv.program << "  " << it->first << "=" << it->second << endl;
 
-
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
+		/* Initialize the client. */
+                //client->set_process_callback(process);
+                client->activate();
+		logv << logv.allfields << "Activated client" << endl;
 
 		/* connect ports */
-		vector<string>::const_iterator it;
-		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(*it, "in");
-			logv << logv.allfields << "Connected " << *it << " to input port" << endl;
+
+		for (map<string,jack_port_t*>::const_iterator it = ports_in.begin(); it != ports_in.end(); ++it) {
+			client->connect_port(it->first, jack_port_name(it->second));
+			logv << logv.allfields << "Connected " << it->first
+                             << " to " << jack_port_name(it->second) << endl;
 		}
 
-		for (it = options.control_ports.begin(); it != options.control_ports.end(); ++it) {
+		for (vector<string>::const_iterator it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
 			client->connect_port(*it, "trig_in");
 			logv << logv.allfields << "Connected " << *it << " to trigger port" << endl;
 		}
-		/*
-		 * Here's where we pass the processing object to the
-		 * client. The semantics are a little tricky, because
-		 * twriter is a shared pointer (which we need in order
-		 * to dynamically allocate it here).  The * operator
-		 * dereferences the pointer, which we then wrap in
-		 * boost::ref in order to ensure that the object is
-		 * passed by reference - otherwise
-		 * set_process_callback tries to copy it (which will
-		 * raise a compiler error because TriggeredWriter is
-		 * noncopyable)
-		 */
-		client->set_process_callback(boost::ref(*twriter));
-		client->set_mainloop_callback(mainloop);
-		client->run();
-		logv << logv.allfields << client->get_status() << endl;
+
+		// client->set_process_callback(boost::ref(*twriter));
+		// client->set_mainloop_callback(mainloop);
+		// client->run();
+		// logv << logv.allfields << client->get_status() << endl;
+                while (1) {
+                        sleep(1);
+                }
 		return ret;
 	}
 	catch (Exit const &e) {

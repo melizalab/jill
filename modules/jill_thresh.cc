@@ -1,11 +1,12 @@
 /*
- * A client that broadcasts data over the network using zeroMQ
+ * Simple crossing-based signal detector
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
+ * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
  */
 #include <iostream>
 #include <signal.h>
@@ -93,11 +94,23 @@ signal_handler(int sig)
  * from a class that handles these options. There are a lot of
  * options, so this class requires a lot of boilerplate code.
  */
-class TriggerOptions : public jill::JillOptions {
+class TriggerOptions : public jill::Options {
 
 public:
 	TriggerOptions(std::string const &program_name, std::string const &program_version)
-		: JillOptions(program_name, program_version) { // this calls the superclass constructor
+		: Options(program_name, program_version) {
+                using std::string;
+                using std::vector;
+
+                po::options_description jillopts("JILL options");
+                jillopts.add_options()
+                        ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
+                         "set client name")
+                        ("log,l",     po::value<string>(&logfile), "set logfile (default stdout)")
+                        ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
+                        ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
+                cmd_opts.add(jillopts);
+                visible_opts.add(jillopts);
 
 		// tropts is a group of options
 		po::options_description tropts("Trigger options");
@@ -126,6 +139,15 @@ public:
 		// visible_opts holds options that are shown in the help text
 		visible_opts.add(tropts);
 	}
+	/** The client name (used in internal JACK representations) */
+	std::string client_name;
+	/** The log file to write application events to */
+	std::string logfile;
+
+	/** A vector of inputs to connect to the client */
+	std::vector<std::string> input_ports;
+	/** A vector of outputs to connect to the client */
+	std::vector<std::string> output_ports;
 
 	float open_threshold;
 	float close_threshold;
@@ -171,7 +193,7 @@ protected:
 			  << visible_opts << std::endl
 			  << "Ports:\n"
 			  << " * in:       for input of the signal(s) to be monitored\n"
-			  << " * trigger:  MIDI port with gate open and close events\n"
+			  << " * trig_out:  MIDI port producing gate open and close events\n"
 			  << " * count:    (optional) the current estimate of signal power"
 			  << std::endl;
 	}
@@ -195,20 +217,18 @@ main(int argc, char **argv)
                 client.reset(new JackClient(options.client_name));
 		logv.set_program(client->name());
 		logv.set_stream(options.logfile);
+		logv << logv.allfields << "Created client" << endl;
 
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
-                port_trig = client->register_port("trigger",JACK_DEFAULT_MIDI_TYPE,
+                port_trig = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
                                                 JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("count-port")) {
                         port_count = client->register_port("count",JACK_DEFAULT_AUDIO_TYPE,
                                                           JackPortIsOutput | JackPortIsTerminal, 0);
                 }
 
-                client->set_process_callback(process);
-                client->activate();
-		logv << logv.allfields << "Started client; samplerate " << client->samplerate() << endl;
 
 		options.adjust_values(client->samplerate());
 		trigger.reset(new dsp::CrossingTrigger<sample_t>(options.open_threshold,
@@ -220,7 +240,8 @@ main(int argc, char **argv)
                                                                   options.period_size));
 
 		/* Log parameters */
-		logv << logv.program << "period size (samples): " << options.period_size << endl
+		logv << logv.program << "sampling rate: " << client->samplerate() << endl
+                     << logv.program << "period size (samples): " << options.period_size << endl
 		     << logv.program << "open threshold: " << options.open_threshold << endl
 		     << logv.program << "open count thresh: " << options.open_count_thresh << endl
 		     << logv.program << "open periods: " << options.open_crossing_periods << endl
@@ -228,15 +249,24 @@ main(int argc, char **argv)
 		     << logv.program << "close count thresh: " << options.close_count_thresh << endl
 		     << logv.program << "close periods: " << options.close_crossing_periods << endl;
 
+                client->set_process_callback(process);
+                client->activate();
+		logv << logv.allfields << "Activated client" << endl;
+
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
 			client->connect_port(*it, "in");
 			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
+		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
+			client->connect_port("trig_out",*it);
+			logv << logv.allfields << "Connected event output to " << *it << endl;
+		}
+
                 while(1) {
                         sleep(1);
-                        gate_times.pop(log_times);
+                        gate_times.pop(log_times); // calls visitor function on ringbuffer
                 }
 
 		return ret;
@@ -253,7 +283,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-		std::cerr << "Error: " << e.what() << std::endl;
+		logv << logv.allfields << "Error: " << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
 

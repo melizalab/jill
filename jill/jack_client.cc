@@ -102,11 +102,17 @@ JackClient::connect_port(std::string const & src, std::string const & dest)
 			throw JackError(util::make_string() << "the port " << n << " does not exist");
 	}
 
+        // check that types are the same (FIXME use strcmp if custom types?)
+        if (jack_port_type(p1)!=jack_port_type(p2)) {
+                throw JackError(util::make_string() << jack_port_name(p1) << " (" << jack_port_type(p1) << ")"
+                                << " doesn't match " << jack_port_name(p2) << " (" << jack_port_type(p2) << ")");
+        }
 	int error = jack_connect(_client, jack_port_name(p1), jack_port_name(p2));
-	if (error && error != EEXIST)
+	if (error && error != EEXIST) {
 		// no easy way to trap error message; it gets printed to stdout
 		throw JackError(util::make_string() << "can't connect "
 				 << src << " to " << dest);
+        }
 }
 
 void

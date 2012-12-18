@@ -11,6 +11,7 @@
  */
 
 #include <iostream>
+#include <map>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
@@ -20,6 +21,7 @@
 using namespace jill;
 using std::string;
 using std::vector;
+using std::map;
 
 Options::Options(std::string const &program_name, std::string const &program_version)
 	:  _program_name(program_name), _program_version(program_version)
@@ -82,39 +84,17 @@ Options::parse(int argc, char **argv)
 }
 
 
-
-JillOptions::JillOptions(std::string const &program_name, std::string const &program_version)
-	: Options(program_name, program_version), client_name(program_name)
+int
+Options::keyvals(map<string, string> & dict, string const & name)
 {
-	po::options_description jillopts("JILL options");
-	jillopts.add_options()
-		("name,n",    po::value<string>()->default_value(_program_name), "set client name")
-		("log,l",     po::value<string>(), "set logfile (default stdout)")
-		("out,o",     po::value<vector<string> >(), "add connection to output port")
-		("in,i",      po::value<vector<string> >(), "add connection to input port")
-		("attr,a",     po::value<vector<string> >(), "set additional attribute (key=value)");
-	cfg_opts.add_options()
-		("attr,a",     po::value<vector<string> >());
-	cmd_opts.add(jillopts);
-	visible_opts.add(jillopts);
-}
-
-
-void
-JillOptions::process_options()
-{
-	assign(output_ports,"out");
-	assign(input_ports,"in");
-	assign(client_name,"name");
-	assign(logfile,"log");
-
-	// parse key/value pairs
-	if (vmap.count("attr")==0) return;
-	vector<string> const & kv = vmap["attr"].as<vector<string> >();
-	for (vector<string>::const_iterator it = kv.begin(); it != kv.end(); ++it) {
+        int i = 0;
+	if (vmap.count(name)==0) return i;
+	vector<string> const & kv = vmap[name].as<vector<string> >();
+	for (vector<string>::const_iterator it = kv.begin(); it != kv.end(); ++it, ++i) {
 		string::size_type eq = it->find_last_of("=");
 		if (eq == string::npos)
 			throw po::invalid_option_value(" additional option syntax: key=value");
-		additional_options[it->substr(0,eq)] = it->substr(eq+1);
+		dict[it->substr(0,eq)] = it->substr(eq+1);
 	}
+        return i;
 }
