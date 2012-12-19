@@ -27,9 +27,24 @@ using namespace jill;
 boost::scoped_ptr<JackClient> client;
 std::map<std::string, jack_port_t*> ports_in;
 jack_port_t *port_trig;
+event_t trig_event;
 // boost::shared_ptr<TriggeredWriter> twriter;
 logstream logv;
 int ret = EXIT_SUCCESS;
+
+int
+process(JackClient *client, nframes_t nframes, nframes_t time)
+{
+        nframes_t nevents, i;
+        void *trigbuf = client->events(port_trig, nframes);
+        if (trigbuf) {
+                nevents = jack_midi_get_event_count(trigbuf);
+                for (i = 0; i < nevents; ++i) {
+                        trig_event.set(trigbuf, i); // copies
+                        std::cout << trig_event << std::endl;
+                }
+        }
+}
 
 void
 jack_shutdown(void *arg)
@@ -196,7 +211,7 @@ main(int argc, char **argv)
 			logv << logv.program << "  " << it->first << "=" << it->second << endl;
 
 		/* Initialize the client. */
-                //client->set_process_callback(process);
+                client->set_process_callback(process);
                 client->activate();
 		logv << logv.allfields << "Activated client" << endl;
 

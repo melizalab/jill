@@ -31,8 +31,8 @@ int ret = EXIT_SUCCESS;
  * Store open and close times in a ringbuffer for logging. Use longs
  * in order to use sign for open vs close.
  */
-Ringbuffer<event_t> gate_times(128);
-event_t evt;
+Ringbuffer<event_t> trig_times(128);
+event_t trig_event;
 
 int
 process(JackClient *client, nframes_t nframes, nframes_t time)
@@ -50,11 +50,11 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
         if (offset < 0) return 0;
 
 	// Step 2: Check state of gate
-        evt.set(offset, (trigger->open()) ? event_t::note_on : event_t::note_off, 0);
-        evt.write(trig);
+        trig_event.set(offset, (trigger->open()) ? event_t::note_on : event_t::note_off, 0);
+        trig_event.write(trig);
         // adjust time for logger
-        evt.time += time;
-        gate_times.push(evt);
+        trig_event.time += time;
+        trig_times.push(trig_event);
 
 	return 0;
 }
@@ -63,7 +63,8 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
 std::size_t log_times(event_t const * events, std::size_t count)
 {
         event_t const *e;
-	for (int i = 0; i < count; ++i) {
+        std::size_t i;
+	for (i = 0; i < count; ++i) {
                 e = events+i;
                 logv << logv.allfields;
                 if (e->type()==event_t::note_on)
@@ -72,6 +73,7 @@ std::size_t log_times(event_t const * events, std::size_t count)
                         logv << "signal offset:";
                 logv << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
         }
+        return i;
 }
 
 
@@ -266,7 +268,7 @@ main(int argc, char **argv)
 
                 while(1) {
                         sleep(1);
-                        gate_times.pop(log_times); // calls visitor function on ringbuffer
+                        trig_times.pop(log_times); // calls visitor function on ringbuffer
                 }
 
 		return ret;

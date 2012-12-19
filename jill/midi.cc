@@ -51,9 +51,13 @@ std::size_t
 event_t::set(void *port_buffer, uint32_t idx)
 {
         event_t evt;
-	jack_midi_event_get(&evt, port_buffer, idx);
-        *this = evt;
-        return ((size > evt.size) ? evt.size : size) * sizeof(jack_midi_data_t);
+	int r = jack_midi_event_get(&evt, port_buffer, idx);
+        if (r == 0) {
+                *this = evt;
+                return ((size > evt.size) ? evt.size : size) * sizeof(jack_midi_data_t);
+        }
+        else
+                return 0;
 }
 
 

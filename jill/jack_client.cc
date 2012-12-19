@@ -148,6 +148,7 @@ JackClient::events(jack_port_t *port, nframes_t nframes)
         if (port) {
                 void *buf = jack_port_get_buffer(port, nframes);
                 if (jack_port_flags(port) & JackPortIsOutput) jack_midi_clear_buffer(buf);
+                return buf;
         }
         else
                 return 0;
