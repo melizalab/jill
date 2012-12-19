@@ -162,6 +162,18 @@ JackClient::samplerate() const
 	return jack_get_sample_rate(_client);
 }
 
+nframes_t
+JackClient::buffer_size() const
+{
+	return jack_get_buffer_size(_client);
+}
+
+float
+JackClient::cpu_load() const
+{
+	return jack_cpu_load(_client);
+}
+
 std::string
 JackClient::name() const
 {

@@ -140,6 +140,12 @@ public:
 	/** The sample rate of the client */
 	nframes_t samplerate() const;
 
+        /** The size of the client's buffer */
+        nframes_t buffer_size() const;
+
+        /** CPU load */
+        float cpu_load() const;
+
 	/**  JACK client name */
 	std::string name() const;
 

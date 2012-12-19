@@ -13,8 +13,6 @@
 
 #include "types.hh"
 #include <jack/midiport.h>
-#include <vector>
-#include <list>
 
 /**
  * @file midi.hh
@@ -26,97 +24,44 @@ namespace jill {
  * @ingroup clientgroup
  * @brief store a control event
  *
- * In addition to communicating via realtime sound samples, JACK
- * clients can also send and receive MIDI signals. These consist of a
- * time, a status byte, and up to two data bytes (this is the MIDI
- * standard; longer messages are possible).  The meaning and
- * interpretation of MIDI signals is up to the clients, but a typical
- * use would be to act as a trigger or gate.  In this case, the status
- * byte should be "note on" and the data byte should indicate the state
- * of the gate.  A constructor is supplied for this construct.
+ * This class provides storage for MIDI events. These are short
+ * messages consisting of the time, a status byte, and a short message. The MIDI
+ * standard data message is 2 bytes, but longer messages are possible in the
+ * JACK framework.
+ *
+ * In JACK, MIDI messages are embedded in a buffer and are accessed by index. In
+ * some cases it's desirable to move data around outside the JACK system, so
+ * this class provides a simple POD representation, along with some useful
+ * enumerations for common MIDI types. The message size is set to ensure that at
+ * least two events can fit in the shortest reasonable period size (32 frames).
  */
-struct event_t : public jack_midi_event_t {
-        // inherits fields:
-        // nframes_t time
-        // size_t size (number of bytes in buffer)
-        // jack_midi_data_t (char) *buffer
-
-        // define common midi types
+struct event_t {
+        enum { MAXIMUM_DATA_SIZE = 40};
         enum midi_type {
-                note_on = 0x90,
-                note_off = 0x80,
-                control = 0xb0
+                midi_on = 0x90,     // used for onsets and single events
+                midi_off = 0x80,    // used for offsets
+                midi_ctl = 0xb0,    // control messages, function?
+                midi_sys = 0xf0     // system-exclusive messages used for errors, etc
         };
 
-        /** Allocate midi event AND buffer. Not RT safe */
-        event_t(size_t size=3);
-        /** Copy constructor copies entire data buffer. Not RT safe. */
-        event_t(jack_midi_event_t const & evt);
-        /** Assigment operator copies as much of data as will fit. Realtime safe */
-        event_t & operator=(event_t const & evt);
+        nframes_t time;            /// time of the event
+        std::size_t size;          /// number of used data bytes
+        jack_midi_data_t buffer[MAXIMUM_DATA_SIZE];
 
-        ~event_t();
+        jack_midi_data_t& status() { return buffer[0]; }
+        jack_midi_data_t const & status() const { return buffer[0]; }
 
-        /**
-         * Set data in object. Only copies as much data as allocated, so it's RT safe.
-         * @param offset  the time of the event
-         * @param status  the type of the event (top four bytes only)
-         * @param channel the channel of the event (0-16)
-         * @param size    the number of bytes in the data
-         * @param data    the data of the event
-         * @return the number of bytes copied from data buffer
-         */
-        std::size_t set(nframes_t offset, char type, char channel, short data=0);
-        std::size_t set(nframes_t offset, char type, char channel, size_t data_size, void * data);
-
-        /**
-         * Read data from a JACK port buffer
-         * @param  port_buffer JACK port buffer
-         * @param  idx the index of the event to read
-         * @return the number of bytes copied from the data buffer
-         */
-        std::size_t set(void * port_buffer, uint32_t event_index);
+        event_t() : time(0), size(0) {};
+        event_t(nframes_t t, jack_midi_data_t status) : time(t), size(1) { buffer[0] = status; }
 
         // type of the event
-        int type() const { return (size) ? (buffer[0] & 0xf0) : 0;}
+        int type() const { return status() & 0xf0; }
 
         // channel of the event
-        int channel() const { return (size) ?  (buffer[0] & 0x0f) : 0;}
-
-	/**
-	 * Read the event message as a short
-	 * @return the message, or 0 if the data buffer isn't long enough
-	 */
-	short message() const;
-
-	/**
-	 * Write the current event to a JACK port buffer.  Events need
-	 * to be written in order.
-	 *
-	 * @param port_buffer the port buffer to write to
-	 */
-	void write(void *port_buffer) const;
-
-	/// Less-than operator to make this object sortable
-	bool operator< (event_t const & other);
-
+        int channel() const { return status() & 0x0f; }
 
 };
 
-template<typename OutputIterator>
-int copy(void * port_buffer, OutputIterator it)
-{
-	nframes_t nevents = jack_midi_get_event_count(port_buffer);
-        for (nframes_t i = 0; i < nevents; ++i) {
-                int r = jack_midi_event_get(&(*it), port_buffer, i);
-                if (r == 0) ++it;
-        }
 }
-
-
-}
-
-std::ostream& operator<< (std::ostream &os, jill::event_t const &evt);
-
 #endif /* _MIDI_HH */
 

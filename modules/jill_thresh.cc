@@ -27,19 +27,15 @@ jack_port_t *port_in, *port_trig, *port_count;
 logstream logv;
 int ret = EXIT_SUCCESS;
 
-/*
- * Store open and close times in a ringbuffer for logging. Use longs
- * in order to use sign for open vs close.
- */
+/* data storage for event times */
 Ringbuffer<event_t> trig_times(128);
-event_t trig_event;
 
 int
 process(JackClient *client, nframes_t nframes, nframes_t time)
 {
 	sample_t *in = client->samples(port_in, nframes);
         sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
-        void *trig = client->events(port_trig, nframes);
+        void *trig_buffer = client->events(port_trig, nframes);
 
 	// Step 1: Pass samples to window discriminator; its state may
 	// change, in which case the return value will be > -1 and
@@ -49,11 +45,16 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
 	int offset = trigger->push(in, nframes, out);
         if (offset < 0) return 0;
 
-	// Step 2: Check state of gate
-        trig_event.set(offset, (trigger->open()) ? event_t::note_on : event_t::note_off, 0);
-        trig_event.write(trig);
-        // adjust time for logger
-        trig_event.time += time;
+        // store data sent to logger
+        event_t trig_event(offset+time, (trigger->open()) ? event_t::midi_on : event_t::midi_off);
+        jack_midi_data_t *buf = jack_midi_event_reserve(trig_buffer, offset, 3);
+        if (buf) {
+                buf[0] = trig_event.status();
+        }
+        else {
+                // indicate error to logger function
+                trig_event.status() = event_t::midi_sys;
+        }
         trig_times.push(trig_event);
 
 	return 0;
@@ -67,10 +68,12 @@ std::size_t log_times(event_t const * events, std::size_t count)
 	for (i = 0; i < count; ++i) {
                 e = events+i;
                 logv << logv.allfields;
-                if (e->type()==event_t::note_on)
+                if (e->type()==event_t::midi_on)
                         logv << "signal onset:";
-                else
+                else if (e->type()==event_t::midi_off)
                         logv << "signal offset:";
+                else
+                        logv << "WARNING: detected but couldn't send event: ";
                 logv << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
         }
         return i;
@@ -219,7 +222,11 @@ main(int argc, char **argv)
                 client.reset(new JackClient(options.client_name));
 		logv.set_program(client->name());
 		logv.set_stream(options.logfile);
-		logv << logv.allfields << "Created client" << endl;
+		logv << logv.allfields << "Created client" << endl
+                     << logv.program << "sampling rate (Hz): " << client->samplerate() << endl
+                     << logv.program << "buffer size (frames): " << client->buffer_size() << endl
+                     << logv.program << "current cpu load (%): " << client->cpu_load() << endl;
+
 
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
@@ -231,7 +238,6 @@ main(int argc, char **argv)
                                                           JackPortIsOutput | JackPortIsTerminal, 0);
                 }
 
-
 		options.adjust_values(client->samplerate());
 		trigger.reset(new dsp::CrossingTrigger<sample_t>(options.open_threshold,
                                                                   options.open_count_thresh,
@@ -242,7 +248,7 @@ main(int argc, char **argv)
                                                                   options.period_size));
 
 		/* Log parameters */
-		logv << logv.program << "sampling rate: " << client->samplerate() << endl
+		logv << logv.program << "Trigger parameters:" << endl
                      << logv.program << "period size (samples): " << options.period_size << endl
 		     << logv.program << "open threshold: " << options.open_threshold << endl
 		     << logv.program << "open count thresh: " << options.open_count_thresh << endl

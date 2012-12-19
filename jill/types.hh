@@ -27,6 +27,7 @@ typedef jack_nframes_t nframes_t;
 /** A data type holding extended position information. Inherited from JACK */
 typedef jack_position_t position_t;
 
+
 /** Type for jack errors */
 struct JackError : public std::runtime_error {
         JackError(std::string const & w) : std::runtime_error(w) { }

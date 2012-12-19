@@ -36,14 +36,17 @@ int
 process(JackClient *client, nframes_t nframes, nframes_t time)
 {
         nframes_t nevents, i;
+        jack_midi_event_t event;
         void *trigbuf = client->events(port_trig, nframes);
         if (trigbuf) {
                 nevents = jack_midi_get_event_count(trigbuf);
                 for (i = 0; i < nevents; ++i) {
-                        trig_event.set(trigbuf, i); // copies
-                        std::cout << trig_event << std::endl;
+                        if (jack_midi_event_get (&event, trigbuf, i) == 0) {
+                                std::cout << "received event: " <<  event.time << std::endl;
+                        }
                 }
         }
+        return 0;
 }
 
 void
