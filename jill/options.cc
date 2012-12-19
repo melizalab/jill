@@ -85,7 +85,7 @@ Options::parse(int argc, char **argv)
 
 
 int
-Options::keyvals(map<string, string> & dict, string const & name)
+Options::parse_keyvals(map<string, string> & dict, string const & name)
 {
         int i = 0;
 	if (vmap.count(name)==0) return i;

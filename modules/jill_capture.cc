@@ -27,24 +27,25 @@ using namespace jill;
 boost::scoped_ptr<JackClient> client;
 std::map<std::string, jack_port_t*> ports_in;
 jack_port_t *port_trig;
-event_t trig_event;
+
+boost::scoped_ptr<Ringbuffer<sample_t> > ringbuffer;
 // boost::shared_ptr<TriggeredWriter> twriter;
 logstream logv;
 int ret = EXIT_SUCCESS;
 
+/*
+ * Copy data from ports into ringbuffer. Note that the first port is the trigger
+ * port, so it contains MIDI data; however, the buffer size is the same so it
+ * can be treated like audio data for now (should probably assert this
+ * somewhere)
+ */
 int
 process(JackClient *client, nframes_t nframes, nframes_t time)
 {
-        nframes_t nevents, i;
-        jack_midi_event_t event;
-        void *trigbuf = client->events(port_trig, nframes);
-        if (trigbuf) {
-                nevents = jack_midi_get_event_count(trigbuf);
-                for (i = 0; i < nevents; ++i) {
-                        if (jack_midi_event_get (&event, trigbuf, i) == 0) {
-                                std::cout << "received event: " <<  event.time << std::endl;
-                        }
-                }
+        sample_t *port_buffer;
+        std::list<jack_port_t*>::const_iterator it;
+        for (it = client->ports().begin(); it != client->ports().end(); ++it) {
+                port_buffer = client->samples(*it, nframes);
         }
         return 0;
 }
@@ -54,6 +55,37 @@ jack_shutdown(void *arg)
 {
 	exit(1);
 }
+
+// handle sampling rate changes (not RT)
+int
+jack_samplerate(JackClient *client, nframes_t nframes)
+{
+        return 0;
+}
+
+int
+jack_xrun(JackClient *client, float delay)
+{
+        return 0;
+}
+
+// deal with buffer size changes (not RT)
+int
+jack_bufsize(JackClient *client, nframes_t nframes)
+{
+        return 0;
+}
+
+void
+jack_portreg(JackClient *client, jack_port_t* port, int registered)
+{
+}
+
+void
+jack_portcon(JackClient *client, jack_port_t* port1, jack_port_t* port2, int connected)
+{
+}
+
 
 void
 signal_handler(int sig)
@@ -157,7 +189,7 @@ protected:
 			std::cerr << "Error: missing required output file name " << std::endl;
 			throw Exit(EXIT_FAILURE);
 		}
-                keyvals(additional_options, "attr");
+                parse_keyvals(additional_options, "attr");
 	}
 
 };
@@ -169,6 +201,11 @@ main(int argc, char **argv)
 	try {
 		CaptureOptions options("jill_capture", "1.2.0rc1");
 		options.parse(argc,argv);
+		if (options.max_size > 0)
+			logv << logv.program << "output file base: " << options.output_file << endl
+			     << logv.program << "max file size (MB): " << options.max_size << endl;
+		else
+			logv << logv.program << "output file name: " << options.output_file << endl;
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -177,9 +214,10 @@ main(int argc, char **argv)
                 client.reset(new JackClient(options.client_name));
 		logv.set_program(client->name());
 		logv.set_stream(options.logfile);
-		logv << logv.allfields << "Created client" << endl;
 
-                /* create ports, one for each input */
+                /* create ports, one for trigger, and one for each audio input */
+                port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
+                                                  JackPortIsInput | JackPortIsTerminal, 0);
 		vector<string>::const_iterator it;
                 int i = 0;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it, ++i) {
@@ -188,11 +226,8 @@ main(int argc, char **argv)
                                                                      JackPortIsInput | JackPortIsTerminal, 0);
                         ports_in[*it] = port_in;
 		}
-                port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
-                                                  JackPortIsInput | JackPortIsTerminal, 0);
 
 		/* Initialize writer object and triggered writer */
-		options.adjust_values(client->samplerate());
 		// jill::util::ArfSndfile writer(options.output_file, client->samplerate(), options.max_size);
 		// twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
 		// 				  options.buffer_size, client->samplerate(),
@@ -200,41 +235,37 @@ main(int argc, char **argv)
 		// 				  &options.additional_options));
 
 		/* Log parameters */
-		if (options.max_size > 0)
-			logv << logv.program << "output file base: " << options.output_file << endl
-			     << logv.program << "max file size (MB): " << options.max_size << endl;
-		else
-			logv << logv.program << "output file name: " << options.output_file << endl;
-		logv << logv.program << "sampling rate (Hz): " << client->samplerate() << endl
-		     << logv.program << "buffer size (samples): " << options.buffer_size << endl
+
+		options.adjust_values(client->samplerate());
+		logv << logv.program << "buffer size (samples): " << options.buffer_size << endl
 		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl;
 		logv << logv.program << "additional metadata:" << endl;
 		for (map<string,string>::const_iterator it = options.additional_options.begin();
-		     it != options.additional_options.end(); ++it)
+		     it != options.additional_options.end(); ++it) {
 			logv << logv.program << "  " << it->first << "=" << it->second << endl;
+                }
+
+                /* Initialize writer */
+                ringbuffer.reset(new Ringbuffer<sample_t> (options.buffer_size));
 
 		/* Initialize the client. */
                 client->set_process_callback(process);
                 client->activate();
-		logv << logv.allfields << "Activated client" << endl;
 
 		/* connect ports */
-
 		for (map<string,jack_port_t*>::const_iterator it = ports_in.begin(); it != ports_in.end(); ++it) {
 			client->connect_port(it->first, jack_port_name(it->second));
-			logv << logv.allfields << "Connected " << it->first
-                             << " to " << jack_port_name(it->second) << endl;
 		}
 
 		for (vector<string>::const_iterator it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
 			client->connect_port(*it, "trig_in");
-			logv << logv.allfields << "Connected " << *it << " to trigger port" << endl;
 		}
 
 		// client->set_process_callback(boost::ref(*twriter));
 		// client->set_mainloop_callback(mainloop);
 		// client->run();
 		// logv << logv.allfields << client->get_status() << endl;
+
                 while (1) {
                         sleep(1);
                 }

@@ -15,6 +15,7 @@
 #include <jack/midiport.h>
 #include <cerrno>
 #include <algorithm>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 using namespace jill;
 
@@ -30,7 +31,13 @@ JackClient::JackClient(std::string const & name)
                 err << ")";
                 throw JackError(err);
         }
+        log() << "Created client (current cpu load: " << cpu_load() << "%)" << std::endl;
         jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
+        jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
+        jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
+        jack_set_sample_rate_callback(_client, &samplerate_callback_, static_cast<void*>(this));
+        jack_set_buffer_size_callback(_client, &buffersize_callback_, static_cast<void*>(this));
+        jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
 }
 
 JackClient::~JackClient()
@@ -62,7 +69,6 @@ JackClient::unregister_port(jack_port_t *port)
         int ret = jack_port_unregister(_client, port);
         if (ret)
                 throw JackError(util::make_string() << "unable to unregister port (err=" << ret << ")");
-        _ports.remove(port);
 }
 
 void
@@ -71,6 +77,7 @@ JackClient::activate()
         int ret = jack_activate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to activate client (err=" << ret << ")");
+        log() << "Activated client" << std::endl;
 }
 
 void
@@ -79,6 +86,7 @@ JackClient::deactivate()
         int ret = jack_deactivate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to deactivate client (err=" << ret << ")");
+        log() << "Deactivated client" << std::endl;
 }
 
 void
@@ -154,8 +162,6 @@ JackClient::events(jack_port_t *port, nframes_t nframes)
                 return 0;
 }
 
-
-
 nframes_t
 JackClient::samplerate() const
 {
@@ -221,14 +227,79 @@ JackClient::time(nframes_t frame) const
         return jack_frames_to_time(_client, frame);
 }
 
+std::ostream &
+JackClient::log() const
+{
+	using namespace boost::posix_time;
+        ptime t(microsec_clock::local_time());
+        return std::cout << '[' << name() << "] " << to_iso_string(t) << ' ';
+}
+
 int
 JackClient::process_callback_(nframes_t nframes, void *arg)
 {
 	JackClient *self = static_cast<JackClient*>(arg);
         nframes_t time = jack_last_frame_time(self->_client);
-	if (self->_process_cb)
-                return self->_process_cb(self, nframes, time);
-        else
-	return 0;
+	return (self->_process_cb) ? self->_process_cb(self, nframes, time) : 0;
 }
 
+void
+JackClient::portreg_callback_(jack_port_id_t id, int registered, void *arg)
+{
+	JackClient *self = static_cast<JackClient*>(arg);
+        jack_port_t *port = jack_port_by_id(self->_client, id);
+        if (!jack_port_is_mine(self->_client, port)) return;
+        if (registered) {
+                self->_ports.push_back(port);
+                self->log() << "Port registered: " << jack_port_name(port) << std::endl;
+        }
+        else {
+                self->_ports.remove(port);
+                self->log() << "Port unregistered: " << jack_port_name(port) << std::endl;
+        }
+        if (self->_portreg_cb)
+                self->_portreg_cb(self, port, registered);
+}
+
+void
+JackClient::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connected, void *arg)
+{
+	JackClient *self = static_cast<JackClient*>(arg);
+        jack_port_t *port1 = jack_port_by_id(self->_client, a);
+        jack_port_t *port2 = jack_port_by_id(self->_client, b);
+        if (!(jack_port_is_mine(self->_client, port1) || jack_port_is_mine(self->_client, port2)))
+                return;
+        if (jack_port_flags(port2) & JackPortIsOutput)
+                std::swap(port1,port2);
+        self->log() << "Ports " << ((connected) ? "" : "dis") << "connected: "
+                    << jack_port_name(port1) << " -> " << jack_port_name(port2) << std::endl;
+
+        if (self->_portconn_cb) {
+                self->_portconn_cb(self, port1, port2, connected);
+        }
+}
+
+int
+JackClient::samplerate_callback_(nframes_t nframes, void *arg)
+{
+	JackClient *self = static_cast<JackClient*>(arg);
+        self->log() << "sampling rate (Hz): " << nframes << std::endl;
+	return (self->_samplerate_cb) ? self->_samplerate_cb(self, nframes) : 0;
+}
+
+int
+JackClient::buffersize_callback_(nframes_t nframes, void *arg)
+{
+	JackClient *self = static_cast<JackClient*>(arg);
+        self->log() << "buffer size (frames): " << nframes << std::endl;
+	return (self->_buffersize_cb) ? self->_buffersize_cb(self, nframes) : 0;
+}
+
+int
+JackClient::xrun_callback_(void *arg)
+{
+	JackClient *self = static_cast<JackClient*>(arg);
+        float delay = jack_get_xrun_delayed_usecs(self->_client);
+        self->log() << "XRUN (us): " << delay << std::endl;
+	return (self->_xrun_cb) ? self->_xrun_cb(self, delay) : 0;
+}

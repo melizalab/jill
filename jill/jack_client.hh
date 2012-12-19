@@ -21,35 +21,25 @@
 /**
  * @defgroup clientgroup Creating and controlling JACK clients
  *
- * JACK clients all have to perform a series of common tasks:
- *  - connect to the JACK server as a client
- *  - create input and/or output ports
- *  - register callback functions to handle various events
- *     - process callback: handles input and output of samples
- *     - xrun callback: handles overrun and underrun events
- *     - timebase callback: handle maintaining extended time information
- *     - sync callback: handle repositioning requests
- *     - shutdown callback: handle disconnection or server shutdown
- *  - connect ports to other clients
- *
  */
 
 namespace jill {
 
 /**
  * @ingroup clientgroup
- * @brief Handle JACK client setup and shutdown
+ * @brief Thin wrapper around JACK client
  *
- * This class handles the most basic aspects of JACK client setup and shutdown.
- * On construction, it registers a new client with the JACK server. It provides
- * functions to register process, xrun, shutdown, timebase, and sync callbacks.
- * It also provides a variety of functions for inspecting the client and server,
- * and for issuing transport reposition requests.
+ * This class handles the most basic aspects of JACK client manipulation,
+ * including port creation and connection, and inspecting common attributes.
  *
- * Client provides an interface for registering and unregistering, connecting
- * and disconnecting input and output ports, and takes care of maintaining a a
- * list of the client's ports. The process callback has access to the Client
- * object and fucntions for retrieving event (MIDI) and sample data.
+ * It provides a boost::function based interface for many of the callbacks,
+ * which is somewhat more convenient than a raw function wrapper. The callback
+ * function has access to the object through a pointer
+ *
+ * The wrapper is thin, and the jack_client_t pointer is available in the _client
+ * field.  Encapsulation will break if ports are registered or unregistered
+ * using this pointer, or if the process callback is changed.
+ *
  *
  */
 class JackClient : boost::noncopyable {
@@ -63,8 +53,39 @@ public:
 	 * @param client the current client object
 	 * @param size the number of samples in the buffers
 	 * @param time the time elapsed (in samples) since the client started
+         * @return 0 if no errors, non-zero on error
 	 */
 	typedef boost::function<int (JackClient* client, nframes_t size, nframes_t time)> ProcessCallback;
+
+        /**
+         * Type of the port (un)registration callback. Provides information about
+         * the port that was (un)registered. Only ports owned by the current
+         * client result in this callback being called.
+         *
+         * @param client the current client object
+         * @param port the id of the registered port
+         * @param registered 0 for unregistered, nonzero if registered
+         */
+        typedef boost::function<void (JackClient* client, jack_port_t *port,
+                                      int registered)> PortRegisterCallback;
+
+        /**
+         * Type of the port (dis)connection callback. Provides information about
+         * the ports that were (dis)connected. Only ports owned by the current
+         * client result in this callback being called.
+         *
+         * @param client the current client object
+         * @param port1 the port owned by this client
+         * @param port2 the port owned by another client (or the second port if self-connected)
+         * @param connected 0 for unregistered, nonzero if registered
+         */
+        typedef boost::function<void (JackClient* client, jack_port_t *port1, jack_port_t *port2,
+                                      int connected)> PortConnectCallback;
+
+        typedef boost::function<int (JackClient* client, nframes_t srate)> SampleRateCallback;
+        typedef boost::function<int (JackClient* client, nframes_t nframes)> BufferSizeCallback;
+        typedef boost::function<int (JackClient* client, float usec_delay)> XrunCallback;
+
 
 	/**
 	 * Initialize a new JACK client. All clients are identified to the JACK
@@ -100,6 +121,27 @@ public:
 		_process_cb = cb;
 	}
 
+	void set_port_registration_callback(PortRegisterCallback const & cb) {
+		_portreg_cb = cb;
+	}
+
+	void set_port_connect_callback(PortConnectCallback const & cb) {
+		_portconn_cb = cb;
+	}
+
+	void set_sample_rate_callback(SampleRateCallback const & cb) {
+		_samplerate_cb = cb;
+	}
+
+	void set_buffer_size_callback(BufferSizeCallback const & cb) {
+		_buffersize_cb = cb;
+	}
+
+	void set_xrun_callback(XrunCallback const & cb) {
+		_xrun_cb = cb;
+	}
+
+
         /** Activate the client. Do this before attempting to connect ports */
         void activate();
 
@@ -134,8 +176,8 @@ public:
         /** The JACK client object */
         jack_client_t* client() { return _client;}
 
-        /** The JACK client ports */
-        std::list<jack_port_t*>& ports() { return _ports;}
+        /** List of ports registered through this object */
+        std::list<jack_port_t*> const & ports() const { return _ports;}
 
 	/** The sample rate of the client */
 	nframes_t samplerate() const;
@@ -171,19 +213,25 @@ public:
 	/** Request a new position from the transport master */
 	bool position(position_t const &);
 
-
-
-protected:
-
-	/** Pointer to the JACK client */
+	/** Pointer to the JACK client. */
 	jack_client_t *_client;
 
+        /** Returns std::cout after printing the client name and timestamp */
+        std::ostream & log() const;
+
+protected:
         /** Ports owned by this client */
         std::list<jack_port_t*> _ports;
+
 
 private:
 
 	ProcessCallback _process_cb;
+        PortRegisterCallback _portreg_cb;
+        PortConnectCallback _portconn_cb;
+        SampleRateCallback _samplerate_cb;
+        BufferSizeCallback _buffersize_cb;
+        XrunCallback _xrun_cb;
 
 	/*
 	 * These are the callback functions that are actually
@@ -194,7 +242,11 @@ private:
 	 * callback functions registered by the user.
 	 */
 	static int process_callback_(nframes_t, void *);
-
+	static void portreg_callback_(jack_port_id_t, int, void *);
+	static void portconn_callback_(jack_port_id_t, jack_port_id_t, int, void *);
+	static int samplerate_callback_(nframes_t, void *);
+	static int buffersize_callback_(nframes_t, void *);
+	static int xrun_callback_(void *);
 
 };
 

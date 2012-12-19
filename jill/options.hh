@@ -133,7 +133,7 @@ public:
          * @param name   the name of the option
          * @throws boost::bad_any_cast if values could not be cast to strings
          */
-        int keyvals(std::map<std::string, std::string> & dict, std::string const & name);
+        int parse_keyvals(std::map<std::string, std::string> & dict, std::string const & name);
 
 protected:
 	std::string _program_name;

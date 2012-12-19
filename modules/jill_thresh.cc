@@ -24,7 +24,6 @@ using namespace jill;
 boost::scoped_ptr<JackClient> client;
 boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
-logstream logv;
 int ret = EXIT_SUCCESS;
 
 /* data storage for event times */
@@ -67,14 +66,14 @@ std::size_t log_times(event_t const * events, std::size_t count)
         std::size_t i;
 	for (i = 0; i < count; ++i) {
                 e = events+i;
-                logv << logv.allfields;
+                std::ostream &os = client->log();
                 if (e->type()==event_t::midi_on)
-                        logv << "signal onset:";
+                        os << "signal onset:";
                 else if (e->type()==event_t::midi_off)
-                        logv << "signal offset:";
+                        os << "signal offset:";
                 else
-                        logv << "WARNING: detected but couldn't send event: ";
-                logv << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
+                        os << "WARNING: detected but couldn't send event: ";
+                os << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
         }
         return i;
 }
@@ -220,14 +219,6 @@ main(int argc, char **argv)
 		signal(SIGHUP,  signal_handler);
 
                 client.reset(new JackClient(options.client_name));
-		logv.set_program(client->name());
-		logv.set_stream(options.logfile);
-		logv << logv.allfields << "Created client" << endl
-                     << logv.program << "sampling rate (Hz): " << client->samplerate() << endl
-                     << logv.program << "buffer size (frames): " << client->buffer_size() << endl
-                     << logv.program << "current cpu load (%): " << client->cpu_load() << endl;
-
-
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
@@ -248,28 +239,25 @@ main(int argc, char **argv)
                                                                   options.period_size));
 
 		/* Log parameters */
-		logv << logv.program << "Trigger parameters:" << endl
-                     << logv.program << "period size (samples): " << options.period_size << endl
-		     << logv.program << "open threshold: " << options.open_threshold << endl
-		     << logv.program << "open count thresh: " << options.open_count_thresh << endl
-		     << logv.program << "open periods: " << options.open_crossing_periods << endl
-		     << logv.program << "close threshold: " << options.close_threshold << endl
-		     << logv.program << "close count thresh: " << options.close_count_thresh << endl
-		     << logv.program << "close periods: " << options.close_crossing_periods << endl;
+		// logv << logv.program << "Trigger parameters:" << endl
+                //      << logv.program << "period size (samples): " << options.period_size << endl
+		//      << logv.program << "open threshold: " << options.open_threshold << endl
+		//      << logv.program << "open count thresh: " << options.open_count_thresh << endl
+		//      << logv.program << "open periods: " << options.open_crossing_periods << endl
+		//      << logv.program << "close threshold: " << options.close_threshold << endl
+		//      << logv.program << "close count thresh: " << options.close_count_thresh << endl
+		//      << logv.program << "close periods: " << options.close_crossing_periods << endl;
 
                 client->set_process_callback(process);
                 client->activate();
-		logv << logv.allfields << "Activated client" << endl;
 
 		vector<string>::const_iterator it;
 		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
 			client->connect_port(*it, "in");
-			logv << logv.allfields << "Connected input to port " << *it << endl;
 		}
 
 		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
 			client->connect_port("trig_out",*it);
-			logv << logv.allfields << "Connected event output to " << *it << endl;
 		}
 
                 while(1) {
@@ -291,7 +279,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-		logv << logv.allfields << "Error: " << e.what() << std::endl;
+                std::cerr << "Error: " << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
 
