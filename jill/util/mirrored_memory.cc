@@ -50,19 +50,19 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_p
         if (lock_pages)
                 mlock(mem_ptr, total_size());
 
-        lower_ptr = mem_ptr;
-        upper_ptr = lower_ptr + _size;
+        _buf = mem_ptr;
+        upper_ptr = _buf + _size;
 
         // this seems like a potential race condition. maybe this is what the
         // guard pages are for?
-        if ( 0 > munmap( lower_ptr, _size + _size ) )
+        if ( 0 > munmap( _buf, _size + _size ) )
                 throw std::runtime_error("munmap failed");
 
         //-- Create a private shared memory segment.
         if ( 0 > ( shm_id = shmget( IPC_PRIVATE, _size, IPC_CREAT | 0700 ) ) )
                 throw std::runtime_error("shared memory allocation failed");
 
-        if ( lower_ptr != shmat( shm_id, lower_ptr, 0 ) ) {
+        if ( _buf != shmat( shm_id, _buf, 0 ) ) {
                 shmctl( shm_id, IPC_RMID, NULL );
                 throw std::runtime_error("failed to attach lower pointer to shared memory");
         }
@@ -83,7 +83,7 @@ mirrored_memory::~mirrored_memory()
         munlock(mem_ptr, total_size());
         munmap(mem_ptr, total_size());
         shmdt(upper_ptr);
-        shmdt(lower_ptr);
+        shmdt(_buf);
 }
 
 size_t

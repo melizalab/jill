@@ -1,7 +1,7 @@
 import os
 Import('env libname')
 
-subdirs = ['.','util','filters']
+subdirs = ['.','util','dsp']
 
 lib = env.Library(libname, [env.Glob(os.path.join(d,'*.cc')) for d in subdirs])
 env.Alias('library',lib)

@@ -3,7 +3,8 @@
  *
  * Allocates memory which has a contiguous virtual mirror. This is extremely
  * useful for ringbuffers because read and write functions can access their
- * space as a single unbroken array.  Based on virtual ringbuffer.
+ * space as a single unbroken array.  Based on virtual ringbuffer by Philip
+ * Howard (http://vrb.slashusr.org/)
  *
  * Copyright (C) 2010-2012 C Daniel Meliza <dmeliza@uchicago.edu>
  *
@@ -13,6 +14,9 @@
  * (at your option) any later version.
  *
  */
+#ifndef _MIRRORED_MEMORY_HH
+#define _MIRRORED_MEMORY_HH
+
 #include <boost/noncopyable.hpp>
 
 namespace jill { namespace util {
@@ -23,8 +27,8 @@ public:
         mirrored_memory(std::size_t req_size=0, std::size_t guard_size=0, bool lock_pages=true);
         ~mirrored_memory();
 
-        char * buffer() { return lower_ptr; }
-        char const * buffer() const { return lower_ptr; }
+        char * buffer() { return _buf; }
+        char const * buffer() const { return _buf; }
         std::size_t size() const { return _size; }
 
 protected:
@@ -32,11 +36,16 @@ protected:
         // total size including guards
         std::size_t total_size() const;
 
+        char *_buf;
+        std::size_t _size;
+
+private:
+        // only used for cleanup
         char *mem_ptr;
         char *upper_ptr;
-        char *lower_ptr;
-        std::size_t _size;
 
 };
 
 }}
+
+#endif

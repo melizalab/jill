@@ -53,6 +53,9 @@ struct event_t {
 
         event_t() : time(0), size(0) {};
         event_t(nframes_t t, jack_midi_data_t status) : time(t), size(1) { buffer[0] = status; }
+        explicit event_t(jack_midi_event_t const &event)
+                : time(event.time), size((event.size > MAXIMUM_DATA_SIZE) ? MAXIMUM_DATA_SIZE : event.size)
+                { memcpy(buffer, event.buffer, size); }
 
         // type of the event
         int type() const { return status() & 0xf0; }

@@ -15,9 +15,8 @@
 
 #include "jill/jack_client.hh"
 #include "jill/options.hh"
-#include "jill/logger.hh"
-#include "jill/ringbuffer.hh"
 #include "jill/midi.hh"
+#include "jill/dsp/ringbuffer.hh"
 #include "jill/dsp/crossing_trigger.hh"
 using namespace jill;
 
@@ -27,7 +26,7 @@ jack_port_t *port_in, *port_trig, *port_count;
 int ret = EXIT_SUCCESS;
 
 /* data storage for event times */
-Ringbuffer<event_t> trig_times(128);
+dsp::ringbuffer<event_t> trig_times(128);
 
 int
 process(JackClient *client, nframes_t nframes, nframes_t time)
@@ -76,13 +75,6 @@ std::size_t log_times(event_t const * events, std::size_t count)
                 os << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
         }
         return i;
-}
-
-
-void
-jack_shutdown(void *arg)
-{
-	exit(1);
 }
 
 void

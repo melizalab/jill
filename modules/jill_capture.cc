@@ -18,8 +18,8 @@
 #include "jill/jack_client.hh"
 #include "jill/options.hh"
 #include "jill/logger.hh"
-#include "jill/ringbuffer.hh"
 #include "jill/midi.hh"
+#include "jill/dsp/ringbuffer.hh"
 #include "jill/util/string.hh"
 #include "jill/sndfile/arf_sndfile.hh"
 using namespace jill;
@@ -28,8 +28,18 @@ boost::scoped_ptr<JackClient> client;
 std::map<std::string, jack_port_t*> ports_in;
 jack_port_t *port_trig;
 
-boost::scoped_ptr<Ringbuffer<sample_t> > ringbuffer;
-// boost::shared_ptr<TriggeredWriter> twriter;
+boost::scoped_ptr<dsp::Ringbuffer<sample_t> > ringbuffer;
+/* locks and condition variables used to synchronize during buffer resize */
+// pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
+// pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
+
+struct chunk_info_t {
+        std::size_t nchannels;
+        std::size_t nframes;
+};
+
+
+
 logstream logv;
 int ret = EXIT_SUCCESS;
 
