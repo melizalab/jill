@@ -1,12 +1,16 @@
 import os
 Import('env lib')
 
+# boost libraries may be named differently
+BOOST_LIBS = ['boost_system','boost_date_time','boost_program_options','boost_filesystem']
+if hasattr(os,'uname') and os.uname()[0] == 'Darwin':
+    BOOST_LIBS = [x + "-mt" for x in BOOST_LIBS]
+
 # clone environment and add libraries for modules
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],
-            LIBS=['jack','samplerate','hdf5','hdf5_hl','sndfile',
-                  # need to auto-detect this
-                  'boost_system','boost_date_time','boost_program_options','boost_filesystem'])
+            LIBS=['jack','samplerate','hdf5','hdf5_hl','sndfile'] + BOOST_LIBS,
+            )
 
 programs = {'jill_mixer' : ['jill_mixer.cc'],
             'jill_netmon' : ['jill_netmon.cc'],

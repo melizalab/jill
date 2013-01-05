@@ -21,6 +21,10 @@
 using namespace jill::util;
 using std::size_t;
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_pages)
 {
         int shm_id;

@@ -185,7 +185,7 @@ template <typename T>
 struct copyfrom {
 	T* _buf;
 	copyfrom(T * buf) : _buf(buf) {}
-        std::size_t operator() (T const * src, std::size_t cnt) {
+        std::size_t operator() (T const * src, std::size_t cnt, std::size_t index=0) {
                 if (_buf) std::copy(src, src + cnt, _buf); // assume uses memcpy for POD
                 return cnt;
 	}

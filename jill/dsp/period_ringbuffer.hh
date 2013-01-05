@@ -42,9 +42,9 @@ class period_ringbuffer : public ringbuffer<char>
 public:
         typedef ringbuffer<char> super;
         typedef super::data_type data_type;
-	typedef boost::function<void (data_type const * src,
-                                               std::size_t nframes,
-                                               std::size_t channel_idx)> read_visitor_type;
+	typedef boost::function<void (void const * src,
+                                      nframes_t nframes,
+                                      nframes_t channel_idx)> read_visitor_type;
 
         /**
          * Define the header for the period. Contains information about
@@ -54,7 +54,7 @@ public:
          */
         struct period_info_t {
                 nframes_t time;
-                nframes_t nframes;
+                nframes_t nbytes; // NB: converted from frame count
                 nframes_t nchannels;
         };
 
@@ -83,7 +83,7 @@ public:
          * written is the write pointer advanced.
          *
          * @param time      the timestamp for the period
-         * @param nframes   the number of frames in the period
+         * @param size      the number of frames per channel in the period
          * @param nchannels the number of channels in the period
          *
          * @return the number of periods that could fit in the buffer. If the
@@ -95,6 +95,12 @@ public:
         std::size_t reserve(nframes_t time, nframes_t nframes, nframes_t nchannels);
 
         /**
+         * Return the number of channels in the current write chunk, or zero if a
+         * chunk has not been requested.
+         */
+        nframes_t chans_to_write() const;
+
+        /**
          * Write the data for one channel in a period
          *
          * Writing per-channel is largely a matter of convenience because that's
@@ -102,13 +108,13 @@ public:
          * channels have been written.  Attempting to write a channel before the
          * header is written for a new chunk raises an error.
          *
-         * @param data the block of data to be written. Must be the same
-         *             size as the nframes argument to reserve()
+         * @param data the block of data to be written. At least
+         *             nframes*sizeof(sample_t) bytes
          *
          * @ throws std::logic_error if the number of calls exceeds the number of channels
          *          or the header has not been written
          */
-	void push(sample_t const * src);
+	void push(void const * src);
 
         /**
          * Request a period from the buffer
@@ -127,15 +133,21 @@ public:
         period_info_t const *request();
 
         /**
+         * Return the number of channels in the current read chunk, or zero if a
+         * chunk has not been requested.
+         */
+        nframes_t chans_to_read() const;
+
+        /**
          * Copy data for a channel in the current period.
          *
-         * @param dest  the destination buffer. Must have as many elements as
-         * there are frames
+         * @param dest the destination buffer. Must have as many bytes as there
+         * are per channel (period_info_t.nframes * sizeof(sample_t))
          *
          * @throws std::logic_error if called before request() or after all
          * channels have been read
          */
-        void pop(sample_t * dest);
+        void pop(void * dest);
 
         /**
          * Access channel data for current period
@@ -151,8 +163,8 @@ public:
 private:
         period_info_t *_read_hdr;
         period_info_t *_write_hdr;
-        std::size_t _chans_to_read;
-        std::size_t _chans_to_write;
+        nframes_t _chans_to_read;
+        std:: _chans_to_write;
 
         std::size_t bytes_per_channel(nframes_t nchannels=1) {
                 return (_write_hdr) ? nchannels * _write_hdr->nframes * sizeof(sample_t) : 0;
