@@ -21,15 +21,18 @@
  * @defgroup buffergroup Buffer data in a thread-safe manner
  *
  * A note on resource management. For native and aggregate/POD datatypes this is
- * not relevant. However, if the objects contain references to other memory,
- * that memory needs to be allocated by the object on construction (which will
- * occurw hen the ringbuffer is initialized). Then, when objects are pushed to
- * the ringbuffer, the referenced data needs to be copied into the preallocated
- * memory. The push() method in dsp::ringbuffer facilitates this by using std::copy,
- * which will use the object's assignment operator. Similarly, the pull() method
- * uses std::copy, to avoid allocation, to avoid having the memory
- * overwritten by the writer thread after the objects are released by the reader
- * thread, and to avoid double freeing memory when the ringbuffer is destroyed.
+ * not relevant, because all the data is stored in the ringbuffer. Objects *may*
+ * contain references to other memory, but that memory needs to be allocated by the
+ * object on construction (which will occur when the ringbuffer is initialized)
+ * in order for the ringbuffer to be realtime safe.
+ *
+ * Then, when objects are pushed to the ringbuffer, the referenced data needs to
+ * be copied into the preallocated memory. The push() method in dsp::ringbuffer
+ * facilitates this by using std::copy, which will use the object's assignment
+ * operator. Similarly, the pull() method uses std::copy, to avoid allocation,
+ * to avoid having the memory overwritten by the writer thread after the objects
+ * are released by the reader thread, and to avoid double freeing memory when
+ * the ringbuffer is destroyed.
  */
 
 
@@ -57,9 +60,9 @@ inline next_pow2(std::size_t size) {
  *  emphasis is on ensuring that both operations always atomically access their
  *  pointers, preventing either thread from trespassing into the other's
  *  territory. Uses a virtual mirrored buffer trick to create two contiguous
- *  regions of memory, allowing reads and writes to use single calls.  For
- *  zero-copy operations the class uses a visitor pattern, which ensures that
- *  indices remain in sync.
+ *  regions of memory, allowing reads and writes to use single calls (it also
+ *  ensures that memory is aligned to cache lines). For zero-copy operations the
+ *  class uses a visitor pattern, which ensures that indices remain in sync.
  *
  */
 template <typename T>
@@ -105,7 +108,8 @@ public:
 	 * operator semantics matter. Specifically, make sure objects in the
 	 * ringbuffer own their resources.
 	 *
-	 * @param src Pointer to source buffer
+	 * @param src Pointer to source buffer. If NULL, the write pointer is advanced
+	 *            wihtout writing anything.
 	 * @param cnt The number of elements in the source buffer. Only as many
 	 *            elements as there is room will be written.
 	 *
