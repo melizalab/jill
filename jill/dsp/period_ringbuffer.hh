@@ -65,13 +65,9 @@ public:
          *
          *  There's no fixed relationship between buffer size and period size,
          *  because period size can be changed without necessiarly needing to
-         *  resize the buffer. Note that each period will take up
-         *  nframes*nchannels*sizeof(sample_t) + sizeof(period_info_t) bytes, and
-         *  there should be room for at least 3 periods in the buffer to ensure
-         *  that both threads have something to work on.  In practice much
-         *  larger buffers are a good idea.
+         *  resize the buffer. A good minimum is nframes*nchannels*3
          */
-        explicit period_ringbuffer(std::size_t size);
+        explicit period_ringbuffer(std::size_t nsamples);
         ~period_ringbuffer();
 
         /**
@@ -130,11 +126,11 @@ public:
          * @throws std::logic_error if the method is called before all channels
          * have been read
          */
-        period_info_t const *request();
+        period_info_t const * request();
 
         /**
-         * Return the number of channels in the current read chunk, or zero if a
-         * chunk has not been requested.
+         * Return the number of remaining channels in the current read chunk, or
+         * zero if a chunk has not been requested.
          */
         nframes_t chans_to_read() const;
 
@@ -164,11 +160,7 @@ private:
         period_info_t *_read_hdr;
         period_info_t *_write_hdr;
         nframes_t _chans_to_read;
-        std:: _chans_to_write;
-
-        std::size_t bytes_per_channel(nframes_t nchannels=1) {
-                return (_write_hdr) ? nchannels * _write_hdr->nframes * sizeof(sample_t) : 0;
-        }
+        nframes_t _chans_to_write;
 
 };
 
