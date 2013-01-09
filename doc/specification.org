@@ -1,0 +1,257 @@
+#-*- mode: org -*-
+#+STARTUP:    align fold hidestars oddeven
+#+TITLE:    JILL Real-Time Auditory Neuroscience Framework - Specification
+#+AUTHOR:    Dan Meliza
+#+EMAIL:     dan@meliza.org
+#+LANGUAGE:   en
+#+OPTIONS: ^:nil H:2
+#+STYLE:    <link rel="stylesheet" href="org.css" type="text/css" />
+
+JILL consists of a set of modules (programs) that use the JACK realtime audio
+framework to do auditory neuroscience experiments. JACK provides a mechanism for
+moving sampled data and events around between independent clients.  Clients can
+read and write data to the JACK system through ports, and can serve as sources,
+sinks, or filters.  This document is a specification for the programs in the
+JILL framework; the spec for each module must follow the template below.
+
+* Specification template
+
+General comments about the function of the module.
+
+** Ports
+
+Specifications must indicate how many ports a module will register, their
+function, their type (sampled or event) and their direction (input or output);
+and whether the client will register, unregister, connect, or disconnect any
+ports during normal operation.
+
+** Events
+
+The JACK framework is callback based, and clients must handle a range of
+different events.  Thus, the specification for each module describes how it will
+handle each of the events.  Not all clients have to handle all events.
+
+1. the process callback, which reads and writes data to ports
+2. registration or removal of ports in the JACK system. These can be anywhere in
+   the JACK system, not necessarily in the client itself.
+3. connection or disconnection of ports. Again, these connections can be
+   anywhere in the JACK system, but for the purposes of this document, only
+   connections to and from the client will be considered
+4. overrun and underrun events (xruns). Caused when a client fails to exit its process
+   loop in time
+5. changes to period size. The period size is how many samples are passed to the
+   clients in the process loop. Changes to period size cause gaps in the
+   processing stream.
+6. server shutdown. Clients should clean up any open files, etc, when this occurs.
+7. changes to sampling rate. This callback exists but does not get called (at
+   present writing) because the server cannot change sampling rate
+8. timebase changes. These events occur when a client requests a new position in
+   the processing stream. As of this writing, clients should ignore these events
+   and must not request timebase changes.
+
+** Signals
+
+In addition, clients must handle standard POSIX signals SIGINT, SIGTERM, and
+SIGHUP.
+
+** Options and behavior
+
+This section describes commandline options and other details of behavior (e.g.,
+whether it accepts input during operation).
+
+* jdetect
+
+The function of jdetect is to detect the onsets and offsets of sustained
+auditory signals, such as when a bird vocalizes. It takes a single audio stream
+as input and outputs events indicating when the signal crossed the start and
+stop thresholds.
+
+** Ports
+
++ in :: sampled data, input. The signal is processed to determined when it
+        crosses onset or offset thresholds
++ trig_out :: event data, output. Emits note on and note off events indicating
+              the times when the signal crossed the onset or offset threshold,
+              respectively. The channel information in the event is not
+              specified. Emits MIDI system events to indicate errors.
++ count :: (optional) sampled data, outout. Provides debug information about the
+           state of the signal detector. The meaning of the signal depends on
+           the implementation of the detector.
+
+The client will not make any changes to its ports during operation.
+
+** Events
+
+1. The process callback reads data from the input stream and uses it to
+   calculating a running estimate of the signal power. The detector will likely
+   need to maintain state across periods.  If the signal crosses the onset or
+   offset threshold, outputs a note on or note off event.
+2. Port registration and unregistrations are ignored.
+3. Port connections and disconnections are ignored.
+4. Although xruns indicate missing data, the detector will continue to function
+   on the available data. Even if the last event was a note on, a weak signal
+   will eventually cause the offset threshold to be crossed, and the resulting
+   note off signal will be in sync with the auditory data at that point.
+5. Changes to buffer size are ignored, unless they necessitate a change to the
+   parameters of the detector.
+6. Server shutdowns cause the client to terminate
+
+** Signals
+
++ SIGINT :: module terminates
++ SIGTERM :: module terminates
++ SIGHUP :: detaches from the terminal (TODO)
+
+** Options and behavior
+
+The jdetect module accepts commandline options that specify the behavior of the
+signal detector. These will depend on the implementation. Onset and offset
+events and their times will be logged. The client may accept input during
+operation to adjust these parameters, and it may provide information on the
+terminal as to the current state of the detector.
+
+* jcapture
+
+The function of jcapture is to write sampled and event data to disk. Sampled
+data may include audio and neural signals, and event data may include signal
+detections (such as emitted by jdetect), spike times, and other external events.
+Data are stored in HDF5 format (LINK) using the ARF format (LINK).  Recording
+may be continuous, or may be in discrete epochs triggered by events.  In the
+latter case, a prebuffer provides the ability to record data prior to the actual
+epoch onset event.
+
+** Ports
+
++ in_NNN :: input. NNN is a numerical index. The number of ports and their type
+            is determined at startup by specifying a list of ports to connect to
+            the client.
++ trig_in :: input, events. In epoch mode, controls the start and stop of
+             recording epochs. note on events cause epochs to start; note off
+             events cause epochs to terminate. Multiple inputs may be connected
+             to this port, in which case the events will be mixed. Note on
+             events are ignored during recording epochs; note off events are
+             ignored outside of recording epochs. All events, including their
+             channel information, are logged. In continuous recording mode, this
+             port will still be created, but it will not affect acquisition.
+
+The client will not make any changes to its port configuration during operation.
+
+** Events
+
+1. The process callback places data into a ringbuffer.  Each period is stored as
+   a chunk to ensure synchronization across channels. There is no output.
+2. Registration/unregistration events are ignored.
+3. Port connections and disconnections are logged to the output file but are
+   otherwise ignored. Disconnected input ports will still be recorded, but will
+   have zeros in the signal.
+4. All xruns are logged to the output file. In continuous mode, xruns cause the
+   current entry to be terminated (all data in ringbuffer is flushed to disk)
+   and a new entry started. In epoch mode, xruns cause the entry to be flagged,
+   but the data are recorded as is.
+5. Changes to period size result in a log entry and cause all the data in the
+   ringbuffer to be flushed to disk. Because this introduces a gap in the data
+   stream, the current entry will be terminated. In continuous mode, a new entry
+   will be started; in epoch mode no new entry is started. Furthermore, if the
+   new size of the period is so large that less than three full periods will fit
+   in the ringbuffer, the ringbuffer is resized.
+6. Server shutdown causes remaining data in the ringbuffer to be flushed before
+   the client terminates.
+
+** Signals
+
+SIGTERM, SIGINT, and SIGHUP all cause the client to flush data and terminate. To
+maintain a running jcapture client, run it in a virtual screen.
+
+** Options and behavior
+
+Commandline options:
+
+1. Epoch or continuous recording mode
+2. Maximum file size. In continuous recordings, if the file size is exceeded,
+   the current file will be closed and a new one opened, with no gap between the
+   files. For epoch recordings, the last epoch will be written before changing
+   to a new file. A value of 0 means there is no maximum (up to the file
+   system's capabilities)
+3. Output file name. If a maximum file size is specified, this is treated as a
+   template and the files are named with a sequentially increasing numerical suffix.
+4. Prebuffer size. Only takes effect in epoch mode. Specifies the amount of data
+   (in units of time) write from before the time of the trigger to write to
+   disk. This is treated as an approximate value, because the prebuffer may not
+   fill completely, and for performance sake only complete periods may be used.
+5. Ringbuffer size. Determines the size of the buffer used to move data from the
+   realtime process thread to the writer thread. By default this is
+   automatically set to hold at least ten complete periods of data, or 2
+   seconds, whichever is more.
+6. The number of input ports to create, or a list of ports to connect to.
+
+On startup, jcapture will attempt to open the output file and obtain a write
+lock. If either operation fails, the program will terminate with an error. The
+program should attempt to determine if the output file is on an NFS share and
+proceed with a stern warning.
+
+Next, it will open the log table. This is an extensible dataset at the root of
+the ARF file that can be used to log events. If the table does not exist, it is
+created.
+
+Next, it will create the JACK client, register ports, activate the client, and
+connect the inputs.
+
+In continuous mode, jcapture will create an entry and begin writing to the
+disk immediately, and continue until the program is terminated.  Some
+synchronization is necessary to ensure that data are not written to the disk
+until the ports are connected.
+
+In epoch mode, jcapture will wait until it receives a note on event on the
+trigger port. While waiting, it will copy periods from the ringbuffer to the
+prebuffer, freeing periods beyond the duration of the prebuffer window. On
+receiving a note on event, it will log the event, open a new entry, write the
+prebuffered data to the entry, and then start writing all subsequently received
+data to the entry. On receiving a note off event it will close the dataset and
+entry and begin storing data in the prebuffer again.
+
+Each input channel will be stored in a separate dataset under the entry. Sampled
+data will be stored in HDF5 array datasets, with elements corresponding to
+individual frames.
+
+*** TODO Decide how to store event data
+
+Could be stored in arrays, discarding everything except for the time, or tables,
+keeping additional data. Spike data fits the latter; trigger data (i.e.
+associated with stimulus presentation or some external hardware) fits the
+former. How to distinguish? Metadata other than the port name and type can't be
+easily attached to ports, and we don't want to wait until data have been
+received before deciding how to store it. One option would be to define a new
+port type, though this probably means the events can't be mixed down by the
+daemon. Is this a problem? Only if there are events from multiple sources that
+should be treated as a single stream. For example, peck events on different
+keys. But if the data are stored as times only, the key information would be
+discarded, so not as much of a constraint. Another disadvantage is that tools
+like qjackctl probably won't know what to do with the new port type.
+
+Could have user specify the storage format. This seems to add unnecessary
+complication, because the format is determined by the type of data in the
+stream.
+
+Could encode the data type in the name of the port. E.g. _int for interval data,
+and _evt for event data. Advantage is no additional work defining new port
+types. Disadvantage is that the user could connect two ports with different data
+types. Even if the JILL programs do a check, the ports can be connected
+elsewise.
+
+Could store everything as interval data. Huge waste of space, probably.
+
+Could store data from trig_in port in an interval table, and all other data in
+event arrays. This assumes that all event data to be recorded (other than the
+trigger intervals) is simple event data. Can provide a commandline option to
+override.
+
+
+## Copyright 2011 Daniel Meliza
+##
+## Author: dmeliza@dylan.uchicago.edu
+## Keywords:
+
+
+
+
+
