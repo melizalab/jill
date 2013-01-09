@@ -130,9 +130,11 @@ epoch onset event.
              events cause epochs to terminate. Multiple inputs may be connected
              to this port, in which case the events will be mixed. Note on
              events are ignored during recording epochs; note off events are
-             ignored outside of recording epochs. All events, including their
-             channel information, are logged. In continuous recording mode, this
-             port will still be created, but it will not affect acquisition.
+             ignored outside of recording epochs. Channel values less than 8
+             initiate recording; all other channel values indicate the message
+             is purely informative. All events, including their channel
+             information, are logged. In continuous recording mode, this port
+             will still be created, but it will not affect acquisition.
 
 The client will not make any changes to its port configuration during operation.
 
@@ -182,7 +184,12 @@ Commandline options:
    realtime process thread to the writer thread. By default this is
    automatically set to hold at least ten complete periods of data, or 2
    seconds, whichever is more.
-6. The number of input ports to create, or a list of ports to connect to.
+6. The number of input ports to create, or a list of ports to connect to. If
+   inputs are specified as a list, a separate option (e.g. -I) is used to
+   indicate that the full event information should be stored rather than just
+   the time.
+7. Optional key-value pairs, which will be stored in attributes of created
+   entries.
 
 On startup, jcapture will attempt to open the output file and obtain a write
 lock. If either operation fails, the program will terminate with an error. The
@@ -211,9 +218,14 @@ entry and begin storing data in the prebuffer again.
 
 Each input channel will be stored in a separate dataset under the entry. Sampled
 data will be stored in HDF5 array datasets, with elements corresponding to
-individual frames.
+individual frames. Event data will also be stored in HDF5 array datasets, but
+the elements correspond to the times of the events. Additional information in
+the event (type, channel, et al) is discarded. However, if the input port is
+specified using a different option (see above), the full event data is stored
+using an ARF interval table. Data from the trigger port is stored in interval
+tables as well.
 
-*** TODO Decide how to store event data
+*** DONE Decide how to store event data                             :noexport:
 
 Could be stored in arrays, discarding everything except for the time, or tables,
 keeping additional data. Spike data fits the latter; trigger data (i.e.
@@ -255,3 +267,77 @@ override.
 
 
 
+
+
+* jstim
+
+The jstim module's function is to present auditory stimuli through the JACK
+interface. Stimuli can be presented singly or as part of a batch. The stimuli in
+a batch can be repeated and the order can be randomized. Presentation can occur
+at fixed intervals, with fixed gaps between stimuli, or in response to an
+external trigger. An event output line can be used to trigger other modules,
+like jcapture. Can also be used for presentation of stimuli while searching for
+neurons.
+
+** Ports
+
++ out :: sampled, output. Carries the audio signal for the stimulus.
++ trig_out :: event, output. Generates note on events when the stimulus starts
+              and note off events when it ends. For recording, the channel
+              value is 0. For search, the channel value is 8. The event message
+              is the name of the stimulus file (minus any path information).
++ trig_in :: (optional) event, input. Only created for triggered mode. Initiates
+             stimulus playback synchronized to the time of any note_on events
+             with channel values less than 8. Ignores note_off events.
+
+** Events
+
+1. The process callback copies data from a fixed buffer into the output port
+   buffer. Between stimuli, writes zeros to the output. The use of fixed buffers
+   assumes that stimuli are relatively short and memory is plentiful, but allows
+   stimulus onset to be synchonized precisely with note on events. On stimulus
+   onset, writes a note_on event to the event output. On stimulus offset, writes
+   a note_off event to the event output. Also monitors a variable that indicates
+   whether an xrun occurred, and if so, terminates playback and sends a system
+   event message.
+2. Registration/unregistration events are ignored
+3. Port connections and disconnections are ignored
+4. Xruns cause a flag shared with the process callback to be set so that an
+   error event can be sent to downstream clients. Xruns are also logged.
+5. Changes to period size also cause the xrun flag to be set, because this will
+   result in a gap in the audio stream.
+6. Server shutdown causes termination of the client.
+
+** Signals
+
+SIGINT, SIGTERM, and SIGHUP events cause termination of the client.
+
+** Options and behavior
+
+Commandline options:
+
+1. Record or search mode
+2. External trigger, fixed interval, or fixed gap. Keypress?
+3. Number of repetitions
+4. Whether to randomize stimulus order
+5. List of stimulus files
+
+On startup, load stimulus files into memory, resampling as necessary to match
+sampling rate of the JACK system. Alternatively, first determine the order of
+playback, load the first stimulus, and dispatch a thread to load the remaining
+stimuli (some small danger of this not completing before they are needed).
+
+Initialize client, register ports and callbacks, start client, connect ports.
+
+When the process thread indicates it has played all the stimuli, shut down the
+client and terminate program.
+
+* jplot
+
+Replaces splot, providing scrolling oscillogram and periplots for rasters.  It
+may be possible to upgrade splot to a more recent version of gtk and replace its
+signal acquisition routines with JACK callbacks.
+
+* jspikes
+
+Replaces aspikes for online spike detection.

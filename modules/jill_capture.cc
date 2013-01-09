@@ -27,11 +27,18 @@ using namespace jill;
 boost::scoped_ptr<JackClient> client;
 std::map<std::string, jack_port_t*> ports_in;
 jack_port_t *port_trig;
-
 boost::scoped_ptr<dsp::period_ringbuffer> ringbuffer;
+
+boost::scoped_ptr<dsp::Ringbuffer<sample_t> > ringbuffer;
 /* locks and condition variables used to synchronize during buffer resize */
 // pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
 // pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
+
+struct chunk_info_t {
+        std::size_t nchannels;
+        std::size_t nframes;
+};
+
 
 
 logstream logv;
