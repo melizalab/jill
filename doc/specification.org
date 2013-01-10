@@ -225,6 +225,11 @@ specified using a different option (see above), the full event data is stored
 using an ARF interval table. Data from the trigger port is stored in interval
 tables as well.
 
+*** TODO update arf c++ interface to support table types
+
+Doing this with template metaprogramming may be a huge bear. I should probably
+just write some specific methods.
+
 *** DONE Decide how to store event data                             :noexport:
 
 Could be stored in arrays, discarding everything except for the time, or tables,
@@ -262,7 +267,6 @@ override.
 ##
 ## Author: dmeliza@dylan.uchicago.edu
 ## Keywords:
-
 
 
 
