@@ -129,12 +129,22 @@ public:
 		_portconn_cb = cb;
 	}
 
+        /**
+         * Set the callback for when the samplerate changes. Currently, this
+         * will be called only when the callback is set or changed.
+         */
 	void set_sample_rate_callback(SampleRateCallback const & cb) {
 		_samplerate_cb = cb;
+                if (cb) {
+                        cb(this, samplerate());
+                }
 	}
 
 	void set_buffer_size_callback(BufferSizeCallback const & cb) {
 		_buffersize_cb = cb;
+                if (cb) {
+                        cb(this, buffer_size());
+                }
 	}
 
 	void set_xrun_callback(XrunCallback const & cb) {
@@ -217,7 +227,7 @@ public:
 	jack_client_t *_client;
 
         /** Returns std::cout after printing the client name and timestamp */
-        std::ostream & log() const;
+        std::ostream & log(bool with_time=true) const;
 
 protected:
         /** Ports owned by this client */

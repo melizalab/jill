@@ -228,11 +228,15 @@ JackClient::time(nframes_t frame) const
 }
 
 std::ostream &
-JackClient::log() const
+JackClient::log(bool with_time) const
 {
 	using namespace boost::posix_time;
-        ptime t(microsec_clock::local_time());
-        return std::cout << '[' << name() << "] " << to_iso_string(t) << ' ';
+        std::cout << '[' << name() << "] ";
+        if (with_time) {
+                ptime t(microsec_clock::local_time());
+                std::cout  << to_iso_string(t) << ' ';
+        }
+        return std::cout;
 }
 
 int

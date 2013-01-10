@@ -19,7 +19,7 @@
 #include "jill/options.hh"
 #include "jill/logger.hh"
 #include "jill/midi.hh"
-#include "jill/dsp/ringbuffer.hh"
+#include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
 #include "jill/sndfile/arf_sndfile.hh"
 using namespace jill;
@@ -28,16 +28,10 @@ boost::scoped_ptr<JackClient> client;
 std::map<std::string, jack_port_t*> ports_in;
 jack_port_t *port_trig;
 
-boost::scoped_ptr<dsp::Ringbuffer<sample_t> > ringbuffer;
+boost::scoped_ptr<dsp::period_ringbuffer> ringbuffer;
 /* locks and condition variables used to synchronize during buffer resize */
 // pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
 // pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
-
-struct chunk_info_t {
-        std::size_t nchannels;
-        std::size_t nframes;
-};
-
 
 
 logstream logv;
@@ -66,7 +60,8 @@ jack_shutdown(void *arg)
 	exit(1);
 }
 
-// handle sampling rate changes (not RT)
+// handle sampling rate changes. This actually only ever gets called at the
+// start.
 int
 jack_samplerate(JackClient *client, nframes_t nframes)
 {
@@ -120,7 +115,7 @@ public:
                         ("log,l",     po::value<string>(&logfile), "set logfile (default stdout)")
                         ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
                         ("trig,t",     po::value<vector<string> >(&trig_ports), "add connection to trigger port")
-                        ("attr,a",     po::value<vector<string> >(), "set additional attribute (key=value)");
+                        ("attr,a",     po::value<vector<string> >(), "set additional attributes for file (key=value)");
                 cfg_opts.add_options()
                         ("attr,a",     po::value<vector<string> >());
                 cmd_opts.add(jillopts);
@@ -168,14 +163,7 @@ public:
 	std::string output_file;
 	float prebuffer_size_ms;  // in ms
 	float buffer_size_ms;  // in ms
-	nframes_t prebuffer_size; // samples
-	nframes_t buffer_size; // samples
 	int max_size;  // in MB
-
-	void adjust_values(nframes_t samplerate) {
-		prebuffer_size = (nframes_t)(prebuffer_size_ms * samplerate / 1000);
-		buffer_size = (nframes_t)(buffer_size_ms * samplerate / 1000);
-	}
 
 
 protected:
@@ -188,7 +176,7 @@ protected:
 		std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
 			  << visible_opts << std::endl
 			  << "Ports:\n"
-			  << " * in_NN:      for input of the signal(s) to be recorded\n"
+			  << " * in_NNN:      for input of the signal(s) to be recorded\n"
 			  << " * trig_in:    MIDI port to receive events triggering recording"
 			  << std::endl;
 	}
@@ -216,6 +204,13 @@ main(int argc, char **argv)
 			     << logv.program << "max file size (MB): " << options.max_size << endl;
 		else
 			logv << logv.program << "output file name: " << options.output_file << endl;
+		logv << logv.program << "buffer size (ms): " << options.buffer_size_ms << endl
+		     << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
+		logv << logv.program << "additional metadata:" << endl;
+		for (map<string,string>::const_iterator it = options.additional_options.begin();
+		     it != options.additional_options.end(); ++it) {
+			logv << logv.program << "  " << it->first << "=" << it->second << endl;
+                }
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -237,23 +232,8 @@ main(int argc, char **argv)
                         ports_in[*it] = port_in;
 		}
 
-		/* Initialize writer object and triggered writer */
-		// jill::util::ArfSndfile writer(options.output_file, client->samplerate(), options.max_size);
-		// twriter.reset(new TriggeredWriter(writer, logv, options.prebuffer_size,
-		// 				  options.buffer_size, client->samplerate(),
-		// 				  options.trig_threshold,
-		// 				  &options.additional_options));
-
 		/* Log parameters */
-
 		options.adjust_values(client->samplerate());
-		logv << logv.program << "buffer size (samples): " << options.buffer_size << endl
-		     << logv.program << "prebuffer size (samples): " << options.prebuffer_size << endl;
-		logv << logv.program << "additional metadata:" << endl;
-		for (map<string,string>::const_iterator it = options.additional_options.begin();
-		     it != options.additional_options.end(); ++it) {
-			logv << logv.program << "  " << it->first << "=" << it->second << endl;
-                }
 
                 /* Initialize writer */
                 ringbuffer.reset(new Ringbuffer<sample_t> (options.buffer_size));

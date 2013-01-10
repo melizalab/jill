@@ -20,69 +20,6 @@
 #include "jill/dsp/crossing_trigger.hh"
 using namespace jill;
 
-boost::scoped_ptr<JackClient> client;
-boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
-jack_port_t *port_in, *port_trig, *port_count;
-int ret = EXIT_SUCCESS;
-
-/* data storage for event times */
-dsp::ringbuffer<event_t> trig_times(128);
-
-int
-process(JackClient *client, nframes_t nframes, nframes_t time)
-{
-	sample_t *in = client->samples(port_in, nframes);
-        sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
-        void *trig_buffer = client->events(port_trig, nframes);
-
-	// Step 1: Pass samples to window discriminator; its state may
-	// change, in which case the return value will be > -1 and
-	// indicate the frame in which the gate opened or closed. It
-	// also takes care of copying the current state of the buffer
-	// to the count monitor port (if not NULL)
-	int offset = trigger->push(in, nframes, out);
-        if (offset < 0) return 0;
-
-        // store data sent to logger
-        event_t trig_event(offset+time, (trigger->open()) ? event_t::midi_on : event_t::midi_off);
-        jack_midi_data_t *buf = jack_midi_event_reserve(trig_buffer, offset, 3);
-        if (buf) {
-                buf[0] = trig_event.status();
-        }
-        else {
-                // indicate error to logger function
-                trig_event.status() = event_t::midi_sys;
-        }
-        trig_times.push(trig_event);
-
-	return 0;
-}
-
-/** visitor function for gate time ringbuffer */
-std::size_t log_times(event_t const * events, std::size_t count)
-{
-        event_t const *e;
-        std::size_t i;
-	for (i = 0; i < count; ++i) {
-                e = events+i;
-                std::ostream &os = client->log();
-                if (e->type()==event_t::midi_on)
-                        os << "signal onset:";
-                else if (e->type()==event_t::midi_off)
-                        os << "signal offset:";
-                else
-                        os << "WARNING: detected but couldn't send event: ";
-                os << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
-        }
-        return i;
-}
-
-void
-signal_handler(int sig)
-{
-        exit(ret);
-}
-
 /**
  * This class parses options for the program from the command-line
  * and/or a configuration file.  As in writer.cc, we also want to
@@ -149,37 +86,11 @@ public:
 	float close_threshold;
 
 	float open_crossing_rate;  // s^-1
-	int open_count_thresh; // raw count
 	float close_crossing_rate;
-	int close_count_thresh;
 
 	float period_size_ms; // in ms
-	nframes_t period_size; // in samples
-
 	float open_crossing_period_ms;
-	int open_crossing_periods;
 	float close_crossing_period_ms;
-	int close_crossing_periods;
-
-	/**
-	 * Some of the values are specified in terms of time, but the
-	 * WindowDiscriminator class uses units of samples.  The
-	 * values can only be corrected after the samplerate is known.
-	 * This function should be called before reading any of the
-	 * following variables:
-	 *
-	 * prebuffer_size, period_size, open_count_thresh,
-	 * close_count_thresh, open_crossing_periods, close_crossing_periods
-	 */
-	void adjust_values(nframes_t samplerate) {
-		period_size = (nframes_t)(period_size_ms * samplerate / 1000);
-		open_crossing_periods = (int)(open_crossing_period_ms / period_size_ms);
-		close_crossing_periods = (int)(close_crossing_period_ms / period_size_ms);
-		// count thresh is count rate * integration period
-		open_count_thresh = (int)(open_crossing_rate * period_size / 1000 * open_crossing_periods);
-		close_count_thresh = (int)(close_crossing_rate * period_size / 1000 * close_crossing_periods);
-	}
-
 
 protected:
 
@@ -197,13 +108,106 @@ protected:
 }; // TriggerOptions
 
 
+TriggerOptions options("jill_thresh","1.3.0");
+boost::scoped_ptr<JackClient> client;
+boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
+jack_port_t *port_in, *port_trig, *port_count;
+int ret = EXIT_SUCCESS;
+
+/* data storage for event times */
+dsp::ringbuffer<event_t> trig_times(128);
+
+int
+process(JackClient *client, nframes_t nframes, nframes_t time)
+{
+	sample_t *in = client->samples(port_in, nframes);
+        sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
+        void *trig_buffer = client->events(port_trig, nframes);
+
+	// Step 1: Pass samples to window discriminator; its state may
+	// change, in which case the return value will be > -1 and
+	// indicate the frame in which the gate opened or closed. It
+	// also takes care of copying the current state of the buffer
+	// to the count monitor port (if not NULL)
+	int offset = trigger->push(in, nframes, out);
+        if (offset < 0) return 0;
+
+        // store data sent to logger
+        event_t trig_event(offset+time, (trigger->open()) ? event_t::midi_on : event_t::midi_off);
+        jack_midi_data_t *buf = jack_midi_event_reserve(trig_buffer, offset, 3);
+        if (buf) {
+                buf[0] = trig_event.status();
+        }
+        else {
+                // indicate error to logger function
+                trig_event.status() = event_t::midi_sys;
+        }
+        trig_times.push(trig_event);
+
+	return 0;
+}
+
+/** visitor function for gate time ringbuffer */
+std::size_t log_times(event_t const * events, std::size_t count)
+{
+        event_t const *e;
+        std::size_t i;
+	for (i = 0; i < count; ++i) {
+                e = events+i;
+                std::ostream &os = client->log();
+                if (e->type()==event_t::midi_on)
+                        os << "signal onset:";
+                else if (e->type()==event_t::midi_off)
+                        os << "signal offset:";
+                else
+                        os << "WARNING: detected but couldn't send event: ";
+                os << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
+        }
+        return i;
+}
+
+int
+samplerate_callback(JackClient *client, nframes_t samplerate)
+{
+        using std::endl;
+	nframes_t period_size = options.period_size_ms * samplerate / 1000;
+	int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
+	int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
+	int open_count_thresh = options.open_crossing_rate * period_size / 1000 * open_crossing_periods;
+	int close_count_thresh = options.close_crossing_rate * period_size / 1000 * close_crossing_periods;
+
+        trigger.reset(new dsp::CrossingTrigger<sample_t>(options.open_threshold,
+                                                         open_count_thresh,
+                                                         open_crossing_periods,
+                                                         options.close_threshold,
+                                                         close_count_thresh,
+                                                         close_crossing_periods,
+                                                         period_size));
+
+        // Log parameters
+        client->log(false) << "Trigger parameters:" << endl;
+        client->log(false) << "      period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
+        client->log(false) << "      open threshold: " << options.open_threshold << endl;
+        client->log(false) << "      open count thresh: " << open_count_thresh << endl;
+           << "      open periods: " << open_crossing_periods << endl
+           << "      close threshold: " << options.close_threshold << endl
+           << "      close count thresh: " << close_count_thresh << endl
+           << "      close periods: " << close_crossing_periods << endl;
+        return 0;
+}
+
+void
+signal_handler(int sig)
+{
+        exit(ret);
+}
+
+
 int
 main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-
-		TriggerOptions options("jill_thresh", "1.2.0rc1");
 		options.parse(argc,argv);
 
 		signal(SIGINT,  signal_handler);
@@ -221,25 +225,7 @@ main(int argc, char **argv)
                                                           JackPortIsOutput | JackPortIsTerminal, 0);
                 }
 
-		options.adjust_values(client->samplerate());
-		trigger.reset(new dsp::CrossingTrigger<sample_t>(options.open_threshold,
-                                                                  options.open_count_thresh,
-                                                                  options.open_crossing_periods,
-                                                                  options.close_threshold,
-                                                                  options.close_count_thresh,
-                                                                  options.close_crossing_periods,
-                                                                  options.period_size));
-
-		/* Log parameters */
-		// logv << logv.program << "Trigger parameters:" << endl
-                //      << logv.program << "period size (samples): " << options.period_size << endl
-		//      << logv.program << "open threshold: " << options.open_threshold << endl
-		//      << logv.program << "open count thresh: " << options.open_count_thresh << endl
-		//      << logv.program << "open periods: " << options.open_crossing_periods << endl
-		//      << logv.program << "close threshold: " << options.close_threshold << endl
-		//      << logv.program << "close count thresh: " << options.close_count_thresh << endl
-		//      << logv.program << "close periods: " << options.close_crossing_periods << endl;
-
+                client->set_sample_rate_callback(samplerate_callback);
                 client->set_process_callback(process);
                 client->activate();
 
@@ -277,3 +263,5 @@ main(int argc, char **argv)
 
 	/* Because we used smart pointers and locally scoped variables, there is no cleanup to do! */
 }
+
+
