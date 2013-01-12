@@ -38,7 +38,7 @@ public:
 	typedef typename std::deque<data_type>::size_type size_type;
 
 	/** Initialize the counter. @param size  the size of the running sum window */
-	explicit Counter(size_type size)
+	explicit Counter(size_type size=0)
 		: _size(size), _running_count(0) {}
 
 	/**
@@ -71,6 +71,23 @@ public:
 
 	/** @return the running total */
 	data_type running_count() const { return _running_count; }
+
+        /**
+         * Change the number of elements in the running count. If the new size
+         * is smaller, then the running total reflects the last @a size elements
+         * added to the queue.  If the new size is larger, then the running
+         * total remains the same.
+         *
+         * @param size  the new size of the queue
+         */
+        void resize(size_type size) {
+                _size = size;
+                // shrink queue by popping off back
+                while (_counts.size() > _size) {
+                        _running_count -= _counts.back();
+                        _counts.pop_back();
+                }
+        }
 
 	/** reset the counter */
 	void reset() {
