@@ -31,7 +31,7 @@ JackClient::JackClient(std::string const & name)
                 err << ")";
                 throw JackError(err);
         }
-        log() << "Created client (current cpu load: " << cpu_load() << "%)" << std::endl;
+        log() << "Created client (load=" << cpu_load() << "%)" << std::endl;
         jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
         jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
         jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
@@ -42,7 +42,13 @@ JackClient::JackClient(std::string const & name)
 
 JackClient::~JackClient()
 {
-	jack_client_close(_client);
+	if (_client) {
+                jack_client_close(_client);
+                try {
+                        log() << "Closed client" << std::endl;
+                }
+                catch (...) {}
+        }
 }
 
 jack_port_t*
@@ -77,7 +83,7 @@ JackClient::activate()
         int ret = jack_activate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to activate client (err=" << ret << ")");
-        log() << "Activated client" << std::endl;
+        log() << "Activated client (load=" << cpu_load() << "%)" << std::endl;
 }
 
 void

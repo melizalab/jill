@@ -108,7 +108,7 @@ protected:
 }; // TriggerOptions
 
 
-TriggerOptions options("jill_thresh","1.3.0");
+TriggerOptions options("jdetect","1.3.0");
 boost::scoped_ptr<JackClient> client;
 boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
@@ -166,6 +166,9 @@ std::size_t log_times(event_t const * events, std::size_t count)
         return i;
 }
 
+/**
+ * Callback for samplerate changes. However, this function is only called once.
+ */
 int
 samplerate_callback(JackClient *client, nframes_t samplerate)
 {
@@ -186,13 +189,13 @@ samplerate_callback(JackClient *client, nframes_t samplerate)
 
         // Log parameters
         client->log(false) << "Trigger parameters:" << endl;
-        client->log(false) << "      period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
-        client->log(false) << "      open threshold: " << options.open_threshold << endl;
-        client->log(false) << "      open count thresh: " << open_count_thresh << endl;
-           << "      open periods: " << open_crossing_periods << endl
-           << "      close threshold: " << options.close_threshold << endl
-           << "      close count thresh: " << close_count_thresh << endl
-           << "      close periods: " << close_crossing_periods << endl;
+        client->log(false) << "  period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
+        client->log(false) << "  open threshold: " << options.open_threshold << endl;
+        client->log(false) << "  open count thresh: " << open_count_thresh << endl;
+        client->log(false) << "  open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
+        client->log(false) << "  close threshold: " << options.close_threshold << endl;
+        client->log(false) << "  close count thresh: " << close_count_thresh << endl;
+        client->log(false) << "  close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
         return 0;
 }
 
