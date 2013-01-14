@@ -16,84 +16,11 @@
 
 #include "jill/jack_client.hh"
 #include "jill/options.hh"
-#include "jill/logger.hh"
 #include "jill/midi.hh"
 #include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
 #include "jill/sndfile/arf_sndfile.hh"
 using namespace jill;
-
-boost::scoped_ptr<JackClient> client;
-std::map<std::string, jack_port_t*> ports_in;
-jack_port_t *port_trig;
-boost::scoped_ptr<dsp::period_ringbuffer> ringbuffer;
-
-/* locks and condition variables used to synchronize during buffer resize */
-// pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
-// pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
-
-int ret = EXIT_SUCCESS;
-
-/*
- * Copy data from ports into ringbuffer. Note that the first port is the trigger
- * port, so it contains MIDI data; however, the buffer size is the same so it
- * can be treated like audio data for now (should probably assert this
- * somewhere)
- */
-int
-process(JackClient *client, nframes_t nframes, nframes_t time)
-{
-        sample_t *port_buffer;
-        std::list<jack_port_t*>::const_iterator it;
-        for (it = client->ports().begin(); it != client->ports().end(); ++it) {
-                port_buffer = client->samples(*it, nframes);
-        }
-        return 0;
-}
-
-void
-jack_shutdown(void *arg)
-{
-	exit(1);
-}
-
-// handle sampling rate changes. This actually only ever gets called at the
-// start.
-int
-jack_samplerate(JackClient *client, nframes_t nframes)
-{
-        return 0;
-}
-
-int
-jack_xrun(JackClient *client, float delay)
-{
-        return 0;
-}
-
-// deal with buffer size changes (not RT)
-int
-jack_bufsize(JackClient *client, nframes_t nframes)
-{
-        return 0;
-}
-
-void
-jack_portreg(JackClient *client, jack_port_t* port, int registered)
-{
-}
-
-void
-jack_portcon(JackClient *client, jack_port_t* port1, jack_port_t* port2, int connected)
-{
-}
-
-
-void
-signal_handler(int sig)
-{
-        exit(ret);
-}
 
 /* commandline options */
 class CaptureOptions : public Options {
@@ -107,23 +34,25 @@ public:
 
                 po::options_description jillopts("JILL options");
                 jillopts.add_options()
-                        ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
+                        ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
                          "set client name")
-                        ("log,l",     po::value<string>(&logfile), "set logfile (default stdout)")
-                        ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
-                        ("trig,t",     po::value<vector<string> >(&trig_ports), "add connection to trigger port")
+                        ("n",          po::value<int>(&n_input_ports)->default_value(0), "number of input ports to create")
+                        ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
+                        ("event,e",    po::value<vector<string> >(&event_ports), "connect to input port (store full event information)")
+                        ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
                         ("attr,a",     po::value<vector<string> >(), "set additional attributes for file (key=value)");
                 cfg_opts.add_options()
-                        ("attr,a",     po::value<vector<string> >());
+                        ("attr,a",     po::value<vector<string> >())
+			("buffer",     po::value<float>(&buffer_size_ms)->default_value(2000),
+			 "minimum ringbuffer size (ms)");
                 cmd_opts.add(jillopts);
                 visible_opts.add(jillopts);
 
 		po::options_description tropts("Capture options");
 		tropts.add_options()
+                        ("continuous,c", "record in continuous mode (default is in triggered epochs)")
 			("prebuffer", po::value<float>(&prebuffer_size_ms)->default_value(1000),
 			 "set prebuffer size (ms)")
-			("buffer", po::value<float>(&buffer_size_ms)->default_value(2000),
-			 "set file output buffer size (ms)")
 			("max-size", po::value<int>(&max_size)->default_value(100),
 			 "save data to serially numbered files with max size (MB)");
 
@@ -147,12 +76,10 @@ public:
 	 */
 	/** The client name (used in internal JACK representations) */
 	std::string client_name;
-	/** The log file to write application events to */
-	std::string logfile;
 
-	/** A vector of inputs to connect to the client */
+	/** Vectors of inputs to connect to the client */
 	std::vector<std::string> input_ports;
-	/** A vector of outputs to connect to the client */
+	std::vector<std::string> event_ports;
 	std::vector<std::string> trig_ports;
 
         std::map<std::string, std::string> additional_options;
@@ -161,6 +88,7 @@ public:
 	float prebuffer_size_ms;  // in ms
 	float buffer_size_ms;  // in ms
 	int max_size;  // in MB
+        int n_input_ports;
 
 
 protected:
@@ -189,33 +117,102 @@ protected:
 
 };
 
+CaptureOptions options("jcapture", "1.3.0");
+boost::scoped_ptr<JackClient> client;
+std::map<std::string, jack_port_t*> ports_in;
+jack_port_t *port_trig;
+boost::scoped_ptr<dsp::period_ringbuffer> ringbuffer;
+int ret = 0;  // flag to do cleanup
+
+/* locks and condition variables used to synchronize during buffer resize */
+// pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
+// pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
+
+
+/*
+ * Copy data from ports into ringbuffer. Note that the first port is the trigger
+ * port, so it contains MIDI data; however, the buffer size is the same so it
+ * can be treated like audio data for now (should probably assert this
+ * somewhere)
+ */
+int
+process(JackClient *client, nframes_t nframes, nframes_t time)
+{
+        sample_t *port_buffer;
+        std::list<jack_port_t*>::const_iterator it;
+        for (it = client->ports().begin(); it != client->ports().end(); ++it) {
+                port_buffer = client->samples(*it, nframes);
+        }
+        return 0;
+}
+
+// handle sampling rate changes. This actually only ever gets called at the
+// start.
+int
+jack_samplerate(JackClient *client, nframes_t nframes)
+{
+        return 0;
+}
+
+int
+jack_xrun(JackClient *client, float delay)
+{
+        return 0;
+}
+
+// deal with buffer size changes (not RT)
+int
+jack_bufsize(JackClient *client, nframes_t nframes)
+{
+        return 0;
+}
+
+
+void
+jack_portcon(JackClient *client, jack_port_t* port1, jack_port_t* port2, int connected)
+{
+}
+
+void
+jack_shutdown(jack_status_t code, char const *)
+{
+        ret = 1;
+}
+
+
+void
+signal_handler(int sig)
+{
+        ret = 1;
+}
+
+
 int
 main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-		CaptureOptions options("jill_capture", "1.2.0rc1");
 		options.parse(argc,argv);
-		if (options.max_size > 0)
-			logv << logv.program << "output file base: " << options.output_file << endl
-			     << logv.program << "max file size (MB): " << options.max_size << endl;
-		else
-			logv << logv.program << "output file name: " << options.output_file << endl;
-		logv << logv.program << "buffer size (ms): " << options.buffer_size_ms << endl
-		     << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
-		logv << logv.program << "additional metadata:" << endl;
-		for (map<string,string>::const_iterator it = options.additional_options.begin();
-		     it != options.additional_options.end(); ++it) {
-			logv << logv.program << "  " << it->first << "=" << it->second << endl;
-                }
-
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
-
                 client.reset(new JackClient(options.client_name));
-		logv.set_program(client->name());
-		logv.set_stream(options.logfile);
+
+                // open output file
+		if (options.max_size > 0) {
+			client->log() << "output file base: " << options.output_file << endl;
+                        client->log() << "max file size (MB): " << options.max_size << endl;
+                }
+		else
+			client->log() << "output file name: " << options.output_file << endl;
+
+		// logv << logv.program << "buffer size (ms): " << options.buffer_size_ms << endl
+		//      << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
+		// logv << logv.program << "additional metadata:" << endl;
+		// for (map<string,string>::const_iterator it = options.additional_options.begin();
+		//      it != options.additional_options.end(); ++it) {
+		// 	logv << logv.program << "  " << it->first << "=" << it->second << endl;
+                // }
+
+                client->set_sample_rate_callback(jack_samplerate);
+
 
                 /* create ports, one for trigger, and one for each audio input */
                 port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
@@ -229,13 +226,11 @@ main(int argc, char **argv)
                         ports_in[*it] = port_in;
 		}
 
-		/* Log parameters */
-		options.adjust_values(client->samplerate());
+		signal(SIGINT,  signal_handler);
+		signal(SIGTERM, signal_handler);
+		signal(SIGHUP,  signal_handler);
 
-                /* Initialize writer */
-                ringbuffer.reset(new Ringbuffer<sample_t> (options.buffer_size));
-
-		/* Initialize the client. */
+                client->set_shutdown_callback(jack_shutdown);
                 client->set_process_callback(process);
                 client->activate();
 
@@ -253,10 +248,10 @@ main(int argc, char **argv)
 		// client->run();
 		// logv << logv.allfields << client->get_status() << endl;
 
-                while (1) {
+                while (ret == 0) {
                         sleep(1);
                 }
-		return ret;
+                return 0;
 	}
 	catch (Exit const &e) {
 		return e.status();

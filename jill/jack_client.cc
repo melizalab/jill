@@ -38,6 +38,7 @@ JackClient::JackClient(std::string const & name)
         jack_set_sample_rate_callback(_client, &samplerate_callback_, static_cast<void*>(this));
         jack_set_buffer_size_callback(_client, &buffersize_callback_, static_cast<void*>(this));
         jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
+        jack_on_info_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
 }
 
 JackClient::~JackClient()
@@ -312,4 +313,11 @@ JackClient::xrun_callback_(void *arg)
         float delay = jack_get_xrun_delayed_usecs(self->_client);
         self->log() << "XRUN (us): " << delay << std::endl;
 	return (self->_xrun_cb) ? self->_xrun_cb(self, delay) : 0;
+}
+
+void
+JackClient::shutdown_callback_(jack_status_t code, char const * reason, void *arg)
+{
+	JackClient *self = static_cast<JackClient*>(arg);
+	if (self->_shutdown_cb) self->_shutdown_cb(code, reason);
 }

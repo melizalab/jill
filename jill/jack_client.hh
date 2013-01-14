@@ -85,7 +85,7 @@ public:
         typedef boost::function<int (JackClient* client, nframes_t srate)> SampleRateCallback;
         typedef boost::function<int (JackClient* client, nframes_t nframes)> BufferSizeCallback;
         typedef boost::function<int (JackClient* client, float usec_delay)> XrunCallback;
-
+        typedef boost::function<void (jack_status_t code, char const * reason)> ShutdownCallback;
 
 	/**
 	 * Initialize a new JACK client. All clients are identified to the JACK
@@ -151,6 +151,9 @@ public:
 		_xrun_cb = cb;
 	}
 
+        void set_shutdown_callback(ShutdownCallback const & cb) {
+                _shutdown_cb = cb;
+        }
 
         /** Activate the client. Do this before attempting to connect ports */
         void activate();
@@ -242,6 +245,7 @@ private:
         SampleRateCallback _samplerate_cb;
         BufferSizeCallback _buffersize_cb;
         XrunCallback _xrun_cb;
+        ShutdownCallback _shutdown_cb;
 
 	/*
 	 * These are the callback functions that are actually
@@ -257,6 +261,7 @@ private:
 	static int samplerate_callback_(nframes_t, void *);
 	static int buffersize_callback_(nframes_t, void *);
 	static int xrun_callback_(void *);
+        static void shutdown_callback_(jack_status_t, char const *, void *);
 
 };
 

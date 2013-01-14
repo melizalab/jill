@@ -94,7 +94,7 @@ The client will not make any changes to its ports during operation.
    note off signal will be in sync with the auditory data at that point.
 5. Changes to buffer size are ignored, unless they necessitate a change to the
    parameters of the detector.
-6. Server shutdowns cause the client to terminate
+6. Server shutdowns cause the client to terminate.
 
 ** Signals
 
@@ -115,10 +115,10 @@ terminal as to the current state of the detector.
 The function of jcapture is to write sampled and event data to disk. Sampled
 data may include audio and neural signals, and event data may include signal
 detections (such as emitted by jdetect), spike times, and other external events.
-Data are stored in HDF5 format (LINK) using the ARF format (LINK).  Recording
-may be continuous, or may be in discrete epochs triggered by events.  In the
-latter case, a prebuffer provides the ability to record data prior to the actual
-epoch onset event.
+Data are stored in HDF5 format (LINK) using the ARF specification (LINK).
+Recording may be continuous, or may be in discrete epochs triggered by events.
+In the latter case, a prebuffer provides the ability to record data prior to the
+actual epoch onset event.
 
 ** Ports
 
@@ -267,7 +267,6 @@ override.
 ##
 ## Author: dmeliza@dylan.uchicago.edu
 ## Keywords:
-
 
 
 

@@ -39,7 +39,6 @@ public:
                 jillopts.add_options()
                         ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                          "set client name")
-                        ("log,l",     po::value<string>(&logfile), "set logfile (default stdout)")
                         ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
                         ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
                 cmd_opts.add(jillopts);
@@ -74,8 +73,6 @@ public:
 	}
 	/** The client name (used in internal JACK representations) */
 	std::string client_name;
-	/** The log file to write application events to */
-	std::string logfile;
 
 	/** A vector of inputs to connect to the client */
 	std::vector<std::string> input_ports;
@@ -199,12 +196,6 @@ samplerate_callback(JackClient *client, nframes_t samplerate)
         return 0;
 }
 
-void
-signal_handler(int sig)
-{
-        exit(ret);
-}
-
 
 int
 main(int argc, char **argv)
@@ -212,10 +203,6 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
 
                 client.reset(new JackClient(options.client_name));
 
