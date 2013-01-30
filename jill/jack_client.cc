@@ -31,7 +31,7 @@ JackClient::JackClient(std::string const & name)
                 err << ")";
                 throw JackError(err);
         }
-        log() << "Created client (load=" << cpu_load() << "%)" << std::endl;
+        log() << "created client (load=" << cpu_load() << "%)" << std::endl;
         jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
         jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
         jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
@@ -46,7 +46,7 @@ JackClient::~JackClient()
 	if (_client) {
                 jack_client_close(_client);
                 try {
-                        log() << "Closed client" << std::endl;
+                        log() << "closed client" << std::endl;
                 }
                 catch (...) {}
         }
@@ -84,7 +84,7 @@ JackClient::activate()
         int ret = jack_activate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to activate client (err=" << ret << ")");
-        log() << "Activated client (load=" << cpu_load() << "%)" << std::endl;
+        log() << "activated client (load=" << cpu_load() << "%)" << std::endl;
 }
 
 void
@@ -93,7 +93,7 @@ JackClient::deactivate()
         int ret = jack_deactivate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to deactivate client (err=" << ret << ")");
-        log() << "Deactivated client" << std::endl;
+        log() << "deactivated client" << std::endl;
 }
 
 void
@@ -167,6 +167,12 @@ JackClient::events(jack_port_t *port, nframes_t nframes)
         }
         else
                 return 0;
+}
+
+jack_port_t*
+JackClient::get_port(std::string const & name) const
+{
+        return jack_port_by_name(_client, name.c_str());
 }
 
 nframes_t
@@ -262,11 +268,12 @@ JackClient::portreg_callback_(jack_port_id_t id, int registered, void *arg)
         if (!jack_port_is_mine(self->_client, port)) return;
         if (registered) {
                 self->_ports.push_back(port);
-                self->log() << "Port registered: " << jack_port_name(port) << std::endl;
+                self->log() << "port registered: " << jack_port_name(port)
+                            << " (" << jack_port_type(port) << ")" << std::endl;
         }
         else {
                 self->_ports.remove(port);
-                self->log() << "Port unregistered: " << jack_port_name(port) << std::endl;
+                self->log() << "port unregistered: " << jack_port_name(port) << std::endl;
         }
         if (self->_portreg_cb)
                 self->_portreg_cb(self, port, registered);
@@ -302,7 +309,7 @@ int
 JackClient::buffersize_callback_(nframes_t nframes, void *arg)
 {
 	JackClient *self = static_cast<JackClient*>(arg);
-        self->log() << "buffer size (frames): " << nframes << std::endl;
+        self->log() << "period size (frames): " << nframes << std::endl;
 	return (self->_buffersize_cb) ? self->_buffersize_cb(self, nframes) : 0;
 }
 

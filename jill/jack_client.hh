@@ -16,6 +16,7 @@
 #include <boost/function.hpp>
 #include <string>
 #include <list>
+#include <jack/jack.h>
 #include "types.hh"
 
 /**
@@ -99,7 +100,13 @@ public:
 	virtual ~JackClient();
 
         /**
-         * Register a new port for the client.
+         * @brief Register a new port for the client.
+         *
+         * @param name  the (short) name of the port
+         * @param type  the type of the port. common values include
+         *              JACK_DEFAULT_AUDIO_TYPE and JACK_DEFAULT_MIDI_TYPE
+         * @param flags flags for the port
+         * @param buffer_size  the size of the buffer, or 0 for the default
          */
         jack_port_t* register_port(std::string const & name, std::string const & type,
                            unsigned long flags, unsigned long buffer_size=0);
@@ -189,8 +196,15 @@ public:
         /** The JACK client object */
         jack_client_t* client() { return _client;}
 
-        /** List of ports registered through this object */
+        /** List of ports registered through this object. Realtime safe. */
         std::list<jack_port_t*> const & ports() const { return _ports;}
+
+        /**
+         * @brief Look up a jack port by name
+         *
+         * Returns 0 if the port doesn't exist
+         */
+        jack_port_t* get_port(std::string const & name) const;
 
 	/** The sample rate of the client */
 	nframes_t samplerate() const;

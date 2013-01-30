@@ -14,7 +14,7 @@ menv.Append(CPPPATH=['#'],
 
 programs = {'jdetect' : ['jdetect.cc'],
             'jplay' : ['jplay.cc'],
-            'jcapture' : ['jcapture.cc']
+            'jrecord' : ['jrecord.cc']
             }
 
 out = []

@@ -51,8 +51,8 @@ handle each of the events.  Not all clients have to handle all events.
 
 ** Signals
 
-In addition, clients must handle standard POSIX signals SIGINT, SIGTERM, and
-SIGHUP.
+In addition, the specification must state how clients will handle standard POSIX
+termination signals SIGINT, SIGTERM, and SIGHUP to avoid data loss.
 
 ** Options and behavior
 
@@ -98,9 +98,10 @@ The client will not make any changes to its ports during operation.
 
 ** Signals
 
-+ SIGINT :: module terminates
-+ SIGTERM :: module terminates
-+ SIGHUP :: detaches from the terminal (TODO)
+Termination signals have their default behavior (cause the client to exit).
+Clients subscribing to the event port are responsible for detecting the
+disconnection and handling the condition where the program is terminated after
+a note on event but before a note off event.
 
 ** Options and behavior
 
@@ -110,9 +111,11 @@ events and their times will be logged. The client may accept input during
 operation to adjust these parameters, and it may provide information on the
 terminal as to the current state of the detector.
 
-* jcapture
+*** TODO implement adjust parameters in running jdetect
 
-The function of jcapture is to write sampled and event data to disk. Sampled
+* jrecord
+
+The function of jrecord is to write sampled and event data to disk. Sampled
 data may include audio and neural signals, and event data may include signal
 detections (such as emitted by jdetect), spike times, and other external events.
 Data are stored in HDF5 format (LINK) using the ARF specification (LINK).
@@ -143,9 +146,10 @@ The client will not make any changes to its port configuration during operation.
 1. The process callback places data into a ringbuffer.  Each period is stored as
    a chunk to ensure synchronization across channels. There is no output.
 2. Registration/unregistration events are ignored.
-3. Port connections and disconnections are logged to the output file but are
-   otherwise ignored. Disconnected input ports will still be recorded, but will
-   have zeros in the signal.
+3. Port connections and disconnections are logged to the output file. If the
+   trigger port is disconnected, the program is in epoch mode, and recording is
+   in progress, stops in the next period. Disconnected input ports will still be
+   recorded, but will have zeros in the signal.
 4. All xruns are logged to the output file. In continuous mode, xruns cause the
    current entry to be terminated (all data in ringbuffer is flushed to disk)
    and a new entry started. In epoch mode, xruns cause the entry to be flagged,
@@ -162,7 +166,7 @@ The client will not make any changes to its port configuration during operation.
 ** Signals
 
 SIGTERM, SIGINT, and SIGHUP all cause the client to flush data and terminate. To
-maintain a running jcapture client, run it in a virtual screen.
+maintain a running jrecord client, run it in a virtual screen.
 
 ** Options and behavior
 
@@ -187,11 +191,13 @@ Commandline options:
 6. The number of input ports to create, or a list of ports to connect to. If
    inputs are specified as a list, a separate option (e.g. -I) is used to
    indicate that the full event information should be stored rather than just
-   the time.
+   the time.  It may also be useful to have an option to connect to every
+   output port on a client (for example, to record from all the channels on a
+   sound card or DAQ board)
 7. Optional key-value pairs, which will be stored in attributes of created
    entries.
 
-On startup, jcapture will attempt to open the output file and obtain a write
+On startup, jrecord will attempt to open the output file and obtain a write
 lock. If either operation fails, the program will terminate with an error. The
 program should attempt to determine if the output file is on an NFS share and
 proceed with a stern warning.
@@ -203,12 +209,12 @@ created.
 Next, it will create the JACK client, register ports, activate the client, and
 connect the inputs.
 
-In continuous mode, jcapture will create an entry and begin writing to the
+In continuous mode, jrecord will create an entry and begin writing to the
 disk immediately, and continue until the program is terminated.  Some
 synchronization is necessary to ensure that data are not written to the disk
 until the ports are connected.
 
-In epoch mode, jcapture will wait until it receives a note on event on the
+In epoch mode, jrecord will wait until it receives a note on event on the
 trigger port. While waiting, it will copy periods from the ringbuffer to the
 prebuffer, freeing periods beyond the duration of the prebuffer window. On
 receiving a note on event, it will log the event, open a new entry, write the
@@ -225,53 +231,6 @@ specified using a different option (see above), the full event data is stored
 using an ARF interval table. Data from the trigger port is stored in interval
 tables as well.
 
-*** TODO update arf c++ interface to support table types
-
-Doing this with template metaprogramming may be a huge bear. I should probably
-just write some specific methods.
-
-*** DONE Decide how to store event data                             :noexport:
-
-Could be stored in arrays, discarding everything except for the time, or tables,
-keeping additional data. Spike data fits the latter; trigger data (i.e.
-associated with stimulus presentation or some external hardware) fits the
-former. How to distinguish? Metadata other than the port name and type can't be
-easily attached to ports, and we don't want to wait until data have been
-received before deciding how to store it. One option would be to define a new
-port type, though this probably means the events can't be mixed down by the
-daemon. Is this a problem? Only if there are events from multiple sources that
-should be treated as a single stream. For example, peck events on different
-keys. But if the data are stored as times only, the key information would be
-discarded, so not as much of a constraint. Another disadvantage is that tools
-like qjackctl probably won't know what to do with the new port type.
-
-Could have user specify the storage format. This seems to add unnecessary
-complication, because the format is determined by the type of data in the
-stream.
-
-Could encode the data type in the name of the port. E.g. _int for interval data,
-and _evt for event data. Advantage is no additional work defining new port
-types. Disadvantage is that the user could connect two ports with different data
-types. Even if the JILL programs do a check, the ports can be connected
-elsewise.
-
-Could store everything as interval data. Huge waste of space, probably.
-
-Could store data from trig_in port in an interval table, and all other data in
-event arrays. This assumes that all event data to be recorded (other than the
-trigger intervals) is simple event data. Can provide a commandline option to
-override.
-
-
-## Copyright 2011 Daniel Meliza
-##
-## Author: dmeliza@dylan.uchicago.edu
-## Keywords:
-
-
-
-
-
 * jstim
 
 The jstim module's function is to present auditory stimuli through the JACK
@@ -279,7 +238,7 @@ interface. Stimuli can be presented singly or as part of a batch. The stimuli in
 a batch can be repeated and the order can be randomized. Presentation can occur
 at fixed intervals, with fixed gaps between stimuli, or in response to an
 external trigger. An event output line can be used to trigger other modules,
-like jcapture. Can also be used for presentation of stimuli while searching for
+like jrecord. Can also be used for presentation of stimuli while searching for
 neurons.
 
 ** Ports

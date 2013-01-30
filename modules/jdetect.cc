@@ -10,7 +10,6 @@
  */
 #include <iostream>
 #include <signal.h>
-
 #include <boost/scoped_ptr.hpp>
 
 #include "jill/jack_client.hh"
@@ -18,6 +17,10 @@
 #include "jill/midi.hh"
 #include "jill/dsp/ringbuffer.hh"
 #include "jill/dsp/crossing_trigger.hh"
+
+#define PROGRAM_NAME "jdetect"
+#define PROGRAM_VERSION "1.3.0"
+
 using namespace jill;
 
 /**
@@ -105,7 +108,7 @@ protected:
 }; // TriggerOptions
 
 
-TriggerOptions options("jdetect","1.3.0");
+TriggerOptions options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<JackClient> client;
 boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
@@ -203,8 +206,9 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-
+                cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
                 client.reset(new JackClient(options.client_name));
+
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);

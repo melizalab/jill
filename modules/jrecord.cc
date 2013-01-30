@@ -19,7 +19,11 @@
 #include "jill/midi.hh"
 #include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
-#include "jill/sndfile/arf_sndfile.hh"
+#include "jill/file/arffile.hh"
+
+#define PROGRAM_NAME "jrecord"
+#define PROGRAM_VERSION "1.3.0"
+
 using namespace jill;
 
 /* commandline options */
@@ -40,7 +44,7 @@ public:
                         ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
                         ("event,e",    po::value<vector<string> >(&event_ports), "connect to input port (store full event information)")
                         ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
-                        ("attr,a",     po::value<vector<string> >(), "set additional attributes for file (key=value)");
+                        ("attr,a",     po::value<vector<string> >(), "set additional attributes for recorded entries (key=value)");
                 cfg_opts.add_options()
                         ("attr,a",     po::value<vector<string> >())
 			("buffer",     po::value<float>(&buffer_size_ms)->default_value(2000),
@@ -117,16 +121,18 @@ protected:
 
 };
 
-CaptureOptions options("jcapture", "1.3.0");
+CaptureOptions options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<JackClient> client;
 std::map<std::string, jack_port_t*> ports_in;
 jack_port_t *port_trig;
 boost::scoped_ptr<dsp::period_ringbuffer> ringbuffer;
-int ret = 0;  // flag to do cleanup
+boost::scoped_ptr<jill::file::arffile> outfile;
 
-/* locks and condition variables used to synchronize during buffer resize */
+/* locks and condition variables used to synchronize during various events */
 // pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
 // pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
+bool terminate_program = false;
+bool terminate_entry = false;
 
 
 /*
@@ -146,24 +152,18 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
         return 0;
 }
 
-// handle sampling rate changes. This actually only ever gets called at the
-// start.
-int
-jack_samplerate(JackClient *client, nframes_t nframes)
-{
-        return 0;
-}
-
 int
 jack_xrun(JackClient *client, float delay)
 {
         return 0;
 }
 
-// deal with buffer size changes (not RT)
 int
 jack_bufsize(JackClient *client, nframes_t nframes)
 {
+        // terminate entry; reallocate ringbuffer if needed
+        // logv << logv.program << "buffer size (ms): " << options.buffer_size_ms << endl
+        //      << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
         return 0;
 }
 
@@ -171,21 +171,39 @@ jack_bufsize(JackClient *client, nframes_t nframes)
 void
 jack_portcon(JackClient *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
+        // deal with loss of trigger client while recording
+        //client->log() <<
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-        ret = 1;
+        terminate_program = true;
 }
 
 
 void
 signal_handler(int sig)
 {
-        ret = 1;
+        terminate_program = true;
 }
 
+struct register_ports {
+        register_ports() : i(0) {}
+        void operator() (std::string const & src) {
+                jack_port_t *p = client->get_port(src);
+                if (p) {
+                        ports_in[src] = client->register_port(util::make_string() << "in_" << i,
+                                                              jack_port_type(p),
+                                                              JackPortIsInput | JackPortIsTerminal, 0);
+                        ++i;
+                }
+                else {
+                        client->log(false) << "warning: " << src << " does not exist" << std::endl;
+                }
+        }
+        std::size_t i;
+};
 
 int
 main(int argc, char **argv)
@@ -193,38 +211,27 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
+                cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
                 client.reset(new JackClient(options.client_name));
 
-                // open output file
-		if (options.max_size > 0) {
-			client->log() << "output file base: " << options.output_file << endl;
-                        client->log() << "max file size (MB): " << options.max_size << endl;
-                }
-		else
-			client->log() << "output file name: " << options.output_file << endl;
-
-		// logv << logv.program << "buffer size (ms): " << options.buffer_size_ms << endl
-		//      << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
+                outfile.reset(new jill::file::arffile(options.output_file, options.max_size));
+                outfile->file()->write_attribute("creator", PROGRAM_NAME ": " PROGRAM_VERSION);
+                std::ostream& os = client->log() << "opened output file " << outfile->file()->name();
+                if (options.max_size)
+                        os << " ( max size : " << options.max_size << " MB)";
+                os << endl;
 		// logv << logv.program << "additional metadata:" << endl;
 		// for (map<string,string>::const_iterator it = options.additional_options.begin();
 		//      it != options.additional_options.end(); ++it) {
 		// 	logv << logv.program << "  " << it->first << "=" << it->second << endl;
                 // }
 
-                client->set_sample_rate_callback(jack_samplerate);
-
-
-                /* create ports, one for trigger, and one for each audio input */
+                /* create ports: one for trigger, and one for each input */
                 port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                   JackPortIsInput | JackPortIsTerminal, 0);
-		vector<string>::const_iterator it;
-                int i = 0;
-		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it, ++i) {
-                        jack_port_t *port_in = client->register_port(util::make_string() << "in_" << i,
-                                                                     JACK_DEFAULT_AUDIO_TYPE,
-                                                                     JackPortIsInput | JackPortIsTerminal, 0);
-                        ports_in[*it] = port_in;
-		}
+                register_ports rp;
+                for_each(options.input_ports.begin(), options.input_ports.end(), rp);
+                for_each(options.event_ports.begin(), options.event_ports.end(), rp);
 
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -243,12 +250,7 @@ main(int argc, char **argv)
 			client->connect_port(*it, "trig_in");
 		}
 
-		// client->set_process_callback(boost::ref(*twriter));
-		// client->set_mainloop_callback(mainloop);
-		// client->run();
-		// logv << logv.allfields << client->get_status() << endl;
-
-                while (ret == 0) {
+                while (!terminate_program) {
                         sleep(1);
                 }
                 return 0;

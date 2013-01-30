@@ -11,7 +11,8 @@
 #ifndef _TYPES_HH
 #define _TYPES_HH
 
-#include <jack/jack.h>
+#include <jack/types.h>
+#include <jack/transport.h>
 #include <stdexcept>
 
 /**
