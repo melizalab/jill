@@ -146,8 +146,13 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
 {
         sample_t *port_buffer;
         std::list<jack_port_t*>::const_iterator it;
+        if (ringbuffer->reserve(time, nframes, client->ports().size()) == 0) {
+                std::cerr << "XRUN: ringbuffer is full" << std::endl;
+                return 1;
+        }
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
                 port_buffer = client->samples(*it, nframes);
+                ringbuffer->push(port_buffer);
         }
         return 0;
 }
@@ -155,14 +160,16 @@ process(JackClient *client, nframes_t nframes, nframes_t time)
 int
 jack_xrun(JackClient *client, float delay)
 {
+        // stop entry if in continuous mode
         return 0;
 }
 
 int
 jack_bufsize(JackClient *client, nframes_t nframes)
 {
-        // terminate entry; reallocate ringbuffer if needed
-        // logv << logv.program << "buffer size (ms): " << options.buffer_size_ms << endl
+        // flush current entry; reallocate ringbuffer if needed
+        ringbuffer.reset(new dsp::period_ringbuffer(nframes * client->ports().size() * 5));
+        client->log() << "ringbuffer size (ms): " << (1000.0f * ringbuffer->write_space() / client->ports().size() / client->samplerate()) << std::endl;
         //      << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
         return 0;
 }
@@ -239,6 +246,7 @@ main(int argc, char **argv)
 
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_process_callback(process);
+                client->set_buffer_size_callback(jack_bufsize);
                 client->activate();
 
 		/* connect ports */
@@ -251,7 +259,8 @@ main(int argc, char **argv)
 		}
 
                 while (!terminate_program) {
-                        sleep(1);
+                        dsp::period_ringbuffer::period_info_t const * r = ringbuffer->request();
+                        if (r) ringbuffer->pop_all(0);
                 }
                 return 0;
 	}

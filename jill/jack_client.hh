@@ -149,9 +149,6 @@ public:
 
 	void set_buffer_size_callback(BufferSizeCallback const & cb) {
 		_buffersize_cb = cb;
-                if (cb) {
-                        cb(this, buffer_size());
-                }
 	}
 
 	void set_xrun_callback(XrunCallback const & cb) {

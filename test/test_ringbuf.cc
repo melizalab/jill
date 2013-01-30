@@ -60,6 +60,40 @@ test_ringbuffer(std::size_t chunksize, std::size_t reps)
 }
 
 void
+test_period_ringbuf_popall(std::size_t nchannels)
+{
+        printf("Testing period ringbuffer (full period read): nchannels=%zu\n", nchannels);
+        jill::sample_t buf[BUFSIZE];
+        std::size_t i;
+        for (i = 0; i < BUFSIZE; ++i) {
+                buf[i] = nrand48(seed);
+        }
+        jill::dsp::period_ringbuffer::period_info_t const *info;
+        jill::dsp::period_ringbuffer rb(BUFSIZE*nchannels*5);
+        printf("created ringbuffer; size=%zu bytes\n", rb.size());
+
+        assert(rb.reserve(25, BUFSIZE, nchannels) > 0);
+
+        for (i = 0; i < nchannels; ++i) {
+                assert(rb.chans_to_write() == nchannels - i);
+                rb.push(buf);
+                assert(rb.chans_to_write() == nchannels - i - 1);
+        }
+
+        info = rb.request();
+
+        assert(info != 0);
+        assert(info->nchannels == nchannels);
+        assert(info->nbytes == BUFSIZE * sizeof(jill::sample_t));
+
+        void * output = malloc(info->size());
+        rb.pop_all(output);
+
+        assert(memcmp(output, info, sizeof(jill::dsp::period_ringbuffer::period_info_t)) == 0);
+}
+
+
+void
 test_period_ringbuf(std::size_t nchannels)
 {
         printf("Testing period ringbuffer: nchannels=%zu\n", nchannels);
@@ -155,6 +189,7 @@ main(int argc, char **argv)
 
         test_period_ringbuf(1);
         test_period_ringbuf(3);
+        test_period_ringbuf_popall(3);
 
         printf("passed tests\n");
         return 0;

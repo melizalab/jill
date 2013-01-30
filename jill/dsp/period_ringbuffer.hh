@@ -56,6 +56,7 @@ public:
                 nframes_t time;
                 nframes_t nbytes; // NB: converted from frame count
                 nframes_t nchannels;
+                nframes_t size() const { return nbytes * nchannels + sizeof(period_info_t);}
         };
 
         /**
@@ -155,6 +156,14 @@ public:
          */
         void pop(read_visitor_type data_fun);
 
+        /**
+         * @brief Copy all data from a period
+         *
+         * Copies the entire period, including the header, into a block of
+         * memory.  Call request() first and allocate sizeof(period_info_t) +
+         * sizeof(sample_t) * nframes * nchannels
+         */
+        void pop_all(void * dest);
 
 private:
         period_info_t *_read_hdr;

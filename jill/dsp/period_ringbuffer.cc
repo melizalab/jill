@@ -88,7 +88,7 @@ period_ringbuffer::pop(void * dest)
                 throw std::logic_error("attempted to read period before requesting header (or out of channels)");
         void const * ptr = buffer() + read_offset() + sizeof(period_info_t) +
                 _read_hdr->nbytes * (_read_hdr->nchannels - _chans_to_read);
-        memcpy(dest, ptr, _read_hdr->nbytes);
+        if (dest) memcpy(dest, ptr, _read_hdr->nbytes);
         _chans_to_read -= 1;
         if (_chans_to_read == 0) {
                 // advances pointer
@@ -108,10 +108,21 @@ period_ringbuffer::pop(read_visitor_type data_fun)
                 _read_hdr->nbytes * (_read_hdr->nchannels - _chans_to_read);
         data_fun(ptr, _read_hdr->nbytes / sizeof(sample_t), _read_hdr->nchannels - _chans_to_read);
         _chans_to_read -= 1;
-        if (_chans_to_write == 0) {
+        if (_chans_to_read == 0) {
                 // advances pointer
                 super::pop(0, _read_hdr->nchannels * _read_hdr->nbytes + sizeof(period_info_t));
                 _write_hdr = 0;
         }
 }
 
+void
+period_ringbuffer::pop_all(void * dest)
+{
+        if (!_read_hdr)
+                throw std::logic_error("attempted to read period before requesting header");
+        void const * ptr = buffer() + read_offset();
+        if (dest) memcpy(dest, ptr, sizeof(period_info_t) + _read_hdr->nbytes * _read_hdr->nchannels);
+        super::pop(0, _read_hdr->nchannels * _read_hdr->nbytes + sizeof(period_info_t));
+        _chans_to_read = 0;
+        _read_hdr = 0;
+}
