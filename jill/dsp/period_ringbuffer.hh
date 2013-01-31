@@ -56,6 +56,7 @@ public:
                 nframes_t time;
                 nframes_t nbytes; // NB: converted from frame count
                 nframes_t nchannels;
+                nframes_t offset(nframes_t chan=0) const { return sizeof(period_info_t) + nbytes * chan;}
                 nframes_t size() const { return nbytes * nchannels + sizeof(period_info_t);}
         };
 

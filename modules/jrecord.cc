@@ -167,9 +167,19 @@ jack_xrun(JackClient *client, float delay)
 int
 jack_bufsize(JackClient *client, nframes_t nframes)
 {
-        // flush current entry; reallocate ringbuffer if needed
-        ringbuffer.reset(new dsp::period_ringbuffer(nframes * client->ports().size() * 5));
-        client->log() << "ringbuffer size (ms): " << (1000.0f * ringbuffer->write_space() / client->ports().size() / client->samplerate()) << std::endl;
+        // TODO flush current entry
+
+        // reallocate ringbuffer if necessary - 10 periods or 2 seconds
+        nframes_t sz1 = nframes * (ports_in.size() + 1) * 10;
+        nframes_t sz2 = client->samplerate() * (ports_in.size() + 1) * 2;
+        sz1 = (sz1 < sz2) ? sz2 : sz1;
+        if (!ringbuffer || ringbuffer->size() < sz1) {
+                ringbuffer.reset(new dsp::period_ringbuffer(sz1));
+                client->log() << "ringbuffer size (s): "
+                              << (ringbuffer->write_space() /
+                                  (1+ports_in.size()) / client->samplerate())
+                              << std::endl;
+        }
         //      << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
         return 0;
 }
@@ -249,6 +259,7 @@ main(int argc, char **argv)
                 client->set_buffer_size_callback(jack_bufsize);
                 client->activate();
 
+
 		/* connect ports */
 		for (map<string,jack_port_t*>::const_iterator it = ports_in.begin(); it != ports_in.end(); ++it) {
 			client->connect_port(it->first, jack_port_name(it->second));
@@ -260,7 +271,10 @@ main(int argc, char **argv)
 
                 while (!terminate_program) {
                         dsp::period_ringbuffer::period_info_t const * r = ringbuffer->request();
-                        if (r) ringbuffer->pop_all(0);
+                        if (r) {
+                                client->log() << r->size() << " bytes: " << r->nchannels << "x" << r->nbytes << endl;
+                                ringbuffer->pop_all(0);
+                        }
                 }
                 return 0;
 	}

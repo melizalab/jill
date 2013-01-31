@@ -60,7 +60,6 @@ JackClient::register_port(std::string const & name, std::string const & type,
         if (port == NULL) {
                 throw JackError(util::make_string() << "unable to allocate port " << name);
         }
-        _ports.push_back(port);
         return port;
 }
 
