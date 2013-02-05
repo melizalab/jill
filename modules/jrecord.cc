@@ -10,15 +10,18 @@
  *
  *
  */
-#include <iostream>
+#include <fstream>
 #include <signal.h>
 #include <boost/scoped_ptr.hpp>
+#include <boost/format.hpp>
+#include <sys/time.h>
 
 #include "jill/jack_client.hh"
 #include "jill/options.hh"
 #include "jill/midi.hh"
 #include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
+#include "jill/util/portreg.hh"
 #include "jill/file/arffile.hh"
 
 #define PROGRAM_NAME "jrecord"
@@ -42,30 +45,31 @@ public:
                          "set client name")
                         ("n",          po::value<int>(&n_input_ports)->default_value(0), "number of input ports to create")
                         ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
-                        ("event,e",    po::value<vector<string> >(&event_ports), "connect to input port (store full event information)")
+                        ("input-list,I", po::value<string>(&port_list_file),
+                         "list of ports in file with three columns: name, source, arf datatype")
+
                         ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
-                        ("attr,a",     po::value<vector<string> >(), "set additional attributes for recorded entries (key=value)");
+                        ("attr,a",     po::value<vector<string> >(), "set additional attributes for recorded entries (key=value)")
+			("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
+			 "minimum ringbuffer size (s)");
                 cfg_opts.add_options()
-                        ("attr,a",     po::value<vector<string> >())
-			("buffer",     po::value<float>(&buffer_size_ms)->default_value(2000),
-			 "minimum ringbuffer size (ms)");
+                        ("attr,a",     po::value<vector<string> >());
                 cmd_opts.add(jillopts);
                 visible_opts.add(jillopts);
 
 		po::options_description tropts("Capture options");
 		tropts.add_options()
                         ("continuous,c", "record in continuous mode (default is in triggered epochs)")
-			("prebuffer", po::value<float>(&prebuffer_size_ms)->default_value(1000),
-			 "set prebuffer size (ms)")
-			("max-size", po::value<int>(&max_size)->default_value(100),
+			("prebuffer", po::value<float>(&prebuffer_size_s)->default_value(1.0),
+			 "set prebuffer size (s)")
+			("max-size", po::value<int>(&max_size_mb)->default_value(100),
 			 "save data to serially numbered files with max size (MB)");
 
-		// we add our group of options to various groups
-		// already defined in the base class.
+                // command-line options
 		cmd_opts.add(tropts);
-		// cfg_opts holds options that are parsed from a configuration file
+		// configuration file options
 		cfg_opts.add(tropts);
-		// visible_opts holds options that are shown in the help text
+		// options shown in help text
 		visible_opts.add(tropts);
 		// the output template is not added to the visible
 		// options, since it's specified positionally.
@@ -74,24 +78,23 @@ public:
 		pos_opts.add("output-file", -1);
 	}
 
-	/*
-	 * The public member variables are filled when we parse the
-	 * options, and subsequently accessed by external clients
-	 */
+        /* the option values */
+
 	/** The client name (used in internal JACK representations) */
-	std::string client_name;
+        std::string client_name;
 
 	/** Vectors of inputs to connect to the client */
-	std::vector<std::string> input_ports;
-	std::vector<std::string> event_ports;
-	std::vector<std::string> trig_ports;
+        std::vector<std::string> input_ports;
+        std::vector<std::string> trig_ports;
 
+        /** key-value pairs to store as attributes in created entries */
         std::map<std::string, std::string> additional_options;
 
-	std::string output_file;
-	float prebuffer_size_ms;  // in ms
-	float buffer_size_ms;  // in ms
-	int max_size;  // in MB
+        std::string output_file;
+        std::string port_list_file;
+	float prebuffer_size_s;
+	float buffer_size_s;
+	int max_size_mb;
         int n_input_ports;
 
 
@@ -105,7 +108,7 @@ protected:
 		std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
 			  << visible_opts << std::endl
 			  << "Ports:\n"
-			  << " * in_NNN:      for input of the signal(s) to be recorded\n"
+			  << " * in_NNN:     for input of the signal(s) to be recorded\n"
 			  << " * trig_in:    MIDI port to receive events triggering recording"
 			  << std::endl;
 	}
@@ -121,18 +124,35 @@ protected:
 
 };
 
+
+/**
+ * Registers ports and stores information about them. On startup, jrecord needs
+ * to register input ports for the trigger line and for each additional input to
+ * be recorded. Sampled data is stored in dense arrays, and event data can be
+ * stored either as an array of times (e.g., for spikes) or as a table.
+ *
+ */
+
+
 CaptureOptions options(PROGRAM_NAME, PROGRAM_VERSION);
-boost::scoped_ptr<JackClient> client;
-std::map<std::string, jack_port_t*> ports_in;
-jack_port_t *port_trig;
+boost::scoped_ptr<jack_client> client;
 boost::scoped_ptr<dsp::period_ringbuffer> ringbuffer;
 boost::scoped_ptr<jill::file::arffile> outfile;
+port_registry ports;
+jack_port_t *port_trig;
 
-/* locks and condition variables used to synchronize during various events */
-// pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
-// pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
-bool terminate_program = false;
-bool terminate_entry = false;
+/*
+ * Notes on synchronization
+ *
+ * During normal operation, the disk thread will read data from the ringbuffer
+ * and write it to the current entry (or the prebuffer, if not in continuous
+ * mode). It will lock disk_thread_lock while running, and wait on data_ready
+ * after all available data has been handled.
+ */
+
+pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
+long xruns = 0;
 
 
 /*
@@ -142,42 +162,110 @@ bool terminate_entry = false;
  * somewhere)
  */
 int
-process(JackClient *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         sample_t *port_buffer;
         std::list<jack_port_t*>::const_iterator it;
+        // Reserve space in the ringbuffer. If there's not enough, (1) wait for
+        // more, potentially causing xruns in the whole executation graph, or
+        // (2) discard the data, even though we might have been able to save it
+        // by waiting a few cycles...
         if (ringbuffer->reserve(time, nframes, client->ports().size()) == 0) {
-                std::cerr << "XRUN: ringbuffer is full" << std::endl;
-                return 1;
+                // increment xrun counter
+                return 0;       // discards data
         }
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
                 port_buffer = client->samples(*it, nframes);
                 ringbuffer->push(port_buffer);
         }
+
+	/* signal that there is data available */
+	// if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
+	//     pthread_cond_signal (&data_ready);
+	//     pthread_mutex_unlock (&disk_thread_lock);
+	// }
+
+        return 0;
+}
+
+/*
+ * Write data to arf file in continous mode.
+ *
+ * @pre client is started and ports registered
+ * @pre outfile is initialized
+ */
+// void *
+// write_continuous(void * arg)
+// {
+//         dsp::period_ringbuffer::period_info_t const * period;
+//         std::size_t my_xruns = 0;                       // internal counter
+//         std::size_t entry_count = outfile->file()->root()->nchildren();
+//         arf::entry_ptr entry;
+//         boost::format fmt("entry_%|06|");
+//         jack_time_t usec;
+//         timeval tp;
+
+// 	// pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+// 	// pthread_mutex_lock (&disk_thread_lock);
+
+//         while (1) {
+//                 period = ringbuffer->request();
+//                 if (period) {
+//                         client->log() << period->size() << " bytes: "
+//                                       << period->nchannels << "x" << period->nbytes << std::endl;
+//                         // check for valid entry
+//                         // if check_filesize() is true, entry is invalid
+//                         if (outfile->check_filesize() || !entry) {
+//                                 usec = client->time(period->time);
+//                                 gettimeofday(&tp);
+//                                 entry = outfile->new_entry(boost::str(fmt % entry_count), &tp, usec);
+//                                 entry->set_attribute("jack_usec", usec);
+//                                 for (std::map<std::string,std::string>::const_iterator it = options.additional_options.begin();
+//                                      it != options.additional_options.end(); ++it) {
+//                                         entry->set_attribute(it->first, it->second);
+//                                 }
+//                                 // create datasets for each channel
+
+//                                 entry_count += 1;
+//                         }
+//                         ringbuffer->pop_all(0);
+//                         for (std::size_t chan = 0; chan < period->nchannels; ++chan) {
+//                                 // look up channel name and type
+//                                 // write data
+//                         }
+//                         // check for overrun & disconnected port_trig; close/mark entry
+//                 }
+//                 else {
+//                         // wait on data_ready
+//                         // pthread_cond_wait (&data_ready, &disk_thread_lock);
+//                 }
+//         }
+
+// 	// pthread_mutex_unlock (&disk_thread_lock);
+//         return 0;
+// }
+
+int
+jack_xrun(jack_client *client, float delay)
+{
+        // increment xrun counter
         return 0;
 }
 
 int
-jack_xrun(JackClient *client, float delay)
+jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // stop entry if in continuous mode
-        return 0;
-}
+        // TODO flush all data in ringbuffer
 
-int
-jack_bufsize(JackClient *client, nframes_t nframes)
-{
-        // TODO flush current entry
-
-        // reallocate ringbuffer if necessary - 10 periods or 2 seconds
-        nframes_t sz1 = nframes * (ports_in.size() + 1) * 10;
-        nframes_t sz2 = client->samplerate() * (ports_in.size() + 1) * 2;
-        sz1 = (sz1 < sz2) ? sz2 : sz1;
+        // reallocate ringbuffer if necessary - 10 periods or 2x seconds
+        nframes_t sz1 = nframes * ports.size() * 10;
+        nframes_t sz2 = client->samplerate() * ports.size() * options.buffer_size_s;
+        if (sz1 < sz2) sz1 = sz2;
         if (!ringbuffer || ringbuffer->size() < sz1) {
                 ringbuffer.reset(new dsp::period_ringbuffer(sz1));
                 client->log() << "ringbuffer size (s): "
                               << (ringbuffer->write_space() /
-                                  (1+ports_in.size()) / client->samplerate())
+                                  ports.size() / client->samplerate())
                               << std::endl;
         }
         //      << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
@@ -186,41 +274,28 @@ jack_bufsize(JackClient *client, nframes_t nframes)
 
 
 void
-jack_portcon(JackClient *client, jack_port_t* port1, jack_port_t* port2, int connected)
+jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
-        // deal with loss of trigger client while recording
-        //client->log() <<
+        if (!outfile) return;
+        util::make_string msg;
+        msg << "IIII Ports " << ((connected) ? "" : "dis") << "connected: "
+            << jack_port_name(port1) << " -> " << jack_port_name(port2) << std::endl;
+        // TODO lock disk mutex?
+        outfile->file()->log(msg);
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-        terminate_program = true;
+        // terminate_program = true;
 }
 
 
 void
 signal_handler(int sig)
 {
-        terminate_program = true;
+        // terminate_program = true;
 }
-
-struct register_ports {
-        register_ports() : i(0) {}
-        void operator() (std::string const & src) {
-                jack_port_t *p = client->get_port(src);
-                if (p) {
-                        ports_in[src] = client->register_port(util::make_string() << "in_" << i,
-                                                              jack_port_type(p),
-                                                              JackPortIsInput | JackPortIsTerminal, 0);
-                        ++i;
-                }
-                else {
-                        client->log(false) << "warning: " << src << " does not exist" << std::endl;
-                }
-        }
-        std::size_t i;
-};
 
 int
 main(int argc, char **argv)
@@ -229,60 +304,59 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
-                client.reset(new JackClient(options.client_name));
 
-                outfile.reset(new jill::file::arffile(options.output_file, options.max_size));
+                // initialize client
+                client.reset(new jack_client(options.client_name));
+
+                // open output file
+                outfile.reset(new jill::file::arffile(options.output_file, options.max_size_mb));
                 outfile->file()->write_attribute("creator", PROGRAM_NAME ": " PROGRAM_VERSION);
                 std::ostream& os = client->log() << "opened output file " << outfile->file()->name();
-                if (options.max_size)
-                        os << " ( max size : " << options.max_size << " MB)";
+                if (options.max_size_mb)
+                        os << " (max size: " << options.max_size_mb << " MB)";
                 os << endl;
+
 		// logv << logv.program << "additional metadata:" << endl;
-		// for (map<string,string>::const_iterator it = options.additional_options.begin();
-		//      it != options.additional_options.end(); ++it) {
-		// 	logv << logv.program << "  " << it->first << "=" << it->second << endl;
-                // }
 
                 /* create ports: one for trigger, and one for each input */
                 port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                   JackPortIsInput | JackPortIsTerminal, 0);
-                register_ports rp;
-                for_each(options.input_ports.begin(), options.input_ports.end(), rp);
-                for_each(options.event_ports.begin(), options.event_ports.end(), rp);
+                ports.add(port_trig, arf::INTERVAL);
+                ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
+                std::ifstream ff(options.port_list_file.c_str());
+                ports.add_from_file(client.get(), ff);
 
+                // register signal handlers
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
+                // register callbacks
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_process_callback(process);
                 client->set_buffer_size_callback(jack_bufsize);
+
+                // start disk thread
+
+                // activate process callback
                 client->activate();
 
-
 		/* connect ports */
-		for (map<string,jack_port_t*>::const_iterator it = ports_in.begin(); it != ports_in.end(); ++it) {
-			client->connect_port(it->first, jack_port_name(it->second));
-		}
-
-		for (vector<string>::const_iterator it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
+                vector<string>::const_iterator it;
+		for (it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
 			client->connect_port(*it, "trig_in");
 		}
+                ports.connect_all(client.get()); // connects input ports
 
-                while (!terminate_program) {
-                        dsp::period_ringbuffer::period_info_t const * r = ringbuffer->request();
-                        if (r) {
-                                client->log() << r->size() << " bytes: " << r->nchannels << "x" << r->nbytes << endl;
-                                ringbuffer->pop_all(0);
-                        }
-                }
+                sleep(1000);
                 return 0;
 	}
 	catch (Exit const &e) {
 		return e.status();
 	}
 	catch (exception const &e) {
-		cerr << "Error: " << e.what() << endl;
+                cerr << "Error: " << e.what() << endl;
+                if (outfile) outfile->file()->log(util::make_string() << "EEEE " << e.what());
 		return EXIT_FAILURE;
 	}
 }

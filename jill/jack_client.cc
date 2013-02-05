@@ -20,7 +20,7 @@
 using namespace jill;
 
 
-JackClient::JackClient(std::string const & name)
+jack_client::jack_client(std::string const & name)
 {
 	jack_status_t status;
 	_client = jack_client_open(name.c_str(), JackNoStartServer, &status);
@@ -41,7 +41,7 @@ JackClient::JackClient(std::string const & name)
         jack_on_info_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
 }
 
-JackClient::~JackClient()
+jack_client::~jack_client()
 {
 	if (_client) {
                 jack_client_close(_client);
@@ -53,7 +53,7 @@ JackClient::~JackClient()
 }
 
 jack_port_t*
-JackClient::register_port(std::string const & name, std::string const & type,
+jack_client::register_port(std::string const & name, std::string const & type,
                            unsigned long flags, unsigned long buffer_size)
 {
         jack_port_t *port = jack_port_register(_client, name.c_str(), type.c_str(), flags, buffer_size);
@@ -64,13 +64,13 @@ JackClient::register_port(std::string const & name, std::string const & type,
 }
 
 void
-JackClient::unregister_port(std::string const & name)
+jack_client::unregister_port(std::string const & name)
 {
         unregister_port(jack_port_by_name(_client, name.c_str()));
 }
 
 void
-JackClient::unregister_port(jack_port_t *port)
+jack_client::unregister_port(jack_port_t *port)
 {
         int ret = jack_port_unregister(_client, port);
         if (ret)
@@ -78,7 +78,7 @@ JackClient::unregister_port(jack_port_t *port)
 }
 
 void
-JackClient::activate()
+jack_client::activate()
 {
         int ret = jack_activate(_client);
         if (ret)
@@ -87,7 +87,7 @@ JackClient::activate()
 }
 
 void
-JackClient::deactivate()
+jack_client::deactivate()
 {
         int ret = jack_deactivate(_client);
         if (ret)
@@ -96,7 +96,7 @@ JackClient::deactivate()
 }
 
 void
-JackClient::connect_port(std::string const & src, std::string const & dest)
+jack_client::connect_port(std::string const & src, std::string const & dest)
 {
 	// simple name-based lookup
 	jack_port_t *p1, *p2;
@@ -130,7 +130,7 @@ JackClient::connect_port(std::string const & src, std::string const & dest)
 }
 
 void
-JackClient::disconnect_all()
+jack_client::disconnect_all()
 {
         std::list<jack_port_t*>::const_iterator it;
         for (it = _ports.begin(); it != _ports.end(); ++it) {
@@ -141,14 +141,14 @@ JackClient::disconnect_all()
 }
 
 sample_t*
-JackClient::samples(std::string const & name, nframes_t nframes)
+jack_client::samples(std::string const & name, nframes_t nframes)
 {
         return samples(jack_port_by_name(_client, name.c_str()), nframes);
 }
 
 
 sample_t*
-JackClient::samples(jack_port_t *port, nframes_t nframes)
+jack_client::samples(jack_port_t *port, nframes_t nframes)
 {
         if (port)
                 return static_cast<sample_t*>(jack_port_get_buffer(port, nframes));
@@ -157,7 +157,7 @@ JackClient::samples(jack_port_t *port, nframes_t nframes)
 }
 
 void*
-JackClient::events(jack_port_t *port, nframes_t nframes)
+jack_client::events(jack_port_t *port, nframes_t nframes)
 {
         if (port) {
                 void *buf = jack_port_get_buffer(port, nframes);
@@ -169,45 +169,45 @@ JackClient::events(jack_port_t *port, nframes_t nframes)
 }
 
 jack_port_t*
-JackClient::get_port(std::string const & name) const
+jack_client::get_port(std::string const & name) const
 {
         return jack_port_by_name(_client, name.c_str());
 }
 
 nframes_t
-JackClient::samplerate() const
+jack_client::samplerate() const
 {
 	return jack_get_sample_rate(_client);
 }
 
 nframes_t
-JackClient::buffer_size() const
+jack_client::buffer_size() const
 {
 	return jack_get_buffer_size(_client);
 }
 
 float
-JackClient::cpu_load() const
+jack_client::cpu_load() const
 {
 	return jack_cpu_load(_client);
 }
 
 std::string
-JackClient::name() const
+jack_client::name() const
 {
 	return std::string(jack_get_client_name(_client));
 }
 
 
 bool
-JackClient::transport_rolling() const
+jack_client::transport_rolling() const
 {
 	return (jack_transport_query(_client, NULL) == JackTransportRolling);
 }
 
 
 position_t
-JackClient::position() const
+jack_client::position() const
 {
 	position_t pos;
 	jack_transport_query(_client, &pos);
@@ -215,32 +215,32 @@ JackClient::position() const
 }
 
 bool
-JackClient::position(position_t const & pos)
+jack_client::position(position_t const & pos)
 {
 	// jack doesn't modify pos, should have been const anyway, i guess...
 	return (jack_transport_reposition(_client, const_cast<position_t*>(&pos)) == 0);
 }
 
 nframes_t
-JackClient::frame() const
+jack_client::frame() const
 {
 	return jack_get_current_transport_frame(_client);
 }
 
 bool
-JackClient::frame(nframes_t frame)
+jack_client::frame(nframes_t frame)
 {
 	return (jack_transport_locate(_client, frame) == 0);
 }
 
 jack_time_t
-JackClient::time(nframes_t frame) const
+jack_client::time(nframes_t frame) const
 {
         return jack_frames_to_time(_client, frame);
 }
 
 std::ostream &
-JackClient::log(bool with_time) const
+jack_client::log(bool with_time) const
 {
 	using namespace boost::posix_time;
         std::cout << '[' << name() << "] ";
@@ -252,17 +252,17 @@ JackClient::log(bool with_time) const
 }
 
 int
-JackClient::process_callback_(nframes_t nframes, void *arg)
+jack_client::process_callback_(nframes_t nframes, void *arg)
 {
-	JackClient *self = static_cast<JackClient*>(arg);
+	jack_client *self = static_cast<jack_client*>(arg);
         nframes_t time = jack_last_frame_time(self->_client);
 	return (self->_process_cb) ? self->_process_cb(self, nframes, time) : 0;
 }
 
 void
-JackClient::portreg_callback_(jack_port_id_t id, int registered, void *arg)
+jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
 {
-	JackClient *self = static_cast<JackClient*>(arg);
+	jack_client *self = static_cast<jack_client*>(arg);
         jack_port_t *port = jack_port_by_id(self->_client, id);
         if (!jack_port_is_mine(self->_client, port)) return;
         if (registered) {
@@ -279,9 +279,9 @@ JackClient::portreg_callback_(jack_port_id_t id, int registered, void *arg)
 }
 
 void
-JackClient::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connected, void *arg)
+jack_client::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connected, void *arg)
 {
-	JackClient *self = static_cast<JackClient*>(arg);
+	jack_client *self = static_cast<jack_client*>(arg);
         jack_port_t *port1 = jack_port_by_id(self->_client, a);
         jack_port_t *port2 = jack_port_by_id(self->_client, b);
         if (!(jack_port_is_mine(self->_client, port1) || jack_port_is_mine(self->_client, port2)))
@@ -297,33 +297,33 @@ JackClient::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connected
 }
 
 int
-JackClient::samplerate_callback_(nframes_t nframes, void *arg)
+jack_client::samplerate_callback_(nframes_t nframes, void *arg)
 {
-	JackClient *self = static_cast<JackClient*>(arg);
+	jack_client *self = static_cast<jack_client*>(arg);
         self->log() << "sampling rate (Hz): " << nframes << std::endl;
 	return (self->_samplerate_cb) ? self->_samplerate_cb(self, nframes) : 0;
 }
 
 int
-JackClient::buffersize_callback_(nframes_t nframes, void *arg)
+jack_client::buffersize_callback_(nframes_t nframes, void *arg)
 {
-	JackClient *self = static_cast<JackClient*>(arg);
+	jack_client *self = static_cast<jack_client*>(arg);
         self->log() << "period size (frames): " << nframes << std::endl;
 	return (self->_buffersize_cb) ? self->_buffersize_cb(self, nframes) : 0;
 }
 
 int
-JackClient::xrun_callback_(void *arg)
+jack_client::xrun_callback_(void *arg)
 {
-	JackClient *self = static_cast<JackClient*>(arg);
+	jack_client *self = static_cast<jack_client*>(arg);
         float delay = jack_get_xrun_delayed_usecs(self->_client);
         self->log() << "XRUN (us): " << delay << std::endl;
 	return (self->_xrun_cb) ? self->_xrun_cb(self, delay) : 0;
 }
 
 void
-JackClient::shutdown_callback_(jack_status_t code, char const * reason, void *arg)
+jack_client::shutdown_callback_(jack_status_t code, char const * reason, void *arg)
 {
-	JackClient *self = static_cast<JackClient*>(arg);
+	jack_client *self = static_cast<jack_client*>(arg);
 	if (self->_shutdown_cb) self->_shutdown_cb(code, reason);
 }

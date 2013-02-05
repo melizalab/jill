@@ -109,7 +109,7 @@ protected:
 
 
 TriggerOptions options(PROGRAM_NAME, PROGRAM_VERSION);
-boost::scoped_ptr<JackClient> client;
+boost::scoped_ptr<jack_client> client;
 boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
 int ret = EXIT_SUCCESS;
@@ -118,7 +118,7 @@ int ret = EXIT_SUCCESS;
 dsp::ringbuffer<event_t> trig_times(128);
 
 int
-process(JackClient *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time)
 {
 	sample_t *in = client->samples(port_in, nframes);
         sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
@@ -170,7 +170,7 @@ std::size_t log_times(event_t const * events, std::size_t count)
  * Callback for samplerate changes. However, this function is only called once.
  */
 int
-samplerate_callback(JackClient *client, nframes_t samplerate)
+samplerate_callback(jack_client *client, nframes_t samplerate)
 {
         using std::endl;
 	nframes_t period_size = options.period_size_ms * samplerate / 1000;
@@ -207,7 +207,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
-                client.reset(new JackClient(options.client_name));
+                client.reset(new jack_client(options.client_name));
 
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,

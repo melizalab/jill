@@ -37,8 +37,7 @@ public:
 	typedef jack_default_audio_sample_t storage_type;
 
 	/**
-	 * Open a new or existing ARF file for writing.  Note: object
-	 * is not valid until next() is called to create a new entry.
+	 * Open a new or existing ARF file for writing.
 	 *
 	 * @param basename   the name of the file (or basename if max_size > 0)
 	 * @param max_size   the maximum size the file can get, in
@@ -51,33 +50,36 @@ public:
 	arffile(boost::filesystem::path const & basename, std::size_t max_size=0);
         ~arffile();
 
-        arf::file::ptr_type file() { return _file; }
-        arf::entry::ptr_type entry() { return _entry; }
+        arf::file_ptr file() { return _file; }
+        arf::entry_ptr entry() { return _entry; }
 
         /**
-         * @brief close the current entry and open a new one
+         * Close the current entry and open a new one.
+         *
          *
          * @param entry_name the name of the new entry
-         * @param timestamp  the timestamp of the entry
+         * @param timestamp  the timestamp of the entry (gettimeofday if not supplied)
          * @returns pointer to entry
          */
-        arf::entry::ptr_type new_entry(std::string const & entry_name,
-                                       std::vector<boost::int64_t> const & timestamp);
+        arf::entry_ptr new_entry(std::string const & entry_name,
+                                 timeval const * timestamp);
 
-protected:
         /**
-         * @brief check filesize prior to opening a new entry
+         * @brief compare file size against max size and opens new file if needed
          *
-         * Flushes data to disk; opens new sequentially numbered file if the
-         * current file exceeds max size
+         * @note the current file size as reported by the API may not reflect
+         * recently written data, so call file()->flush() if precise values are
+         * needed.
+         *
+         * @returns true iff a new file was opened (which means the old entry is invalid!)
          */
-	void check_filesize();
+	bool check_filesize();
 
 private:
-	arf::file::ptr_type _file;
-        arf::entry::ptr_type _entry;
+	arf::file_ptr _file;
+        arf::entry_ptr _entry;
 	boost::filesystem::path _base_filename;
-        std::size_t _max_size;
+        hsize_t _max_size;      // in bytes
 	int _file_index;
 };
 

@@ -43,7 +43,7 @@ namespace jill {
  *
  *
  */
-class JackClient : boost::noncopyable {
+class jack_client : boost::noncopyable {
 
 public:
 
@@ -56,7 +56,7 @@ public:
 	 * @param time the time elapsed (in samples) since the client started
          * @return 0 if no errors, non-zero on error
 	 */
-	typedef boost::function<int (JackClient* client, nframes_t size, nframes_t time)> ProcessCallback;
+	typedef boost::function<int (jack_client* client, nframes_t size, nframes_t time)> ProcessCallback;
 
         /**
          * Type of the port (un)registration callback. Provides information about
@@ -67,7 +67,7 @@ public:
          * @param port the id of the registered port
          * @param registered 0 for unregistered, nonzero if registered
          */
-        typedef boost::function<void (JackClient* client, jack_port_t *port,
+        typedef boost::function<void (jack_client* client, jack_port_t *port,
                                       int registered)> PortRegisterCallback;
 
         /**
@@ -80,12 +80,12 @@ public:
          * @param port2 the port owned by another client (or the second port if self-connected)
          * @param connected 0 for unregistered, nonzero if registered
          */
-        typedef boost::function<void (JackClient* client, jack_port_t *port1, jack_port_t *port2,
+        typedef boost::function<void (jack_client* client, jack_port_t *port1, jack_port_t *port2,
                                       int connected)> PortConnectCallback;
 
-        typedef boost::function<int (JackClient* client, nframes_t srate)> SampleRateCallback;
-        typedef boost::function<int (JackClient* client, nframes_t nframes)> BufferSizeCallback;
-        typedef boost::function<int (JackClient* client, float usec_delay)> XrunCallback;
+        typedef boost::function<int (jack_client* client, nframes_t srate)> SampleRateCallback;
+        typedef boost::function<int (jack_client* client, nframes_t nframes)> BufferSizeCallback;
+        typedef boost::function<int (jack_client* client, float usec_delay)> XrunCallback;
         typedef boost::function<void (jack_status_t code, char const * reason)> ShutdownCallback;
 
 	/**
@@ -96,8 +96,8 @@ public:
 	 * @param name   the name of the client as represented to the server.
 	 *               May be changed by the server if not unique.
 	 */
-	JackClient(std::string const & name);
-	virtual ~JackClient();
+	jack_client(std::string const & name);
+	virtual ~jack_client();
 
         /**
          * @brief Register a new port for the client.
@@ -109,7 +109,7 @@ public:
          * @param buffer_size  the size of the buffer, or 0 for the default
          */
         jack_port_t* register_port(std::string const & name, std::string const & type,
-                           unsigned long flags, unsigned long buffer_size=0);
+                                   unsigned long flags, unsigned long buffer_size=0);
 
         void unregister_port(std::string const & name);
         void unregister_port(jack_port_t *port);
@@ -195,9 +195,11 @@ public:
 
         /** List of ports registered through this object. Realtime safe. */
         std::list<jack_port_t*> const & ports() const { return _ports;}
+        std::size_t nports() const { return _ports.size(); }
 
         /**
-         * @brief Look up a jack port by name
+         * Look up a jack port by name. The port doesn't have to be owned by the
+         * client. May not be RT safe.
          *
          * Returns 0 if the port doesn't exist
          */
