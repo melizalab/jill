@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <boost/function.hpp>
+#include <boost/scoped_ptr.hpp>
 #include "../util/mirrored_memory.hh"
 
 /**
@@ -66,7 +67,7 @@ inline next_pow2(std::size_t size) {
  *
  */
 template <typename T>
-class ringbuffer : public jill::util::mirrored_memory
+class ringbuffer
 {
 public:
         typedef T data_type;
@@ -80,17 +81,21 @@ public:
 	 * @param size The size of the ringbuffer (in objects)
 	 */
 	explicit ringbuffer(std::size_t size)
-                : mirrored_memory(next_pow2(size * sizeof(data_type)),0,true),
-                  _write_ptr(0), _read_ptr(0)
+                : _write_ptr(0), _read_ptr(0)
         {
-                _size_mask = this->size() -1;
+                resize(size);
         }
 
 	~ringbuffer() {}
 
+        void resize(std::size_t size) {
+                _buf.reset(new jill::util::mirrored_memory(next_pow2(size * sizeof(data_type)),0,true));
+                _size_mask = this->size() - 1;
+        }
+
         /// @return the size of the buffer (in objects)
         std::size_t size() const {
-                return _size / sizeof(data_type);
+                return _buf->size() / sizeof(data_type);
         }
 
 	/// @return the number of items that can be written to the ringbuffer
@@ -122,7 +127,7 @@ public:
         std::size_t push(write_visitor_type data_fun, std::size_t cnt) {
                 if (cnt > write_space())
                         cnt = write_space();
-                cnt = data_fun(reinterpret_cast<data_type*>(_buf) + write_offset(), cnt);
+                cnt = data_fun(reinterpret_cast<data_type*>(buffer()) + write_offset(), cnt);
                 // gcc-specific, use std::atomic?
                 __sync_add_and_fetch(&_write_ptr, cnt);
                 return cnt;
@@ -158,7 +163,7 @@ public:
 	std::size_t pop(read_visitor_type data_fun, std::size_t cnt=0) {
                 if (cnt==0 || cnt > read_space())
                         cnt = read_space();
-                cnt = data_fun(reinterpret_cast<data_type*>(_buf) + read_offset(), cnt);
+                cnt = data_fun(buffer() + read_offset(), cnt);
                 __sync_add_and_fetch(&_read_ptr, cnt);
                 return cnt;
         }
@@ -171,7 +176,12 @@ public:
                 return _read_ptr & _size_mask;
         };
 
+        data_type * buffer() { return reinterpret_cast<data_type*>(_buf->buffer()); }
+        data_type const * buffer() const { return reinterpret_cast<data_type const *>(_buf->buffer()); }
+
+
 private:
+        boost::scoped_ptr<jill::util::mirrored_memory> _buf;
         std::size_t _write_ptr;
         std::size_t _read_ptr;
         std::size_t _size_mask;
