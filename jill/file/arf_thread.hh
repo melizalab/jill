@@ -43,7 +43,8 @@ public:
         arf_thread(std::string const & filename,
                    std::vector<port_info_t> const * ports,
                    std::map<std::string,std::string> const * attrs,
-                   jack_client * client, dsp::period_ringbuffer * ringbuf);
+                   jack_client * client, dsp::period_ringbuffer * ringbuf,
+                   int compression=0);
 
         /** arf_thread destructor. locks disk_thread_lock while releasing file */
         ~arf_thread();
@@ -90,6 +91,7 @@ private:
         std::vector<arf::packet_table_ptr> _dsets; // pointers to packet tables (owned)
         long _xruns;                               // number of xruns. incremented by other threads
         int _stop;                                 // flag to signal stop
+        int _compression;                          // compression level for new datasets
 };
 
 // /**

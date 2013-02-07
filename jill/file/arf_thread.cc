@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <arf.hpp>
 #include "../jack_client.hh"
+#include "../midi.hh"
 #include "../util/string.hh"
 #include "../dsp/period_ringbuffer.hh"
 
@@ -28,10 +29,12 @@ pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
 arf_thread::arf_thread(string const & filename,
                        vector<port_info_t> const * ports,
                        map<string,string> const * attrs,
-                       jack_client * client, dsp::period_ringbuffer * ringbuf)
+                       jack_client * client,
+                       dsp::period_ringbuffer * ringbuf,
+                       int compression)
         : _client(client), _ringbuf(ringbuf),
           _ports(ports), _attrs(attrs),
-          _xruns(0), _stop(0)
+          _xruns(0), _stop(0), _compression(compression)
 {
         open_arf(filename);
 }
@@ -70,15 +73,20 @@ arf_thread::new_datasets()
         for (vector<port_info_t>::const_iterator it = _ports->begin(); it != _ports->end(); ++it) {
                 arf::packet_table_ptr pt;
                 if (it->storage >= arf::INTERVAL) {
-                        pt = _entry->create_packet_table<arf::interval>(it->name,"s",it->storage);
+                        pt = _entry->create_packet_table<arf::interval>(it->name,"samples",it->storage,
+                                                                        false, 1024, _compression);
                 }
                 else if (it->storage >= arf::EVENT) {
-                        pt = _entry->create_packet_table<sample_t>(it->name,"s",it->storage);
+                        pt = _entry->create_packet_table<nframes_t>(it->name,"samples",it->storage,
+                                                                   false, 1024, _compression);
                 }
                 else {
-                        pt = _entry->create_packet_table<sample_t>(it->name,"",it->storage);
-                        pt->write_attribute("sampling_rate", _client->sampling_rate());
+                        pt = _entry->create_packet_table<sample_t>(it->name,"",it->storage,
+                                                                   false, 1024, _compression);
                 }
+                // times are stored in units of samples for maximum precision,
+                // which requires sample rates to be known.
+                pt->write_attribute("sampling_rate", _client->sampling_rate());
                 _dsets.push_back(pt);
         }
 }
@@ -134,6 +142,7 @@ arf_thread::write_continuous(void * arg)
         dsp::period_ringbuffer::period_info_t const * period;
         long my_xruns = 0;                       // internal counter
         timeval tp;
+        nframes_t entry_start;  // could overflow for *long* records
 
 	pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	pthread_mutex_lock (&disk_thread_lock);
@@ -146,6 +155,7 @@ arf_thread::write_continuous(void * arg)
                         // create entry when first data chunk arrives
                         if (!self->_entry) {
                                 gettimeofday(&tp,0);
+                                entry_start = period->time;
                                 self->new_entry(period->time, &tp);
                                 self->new_datasets();
                         }
@@ -159,16 +169,18 @@ arf_thread::write_continuous(void * arg)
                                 if (p->storage < arf::EVENT)  {
                                         self->_dsets[i]->write(data, period->nbytes / sizeof(sample_t));
                                 }
-                                //  (p->storage >= arf::INTERVAL) {
-
-                                // }
-                                // else if (p->storage >= arf::EVENT) {
-
-                                // }
-                                // else {
-                                // }
-
-                                // write data
+                                else {
+                                        jack_midi_event_t event;
+                                        nframes_t adj_time;
+                                        nframes_t nevents = jack_midi_get_event_count(data);
+                                        for (nframes_t j = 0; j < nevents; ++j) {
+                                                jack_midi_event_get(&event, data, j);
+                                                adj_time = event.time + period->time - entry_start;
+                                                if (p->storage < arf::INTERVAL) {
+                                                        self->_dsets[i]->write(&adj_time,1);
+                                                }
+                                        }
+                                }
                         }
                         // free data
                         self->_ringbuf->pop_all(0);

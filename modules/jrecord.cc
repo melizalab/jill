@@ -62,8 +62,8 @@ public:
                         ("continuous,c", "record in continuous mode (default is in triggered epochs)")
 			("prebuffer", po::value<float>(&prebuffer_size_s)->default_value(1.0),
 			 "set prebuffer size (s)")
-			("max-size", po::value<int>(&max_size_mb)->default_value(100),
-			 "save data to serially numbered files with max size (MB)");
+                        ("compression", po::value<int>(&compression)->default_value(0),
+                         "set compression in output file (0-9)");
 
                 // command-line options
 		cmd_opts.add(tropts);
@@ -96,6 +96,7 @@ public:
 	float buffer_size_s;
 	int max_size_mb;
         int n_input_ports;
+        int compression;
 
 
 protected:
@@ -245,7 +246,8 @@ main(int argc, char **argv)
                                                       ports.ports(),
                                                       &options.additional_options,
                                                       client.get(),
-                                                      &ringbuffer));
+                                                      &ringbuffer,
+                                                      options.compression));
                 arf_thread->log("FFFF " PROGRAM_NAME " (" PROGRAM_VERSION ") opened file for writing");
                 client->log() << "opened output file " << options.output_file << endl;
 
