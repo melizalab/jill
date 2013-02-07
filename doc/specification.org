@@ -173,28 +173,22 @@ maintain a running jrecord client, run it in a virtual screen.
 Commandline options:
 
 1. Epoch or continuous recording mode
-2. Maximum file size. In continuous recordings, if the file size is exceeded,
-   the current file will be closed and a new one opened, with no gap between the
-   files. For epoch recordings, the last epoch will be written before changing
-   to a new file. A value of 0 means there is no maximum (up to the file
-   system's capabilities)
-3. Output file name. If a maximum file size is specified, this is treated as a
-   template and the files are named with a sequentially increasing numerical suffix.
-4. Prebuffer size. Only takes effect in epoch mode. Specifies the amount of data
+2. Output file name.
+3. Prebuffer size. Only takes effect in epoch mode. Specifies the amount of data
    (in units of time) write from before the time of the trigger to write to
    disk. This is treated as an approximate value, because the prebuffer may not
    fill completely, and for performance sake only complete periods may be used.
-5. Ringbuffer size. Determines the size of the buffer used to move data from the
+4. Ringbuffer size. Determines the size of the buffer used to move data from the
    realtime process thread to the writer thread. By default this is
    automatically set to hold at least ten complete periods of data, or 2
    seconds, whichever is more.
-6. The number of input ports to create, or a list of ports to connect to. If
+5. The number of input ports to create, or a list of ports to connect to. If
    inputs are specified as a list, a separate option (e.g. -I) is used to
    indicate that the full event information should be stored rather than just
    the time.  It may also be useful to have an option to connect to every
    output port on a client (for example, to record from all the channels on a
    sound card or DAQ board)
-7. Optional key-value pairs, which will be stored in attributes of created
+6. Optional key-value pairs, which will be stored in attributes of created
    entries.
 
 On startup, jrecord will attempt to open the output file and obtain a write

@@ -34,6 +34,10 @@ typedef jack_position_t position_t;
 // forward declare some jill classes
 class jack_client;
 
+namespace dsp {
+        class period_ringbuffer;
+}
+
 /** stores information about ports. mostly used during setup */
 struct port_info_t {
         std::string name;

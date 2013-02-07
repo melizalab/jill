@@ -22,7 +22,7 @@
 #include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
 #include "jill/util/portreg.hh"
-#include "jill/file/arffile.hh"
+#include "jill/file/arf_thread.hh"
 
 #define PROGRAM_NAME "jrecord"
 #define PROGRAM_VERSION "1.3.0"
@@ -136,24 +136,10 @@ protected:
 
 CaptureOptions options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
-boost::scoped_ptr<dsp::period_ringbuffer> ringbuffer;
-boost::scoped_ptr<jill::file::arffile> outfile;
+dsp::period_ringbuffer ringbuffer(1024); // this may be resized
+boost::scoped_ptr<file::arf_thread> arf_thread;
 util::port_registry ports;
 jack_port_t *port_trig;
-
-/*
- * Notes on synchronization
- *
- * During normal operation, the disk thread will read data from the ringbuffer
- * and write it to the current entry (or the prebuffer, if not in continuous
- * mode). It will lock disk_thread_lock while running, and wait on data_ready
- * after all available data has been handled.
- */
-
-pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
-long xruns = 0;
-
 
 /*
  * Copy data from ports into ringbuffer. Note that the first port is the trigger
@@ -166,73 +152,24 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         sample_t *port_buffer;
         std::list<jack_port_t*>::const_iterator it;
-        // Reserve space in the ringbuffer. If there's not enough, (1) wait for
-        // more, potentially causing xruns in the whole executation graph, or
-        // (2) discard the data, even though we might have been able to save it
-        // by waiting a few cycles...
-        if (ringbuffer->reserve(time, nframes, client->ports().size()) == 0) {
-                // increment xrun counter
-                return 0;       // discards data
+        // Reserve space in the ringbuffer. If there's not enough, increase the
+        // xrun count and discard the data (even though we might have been able
+        // to save it by waiting a few cycles)
+        if (ringbuffer.reserve(time, nframes, client->ports().size()) == 0) {
+                arf_thread->xrun();
+                return 0;
         }
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
                 port_buffer = client->samples(*it, nframes);
-                ringbuffer->push(port_buffer);
+                ringbuffer.push(port_buffer);
         }
 
 	/* signal that there is data available */
-	// if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
-	//     pthread_cond_signal (&data_ready);
-	//     pthread_mutex_unlock (&disk_thread_lock);
-	// }
+	if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
+	    pthread_cond_signal (&data_ready);
+	    pthread_mutex_unlock (&disk_thread_lock);
+	}
 
-        return 0;
-}
-
-/*
- * Write data to arf file in continous mode.
- *
- * @pre client is started and ports registered
- * @pre outfile is initialized
- */
-void *
-write_continuous(void * arg)
-{
-        dsp::period_ringbuffer::period_info_t const * period;
-        std::size_t my_xruns = 0;                       // internal counter
-        arf::entry_ptr entry;
-
-	// pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-	// pthread_mutex_lock (&disk_thread_lock);
-
-        while (1) {
-                period = ringbuffer->request();
-                if (period) {
-                        client->log() << period->size() << " bytes: "
-                                      << period->nchannels << "x" << period->nbytes << std::endl;
-                        // check for valid entry
-                        // if check_filesize() is true, entry is invalid
-                        // may want to do this somewhat infrequently
-                        if (outfile->check_filesize() || !entry) {
-                                entry = outfile->new_entry(period->time,
-                                                           client->time(period->time),
-                                                           client->sampling_rate(),
-                                                           ports.ports(),
-                                                           &options.additional_options);
-                        }
-                        ringbuffer->pop_all(0);
-                        for (std::size_t chan = 0; chan < period->nchannels; ++chan) {
-                                // look up channel name and type
-                                // write data
-                        }
-                        // check for overrun & disconnected port_trig; close/mark entry
-                }
-                else {
-                        // wait on data_ready
-                        // pthread_cond_wait (&data_ready, &disk_thread_lock);
-                }
-        }
-
-	// pthread_mutex_unlock (&disk_thread_lock);
         return 0;
 }
 
@@ -240,6 +177,7 @@ int
 jack_xrun(jack_client *client, float delay)
 {
         // increment xrun counter
+        arf_thread->xrun();
         return 0;
 }
 
@@ -252,14 +190,13 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         nframes_t sz1 = nframes * ports.size() * 10;
         nframes_t sz2 = client->sampling_rate() * ports.size() * options.buffer_size_s;
         if (sz1 < sz2) sz1 = sz2;
-        if (!ringbuffer || ringbuffer->size() < sz1) {
-                ringbuffer.reset(new dsp::period_ringbuffer(sz1));
-                client->log() << "ringbuffer size (s): "
-                              << (ringbuffer->write_space() /
-                                  ports.size() / client->sampling_rate())
-                              << std::endl;
+        if (ringbuffer.size() < sz1) {
+                ringbuffer.resize(sz1);
         }
-        //      << logv.program << "prebuffer size (ms): " << options.prebuffer_size_ms << endl;
+        client->log() << "ringbuffer size (s): "
+                      << (ringbuffer.write_space() /
+                          ports.size() / client->sampling_rate())
+                      << std::endl;
         return 0;
 }
 
@@ -267,31 +204,35 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
-        if (!outfile) return;
         util::make_string msg;
-        msg << "IIII Ports " << ((connected) ? "" : "dis") << "connected: "
-            << jack_port_name(port1) << " -> " << jack_port_name(port2) << std::endl;
-        // TODO lock disk mutex?
-        outfile->log(msg);
+        msg << "IIII port " << ((connected) ? "" : "dis") << "connected: "
+            << jack_port_name(port1) << " -> " << jack_port_short_name(port2);
+        // this can cause problems if it's called while the thread is cleaning
+        // up (even with a nice trylock). The solution is to deactivate the
+        // client (disconnecting the ports) or disable this callback before the
+        // program ends.
+        if (arf_thread) arf_thread->log(msg);
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-        // terminate_program = true;
+        if (arf_thread) arf_thread->stop();
 }
 
 
 void
 signal_handler(int sig)
 {
-        // terminate_program = true;
+        if (arf_thread) arf_thread->stop();
 }
 
 int
 main(int argc, char **argv)
 {
 	using namespace std;
+
+        vector<string>::const_iterator it;
 	try {
 		options.parse(argc,argv);
                 cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
@@ -299,15 +240,14 @@ main(int argc, char **argv)
                 // initialize client
                 client.reset(new jack_client(options.client_name));
 
-                // open output file
-                outfile.reset(new jill::file::arffile(options.output_file, options.max_size_mb));
-                outfile->log(util::make_string()
-                             << "FFFF " PROGRAM_NAME " (" PROGRAM_VERSION ") opened file for writing");
-
-                ostream& os = client->log() << "opened output file " << outfile->name();
-                if (options.max_size_mb)
-                        os << " (max size: " << options.max_size_mb << " MB)";
-                os << endl;
+                // set up disk thread
+                arf_thread.reset(new file::arf_thread(options.output_file,
+                                                      ports.ports(),
+                                                      &options.additional_options,
+                                                      client.get(),
+                                                      &ringbuffer));
+                arf_thread->log("FFFF " PROGRAM_NAME " (" PROGRAM_VERSION ") opened file for writing");
+                client->log() << "opened output file " << options.output_file << endl;
 
                 /* create ports: one for trigger, and one for each input */
                 port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
@@ -324,22 +264,25 @@ main(int argc, char **argv)
 
                 // register callbacks
                 client->set_shutdown_callback(jack_shutdown);
+                client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
                 client->set_buffer_size_callback(jack_bufsize);
-
-                // start disk thread
+                client->set_port_connect_callback(jack_portcon);
 
                 // activate process callback
                 client->activate();
 
 		/* connect ports */
-                vector<string>::const_iterator it;
 		for (it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
 			client->connect_port(*it, "trig_in");
 		}
                 ports.connect_all(client.get()); // connects input ports
 
-                sleep(1000);
+                arf_thread->start();
+                arf_thread->join();
+
+                client->deactivate();
+
                 return 0;
 	}
 	catch (Exit const &e) {
@@ -347,7 +290,7 @@ main(int argc, char **argv)
 	}
 	catch (exception const &e) {
                 cerr << "Error: " << e.what() << endl;
-                if (outfile) outfile->log(util::make_string() << "EEEE " << e.what());
+                if (arf_thread) arf_thread->log(util::make_string() << "EEEE " << e.what());
 		return EXIT_FAILURE;
 	}
 }

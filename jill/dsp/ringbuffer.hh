@@ -67,8 +67,7 @@ inline next_pow2(std::size_t size) {
  *
  */
 template <typename T>
-class ringbuffer
-{
+class ringbuffer {
 public:
         typedef T data_type;
 	typedef typename boost::function<std::size_t (data_type const * src, std::size_t cnt)> read_visitor_type;

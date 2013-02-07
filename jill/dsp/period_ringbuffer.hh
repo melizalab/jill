@@ -42,9 +42,7 @@ class period_ringbuffer : public ringbuffer<char>
 public:
         typedef ringbuffer<char> super;
         typedef super::data_type data_type;
-	typedef boost::function<void (void const * src,
-                                      nframes_t nframes,
-                                      nframes_t channel_idx)> read_visitor_type;
+	typedef boost::function<void (void const * src, nframes_t nframes)> read_visitor_type;
 
         /**
          * Define the header for the period. Contains information about
@@ -148,14 +146,14 @@ public:
         void pop(void * dest);
 
         /**
-         * Access channel data for current period
+         * Peek at data for a channel. MUST call pop_all(0) at the end to advance.
          *
-         * @param data_fun   see @read_visitor_type
+         * @param chan    the index of the channel to read.data_fun
          *
          * @throws std::logic_error if called before request() or after all
          * channels have been read
          */
-        void pop(read_visitor_type data_fun);
+        void * peek(nframes_t chan);
 
         /**
          * @brief Copy all data from a period

@@ -83,6 +83,7 @@ period_ringbuffer::chans_to_read() const
 void
 period_ringbuffer::pop(void * dest)
 {
+        // TODO  use copier functor (weird pointer arithmetic and type converisons)
         if (!_chans_to_read || !_read_hdr)
                 throw std::logic_error("attempted to read period before requesting header (or out of channels)");
         void const * ptr = buffer() + read_offset() + _read_hdr->offset(_read_hdr->nchannels - _chans_to_read);
@@ -94,6 +95,16 @@ period_ringbuffer::pop(void * dest)
                 _read_hdr = 0;
         }
 
+}
+
+void *
+period_ringbuffer::peek(nframes_t chan)
+{
+        if (!_chans_to_read || !_read_hdr)
+                throw std::logic_error("attempted to read period before requesting header (or out of channels)");
+        if (chan >= _read_hdr->nchannels)
+                throw std::runtime_error("channel value out of bounds in ringbuffer peek");
+        return buffer() + read_offset() + _read_hdr->offset(chan);
 }
 
 // TODO visitor pop function, and copying pop as special case

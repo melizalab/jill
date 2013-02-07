@@ -162,6 +162,7 @@ test_period_ringbuf(std::size_t nchannels)
 
                 for (i = 0; i < nchannels; ++i) {
                         assert (rb.chans_to_read() == nchannels - i);
+                        assert(memcmp(rb.peek(i), buf, info->nbytes) == 0);
                         rb.pop(fbuf);
                         assert(memcmp(fbuf, buf, info->nbytes) == 0);
                         assert (rb.chans_to_read() == nchannels - i - 1);

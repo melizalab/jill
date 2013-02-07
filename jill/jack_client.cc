@@ -266,7 +266,7 @@ jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
         jack_port_t *port = jack_port_by_id(self->_client, id);
         if (!jack_port_is_mine(self->_client, port)) return;
         if (registered) {
-                self->_ports.push_back(port);
+                self->_ports.push_front(port);
                 self->log() << "port registered: " << jack_port_name(port)
                             << " (" << jack_port_type(port) << ")" << std::endl;
         }
