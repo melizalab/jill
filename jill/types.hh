@@ -13,11 +13,12 @@
 
 #include <jack/types.h>
 #include <jack/transport.h>
+#include <arf/types.hpp>
 #include <stdexcept>
 
 /**
  * @file types.hh
- * @brief data types imported from jack into the jill namespace, etc
+ * @brief Data types and forward declarations.
  */
 namespace jill {
 
@@ -25,9 +26,20 @@ namespace jill {
 typedef jack_default_audio_sample_t sample_t;
 /** The data type holding information about frame counts. Inherited from JACK */
 typedef jack_nframes_t nframes_t;
+/** Data type for microsecond time information */
+typedef jack_time_t utime_t;
 /** A data type holding extended position information. Inherited from JACK */
 typedef jack_position_t position_t;
 
+// forward declare some jill classes
+class jack_client;
+
+/** stores information about ports. mostly used during setup */
+struct port_info_t {
+        std::string name;
+        std::string source;     // the source port; may get out of date
+        arf::DataType storage;
+};
 
 /** Type for jack errors */
 struct JackError : public std::runtime_error {

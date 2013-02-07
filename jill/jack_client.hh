@@ -83,7 +83,7 @@ public:
         typedef boost::function<void (jack_client* client, jack_port_t *port1, jack_port_t *port2,
                                       int connected)> PortConnectCallback;
 
-        typedef boost::function<int (jack_client* client, nframes_t srate)> SampleRateCallback;
+        typedef boost::function<int (jack_client* client, nframes_t srate)> SamplingRateCallback;
         typedef boost::function<int (jack_client* client, nframes_t nframes)> BufferSizeCallback;
         typedef boost::function<int (jack_client* client, float usec_delay)> XrunCallback;
         typedef boost::function<void (jack_status_t code, char const * reason)> ShutdownCallback;
@@ -140,15 +140,15 @@ public:
          * Set the callback for when the samplerate changes. Currently, this
          * will be called only when the callback is set or changed.
          */
-	void set_sample_rate_callback(SampleRateCallback const & cb) {
-		_samplerate_cb = cb;
+	void set_sample_rate_callback(SamplingRateCallback const & cb) {
+		_sampling_rate_cb = cb;
                 if (cb) {
-                        cb(this, samplerate());
+                        cb(this, sampling_rate());
                 }
 	}
 
 	void set_buffer_size_callback(BufferSizeCallback const & cb) {
-		_buffersize_cb = cb;
+		_buffer_size_cb = cb;
 	}
 
 	void set_xrun_callback(XrunCallback const & cb) {
@@ -206,7 +206,7 @@ public:
         jack_port_t* get_port(std::string const & name) const;
 
 	/** The sample rate of the client */
-	nframes_t samplerate() const;
+	nframes_t sampling_rate() const;
 
         /** The size of the client's buffer */
         nframes_t buffer_size() const;
@@ -224,7 +224,7 @@ public:
 	bool frame(nframes_t);
 
         /** Convert frame count to microseconds */
-        jack_time_t time(nframes_t) const;
+        utime_t time(nframes_t) const;
 
 	/// Return true if the client is receiving data
 	bool transport_rolling() const;
@@ -255,8 +255,8 @@ private:
 	ProcessCallback _process_cb;
         PortRegisterCallback _portreg_cb;
         PortConnectCallback _portconn_cb;
-        SampleRateCallback _samplerate_cb;
-        BufferSizeCallback _buffersize_cb;
+        SamplingRateCallback _sampling_rate_cb;
+        BufferSizeCallback _buffer_size_cb;
         XrunCallback _xrun_cb;
         ShutdownCallback _shutdown_cb;
 
@@ -271,8 +271,8 @@ private:
 	static int process_callback_(nframes_t, void *);
 	static void portreg_callback_(jack_port_id_t, int, void *);
 	static void portconn_callback_(jack_port_id_t, jack_port_id_t, int, void *);
-	static int samplerate_callback_(nframes_t, void *);
-	static int buffersize_callback_(nframes_t, void *);
+	static int sampling_rate_callback_(nframes_t, void *);
+	static int buffer_size_callback_(nframes_t, void *);
 	static int xrun_callback_(void *);
         static void shutdown_callback_(jack_status_t, char const *, void *);
 

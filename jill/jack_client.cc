@@ -35,8 +35,8 @@ jack_client::jack_client(std::string const & name)
         jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
         jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
         jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
-        jack_set_sample_rate_callback(_client, &samplerate_callback_, static_cast<void*>(this));
-        jack_set_buffer_size_callback(_client, &buffersize_callback_, static_cast<void*>(this));
+        jack_set_sample_rate_callback(_client, &sampling_rate_callback_, static_cast<void*>(this));
+        jack_set_buffer_size_callback(_client, &buffer_size_callback_, static_cast<void*>(this));
         jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
         jack_on_info_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
 }
@@ -175,7 +175,7 @@ jack_client::get_port(std::string const & name) const
 }
 
 nframes_t
-jack_client::samplerate() const
+jack_client::sampling_rate() const
 {
 	return jack_get_sample_rate(_client);
 }
@@ -297,19 +297,19 @@ jack_client::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connecte
 }
 
 int
-jack_client::samplerate_callback_(nframes_t nframes, void *arg)
+jack_client::sampling_rate_callback_(nframes_t nframes, void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
         self->log() << "sampling rate (Hz): " << nframes << std::endl;
-	return (self->_samplerate_cb) ? self->_samplerate_cb(self, nframes) : 0;
+	return (self->_sampling_rate_cb) ? self->_sampling_rate_cb(self, nframes) : 0;
 }
 
 int
-jack_client::buffersize_callback_(nframes_t nframes, void *arg)
+jack_client::buffer_size_callback_(nframes_t nframes, void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
         self->log() << "period size (frames): " << nframes << std::endl;
-	return (self->_buffersize_cb) ? self->_buffersize_cb(self, nframes) : 0;
+	return (self->_buffer_size_cb) ? self->_buffer_size_cb(self, nframes) : 0;
 }
 
 int

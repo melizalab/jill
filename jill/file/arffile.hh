@@ -18,8 +18,8 @@
 #define _ARFFILE_HH
 
 #include <boost/noncopyable.hpp>
-#include <boost/filesystem.hpp>
-#include <arf.hpp>
+#include <vector>
+#include <map>
 #include "../types.hh"
 
 namespace jill { namespace file {
@@ -29,7 +29,7 @@ namespace jill { namespace file {
  * @brief write data to an ARF (hdf5) file
  *
  * Uses ARF as a container for data. Each entry is an HDF5 group in the ARF
- * file. Supports splitting across multiple files (in a somewhat hacky way).
+ * file. Supports splitting across multiple files.
  */
 class arffile : boost::noncopyable {
 
@@ -47,22 +47,22 @@ public:
 	 *                   each entry is closed), a new file will be
 	 *                   created.
 	 */
-	arffile(boost::filesystem::path const & basename, std::size_t max_size=0);
+	arffile(std::string const & basename, std::size_t max_size=0);
         ~arffile();
 
-        arf::file_ptr file() { return _file; }
-        arf::entry_ptr entry() { return _entry; }
+        /**
+         * Open a new entry (closing current one if necessary). Sets required
+         * attributes and creates new datasets for each of the channels.
+         *
+         */
+        arf::entry_ptr new_entry(nframes_t frame, utime_t usec, nframes_t sampling_rate,
+                                 std::vector<port_info_t> const * channels=0,
+                                 std::map<std::string,std::string> const * attributes=0,
+                                 timeval const * timestamp=0);
 
         /**
-         * Close the current entry and open a new one.
-         *
-         *
-         * @param entry_name the name of the new entry
-         * @param timestamp  the timestamp of the entry (gettimeofday if not supplied)
-         * @returns pointer to entry
+         * Append data to a channel's dataset
          */
-        arf::entry_ptr new_entry(std::string const & entry_name,
-                                 timeval const * timestamp);
 
         /**
          * @brief compare file size against max size and opens new file if needed
@@ -71,16 +71,28 @@ public:
          * recently written data, so call file()->flush() if precise values are
          * needed.
          *
-         * @returns true iff a new file was opened (which means the old entry is invalid!)
+         * @returns true iff a new file was opened
          */
 	bool check_filesize();
 
+        /** return name of current file */
+        std::string const & name() const {
+                return _current_filename;
+        }
+
+        /** log message to current file */
+        void log(std::string const & msg);
+
 private:
-	arf::file_ptr _file;
-        arf::entry_ptr _entry;
-	boost::filesystem::path _base_filename;
+        std::string _base_filename;
         hsize_t _max_size;      // in bytes
 	int _file_index;
+        int _entry_index;
+        std::string _current_filename;
+
+	arf::file_ptr _file;
+        arf::entry_ptr _entry;
+        std::vector<arf::packet_table_ptr> _dsets;
 };
 
 }} // namespace jill::file
