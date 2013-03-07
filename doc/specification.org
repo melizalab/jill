@@ -9,11 +9,29 @@
 #+OPTIONS: ^:nil H:2
 #+STYLE:    <link rel="stylesheet" href="org.css" type="text/css" />
 
-JILL consists of a set of modules (programs) that use the JACK realtime audio
+*JILL* consists of a set of modules (programs) that use the JACK realtime audio
 framework to run auditory behavioral and neuroscience experiments.
 
 - Editor: Dan Meliza <dan at meliza.org>
 - State:  draft
+
+* Licence
+
+Copyright (c) 2010-2013 C Daniel Meliza.
+
+This Specification is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation; either version 3 of the License, or (at your option) any
+later version.
+
+This Specification is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, see <http://www.gnu.org/licenses>.
+
 
 * Language
 
@@ -24,7 +42,7 @@ interpreted as described in [[http://tools.ietf.org/html/rfc2119][RFC 2119]].
 * Goals
 
 This specification defines the operations that modules in a JACK-based data
-recording and stimulus presentation system must support, and how these modules
+recording and stimulus presentation system (*JILL*) must support, and how these modules
 will interact with each other. It also describes a set of core modules using
 this framework.
 
@@ -171,13 +189,13 @@ terminal as to the current state of the detector.
 
 ** jrecord
 
-The function of jrecord is to write sampled and event data to disk. Sampled data
+The function of *jrecord* is to write sampled and event data to disk. Sampled data
 may include audio and neural signals, and event data may include signal
 detections (such as emitted by jdetect), spike times, and other external events.
 Data are stored in HDF5 format (http://www.hdfgroup.org/HDF5) using the ARF
-specification (LINK). Recording may be continuous, or may be in discrete epochs
-triggered by events. In the latter case, a prebuffer provides the ability to
-record data prior to the actual epoch onset event.
+specification (https://github.com/dmeliza/arf). Recording may be continuous, or
+may be in discrete epochs triggered by events. In the latter case, a prebuffer
+provides the ability to record data prior to the actual epoch onset event.
 
 *** JACK Ports
 
@@ -221,18 +239,18 @@ The client will not make any changes to its port configuration during operation.
 
 *** ØMQ Sockets
 
-The jrecord module does not bind to any IPC sockets at present. It will attempt
+The *jrecord* module does not bind to any IPC sockets at present. It will attempt
 to connect to status and control sockets of upstream modules in order to record
 parameters and events from those modules.
 
 *** UNIX Signals
 
 SIGTERM, SIGINT, and SIGHUP all cause the client to flush data and terminate. To
-maintain a running jrecord client, run it in a virtual screen.
+maintain a running *jrecord* client, run it in a virtual screen.
 
 *** Options and behavior
 
-Commandline options:
+**** commandline options
 
 1. Epoch or continuous recording mode
 2. Output file name.
@@ -240,27 +258,82 @@ Commandline options:
    (in units of time) write from before the time of the trigger to write to
    disk. This is treated as an approximate value, because the prebuffer may not
    fill completely, and for performance sake only complete periods may be used.
-4. Ringbuffer size. Determines the size of the buffer used to move data from the
-   realtime process thread to the writer thread. By default this is
-   automatically set to hold at least ten complete periods of data, or 2
-   seconds, whichever is more.
-5. The number of input ports to create, or a list of ports to connect to. If
-   inputs are specified as a list, a separate option (e.g. -I) is used to
-   indicate that the full event information should be stored rather than just
-   the time.  It may also be useful to have an option to connect to every
-   output port on a client (for example, to record from all the channels on a
-   sound card or DAQ board)
+4. Postbuffer size. Only takes effect in epoch mode. Specifies the amount of
+   additional data (in units of time) write after the trigger port signals an offset.
+5. The number of input ports to create, or a list of ports to connect to. It may
+   also be useful to have an option to connect to every output port on a client
+   (for example, to record from all the channels on a sound card or DAQ board)
 6. Optional key-value pairs, which will be stored in attributes of created
    entries.
+7. Ringbuffer size. An advanced option most users will not need to set.
+   Determines the size of the buffer used to move data from the realtime process
+   thread to the writer thread. By default this is automatically set to hold at
+   least ten complete periods of data, or 2 seconds, whichever is more.
 
-On startup, jrecord will attempt to open the output file and obtain a write
+**** startup
+
+On startup, *jrecord* will attempt to open the output file and obtain a write
 lock. If either operation fails, the program will terminate with an error. The
 program should attempt to determine if the output file is on an NFS share and
-proceed with a stern warning.
+proceed with a stern warning.  After opening the file it will create a log
+table if needed (see [[jrecord log]]).
 
-Next, it will open the log table. This is an extensible dataset at the root of
-the ARF file that will be used to log events with a timestamp and a message. If
-the table does not exist, it is created. The events stored in this log include:
+Next, *jrecord* will create the JACK client, register ports, activate the client,
+and connect the inputs.
+
+**** continuous mode operation
+
+In continuous mode, *jrecord* will create an entry and begin writing to the
+disk immediately, and continue until the program is terminated.  Entries may be
+split as necessary to ensure consistency (for example, if the sample count
+overflows), but there must be no gaps in the data in normal operation.
+
+**** epoch mode operation
+
+In epoch mode, *jrecord* will be in one of two states. It starts in the =paused=
+state, and will wait until it receives a note on event on the trigger port.
+While waiting, it will copy periods from the ringbuffer to the prebuffer,
+freeing periods beyond the duration of the prebuffer window. While in this
+state, note off events are ignored.
+
+On receiving a note on event, *jrecord* will open a new entry, write the
+prebuffered data to the entry, and then enter the =recording= state. In this
+state it will write all incoming data to the entry. Note on events will be
+recorded but otherwise ignored. On receiving a note off event it will close the
+dataset and entry and enter the =paused= state again.
+
+**** data storage
+
+Each input channel will be stored in a separate dataset under the entry. Sampled
+data will be stored in HDF5 array datasets, with elements corresponding to
+individual frames. Event data will also be stored in arrays, but with a compound
+type.  The fields of the event dataset are:
+
+: start       - the time of the event (sample count)
+: midi_type   - the MIDI type of the event  (1 byte)
+: midi_chan   - the MIDI channel (1 byte)
+: message     - the MIDI message (string, vlen)
+
+Note that for some kinds of data, only the times are important (e.g., spike
+times). However, it's much simpler to record everything.
+
+**** jrecord log
+
+*jrecord* maintains a log of its operations, messages from connected clients,
+and any exceptions that occur during operation.  The function of this log is to
+permit later reconstruction of an experiment, and the emphasis is on
+human-readability. Much of the information is also available as metadata, which
+should be considered authoritative.
+
+The log is an extensible dataset with the name =jill_log= stored under the root
+group of the ARF file. The fields in the log are:
+
+: sec  - the time of the event, in seconds since the epoch
+: usec - the time of the event, in microseconds
+: msg  - the event message, vlen string with the format "source: event description"
+:        where source is the client or process giving rise to the message
+
+*jrecord* will record the following messages:
 
 1. opening and closing a file in write mode
 2. parameters of the jack server (and changes to them)
@@ -271,30 +344,6 @@ the table does not exist, it is created. The events stored in this log include:
 7. initial operating parameters of upstream clients
 8. status events from upstream clients
 
-Next, jrecord will create the JACK client, register ports, activate the client,
-and connect the inputs.
-
-In continuous mode, jrecord will create an entry and begin writing to the
-disk immediately, and continue until the program is terminated.  Some
-synchronization is necessary to ensure that data are not written to the disk
-until the ports are connected.
-
-In epoch mode, jrecord will wait until it receives a note on event on the
-trigger port. While waiting, it will copy periods from the ringbuffer to the
-prebuffer, freeing periods beyond the duration of the prebuffer window. On
-receiving a note on event, it will log the event, open a new entry, write the
-prebuffered data to the entry, and then start writing all subsequently received
-data to the entry. On receiving a note off event it will close the dataset and
-entry and begin storing data in the prebuffer again.
-
-Each input channel will be stored in a separate dataset under the entry. Sampled
-data will be stored in HDF5 array datasets, with elements corresponding to
-individual frames. Event data will also be stored in HDF5 array datasets, but
-the elements correspond to the times of the events. Additional information in
-the event (type, channel, et al) is discarded. However, if the input port is
-specified using a different option (see above), the full event data is stored
-using an ARF interval table. Data from the trigger port is stored in interval
-tables as well.
 
 ** jstim
 
@@ -303,7 +352,7 @@ interface. Stimuli can be presented singly or as part of a batch. The stimuli in
 a batch can be repeated and the order can be randomized. Presentation can occur
 at fixed intervals, with fixed gaps between stimuli, or in response to an
 external trigger. An event output line can be used to trigger other modules,
-like jrecord. Can also be used for presentation of stimuli while searching for
+like *jrecord*. Can also be used for presentation of stimuli while searching for
 neurons.
 
 *** JACK Ports
