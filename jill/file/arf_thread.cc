@@ -60,13 +60,12 @@ pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
 
 arf_thread::arf_thread(string const & filename,
-                       vector<port_info_t> const * ports,
                        map<string,string> const * attrs,
                        jack_client * client,
                        dsp::period_ringbuffer * ringbuf,
                        int compression)
         : _client(client), _ringbuf(ringbuf),
-          _ports(ports), _attrs(attrs),
+          _attrs(attrs),
           _xruns(0), _stop(0), _compression(compression)
 {
         open_arf(filename);
@@ -103,20 +102,17 @@ void
 arf_thread::new_datasets()
 {
         _dsets.clear();
-        if (_ports==0) return;
-        for (vector<port_info_t>::const_iterator it = _ports->begin(); it != _ports->end(); ++it) {
+        list<jack_port_t*>::const_iterator it;
+        for (it = _client->ports().begin(); it != _client->ports().end(); ++it) {
                 arf::packet_table_ptr pt;
-                if (it->storage >= arf::INTERVAL) {
-                        pt = _entry->create_packet_table<jill::file::event_t>(it->name,"samples",it->storage,
-                                                                  false, 1024, _compression);
-                }
-                else if (it->storage >= arf::EVENT) {
-                        pt = _entry->create_packet_table<nframes_t>(it->name,"samples",it->storage,
+                char const * name = jack_port_short_name(*it);
+                if (strcmp(jack_port_type(*it),JACK_DEFAULT_AUDIO_TYPE)==0) {
+                        pt = _entry->create_packet_table<sample_t>(name,"", arf::UNDEFINED,
                                                                    false, 1024, _compression);
                 }
                 else {
-                        pt = _entry->create_packet_table<sample_t>(it->name,"",it->storage,
-                                                                   false, 1024, _compression);
+                        pt = _entry->create_packet_table<jill::file::event_t>(name,"samples",arf::EVENT,
+                                                                              false, 1024, _compression);
                 }
                 // times are stored in units of samples for maximum precision,
                 // which requires sample rates to be known.
@@ -199,7 +195,6 @@ void *
 arf_thread::write_continuous(void * arg)
 {
         arf_thread * self = static_cast<arf_thread *>(arg);
-        assert(self->_ports);
         dsp::period_ringbuffer::period_info_t const * period;
         long my_xruns = 0;                       // internal counter
         timeval tp;
@@ -212,7 +207,7 @@ arf_thread::write_continuous(void * arg)
                 period = self->_ringbuf->request();
                 if (period) {
                         // cout << "got period" << endl;
-                        assert(period->nchannels == self->_ports->size());
+                        assert(period->nchannels == self->_client->nports());
                         // create entry when first data chunk arrives. Also
                         // break entries if the counter overflows to ensure that
                         // sample-based time values within the entry are
@@ -227,11 +222,11 @@ arf_thread::write_continuous(void * arg)
 
                         // write channels
                         size_t i = 0;
-                        vector<port_info_t>::const_iterator p = self->_ports->begin();
+                        list<jack_port_t*>::const_iterator p = self->_client->ports().begin();
                         for (; i < period->nchannels; ++i, ++p) {
                                 void * data = self->_ringbuf->peek(i);
                                 // look up channel name and type
-                                if (p->storage < arf::EVENT)  {
+                                if (strcmp(jack_port_type(*p),JACK_DEFAULT_AUDIO_TYPE)==0) {
                                         self->_dsets[i]->write(data, period->nbytes / sizeof(sample_t));
                                 }
                                 else {
@@ -241,9 +236,7 @@ arf_thread::write_continuous(void * arg)
                                         for (nframes_t j = 0; j < nevents; ++j) {
                                                 jack_midi_event_get(&event, data, j);
                                                 adj_time = event.time + period->time - entry_start;
-                                                if (p->storage < arf::INTERVAL) {
-                                                        self->_dsets[i]->write(&adj_time,1);
-                                                }
+                                                // TODO package in event_t
                                         }
                                 }
                         }
@@ -251,7 +244,7 @@ arf_thread::write_continuous(void * arg)
                         self->_ringbuf->pop_all(0);
                         // check for overrun
                         if (my_xruns < self->_xruns) {
-
+                                // TODO mark entry; start new entry
                         }
                 }
                 else if (self->_stop) {
@@ -269,23 +262,3 @@ done:
 	pthread_mutex_unlock (&disk_thread_lock);
         return 0;
 }
-
-/*
- * notes on storing interval data. The tricky thing is that we have to track
- * open events across multiple periods, and only write the data to the file when
- * the close event arrives. This format is really suboptimal from the
- * perspective of this function, though it may be simpler to read out. I know
- * this storage format isn't being used much (if at all), so I could break the
- * spec if needed.  something like below. Another thing to think about is
- * defining a format that will also work for behavioral events.  Pecks would be
- * fine as times, but if I'm tracking occupancy I may want to store more than
- * just times.
- *
- * Also bear in mind that jill will not be the only program writing this type of data
- */
-struct interval {
-        char name[64];          // label for the event
-        boost::uint32_t time;   // time of the event
-        boost::uint32_t state;  // on/off/other
-};
-

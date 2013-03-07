@@ -65,11 +65,14 @@ public:
         /**
          * Initialize ARF writer thread.
          *
-         * @param filename the path of the destination ARF file
+         * @param filename    the path of the destination ARF file
+         * @param attrs       the attributes to store on created entries
+         * @param client      the JACK client (used to look up port names, etc)
+         * @param ringbuf     the source of data
+         * @param compression
          */
 
         arf_thread(std::string const & filename,
-                   std::vector<port_info_t> const * ports,
                    std::map<std::string,std::string> const * attrs,
                    jack_client * client, dsp::period_ringbuffer * ringbuf,
                    int compression=0);
