@@ -15,6 +15,7 @@
  */
 #include <sys/mman.h>
 #include <sys/shm.h>
+#include <unistd.h>
 #include <stdexcept>
 #include "mirrored_memory.hh"
 
