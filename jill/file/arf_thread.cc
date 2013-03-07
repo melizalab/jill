@@ -18,9 +18,42 @@
 #include "../dsp/period_ringbuffer.hh"
 
 using namespace std;
-using namespace jill;
-using namespace jill::file;
 
+// template specializations for compound data types
+namespace arf { namespace h5t { namespace detail {
+
+template<>
+struct datatype_traits<jill::file::message_t> {
+	static hid_t value() {
+                hid_t str = H5Tcopy(H5T_C_S1);
+                H5Tset_size(str, H5T_VARIABLE);
+                hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jill::file::message_t));
+                H5Tinsert(ret, "sec", HOFFSET(jill::file::message_t, sec), H5T_STD_I64LE);
+                H5Tinsert(ret, "usec", HOFFSET(jill::file::message_t, usec), H5T_STD_I64LE);
+                H5Tinsert(ret, "message", HOFFSET(jill::file::message_t, message), str);
+                H5Tclose(str);
+                return ret;
+        }
+};
+
+template<>
+struct datatype_traits<jill::file::event_t> {
+	static hid_t value() {
+                hid_t str = H5Tcopy(H5T_C_S1);
+                H5Tset_size(str, H5T_VARIABLE);
+                hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jill::file::event_t));
+                H5Tinsert(ret, "start", HOFFSET(jill::file::event_t, start), H5T_STD_U32LE);
+                H5Tinsert(ret, "type", HOFFSET(jill::file::event_t, type), H5T_NATIVE_CHAR);
+                H5Tinsert(ret, "chan", HOFFSET(jill::file::event_t, chan), H5T_NATIVE_CHAR);
+                H5Tinsert(ret, "message", HOFFSET(jill::file::event_t, message), str);
+                H5Tclose(str);
+                return ret;
+        }
+};
+
+}}}
+
+using namespace jill::file;
 using jill::util::make_string;
 
 pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -46,6 +79,7 @@ arf_thread::~arf_thread()
         _dsets.clear();
         _entry.reset();
         _file.reset();
+        // TODO unflock the file
 	pthread_mutex_unlock (&disk_thread_lock);
 }
 
@@ -73,8 +107,8 @@ arf_thread::new_datasets()
         for (vector<port_info_t>::const_iterator it = _ports->begin(); it != _ports->end(); ++it) {
                 arf::packet_table_ptr pt;
                 if (it->storage >= arf::INTERVAL) {
-                        pt = _entry->create_packet_table<arf::interval>(it->name,"samples",it->storage,
-                                                                        false, 1024, _compression);
+                        pt = _entry->create_packet_table<jill::file::event_t>(it->name,"samples",it->storage,
+                                                                  false, 1024, _compression);
                 }
                 else if (it->storage >= arf::EVENT) {
                         pt = _entry->create_packet_table<nframes_t>(it->name,"samples",it->storage,
@@ -94,18 +128,45 @@ arf_thread::new_datasets()
 void
 arf_thread::open_arf(string const & filename)
 {
+        // TODO flock the file if on a local disk
         _file.reset(new arf::file(filename, "a"));
+
+        // open/create log
+        if (_file->contains(JILL_LOGDATASET_NAME)) {
+                _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME));
+                // compare datatype
+                arf::h5t::wrapper<jill::file::message_t> t;
+                arf::h5t::datatype expected(t);
+                if (expected != *(_log->datatype())) {
+                        throw arf::Exception(JILL_LOGDATASET_NAME " has wrong datatype");
+                }
+        }
+        else {
+                _log = _file->create_packet_table<jill::file::message_t>(JILL_LOGDATASET_NAME);
+        }
+
+}
+
+void
+arf_thread::log(string const & msg, boost::int64_t sec, boost::int64_t usec)
+{
+        // log may be called by a jack callback and needs to lock mutex
+        pthread_mutex_lock (&disk_thread_lock);
+        if (_file && _log) {
+                jill::file::message_t message = { sec, usec, msg.c_str() };
+                _log->write(&message, 1);
+        }
+	pthread_mutex_unlock (&disk_thread_lock);
 }
 
 void
 arf_thread::log(string const & msg)
 {
-        // log may be called by a jack callback
-        pthread_mutex_lock (&disk_thread_lock);
-        if (_file)
-                _file->log(msg);
-	pthread_mutex_unlock (&disk_thread_lock);
+        struct timeval tp;
+        gettimeofday(&tp,0);
+        log(msg, tp.tv_sec, tp.tv_usec);
 }
+
 
 void
 arf_thread::start()

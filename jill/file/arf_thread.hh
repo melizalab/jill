@@ -22,11 +22,33 @@
 #include <string>
 #include "../types.hh"
 
+#define JILL_LOGDATASET_NAME "jill_log"
+
 /* TODO move these into the arf_thread class */
 extern pthread_mutex_t disk_thread_lock;
 extern pthread_cond_t  data_ready;
 
 namespace jill { namespace file {
+
+/**
+ * @brief Storage format for log messages
+ */
+struct message_t {
+        boost::int64_t sec;
+        boost::int64_t usec;
+        char const * message;       // descriptive
+};
+
+/**
+ * @brief Storage format for event data
+ */
+struct event_t {
+        boost::uint32_t start;  // relative to entry start
+        char type;              // see jill::event_t::midi_type
+        char chan;
+        char const * message;
+};
+
 
 /*
  * Notes on synchronization
@@ -40,6 +62,12 @@ namespace jill { namespace file {
 class arf_thread {
 
 public:
+        /**
+         * Initialize ARF writer thread.
+         *
+         * @param filename the path of the destination ARF file
+         */
+
         arf_thread(std::string const & filename,
                    std::vector<port_info_t> const * ports,
                    std::map<std::string,std::string> const * attrs,
@@ -50,10 +78,13 @@ public:
         ~arf_thread();
 
         /**
-         *  Write a message to the arf log dataset. Thread-safe, may block.
+         *  Write a message to the jill log dataset. Locks disk thread and may block.
          *
-         *  @param msg       the message to write
+         * @param msg       the message to write
+         * @param sec      the timestamp of the message (seconds since epoch)
+         * @param usec     the timestamp of the message (microseconds)
          */
+        void log(std::string const & msg, boost::int64_t sec, boost::int64_t usec=0);
         void log(std::string const & msg);
 
         /** Increment the xrun counter */
@@ -85,6 +116,7 @@ private:
         jack_client *_client;                      // used to log and look up some things
         dsp::period_ringbuffer *_ringbuf;          // the source of data (not owned)
         arf::file_ptr _file;                       // output file
+        arf::packet_table_ptr _log;                // log dataset
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         std::vector<port_info_t> const * _ports;   // the client's ports (not owned)
         std::map<std::string,std::string> const * _attrs;  // attributes for new entries
