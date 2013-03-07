@@ -142,7 +142,7 @@ arf_thread::write_continuous(void * arg)
         dsp::period_ringbuffer::period_info_t const * period;
         long my_xruns = 0;                       // internal counter
         timeval tp;
-        nframes_t entry_start;  // could overflow for *long* records
+        nframes_t entry_start;
 
 	pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	pthread_mutex_lock (&disk_thread_lock);
@@ -152,8 +152,12 @@ arf_thread::write_continuous(void * arg)
                 if (period) {
                         // cout << "got period" << endl;
                         assert(period->nchannels == self->_ports->size());
-                        // create entry when first data chunk arrives
-                        if (!self->_entry) {
+                        // create entry when first data chunk arrives. Also
+                        // break entries if the counter overflows to ensure that
+                        // sample-based time values within the entry are
+                        // consistent. This may happen early for the first
+                        // entry, but the math is too hard otherwise...
+                        if (!self->_entry || period->time < entry_start) {
                                 gettimeofday(&tp,0);
                                 entry_start = period->time;
                                 self->new_entry(period->time, &tp);
@@ -204,4 +208,23 @@ done:
 	pthread_mutex_unlock (&disk_thread_lock);
         return 0;
 }
+
+/*
+ * notes on storing interval data. The tricky thing is that we have to track
+ * open events across multiple periods, and only write the data to the file when
+ * the close event arrives. This format is really suboptimal from the
+ * perspective of this function, though it may be simpler to read out. I know
+ * this storage format isn't being used much (if at all), so I could break the
+ * spec if needed.  something like below. Another thing to think about is
+ * defining a format that will also work for behavioral events.  Pecks would be
+ * fine as times, but if I'm tracking occupancy I may want to store more than
+ * just times.
+ *
+ * Also bear in mind that jill will not be the only program writing this type of data
+ */
+struct interval {
+        char name[64];          // label for the event
+        boost::uint32_t time;   // time of the event
+        boost::uint32_t state;  // on/off/other
+};
 

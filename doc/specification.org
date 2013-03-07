@@ -1,55 +1,99 @@
 #-*- mode: org -*-
 #+STARTUP:    align fold hidestars oddeven
-#+TITLE:    JILL Real-Time Auditory Neuroscience Framework - Specification
+#+TITLE:    JILL Real-Time Auditory Neuroscience Framework Specification
 #+AUTHOR:    Dan Meliza
 #+EMAIL:     dan@meliza.org
+#+DATE: [2013-02-08 Fri]
+#+TEXT: Version 1.3
 #+LANGUAGE:   en
 #+OPTIONS: ^:nil H:2
 #+STYLE:    <link rel="stylesheet" href="org.css" type="text/css" />
 
 JILL consists of a set of modules (programs) that use the JACK realtime audio
-framework to do auditory neuroscience experiments. JACK provides a mechanism for
-moving sampled data and events around between independent clients.  Clients can
-read and write data to the JACK system through ports, and can serve as sources,
-sinks, or filters.  This document is a specification for the programs in the
-JILL framework; the spec for each module must follow the template below.
+framework to run auditory behavioral and neuroscience experiments.
 
-* Specification template
+- Editor: Dan Meliza <dan at meliza.org>
+- State:  draft
 
-General comments about the function of the module.
+* Language
 
-** Ports
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
+"SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be
+interpreted as described in [[http://tools.ietf.org/html/rfc2119][RFC 2119]].
 
-Specifications must indicate how many ports a module will register, their
+* Goals
+
+This specification defines the operations that modules in a JACK-based data
+recording and stimulus presentation system must support, and how these modules
+will interact with each other. It also describes a set of core modules using
+this framework.
+
+JILL modules (also referred to as clients) read and write data to the JACK
+system through ports, and can serve as sources, sinks, or filters. In addition,
+JILL modules may communicate through [[http://www.zeromq.org][zeromq]] (ØMQ) to exchange status and control
+messages, allow multiple modules to coordinate in a robust, scalable manner.
+
+* General JILL module specification
+
+JILL modules are independent processes that communicate through JACK and ØMQ.
+JACK is used for real-time processing of sampled and event data, and ØMQ is used
+for exchanging control and status messages. The specification for JILL modules
+must have the following sections:
+
+** JACK Ports
+
+JILL modules must register with the JACK server as a client. Module
+specifications must indicate how many ports a module will register, their
 function, their type (sampled or event) and their direction (input or output);
 and whether the client will register, unregister, connect, or disconnect any
 ports during normal operation.
 
-** Events
+** JACK Events
 
 The JACK framework is callback based, and clients must handle a range of
-different events.  Thus, the specification for each module describes how it will
-handle each of the events.  Not all clients have to handle all events.
+different events. Thus, the specification for each module must describes how it
+will handle each of the following events, though modules may choose to ignore
+some event types.
 
 1. the process callback, which reads and writes data to ports
-2. registration or removal of ports in the JACK system. These can be anywhere in
-   the JACK system, not necessarily in the client itself.
+2. registration or removal of ports in the JACK system. Note that these events
+   occur whenever a port is created or destroyed anywhere in the JACK system,
+   not necessarily in the client itself.
 3. connection or disconnection of ports. Again, these connections can be
    anywhere in the JACK system, but for the purposes of this document, only
-   connections to and from the client will be considered
+   connections to and from the client will be considered.
 4. overrun and underrun events (xruns). Caused when a client fails to exit its process
-   loop in time
+   loop in time.
 5. changes to period size. The period size is how many samples are passed to the
    clients in the process loop. Changes to period size cause gaps in the
    processing stream.
 6. server shutdown. Clients should clean up any open files, etc, when this occurs.
-7. changes to sampling rate. This callback exists but does not get called (at
-   present writing) because the server cannot change sampling rate
-8. timebase changes. These events occur when a client requests a new position in
+7. timebase changes. These events occur when a client requests a new position in
    the processing stream. As of this writing, clients should ignore these events
    and must not request timebase changes.
 
-** Signals
+** ØMQ Sockets
+
+Modules may bind to interprocess endpoints using ØMQ to provide an interface for
+control and for publishing changes to parameters or internal state. To ensure
+that other programs can access these endpoints unambiguously, modules must
+choose conforming names based on the client name and the socket type. See the
+ØMQ documentation for socket types.
+
+Modules may bind a control socket with type REQ to endpoint
+=ipc:///tmp/jill-USERNAME/CLIENT_NAME/ctrl=.  If so, the socket must implement the
+protocol defined in file:jill_control_protocol.org
+
+Modules may bind a status socket with type PUB to endpoint
+=ipc:///tmp/jill-USERNAME/CLIENT_NAME/status=. If so, the socket must implement
+the protocol defined in file:jill_status_protocol.org
+
+Note that the names of the sockets are not consistent with Windows filenames. At
+present writing, ØMQ does not support interprocess communication under Windows.
+If this changes, an alternative endpoint name will be added to this
+specification.
+
+** UNIX Signals
 
 In addition, the specification must state how clients will handle standard POSIX
 termination signals SIGINT, SIGTERM, and SIGHUP to avoid data loss.
@@ -59,14 +103,16 @@ termination signals SIGINT, SIGTERM, and SIGHUP to avoid data loss.
 This section describes commandline options and other details of behavior (e.g.,
 whether it accepts input during operation).
 
-* jdetect
+* Core JILL modules
+
+** jdetect
 
 The function of jdetect is to detect the onsets and offsets of sustained
 auditory signals, such as when a bird vocalizes. It takes a single audio stream
 as input and outputs events indicating when the signal crossed the start and
 stop thresholds.
 
-** Ports
+*** JACK Ports
 
 + in :: sampled data, input. The signal is processed to determined when it
         crosses onset or offset thresholds
@@ -78,17 +124,19 @@ stop thresholds.
            state of the signal detector. The meaning of the signal depends on
            the implementation of the detector.
 
-The client will not make any changes to its ports during operation.
+The client shall not make any changes to its ports during operation.
 
-** Events
+*** JACK Events
 
 1. The process callback reads data from the input stream and uses it to
-   calculating a running estimate of the signal power. The detector will likely
-   need to maintain state across periods.  If the signal crosses the onset or
-   offset threshold, outputs a note on or note off event.
+   calculate a running estimate of the signal power. When the signal meets the
+   onset or offset condition(s), jdetect will output a note on or note off
+   event. The implementation of this algorithm is not specified and may be
+   changed to improve performance. The detector will likely need to maintain
+   state across periods.
 2. Port registration and unregistrations are ignored.
 3. Port connections and disconnections are ignored.
-4. Although xruns indicate missing data, the detector will continue to function
+4. Although xruns indicate missing data, the detector must continue to function
    on the available data. Even if the last event was a note on, a weak signal
    will eventually cause the offset threshold to be crossed, and the resulting
    note off signal will be in sync with the auditory data at that point.
@@ -96,14 +144,22 @@ The client will not make any changes to its ports during operation.
    parameters of the detector.
 6. Server shutdowns cause the client to terminate.
 
-** Signals
+*** ØMQ Sockets
+
+The jdetect module binds to a control and status socket. The control socket
+provides a mechanism for changing parameters. The status socket publishes
+information about changes to parameters and onset/offset events.
+
+**** TODO specify status message format
+
+*** UNIX Signals
 
 Termination signals have their default behavior (cause the client to exit).
 Clients subscribing to the event port are responsible for detecting the
 disconnection and handling the condition where the program is terminated after
 a note on event but before a note off event.
 
-** Options and behavior
+*** Options and behavior
 
 The jdetect module accepts commandline options that specify the behavior of the
 signal detector. These will depend on the implementation. Onset and offset
@@ -111,19 +167,19 @@ events and their times will be logged. The client may accept input during
 operation to adjust these parameters, and it may provide information on the
 terminal as to the current state of the detector.
 
-*** TODO implement adjust parameters in running jdetect
+**** TODO implement adjust parameters in running jdetect
 
-* jrecord
+** jrecord
 
-The function of jrecord is to write sampled and event data to disk. Sampled
-data may include audio and neural signals, and event data may include signal
+The function of jrecord is to write sampled and event data to disk. Sampled data
+may include audio and neural signals, and event data may include signal
 detections (such as emitted by jdetect), spike times, and other external events.
-Data are stored in HDF5 format (LINK) using the ARF specification (LINK).
-Recording may be continuous, or may be in discrete epochs triggered by events.
-In the latter case, a prebuffer provides the ability to record data prior to the
-actual epoch onset event.
+Data are stored in HDF5 format (http://www.hdfgroup.org/HDF5) using the ARF
+specification (LINK). Recording may be continuous, or may be in discrete epochs
+triggered by events. In the latter case, a prebuffer provides the ability to
+record data prior to the actual epoch onset event.
 
-** Ports
+*** JACK Ports
 
 + in_NNN :: input. NNN is a numerical index. The number of ports and their type
             is determined at startup by specifying a list of ports to connect to
@@ -141,7 +197,7 @@ actual epoch onset event.
 
 The client will not make any changes to its port configuration during operation.
 
-** Events
+*** JACK Events
 
 1. The process callback places data into a ringbuffer.  Each period is stored as
    a chunk to ensure synchronization across channels. There is no output.
@@ -163,12 +219,18 @@ The client will not make any changes to its port configuration during operation.
 6. Server shutdown causes remaining data in the ringbuffer to be flushed before
    the client terminates.
 
-** Signals
+*** ØMQ Sockets
+
+The jrecord module does not bind to any IPC sockets at present. It will attempt
+to connect to status and control sockets of upstream modules in order to record
+parameters and events from those modules.
+
+*** UNIX Signals
 
 SIGTERM, SIGINT, and SIGHUP all cause the client to flush data and terminate. To
 maintain a running jrecord client, run it in a virtual screen.
 
-** Options and behavior
+*** Options and behavior
 
 Commandline options:
 
@@ -197,11 +259,20 @@ program should attempt to determine if the output file is on an NFS share and
 proceed with a stern warning.
 
 Next, it will open the log table. This is an extensible dataset at the root of
-the ARF file that can be used to log events. If the table does not exist, it is
-created.
+the ARF file that will be used to log events with a timestamp and a message. If
+the table does not exist, it is created. The events stored in this log include:
 
-Next, it will create the JACK client, register ports, activate the client, and
-connect the inputs.
+1. opening and closing a file in write mode
+2. parameters of the jack server (and changes to them)
+3. opening and closing an entry for writing
+4. creating a new dataset in an entry
+5. xruns and other exceptions
+6. channel connection and disconnection
+7. initial operating parameters of upstream clients
+8. status events from upstream clients
+
+Next, jrecord will create the JACK client, register ports, activate the client,
+and connect the inputs.
 
 In continuous mode, jrecord will create an entry and begin writing to the
 disk immediately, and continue until the program is terminated.  Some
@@ -225,7 +296,7 @@ specified using a different option (see above), the full event data is stored
 using an ARF interval table. Data from the trigger port is stored in interval
 tables as well.
 
-* jstim
+** jstim
 
 The jstim module's function is to present auditory stimuli through the JACK
 interface. Stimuli can be presented singly or as part of a batch. The stimuli in
@@ -235,7 +306,7 @@ external trigger. An event output line can be used to trigger other modules,
 like jrecord. Can also be used for presentation of stimuli while searching for
 neurons.
 
-** Ports
+*** JACK Ports
 
 + out :: sampled, output. Carries the audio signal for the stimulus.
 + trig_out :: event, output. Generates note on events when the stimulus starts
@@ -246,7 +317,7 @@ neurons.
              stimulus playback synchronized to the time of any note_on events
              with channel values less than 8. Ignores note_off events.
 
-** Events
+*** JACK Events
 
 1. The process callback copies data from a fixed buffer into the output port
    buffer. Between stimuli, writes zeros to the output. The use of fixed buffers
@@ -264,11 +335,16 @@ neurons.
    result in a gap in the audio stream.
 6. Server shutdown causes termination of the client.
 
-** Signals
+*** ØMQ Sockets
+
+The jstim module binds to a control socket, which provides a mechanism for
+other programs to initiate stimulus playback.
+
+*** UNIX Signals
 
 SIGINT, SIGTERM, and SIGHUP events cause termination of the client.
 
-** Options and behavior
+*** Options and behavior
 
 Commandline options:
 
@@ -288,12 +364,14 @@ Initialize client, register ports and callbacks, start client, connect ports.
 When the process thread indicates it has played all the stimuli, shut down the
 client and terminate program.
 
-* jplot
+** jplot
 
 Replaces splot, providing scrolling oscillogram and periplots for rasters.  It
 may be possible to upgrade splot to a more recent version of gtk and replace its
 signal acquisition routines with JACK callbacks.
 
-* jspikes
+** jspikes
 
 Replaces aspikes for online spike detection.
+
+
