@@ -115,6 +115,10 @@ jack_port_t *port_in, *port_trig, *port_count;
 int ret = EXIT_SUCCESS;
 
 /* data storage for event times */
+struct event_t {
+        nframes_t time;
+        midi::midi_status status;
+};
 dsp::ringbuffer<event_t> trig_times(128);
 
 int
@@ -133,16 +137,19 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         if (offset < 0) return 0;
 
         // store data sent to logger
-        event_t trig_event(offset+time, (trigger->open()) ? event_t::midi_on : event_t::midi_off);
+        event_t event = { offset + time, (trigger->open()) ? midi::note_on : midi::note_off };
+        // this is a standard note on or note off message
         jack_midi_data_t *buf = jack_midi_event_reserve(trig_buffer, offset, 3);
         if (buf) {
-                buf[0] = trig_event.status();
+                buf[0] = event.status;
+                buf[1] = midi::default_pitch;
+                buf[2] = midi::default_velocity;
         }
         else {
                 // indicate error to logger function
-                trig_event.status() = event_t::midi_sys;
+                event.status = midi::sysex;
         }
-        trig_times.push(trig_event);
+        trig_times.push(event);
 
 	return 0;
 }
@@ -155,9 +162,9 @@ std::size_t log_times(event_t const * events, std::size_t count)
 	for (i = 0; i < count; ++i) {
                 e = events+i;
                 std::ostream &os = client->log();
-                if (e->type()==event_t::midi_on)
+                if (e->status==midi::note_on)
                         os << "signal onset:";
-                else if (e->type()==event_t::midi_off)
+                else if (e->status==midi::note_off)
                         os << "signal offset:";
                 else
                         os << "WARNING: detected but couldn't send event: ";

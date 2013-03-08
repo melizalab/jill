@@ -31,7 +31,7 @@ AddOption('--libdir',
           metavar='DIR',
           help='library installation')
 # debug flags for compliation
-debug = ARGUMENTS.get('debug',0)
+debug = ARGUMENTS.get('debug',1)
 
 if not GetOption('prefix')==None:
     install_prefix = GetOption('prefix')
@@ -76,7 +76,7 @@ if system=='Darwin':
     env.Append(CPPPATH=['/opt/local/include'],
                LIBPATH=['/opt/local/lib'])
 if int(debug):
-    env.Append(CCFLAGS=['-g2', '-Wall'],
+    env.Append(CCFLAGS=['-g2', '-Wall','-DDEBUG=1'],
                CPPPATH=['#/arf'])
 else:
     env.Append(CCFLAGS=['-O2'])

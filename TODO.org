@@ -1,0 +1,24 @@
+
+
+* TODO profile arf thread
+
+using test_arf_thread I find a limit to how many channels I can write
+simultaneously without causing buffer overruns. 100 is too many. Increasing the
+JACK period size to 2048 helps. May need to increase ringbuffer size as well,
+though I also got a malloc error when I tried to do 200 channels with a 2048
+period.  The compression setting doesn't seem to make a difference.  Need to do
+some serious profiling.
+
+* TODO fix storage of event types
+
+Event data will be stored in arrays with a compound datatype. Empty events are
+discarded. Because the length of the message may vary, the bytes after the
+status byte need to be stored in a variable length type. However, h5py cannot
+read vlen types that are not strings!  Storing all event data in strings is
+problematic, though, because normal MIDI messages are not null-terminated and
+may in fact have \0 in them at various places.  Options are:
+
+1. fix h5py
+2. wait until I have a better sense of what the extended messages will look
+   like (i.e. work on jstim)
+

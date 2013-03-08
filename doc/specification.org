@@ -48,8 +48,9 @@ this framework.
 
 JILL modules (also referred to as clients) read and write data to the JACK
 system through ports, and can serve as sources, sinks, or filters. In addition,
-JILL modules may communicate through [[http://www.zeromq.org][zeromq]] (ØMQ) to exchange status and control
-messages, allow multiple modules to coordinate in a robust, scalable manner.
+JILL modules may communicate through [[http://www.zeromq.org][zeromq]] (ØMQ) sockets to exchange
+non-realtime status and control messages, allowing multiple modules to coordinate
+in a robust, scalable manner.
 
 * General JILL module specification
 
@@ -60,11 +61,65 @@ must have the following sections:
 
 ** JACK Ports
 
+Ports are the mechanism JACK uses to move data between clients.  Essentially
+these consist of a region of shared memory that is managed by the JACK daemon.
+Clients operate on these buffers in their realtime processing loops.
+
+There are two kinds of ports defined in JACK (at present). Audio ports contain
+floating point samples.  MIDI ports contain a series of MIDI messages with
+sample indices that give their temporal position within the realtime audio stream.
+
 JILL modules must register with the JACK server as a client. Module
 specifications must indicate how many ports a module will register, their
 function, their type (sampled or event) and their direction (input or output);
 and whether the client will register, unregister, connect, or disconnect any
 ports during normal operation.
+
+*** MIDI messages
+
+In JACK, MIDI messages consist of a status byte followed by zero or more data
+bytes. Status bytes use the highest bit (0x80-0xFF) and data bytes do not
+(0x00-0x7F). JILL modules *must* send conforming MIDI messages if the high bit
+of the status byte is set. JILL modules *may* send messages in which the status
+byte has the high bit clear, but these must not be sent to standard MIDI
+devices. The specification for any module outputting MIDI must indicate whether
+its messages are hardware-compatible.  The following message types are defined
+by the MIDI standard:
+
+| status | explanation       | data size | data contents           |
+|--------+-------------------+-----------+-------------------------|
+|   0x8x | note on           |         2 | pitch, velocity         |
+|   0x9x | note off          |         2 | pitch, velocity         |
+|   0xAx | key pressure      |         2 | key, pressure           |
+|   0xBx | controller change |         2 | controller, value       |
+|   0xCx | program change    |         1 | preset                  |
+|   0xDx | channel pressure  |         1 | pressure                |
+|   0xEx | pitch bend        |         2 | bend (short LE int)     |
+|   0xF0 | system exclusive  |         n | vendor id, message      |
+|   0xF2 | song position     |         2 | position (short LE int) |
+|   0xF3 | song select       |         1 | song number             |
+|   0xF6 | tune request      |         0 |                         |
+|   0xF7 | end of sysex      |         0 |                         |
+|   0xF8 | timing tick       |         0 |                         |
+|   0xFA | start song        |         0 |                         |
+|   0xFB | continue song     |         0 |                         |
+|   0xFC | stop song         |         0 |                         |
+|   0xFE | active sensing    |         0 |                         |
+|   0xFF | system reset      |         0 |                         |
+
+For status bytes 0x80 to 0xEF, the lowest four bits indicate the channel. JILL
+modules should use channel 0 unless there is a good reason to do otherwise. If
+pitch and velocity are not meaningful, default values of 60 and 64 should be
+used.
+
+The following hardware-incompatible message types are defined for JILL modules:
+
+| status | explanation | data size | data contents                                |
+|--------+-------------+-----------+----------------------------------------------|
+|   0x0x | stim on     | n         | stimulus name, null-termianated UTF-8 string |
+|   0x1x | stim off    | n         | stimulus name                                |
+
+
 
 ** JACK Events
 
@@ -137,7 +192,7 @@ stop thresholds.
 + trig_out :: event data, output. Emits note on and note off events indicating
               the times when the signal crossed the onset or offset threshold,
               respectively. The channel information in the event is not
-              specified. Emits MIDI system events to indicate errors.
+              specified. Output is hardware-compatible.
 + count :: (optional) sampled data, outout. Provides debug information about the
            state of the signal detector. The meaning of the signal depends on
            the implementation of the detector.
@@ -203,15 +258,16 @@ provides the ability to record data prior to the actual epoch onset event.
             is determined at startup by specifying a list of ports to connect to
             the client.
 + trig_in :: input, events. In epoch mode, controls the start and stop of
-             recording epochs. note on events cause epochs to start; note off
-             events cause epochs to terminate. Multiple inputs may be connected
-             to this port, in which case the events will be mixed. Note on
-             events are ignored during recording epochs; note off events are
-             ignored outside of recording epochs. Channel values less than 8
-             initiate recording; all other channel values indicate the message
-             is purely informative. All events, including their channel
-             information, are logged. In continuous recording mode, this port
-             will still be created, but it will not affect acquisition.
+             recording epochs. Note on and stim on (onset) events cause epochs
+             to start; note off and stim off (offset) events cause epochs to
+             terminate. Multiple inputs may be connected to this port, in which
+             case the events will be mixed. Onset events are ignored during
+             recording epochs; offset events are ignored outside of recording
+             epochs. Channel values less than 8 initiate recording; all other
+             channel values indicate the message is purely informative. All
+             events, including their channel information, are logged. In
+             continuous recording mode, this port will still be created, but it
+             will not affect acquisition.
 
 The client will not make any changes to its port configuration during operation.
 
@@ -306,16 +362,21 @@ dataset and entry and enter the =paused= state again.
 
 Each input channel will be stored in a separate dataset under the entry. Sampled
 data will be stored in HDF5 array datasets, with elements corresponding to
-individual frames. Event data will also be stored in arrays, but with a compound
-type.  The fields of the event dataset are:
+individual frames and a datatype that matches the internal JACK sample type
+(typically single-precision floats).
+
+Event data will be stored in arrays with a compound datatype. Empty events are
+discarded. Because the length of the message may vary, the bytes after the
+status byte need to be stored in a variable length type. However, h5py cannot
+read vlen types that are not strings!
 
 : start       - the time of the event (sample count)
-: midi_type   - the MIDI type of the event  (1 byte)
-: midi_chan   - the MIDI channel (1 byte)
-: message     - the MIDI message (string, vlen)
+: status      - the MIDI status byte (char)
+: data        - the MIDI message (vlen, char)
 
 Note that for some kinds of data, only the times are important (e.g., spike
-times). However, it's much simpler to record everything.
+times), and the data field can be ignored.  For other kinds of data, like
+stimulus onset and offset times, the messages will need to be parsed.
 
 **** jrecord log
 
@@ -359,9 +420,10 @@ neurons.
 
 + out :: sampled, output. Carries the audio signal for the stimulus.
 + trig_out :: event, output. Generates note on events when the stimulus starts
-              and note off events when it ends. For recording, the channel
-              value is 0. For search, the channel value is 8. The event message
-              is the name of the stimulus file (minus any path information).
+              and note off events when it ends. For recording, the channel value
+              is 0. For search, the channel value is 8. The data is the basename
+              of the stimulus file, UTF-8 encoded, and null-terminated. *This
+              message is not hardware-compatible.*
 + trig_in :: (optional) event, input. Only created for triggered mode. Initiates
              stimulus playback synchronized to the time of any note_on events
              with channel values less than 8. Ignores note_off events.
