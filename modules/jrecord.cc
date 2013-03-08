@@ -29,53 +29,11 @@
 
 using namespace jill;
 
-/* commandline options */
+/* declare options parsing class */
 class CaptureOptions : public Options {
 
 public:
-	CaptureOptions(std::string const &program_name, std::string const &program_version)
-		: Options(program_name, program_version) {
-
-                using std::string;
-                using std::vector;
-
-                po::options_description jillopts("JILL options");
-                jillopts.add_options()
-                        ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
-                         "set client name")
-                        ("n",          po::value<int>(&n_input_ports)->default_value(0), "number of input ports to create")
-                        ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
-                        ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
-                        ("attr,a",     po::value<vector<string> >(), "set additional attributes for recorded entries (key=value)")
-			("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
-			 "minimum ringbuffer size (s)");
-                cfg_opts.add_options()
-                        ("attr,a",     po::value<vector<string> >());
-                cmd_opts.add(jillopts);
-                visible_opts.add(jillopts);
-
-		po::options_description tropts("Capture options");
-		tropts.add_options()
-                        ("continuous,c", "record in continuous mode (default is in triggered epochs)")
-			("prebuffer", po::value<float>(&prebuffer_size_s)->default_value(1.0),
-			 "set prebuffer size (s)")
-                        ("compression", po::value<int>(&compression)->default_value(0),
-                         "set compression in output file (0-9)");
-
-                // command-line options
-		cmd_opts.add(tropts);
-		// configuration file options
-		cfg_opts.add(tropts);
-		// options shown in help text
-		visible_opts.add(tropts);
-		// the output template is not added to the visible
-		// options, since it's specified positionally.
-		cmd_opts.add_options()
-			("output-file", po::value<std::string>(), "output filename");
-		pos_opts.add("output-file", -1);
-	}
-
-        /* the option values */
+	CaptureOptions(std::string const &program_name, std::string const &program_version);
 
 	/** The client name (used in internal JACK representations) */
         std::string client_name;
@@ -88,37 +46,16 @@ public:
         std::map<std::string, std::string> additional_options;
 
         std::string output_file;
-        std::string port_list_file;
 	float prebuffer_size_s;
 	float buffer_size_s;
 	int max_size_mb;
         int n_input_ports;
         int compression;
 
-
 protected:
 
-	/*
-	 * Here we override the base class's print_usage command to add some additional information
-	 * about specifying the output filename template and the configuration file name
-	 */
-	virtual void print_usage() {
-		std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
-			  << visible_opts << std::endl
-			  << "Ports:\n"
-			  << " * in_NNN:     for input of the signal(s) to be recorded\n"
-			  << " * trig_in:    MIDI port to receive events triggering recording"
-			  << std::endl;
-	}
-
-	virtual void process_options() {
-		Options::process_options();
-		if (!assign(output_file, "output-file")) {
-			std::cerr << "Error: missing required output file name " << std::endl;
-			throw Exit(EXIT_FAILURE);
-		}
-                parse_keyvals(additional_options, "attr");
-	}
+	virtual void print_usage();
+	virtual void process_options();
 
 };
 
@@ -289,4 +226,72 @@ main(int argc, char **argv)
                 if (arf_thread) arf_thread->log(util::make_string() << "[" PROGRAM_NAME "] ERROR: " << e.what());
 		return EXIT_FAILURE;
 	}
+}
+
+
+/** implementation of CaptureOptions */
+CaptureOptions::CaptureOptions(std::string const &program_name, std::string const &program_version)
+        : Options(program_name, program_version)
+{
+
+        using std::string;
+        using std::vector;
+
+        po::options_description jillopts("JILL options");
+        jillopts.add_options()
+                ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
+                 "set client name")
+                ("n",          po::value<int>(&n_input_ports)->default_value(0), "number of input ports to create")
+                ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
+                ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
+                ("attr,a",     po::value<vector<string> >(), "set additional attributes for recorded entries (key=value)")
+                ("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
+                 "minimum ringbuffer size (s)");
+        cfg_opts.add_options()
+                ("attr,a",     po::value<vector<string> >());
+        cmd_opts.add(jillopts);
+        visible_opts.add(jillopts);
+
+        po::options_description tropts("Capture options");
+        tropts.add_options()
+                ("continuous,c", "record in continuous mode (default is in triggered epochs)")
+                ("prebuffer", po::value<float>(&prebuffer_size_s)->default_value(1.0),
+                 "set prebuffer size (s)")
+                ("compression", po::value<int>(&compression)->default_value(0),
+                 "set compression in output file (0-9)");
+
+        // command-line options
+        cmd_opts.add(tropts);
+        // configuration file options
+        cfg_opts.add(tropts);
+        // options shown in help text
+        visible_opts.add(tropts);
+        // the output template is not added to the visible
+        // options, since it's specified positionally.
+        cmd_opts.add_options()
+                ("output-file", po::value<std::string>(), "output filename");
+        pos_opts.add("output-file", -1);
+}
+
+
+void
+CaptureOptions::print_usage()
+{
+        std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
+                  << visible_opts << std::endl
+                  << "Ports:\n"
+                  << " * in_NNN:     for input of the signal(s) to be recorded\n"
+                  << " * trig_in:    MIDI port to receive events triggering recording"
+                  << std::endl;
+}
+
+void
+CaptureOptions::process_options()
+{
+        Options::process_options();
+        if (!assign(output_file, "output-file")) {
+                std::cerr << "Error: missing required output file name " << std::endl;
+                throw Exit(EXIT_FAILURE);
+        }
+        parse_keyvals(additional_options, "attr");
 }

@@ -33,47 +33,8 @@ using namespace jill;
 class TriggerOptions : public jill::Options {
 
 public:
-	TriggerOptions(std::string const &program_name, std::string const &program_version)
-		: Options(program_name, program_version) {
-                using std::string;
-                using std::vector;
+	TriggerOptions(std::string const &program_name, std::string const &program_version);
 
-                po::options_description jillopts("JILL options");
-                jillopts.add_options()
-                        ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
-                         "set client name")
-                        ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
-                        ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
-                cmd_opts.add(jillopts);
-                visible_opts.add(jillopts);
-
-		// tropts is a group of options
-		po::options_description tropts("Trigger options");
-		tropts.add_options()
-                        ("count-port", "create port to output integrator state")
-			("period-size", po::value<float>(&period_size_ms)->default_value(20),
-			 "set analysis period size (ms)")
-			("open-thresh", po::value<float>(&open_threshold)->default_value(0.01),
-			 "set sample threshold for open gate (0-1.0)")
-			("open-rate", po::value<float>(&open_crossing_rate)->default_value(20),
-			 "set crossing rate thresh for open gate (s^-1)")
-			("open-period", po::value<float>(&open_crossing_period_ms)->default_value(500),
-			 "set integration time for open gate (ms)")
-			("close-thresh", po::value<float>(&close_threshold)->default_value(0.01),
-			 "set sample threshold for close gate")
-			("close-rate", po::value<float>(&close_crossing_rate)->default_value(2),
-			 "set crossing rate thresh for close gate (s^-1)")
-			("close-period", po::value<float>(&close_crossing_period_ms)->default_value(5000),
-			 "set integration time for close gate (ms)");
-
-		// we add our group of options to various groups
-		// already defined in the base class.
-		cmd_opts.add(tropts);
-		// cfg_opts holds options that are parsed from a configuration file
-		cfg_opts.add(tropts);
-		// visible_opts holds options that are shown in the help text
-		visible_opts.add(tropts);
-	}
 	/** The client name (used in internal JACK representations) */
 	std::string client_name;
 
@@ -94,16 +55,7 @@ public:
 
 protected:
 
-	/* additional help */
-	virtual void print_usage() {
-		std::cout << "Usage: " << _program_name << " [options]\n"
-			  << visible_opts << std::endl
-			  << "Ports:\n"
-			  << " * in:       for input of the signal(s) to be monitored\n"
-			  << " * trig_out:  MIDI port producing gate open and close events\n"
-			  << " * count:    (optional) the current estimate of signal power"
-			  << std::endl;
-	}
+	virtual void print_usage();
 
 }; // TriggerOptions
 
@@ -195,14 +147,13 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
                                                          period_size));
 
         // Log parameters
-        client->log(false) << "Trigger parameters:" << endl;
-        client->log(false) << "  period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
-        client->log(false) << "  open threshold: " << options.open_threshold << endl;
-        client->log(false) << "  open count thresh: " << open_count_thresh << endl;
-        client->log(false) << "  open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
-        client->log(false) << "  close threshold: " << options.close_threshold << endl;
-        client->log(false) << "  close count thresh: " << close_count_thresh << endl;
-        client->log(false) << "  close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
+        client->log(false) << "period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
+        client->log(false) << "open threshold: " << options.open_threshold << endl;
+        client->log(false) << "open count thresh: " << open_count_thresh << endl;
+        client->log(false) << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
+        client->log(false) << "close threshold: " << options.close_threshold << endl;
+        client->log(false) << "close count thresh: " << close_count_thresh << endl;
+        client->log(false) << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
         return 0;
 }
 
@@ -265,4 +216,59 @@ main(int argc, char **argv)
 	/* Because we used smart pointers and locally scoped variables, there is no cleanup to do! */
 }
 
+
+TriggerOptions::TriggerOptions(std::string const &program_name, std::string const &program_version)
+        : Options(program_name, program_version)
+{
+        using std::string;
+        using std::vector;
+
+        po::options_description jillopts("JILL options");
+        jillopts.add_options()
+                ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
+                 "set client name")
+                ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
+                ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
+        cmd_opts.add(jillopts);
+        visible_opts.add(jillopts);
+
+        // tropts is a group of options
+        po::options_description tropts("Trigger options");
+        tropts.add_options()
+                ("count-port", "create port to output integrator state")
+                ("period-size", po::value<float>(&period_size_ms)->default_value(20),
+                 "set analysis period size (ms)")
+                ("open-thresh", po::value<float>(&open_threshold)->default_value(0.01),
+                 "set sample threshold for open gate (0-1.0)")
+                ("open-rate", po::value<float>(&open_crossing_rate)->default_value(20),
+                 "set crossing rate thresh for open gate (s^-1)")
+                ("open-period", po::value<float>(&open_crossing_period_ms)->default_value(500),
+                 "set integration time for open gate (ms)")
+                ("close-thresh", po::value<float>(&close_threshold)->default_value(0.01),
+                 "set sample threshold for close gate")
+                ("close-rate", po::value<float>(&close_crossing_rate)->default_value(2),
+                 "set crossing rate thresh for close gate (s^-1)")
+                ("close-period", po::value<float>(&close_crossing_period_ms)->default_value(5000),
+                 "set integration time for close gate (ms)");
+
+        // we add our group of options to various groups
+        // already defined in the base class.
+        cmd_opts.add(tropts);
+        // cfg_opts holds options that are parsed from a configuration file
+        cfg_opts.add(tropts);
+        // visible_opts holds options that are shown in the help text
+        visible_opts.add(tropts);
+}
+
+void
+TriggerOptions::print_usage()
+{
+        std::cout << "Usage: " << _program_name << " [options]\n"
+                  << visible_opts << std::endl
+                  << "Ports:\n"
+                  << " * in:       for input of the signal(s) to be monitored\n"
+                  << " * trig_out:  MIDI port producing gate open and close events\n"
+                  << " * count:    (optional) the current estimate of signal power"
+                  << std::endl;
+}
 
