@@ -37,19 +37,32 @@ struct datatype_traits<jill::file::message_t> {
 };
 
 template<>
-struct datatype_traits<jill::file::event_t> {
+struct datatype_traits<jack_midi_event_t> {
 	static hid_t value() {
-                hid_t str = H5Tcopy(H5T_C_S1);
-                H5Tset_size(str, H5T_VARIABLE);
-                hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jill::file::event_t));
-                H5Tinsert(ret, "start", HOFFSET(jill::file::event_t, start), H5T_STD_U32LE);
-                H5Tinsert(ret, "type", HOFFSET(jill::file::event_t, type), H5T_NATIVE_CHAR);
-                H5Tinsert(ret, "chan", HOFFSET(jill::file::event_t, chan), H5T_NATIVE_CHAR);
-                H5Tinsert(ret, "message", HOFFSET(jill::file::event_t, message), str);
-                H5Tclose(str);
+                hid_t midi = H5Tvlen_create(H5T_NATIVE_CHAR);
+                hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jack_midi_event_t));
+                H5Tinsert(ret, "start", HOFFSET(jack_midi_event_t, time), H5T_NATIVE_UINT);
+                H5Tinsert(ret, "midi", HOFFSET(jack_midi_event_t, size), midi);
+                H5Tclose(midi);
                 return ret;
         }
 };
+
+
+// template<>
+// struct datatype_traits<event_t> {
+// 	static hid_t value() {
+//                 hid_t str = H5Tcopy(H5T_C_S1);
+//                 H5Tset_size(str, H5T_VARIABLE);
+//                 hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jill::file::event_t));
+//                 H5Tinsert(ret, "start", HOFFSET(jill::file::event_t, start), H5T_STD_U32LE);
+//                 H5Tinsert(ret, "type", HOFFSET(jill::file::event_t, type), H5T_NATIVE_CHAR);
+//                 H5Tinsert(ret, "chan", HOFFSET(jill::file::event_t, chan), H5T_NATIVE_CHAR);
+//                 H5Tinsert(ret, "message", HOFFSET(jill::file::event_t, message), str);
+//                 H5Tclose(str);
+//                 return ret;
+//         }
+// };
 
 }}}
 
@@ -90,7 +103,11 @@ arf_thread::new_entry(nframes_t frame, timeval const * timestamp)
         boost::format fmt("entry_%|06|");
         fmt % idx;
 
+        if (_entry) {
+                _do_log(make_string() << "[" << _client->name() << "] closed entry: " << _entry->name());
+        }
         _entry.reset(new arf::entry(*_file, fmt.str(), timestamp));
+        _do_log(make_string() << "[" << _client->name() << "] created entry: " << _entry->name());
         _entry->write_attribute()("jack_frame",frame)("jack_usec",_client->time(frame));
         if (_attrs) {
                 for_each(_attrs->begin(), _attrs->end(), _entry->write_attribute());
@@ -111,11 +128,10 @@ arf_thread::new_datasets()
                                                                    false, 1024, _compression);
                 }
                 else {
-                        pt = _entry->create_packet_table<jill::file::event_t>(name,"samples",arf::EVENT,
+                        pt = _entry->create_packet_table<jack_midi_event_t>(name,"samples",arf::EVENT,
                                                                               false, 1024, _compression);
                 }
-                // times are stored in units of samples for maximum precision,
-                // which requires sample rates to be known.
+                _do_log(make_string() << "[" << _client->name() << "] created dataset: " << pt->name());
                 pt->write_attribute("sampling_rate", _client->sampling_rate());
                 _dsets.push_back(pt);
         }
@@ -140,27 +156,26 @@ arf_thread::open_arf(string const & filename)
         else {
                 _log = _file->create_packet_table<jill::file::message_t>(JILL_LOGDATASET_NAME);
         }
-
-}
-
-void
-arf_thread::log(string const & msg, boost::int64_t sec, boost::int64_t usec)
-{
-        // log may be called by a jack callback and needs to lock mutex
-        pthread_mutex_lock (&disk_thread_lock);
-        if (_file && _log) {
-                jill::file::message_t message = { sec, usec, msg.c_str() };
-                _log->write(&message, 1);
-        }
-	pthread_mutex_unlock (&disk_thread_lock);
+        _do_log(make_string() << "[" << _client->name() << "] opened file: " << filename);
 }
 
 void
 arf_thread::log(string const & msg)
 {
+        pthread_mutex_lock (&disk_thread_lock);
+        if (_file && _log) {
+                _do_log(msg);
+        }
+	pthread_mutex_unlock (&disk_thread_lock);
+}
+
+void
+arf_thread::_do_log(string const & msg)
+{
         struct timeval tp;
         gettimeofday(&tp,0);
-        log(msg, tp.tv_sec, tp.tv_usec);
+        jill::file::message_t message = { tp.tv_sec, tp.tv_usec, msg.c_str() };
+        _log->write(&message, 1);
 }
 
 
@@ -231,12 +246,11 @@ arf_thread::write_continuous(void * arg)
                                 }
                                 else {
                                         jack_midi_event_t event;
-                                        nframes_t adj_time;
                                         nframes_t nevents = jack_midi_get_event_count(data);
                                         for (nframes_t j = 0; j < nevents; ++j) {
                                                 jack_midi_event_get(&event, data, j);
-                                                adj_time = event.time + period->time - entry_start;
-                                                // TODO package in event_t
+                                                event.time += period->time - entry_start;
+                                                self->_dsets[i]->write(&event, 1);
                                         }
                                 }
                         }
@@ -244,7 +258,17 @@ arf_thread::write_continuous(void * arg)
                         self->_ringbuf->pop_all(0);
                         // check for overrun
                         if (my_xruns < self->_xruns) {
-                                // TODO mark entry; start new entry
+                                self->_do_log(make_string() << "[" << self->_client->name() << " ERROR: xrun");
+                                self->_do_log(make_string() << "[" << self->_client->name() << "] closed entry: "
+                                              << self->_entry->name());
+                                self->_client->log() << "xrun: closed entry " << self->_entry->name() << endl;
+                                self->_entry->write_attribute("error","xrun occurred");
+                                self->_entry.reset();  // next data chunk well
+                                                       // create new entry
+                                my_xruns = self->_xruns;  // TODO: could be out
+                                                          // of date
+                                // TODO check for too many xruns
+
                         }
                 }
                 else if (self->_stop) {
@@ -258,6 +282,7 @@ arf_thread::write_continuous(void * arg)
         }
 
 done:
+        self->_client->log() << "flushing remaining data to disk" << endl;
         self->_file->flush();
 	pthread_mutex_unlock (&disk_thread_lock);
         return 0;

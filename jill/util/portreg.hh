@@ -14,7 +14,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <string>
-#include <vector>
+#include <map>
 #include "../types.hh"
 
 namespace jill {
@@ -31,46 +31,32 @@ public:
         port_registry();
 
         /**
-         * Add an already registered port to the list.
-         *
-         * @param p         port object
-         * @param storage   arf data type; used to determine how the data are
-         *                  stored/processed. If UNDEFINED and the port is MIDI,
-         *                  actual type will be EVENT. If an event type, and the
-         *                  port type is AUDIO, will be set to UNDEFINED
-         */
-        void add(jack_port_t const * p, arf::DataType storage=arf::UNDEFINED);
-
-        /**
          * Register a port based on a source port. The created port matches the
          * type of the source port.
          *
          * @param client   the client to register the port on
          * @param name     the name of the target port. If undefined, named sequentially.
          * @param src      the name of the source port. if invalid, a warning is issued
-         * @param storage  the data type of the port.
          */
-        void add(jack_client * client,
-                 std::string const & name, std::string const & src, arf::DataType storage=arf::UNDEFINED);
-        void add(jack_client * client,
-                 std::string const & src, arf::DataType storage=arf::UNDEFINED);
+        int add(jack_client * client, std::string const & src, std::string const & name);
+        int add(jack_client * client, std::string const & src);
 
         /** Add a sequence of ports to the list */
         template <typename Iterator>
-        void add(jack_client * client,
-                 Iterator const & begin, Iterator const & end, arf::DataType storage=arf::UNDEFINED) {
+        int add(jack_client * client, Iterator const & begin, Iterator const & end) {
+                int i = 0;
                 for (Iterator it = begin; it != end; ++it) {
-                        add(client, *it, storage);
+                        i += add(client, *it);
                 }
+                return i;
         }
 
         /**
          * Register ports listed in a file. The file should be
-         * whitespace-delimited, with three columns corresponding to the name of
-         * the name of the port, the name of the source port, and the datatype
-         * of the source port
+         * whitespace-delimited, with two columns corresponding to the name of
+         * name of the source port and the name of the target port.
          */
-        void add_from_file(jack_client * client, std::istream & is);
+        int add_from_file(jack_client * client, std::istream & is);
 
         /**
          * Connect registered ports to their sources. If the port is already
@@ -78,13 +64,9 @@ public:
          */
         void connect_all(jack_client * client);
 
-        std::size_t size() const { return _ports.size(); }
-        std::vector<port_info_t> const * ports() const { return &_ports; }
-
-protected:
-        std::vector<port_info_t> _ports;
-
 private:
+        // target, source to allow multiple sources connected to different ports
+        std::map<std::string,std::string> _ports;
         int _name_index;
 
 };

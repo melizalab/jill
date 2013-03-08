@@ -15,9 +15,9 @@
 #include "jill/file/arf_thread.hh"
 
 #define CLIENT_NAME "test_arf_thread"
-#define NSAMPLED 200
+#define NSAMPLED 10
 #define NEVENT 1
-#define COMPRESSION 9
+#define COMPRESSION 1
 
 using namespace jill;
 
@@ -71,6 +71,7 @@ setup()
         }
 
         ringbuffer.resize(client->buffer_size() * (NSAMPLED+NEVENT) * 10);
+        client->log() << "ringbuffer size (bytes)" << ringbuffer.write_space();
 
         arf_thread.reset(new file::arf_thread("test.arf",
                                               &attrs,
@@ -100,7 +101,7 @@ teardown()
 void
 test_write_log()
 {
-        arf_thread->log("[" CLIENT_NAME "] opened file for writing");
+        arf_thread->log("[" CLIENT_NAME "] a random log message");
 }
 
 int

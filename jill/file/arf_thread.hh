@@ -84,10 +84,7 @@ public:
          *  Write a message to the jill log dataset. Locks disk thread and may block.
          *
          * @param msg       the message to write
-         * @param sec      the timestamp of the message (seconds since epoch)
-         * @param usec     the timestamp of the message (microseconds)
          */
-        void log(std::string const & msg, boost::int64_t sec, boost::int64_t usec=0);
         void log(std::string const & msg);
 
         /** Increment the xrun counter */
@@ -115,6 +112,8 @@ protected:
         void new_datasets();
 
 private:
+        void _do_log(std::string const & msg);     // non-blocking
+
         pthread_t _thread_id;                      // disk thread
         jack_client *_client;                      // used to log and look up some things
         dsp::period_ringbuffer *_ringbuf;          // the source of data (not owned)

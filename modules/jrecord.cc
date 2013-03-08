@@ -45,9 +45,6 @@ public:
                          "set client name")
                         ("n",          po::value<int>(&n_input_ports)->default_value(0), "number of input ports to create")
                         ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
-                        ("input-list,I", po::value<string>(&port_list_file),
-                         "list of ports in file with three columns: name, source, arf datatype")
-
                         ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
                         ("attr,a",     po::value<vector<string> >(), "set additional attributes for recorded entries (key=value)")
 			("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
@@ -139,8 +136,9 @@ CaptureOptions options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
 dsp::period_ringbuffer ringbuffer(1024); // this may be resized
 boost::scoped_ptr<file::arf_thread> arf_thread;
-util::port_registry ports;
 jack_port_t *port_trig;
+// has to be a global variable to track port creation
+util::port_registry ports;
 
 /*
  * Copy data from ports into ringbuffer. Note that the first port is the trigger
@@ -188,15 +186,14 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         // TODO flush all data in ringbuffer
 
         // reallocate ringbuffer if necessary - 10 periods or 2x seconds
-        nframes_t sz1 = nframes * ports.size() * 10;
-        nframes_t sz2 = client->sampling_rate() * ports.size() * options.buffer_size_s;
+        nframes_t sz1 = nframes * client->nports() * 10;
+        nframes_t sz2 = client->sampling_rate() * client->nports() * options.buffer_size_s;
         if (sz1 < sz2) sz1 = sz2;
         if (ringbuffer.size() < sz1) {
                 ringbuffer.resize(sz1);
         }
         client->log() << "ringbuffer size (s): "
-                      << (ringbuffer.write_space() /
-                          ports.size() / client->sampling_rate())
+                      << (sz1 / client->sampling_rate())
                       << std::endl;
         return 0;
 }
@@ -206,7 +203,7 @@ void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
         util::make_string msg;
-        msg << "IIII port " << ((connected) ? "" : "dis") << "connected: "
+        msg << "[" PROGRAM_NAME "] port " << ((connected) ? "" : "dis") << "connect: "
             << jack_port_name(port1) << " -> " << jack_port_short_name(port2);
         // this can cause problems if it's called while the thread is cleaning
         // up (even with a nice trylock). The solution is to deactivate the
@@ -243,21 +240,18 @@ main(int argc, char **argv)
 
                 // set up disk thread
                 arf_thread.reset(new file::arf_thread(options.output_file,
-                                                      ports.ports(),
                                                       &options.additional_options,
                                                       client.get(),
                                                       &ringbuffer,
                                                       options.compression));
-                arf_thread->log("FFFF " PROGRAM_NAME " (" PROGRAM_VERSION ") opened file for writing");
+                arf_thread->log("[" PROGRAM_NAME "] opened file for writing");
+                arf_thread->log("[" PROGRAM_NAME "] version = " PROGRAM_VERSION);
                 client->log() << "opened output file " << options.output_file << endl;
 
                 /* create ports: one for trigger, and one for each input */
                 port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                   JackPortIsInput | JackPortIsTerminal, 0);
-                ports.add(port_trig, arf::INTERVAL);
                 ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
-                std::ifstream ff(options.port_list_file.c_str());
-                ports.add_from_file(client.get(), ff);
 
                 // register signal handlers
 		signal(SIGINT,  signal_handler);
@@ -267,9 +261,9 @@ main(int argc, char **argv)
                 // register callbacks
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
-                client->set_buffer_size_callback(jack_bufsize);
+                // client->set_process_callback(process);
                 client->set_port_connect_callback(jack_portcon);
+                client->set_buffer_size_callback(jack_bufsize);
 
                 // activate process callback
                 client->activate();
@@ -280,8 +274,8 @@ main(int argc, char **argv)
 		}
                 ports.connect_all(client.get()); // connects input ports
 
-                arf_thread->start();
-                arf_thread->join();
+                // arf_thread->start();
+                // arf_thread->join();
 
                 client->deactivate();
 
@@ -292,7 +286,7 @@ main(int argc, char **argv)
 	}
 	catch (exception const &e) {
                 cerr << "Error: " << e.what() << endl;
-                if (arf_thread) arf_thread->log(util::make_string() << "EEEE " << e.what());
+                if (arf_thread) arf_thread->log(util::make_string() << "[" PROGRAM_NAME "] ERROR: " << e.what());
 		return EXIT_FAILURE;
 	}
 }
