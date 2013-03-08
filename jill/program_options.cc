@@ -15,7 +15,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
-#include "options.hh"
+#include "program_options.hh"
 #include "version.hh"
 
 using namespace jill;
@@ -23,7 +23,7 @@ using std::string;
 using std::vector;
 using std::map;
 
-Options::Options(std::string const &program_name, std::string const &program_version)
+program_options::program_options(std::string const &program_name, std::string const &program_version)
 	:  _program_name(program_name), _program_version(program_version)
 {
 	po::options_description generic("General options");
@@ -36,7 +36,7 @@ Options::Options(std::string const &program_name, std::string const &program_ver
 }
 
 void
-Options::print_version()
+program_options::print_version()
 {
 	std::cout << _program_name << " " << _program_version
 		  << " (JILL " << JILL_VERSION << ")" << std::endl;
@@ -44,7 +44,7 @@ Options::print_version()
 
 
 void
-Options::print_usage()
+program_options::print_usage()
 {
 	std::cout << "Usage: " << _program_name << " [options] " << std::endl;
 	std::cout << visible_opts;
@@ -52,7 +52,7 @@ Options::print_usage()
 
 
 void
-Options::parse(int argc, char **argv)
+program_options::parse(int argc, char **argv)
 {
 
 	// need two passes, one to find out if we need to read a config file
@@ -85,7 +85,7 @@ Options::parse(int argc, char **argv)
 
 
 int
-Options::parse_keyvals(map<string, string> & dict, string const & name)
+program_options::parse_keyvals(map<string, string> & dict, string const & name)
 {
         int i = 0;
 	if (vmap.count(name)==0) return i;

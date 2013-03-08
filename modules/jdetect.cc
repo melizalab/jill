@@ -13,7 +13,7 @@
 #include <boost/scoped_ptr.hpp>
 
 #include "jill/jack_client.hh"
-#include "jill/options.hh"
+#include "jill/program_options.hh"
 #include "jill/midi.hh"
 #include "jill/dsp/ringbuffer.hh"
 #include "jill/dsp/crossing_trigger.hh"
@@ -30,10 +30,10 @@ using namespace jill;
  * from a class that handles these options. There are a lot of
  * options, so this class requires a lot of boilerplate code.
  */
-class TriggerOptions : public jill::Options {
+class jdetect_options : public program_options {
 
 public:
-	TriggerOptions(std::string const &program_name, std::string const &program_version);
+	jdetect_options(std::string const &program_name, std::string const &program_version);
 
 	/** The client name (used in internal JACK representations) */
 	std::string client_name;
@@ -57,12 +57,12 @@ protected:
 
 	virtual void print_usage();
 
-}; // TriggerOptions
+}; // jdetect_options
 
 
-TriggerOptions options(PROGRAM_NAME, PROGRAM_VERSION);
+jdetect_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
-boost::scoped_ptr<dsp::CrossingTrigger<sample_t> > trigger;
+boost::scoped_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
 int ret = EXIT_SUCCESS;
 
@@ -138,7 +138,7 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
 	int open_count_thresh = options.open_crossing_rate * period_size / 1000 * open_crossing_periods;
 	int close_count_thresh = options.close_crossing_rate * period_size / 1000 * close_crossing_periods;
 
-        trigger.reset(new dsp::CrossingTrigger<sample_t>(options.open_threshold,
+        trigger.reset(new dsp::crossing_trigger<sample_t>(options.open_threshold,
                                                          open_count_thresh,
                                                          open_crossing_periods,
                                                          options.close_threshold,
@@ -217,8 +217,8 @@ main(int argc, char **argv)
 }
 
 
-TriggerOptions::TriggerOptions(std::string const &program_name, std::string const &program_version)
-        : Options(program_name, program_version)
+jdetect_options::jdetect_options(std::string const &program_name, std::string const &program_version)
+        : program_options(program_name, program_version)
 {
         using std::string;
         using std::vector;
@@ -261,7 +261,7 @@ TriggerOptions::TriggerOptions(std::string const &program_name, std::string cons
 }
 
 void
-TriggerOptions::print_usage()
+jdetect_options::print_usage()
 {
         std::cout << "Usage: " << _program_name << " [options]\n"
                   << visible_opts << std::endl

@@ -40,7 +40,7 @@ namespace po = boost::program_options;
  * @ingroup optionsgroup
  * @brief base class for parsing options
  *
- * The Options class is an ABC for parsing options. It handles the
+ * The program_options class is an ABC for parsing options. It handles the
  * most basic options common to all programs.
  *
  * This class is a thin wrapper around boost/program_options. The
@@ -56,7 +56,7 @@ namespace po = boost::program_options;
  * print_version, and print_usage.  It may be necessary to override
  * parse() for especially complicated cases.
  */
-class Options {
+class program_options {
 public:
 	/**
 	 * Initialize the options parser with the program's name and
@@ -65,8 +65,8 @@ public:
 	 * @param program_name     the name of the program
 	 * @param program_version  the version of the program
 	 */
-	Options(std::string const &program_name, std::string const &program_version);
-	virtual ~Options() {}
+	program_options(std::string const &program_name, std::string const &program_version);
+	virtual ~program_options() {}
 
 	/** Description of the options for commandline usage */
 	po::options_description cmd_opts;
@@ -163,7 +163,7 @@ protected:
 
 
 template <> inline
-bool Options::assign<bool>(bool &ref, std::string const &name)
+bool program_options::assign<bool>(bool &ref, std::string const &name)
 {
 	ref = (vmap.count(name) > 0);
 	return ref;

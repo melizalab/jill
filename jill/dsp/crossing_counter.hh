@@ -21,14 +21,14 @@ namespace jill { namespace dsp {
  * within a time window.
  */
 template<typename T>
-class CrossingCounter : boost::noncopyable {
+class crossing_counter : boost::noncopyable {
 public:
 	typedef T sample_type;
         typedef int32_t count_type;
         typedef std::size_t size_type;
 
 
-	CrossingCounter(const sample_type &threshold, size_type period_size, size_type period_count)
+	crossing_counter(const sample_type &threshold, size_type period_size, size_type period_count)
 		:  _counter(period_count), _thresh(threshold), _period_size(period_size),
 		   _period_crossings(0), _period_nsamples(0) {
 		_max_crossings = period_count * _period_size / 2;
@@ -109,7 +109,7 @@ public:
 
 private:
         /// running count of crossings
-        Counter<count_type> _counter;
+        running_counter<count_type> _counter;
 
 	/// sample threshold
 	volatile sample_type _thresh;

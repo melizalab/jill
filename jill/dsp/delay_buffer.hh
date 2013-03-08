@@ -31,7 +31,7 @@ namespace jill { namespace dsp {
  * @param T   the type of data stored in the buffer
  */
 template <typename T>
-class DelayBuffer : boost::noncopyable {
+class delay_buffer : boost::noncopyable {
 public:
 	typedef typename std::deque<T>::size_type size_type;
 
@@ -40,7 +40,7 @@ public:
 	 *
 	 * @param delay    the size of the delay (in samples)
 	 */
-	explicit DelayBuffer(size_type delay=0)
+	explicit delay_buffer(size_type delay=0)
 		: _delay(delay) {}
 
 	/**

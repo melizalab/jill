@@ -49,10 +49,10 @@ namespace jill { namespace dsp {
  * temporal information.
  */
 template <typename T>
-class CrossingTrigger : boost::noncopyable {
+class crossing_trigger : boost::noncopyable {
 public:
 	typedef T sample_type;
-	typedef typename CrossingCounter<T>::size_type size_type;
+	typedef typename crossing_counter<T>::size_type size_type;
 
 	/**
 	 * Instantiate a window discriminator.
@@ -65,7 +65,7 @@ public:
 	 * @param cwindow_periods  The number of periods to analyze for closing
 	 * @param period_size      The size of the analysis period
 	 */
-	CrossingTrigger(const sample_type &othresh, int ocount_thresh, size_type owindow_periods,
+	crossing_trigger(const sample_type &othresh, int ocount_thresh, size_type owindow_periods,
 			    const sample_type &cthresh, int ccount_thresh, size_type cwindow_periods,
 			    size_type period_size)
 		: _open(false),
@@ -130,8 +130,8 @@ public:
 private:
 
 	volatile bool _open;
-	CrossingCounter<sample_type> _open_counter;
-	CrossingCounter<sample_type> _close_counter;
+	crossing_counter<sample_type> _open_counter;
+	crossing_counter<sample_type> _close_counter;
 	int _open_count_thresh;
 	int _close_count_thresh;
 };

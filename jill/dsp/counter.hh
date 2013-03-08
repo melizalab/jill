@@ -29,7 +29,7 @@ namespace jill { namespace dsp {
  * threshold.
  */
 template <class T>
-class Counter : boost::noncopyable {
+class running_counter : boost::noncopyable {
 
 public:
 	/** the data type stored in the counter */
@@ -38,7 +38,7 @@ public:
 	typedef typename std::deque<data_type>::size_type size_type;
 
 	/** Initialize the counter. @param size  the size of the running sum window */
-	explicit Counter(size_type size=0)
+	explicit running_counter(size_type size=0)
 		: _size(size), _running_count(0) {}
 
 	/**
@@ -95,7 +95,7 @@ public:
 		_running_count = 0;
 	}
 
-	friend std::ostream& operator<< (std::ostream &os, const Counter<T> &o) {
+	friend std::ostream& operator<< (std::ostream &os, const running_counter<T> &o) {
 		os << o._running_count << " [" << o._counts.size() << '/' << o._size << "] (";
 		for (typename std::deque<T>::const_iterator it = o._counts.begin(); it != o._counts.end(); ++it)
 			os << *it << ' ';

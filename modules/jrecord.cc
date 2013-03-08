@@ -17,7 +17,7 @@
 #include <sys/time.h>
 
 #include "jill/jack_client.hh"
-#include "jill/options.hh"
+#include "jill/program_options.hh"
 #include "jill/midi.hh"
 #include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
@@ -30,10 +30,10 @@
 using namespace jill;
 
 /* declare options parsing class */
-class CaptureOptions : public Options {
+class jrecord_options : public program_options {
 
 public:
-	CaptureOptions(std::string const &program_name, std::string const &program_version);
+	jrecord_options(std::string const &program_name, std::string const &program_version);
 
 	/** The client name (used in internal JACK representations) */
         std::string client_name;
@@ -60,16 +60,7 @@ protected:
 };
 
 
-/**
- * Registers ports and stores information about them. On startup, jrecord needs
- * to register input ports for the trigger line and for each additional input to
- * be recorded. Sampled data is stored in dense arrays, and event data can be
- * stored either as an array of times (e.g., for spikes) or as a table.
- *
- */
-
-
-CaptureOptions options(PROGRAM_NAME, PROGRAM_VERSION);
+jrecord_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
 dsp::period_ringbuffer ringbuffer(1024); // this may be resized
 boost::scoped_ptr<file::arf_thread> arf_thread;
@@ -229,9 +220,9 @@ main(int argc, char **argv)
 }
 
 
-/** implementation of CaptureOptions */
-CaptureOptions::CaptureOptions(std::string const &program_name, std::string const &program_version)
-        : Options(program_name, program_version)
+/** implementation of jrecord_options */
+jrecord_options::jrecord_options(std::string const &program_name, std::string const &program_version)
+        : program_options(program_name, program_version)
 {
 
         using std::string;
@@ -275,7 +266,7 @@ CaptureOptions::CaptureOptions(std::string const &program_name, std::string cons
 
 
 void
-CaptureOptions::print_usage()
+jrecord_options::print_usage()
 {
         std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
                   << visible_opts << std::endl
@@ -286,9 +277,9 @@ CaptureOptions::print_usage()
 }
 
 void
-CaptureOptions::process_options()
+jrecord_options::process_options()
 {
-        Options::process_options();
+        program_options::process_options();
         if (!assign(output_file, "output-file")) {
                 std::cerr << "Error: missing required output file name " << std::endl;
                 throw Exit(EXIT_FAILURE);
