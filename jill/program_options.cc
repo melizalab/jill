@@ -74,10 +74,6 @@ program_options::parse(int argc, char **argv)
 		po::parsed_options parsed = po::parse_config_file(ff, cfg_opts, true);
 		po::store(parsed, vmap);
 	}
-	// second pass to override configfile values
-	po::parsed_options parsed = po::command_line_parser(argc, argv).options(cmd_opts).
-		positional(pos_opts).allow_unregistered().run();
-	po::store(parsed, vmap);
 
 	po::notify(vmap);
 	process_options();
