@@ -11,6 +11,7 @@
 #ifndef _TYPES_HH
 #define _TYPES_HH
 
+#include <boost/noncopyable.hpp>
 #include <jack/types.h>
 #include <jack/transport.h>
 #include <arf/types.hpp>
@@ -22,6 +23,13 @@
  */
 namespace jill {
 
+// forward declare some jill classes
+class jack_client;
+
+namespace dsp {
+        class period_ringbuffer;
+}
+
 /** The data type holding samples. Inherited from JACK */
 typedef jack_default_audio_sample_t sample_t;
 /** The data type holding information about frame counts. Inherited from JACK */
@@ -31,18 +39,29 @@ typedef jack_time_t utime_t;
 /** A data type holding extended position information. Inherited from JACK */
 typedef jack_position_t position_t;
 
-// forward declare some jill classes
-class jack_client;
+/** interface for a stimulus */
+struct stimulus_t : boost::noncopyable {
 
-namespace dsp {
-        class period_ringbuffer;
-}
+        /** An identifier for the stimulus */
+        virtual std::string const & path() const = 0;
 
-/** stores information about ports. mostly used during setup */
-struct port_info_t {
-        std::string name;
-        std::string source;     // the source port; may get out of date
-        arf::DataType storage;
+        virtual nframes_t nframes() const = 0;
+        virtual nframes_t samplerate() const = 0;
+        float duration() const { return float(nframes()) / samplerate(); }
+
+        /**
+         * @return framebuffer for stimulus, or 0 if not loaded. Length will be
+         * equal to @a nframes()
+         */
+        virtual sample_t const * buffer() const = 0;
+
+        /**
+         * Load samples and resample as needed.
+         *
+         * @param samplerate - the target samplerate, or 0 to use the file's rate
+         */
+        virtual void load_samples(nframes_t samplerate=0) = 0;
+
 };
 
 /** Type for jack errors */
