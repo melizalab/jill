@@ -22,28 +22,30 @@ namespace jill { namespace util {
 class stimset : boost::noncopyable {
 
 public:
-        typedef std::vector<jill::stimulus_t *>::const_iterator const_iterator;
+        typedef std::vector<jill::stimulus_t *>::iterator iterator;
 
         stimset(nframes_t samplerate);
 
         /** add a stimulus to the stimset. The stimset now owns the object */
         void add(jill::stimulus_t * stim, size_t nreps=1);
 
-        /**
-         * Get the iterator for the stimset at the starting position.
-         *
-         * @param shuffle   if true, reshuffles the stimulus list
-         * @return iterator at beginning position
-         */
-        const_iterator begin(bool shuffle=true);
+        /** shuffle the stimulus list and start at the beginning */
+        void shuffle();
 
-        /** @return end position of stimulus list */
-        const_iterator end();
+        /**
+         * Get the next item in the stimset. Guaranteed to be loaded and
+         * resampled.
+         *
+         * @return pointer to next stimulus, or 0 if at the end of the list.
+         * Will only return 0 once and then returns to the top.
+         */
+        jill::stimulus_t const * next();
 
 private:
 
         boost::ptr_vector<jill::stimulus_t> _stimuli;
         std::vector<jill::stimulus_t *> _stimlist; // doesn't own
+        iterator _it;
         nframes_t _samplerate;
 
 };

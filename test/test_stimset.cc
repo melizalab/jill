@@ -44,19 +44,20 @@ test_stimfile(stimfile & f)
 void
 test_stimset(int argc, char **argv)
 {
-        jill::util::stimset sset(48000);
+        jill::util::stimset sset(30000);
         int count = 0;
         for (int i = 1; i < argc; ++i) {
                 int n = (i % 5) + 1;
                 sset.add(new stimfile(argv[i]), n);
                 count += n;
         }
-        std::vector<jill::stimulus_t *>::const_iterator it = sset.begin(); // shuffles
-        for (;it != sset.end(); ++it) {
-                jill::stimulus_t const *fp = *it;
+        sset.shuffle();
+        jill::stimulus_t const *fp = sset.next();
+        while (fp != 0) {
                 printf("%s\n", fp->path().c_str());
-                // assert(fp->buffer() != 0);
+                assert(fp->buffer() != 0);
                 count -= 1;
+                fp = sset.next();
         }
         assert (count == 0);
 }

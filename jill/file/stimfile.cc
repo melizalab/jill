@@ -9,7 +9,7 @@
  * (at your option) any later version.
  */
 
-#include "stimset.hh"
+#include "stimfile.hh"
 
 #include <boost/static_assert.hpp>
 #include <samplerate.h>
@@ -38,8 +38,13 @@ stimfile::load_samples(nframes_t samplerate)
         SRC_DATA rs;
         sample_t *buf;
 
-        rs.input_frames = _sfinfo.frames;
+        // check if we actually need to do work
+        if (_buffer) {
+                if (samplerate == 0 && _samplerate == nframes_t(_sfinfo.samplerate)) return;
+                else if (samplerate == _samplerate) return;
+        }
 
+        rs.input_frames = _sfinfo.frames;
         buf = rs.data_in = new sample_t[rs.input_frames];
 
         sf_seek(_sndfile, 0, SEEK_SET);

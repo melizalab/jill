@@ -40,7 +40,9 @@ typedef jack_time_t utime_t;
 typedef jack_position_t position_t;
 
 /** interface for a stimulus */
-struct stimulus_t : boost::noncopyable {
+class stimulus_t : boost::noncopyable {
+public:
+        virtual ~stimulus_t() {}
 
         /** An identifier for the stimulus */
         virtual std::string const & path() const = 0;
