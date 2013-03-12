@@ -12,6 +12,7 @@
 #ifndef _STIMSET_HH
 #define _STIMSET_HH
 
+#include <pthread.h>
 #include <vector>
 #include <algorithm>
 #include <boost/ptr_container/ptr_vector.hpp>
@@ -52,25 +53,26 @@ private:
 };
 
 /**
- * Represents a two-element stimulus queue.  One thread is pulling data off the
+ * Represents a two-element stimulus queue. One thread is pulling data off the
  * current stimulus, while another is making sure the next stimulus is loaded.
- * The playback thread also needs to compare the current time against the last
- * time it played a stimulus.  The math for this is tricky, so it's included
- * here so it can be tested.
+ *
+ * Provides some synchronization between threads. The reader thread should check
+ * ready(), use the frame buffer (advancing the read pointer as necessary), then
+ * call release() when done. The (slow) writer thread should call enqueue()
+ * whenever it has a stimulus loaded.  This will block until the reader calls
+ * release(), at which point it will swap in the next stimulus.
  */
-struct stimqueue {
-        jill::stimulus_t const * current_stim;     // currently playing stim
-        jill::stimulus_t const * next_stim;        // next stim in queue
-        size_t buffer_pos;                         // position in buffer
-        nframes_t last_start;                      // last stimulus start time
-        nframes_t last_stop;                       // last stimulus stop
+class stimqueue {
+
+public:
+        stimqueue();
 
         /** return true if the current stimulus is loaded */
         bool ready() const { return current_stim && current_stim->buffer(); }
 
         /** true if the stimulus is playing (samples have been read) */
         bool playing() const {
-                return current_stim && (buffer_pos > 0) && (buffer_pos < current_stim->nframes());
+                return current_stim && (buffer_pos > 0);
         }
 
         /** the current buffer position */
@@ -79,40 +81,45 @@ struct stimqueue {
         /** the number of samples left in the stimulus */
         nframes_t nsamples() const { return current_stim->nframes() - buffer_pos; }
 
-        /** set start time */
-        void start(nframes_t time) { last_start = time; }
-
-        /** set stop time and clear current stimulus */
-        void stop(nframes_t time) {
-                last_stop = time;
-                buffer_pos = 0;
-                current_stim = 0;
-        }
-
-        /** advance the read pointer  */
-        void advance(nframes_t samples) { buffer_pos = std::min(nframes_t(buffer_pos + samples),
-                                                                current_stim->nframes()); }
+        /** the name of the current stimulus */
+        char const * name() const { return current_stim->name().c_str(); }
 
         /**
-         * compare the current time against the last start and stop times and
-         * determine if it's time to play the current stimulus
+         * Advance the read pointer.
          *
-         * @param time       the current sample count
-         * @param min_start  minimum time since last stimulus started
-         * @param min_stop   minimum time since last stimulus stopped
-         *
-         * @return the time to start the stimulus, relative to the current time
+         * @param samples   the numbers of samples to advance. will not advance
+         *                  beyond end of buffer
+         * @pre ready() is true and the caller is the read thread
          */
-
-        nframes_t offset(nframes_t time, nframes_t min_start, nframes_t min_stop) const {
-                // deltas with last events - overflow is correct because time >= lastX
-                nframes_t dstart = time - last_start;
-                nframes_t dstop = time - last_stop;
-                // now we have to check for overflow
-                nframes_t ostart = (dstart > min_start) ? 0 : min_start - dstart;
-                nframes_t ostop = (dstop > min_stop) ? 0 : min_stop - dstop;
-                return std::max(ostart, ostop);
+        void advance(nframes_t samples) {
+                buffer_pos = std::min(nframes_t(buffer_pos + samples),
+                                      current_stim->nframes());
         }
+
+        /**
+         *  Release the current stimulus. This is a wait-free, thread-safe
+         *  function. If the object is locked, it will return immediately, but
+         *  will need to be called again to release the current stimulus.
+         */
+        void release();
+
+        /**
+         * Enqueue a new stimulus. This function will block until there is room
+         * in the queue for the argument.  If the queue is not full, the new
+         * stimulus will be added to the next free position.
+         *
+         * @param stim   the stimulus to enqueue
+         */
+        void enqueue(jill::stimulus_t const * stim);
+
+private:
+        jill::stimulus_t const * current_stim;     // currently playing stim
+        jill::stimulus_t const * next_stim;        // next stim in queue
+        size_t buffer_pos;                         // position in current buffer
+
+        pthread_mutex_t disk_thread_lock;
+        pthread_cond_t  data_needed;
+
 };
 
 }} // namespace jill::util

@@ -9,7 +9,6 @@
  * (at your option) any later version.
  */
 
-#include <pthread.h>
 #include <algorithm>
 #include "stimset.hh"
 
@@ -23,29 +22,23 @@ void
 stimset::add(jill::stimulus_t * stim, size_t nreps)
 {
         _stimuli.push_back(stim);
-        // pthread_mutex_lock (&stimlist_lock);
         for (size_t i = 0; i < nreps; ++i) {
                 _stimlist.push_back(stim);
         }
         _it = _stimlist.begin();
-	// pthread_mutex_unlock (&stimlist_lock);
-
 }
 
 void
 stimset::shuffle()
 {
-        // pthread_mutex_lock (&stimlist_lock);
         std::random_shuffle(_stimlist.begin(), _stimlist.end());
         _it = _stimlist.begin();
-	// pthread_mutex_unlock (&stimlist_lock);
 }
 
 jill::stimulus_t const *
 stimset::next()
 {
         jill::stimulus_t *ret;
-        // pthread_mutex_lock (&stimlist_lock);
         if (_it == _stimlist.end()) {
                 _it = _stimlist.begin();
                 ret = 0;
@@ -53,48 +46,49 @@ stimset::next()
         else {
                 ret  = *_it;
                 ret->load_samples();
-                // if (!ret->buffer())
-                //         pthread_cond_wait (&data_ready, &stimlist_lock);
                 ++_it;
         }
-        // pthread_mutex_unlock (&stimlist_lock);
         return ret;
 }
 
-/*
- * Threading notes. A separate thread loads data from disk and resamples as
- * needed. Disk thread needs signal when new stims are added (more work) or the
- * list is reshuffled (invalid iterator). next() may need to wait on the disk
- * thread if the data for a requested stim is not loaded.
- */
+stimqueue::stimqueue()
+        : current_stim(0), next_stim(0), buffer_pos(0)
+{
+        pthread_mutex_init(&disk_thread_lock, 0);
+        pthread_cond_init(&data_needed, 0);
+}
 
-/* protects stimlist iterator */
-// static pthread_mutex_t stimlist_lock = PTHREAD_MUTEX_INITIALIZER;
-// static pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
-// static pthread_cond_t  iter_ready = PTHREAD_COND_INITIALIZER;
+void
+stimqueue::release()
+{
+        if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
+                current_stim = 0;
+                pthread_cond_signal (&data_needed);
+                pthread_mutex_unlock (&disk_thread_lock);
+        }
+}
 
+void
+stimqueue::enqueue(jill::stimulus_t const * stim)
+ {
+         if (next_stim) {
 
-// void *
-// stimset::load_samples(void * arg)
-// {
-//         jill::stimulus_t *current, *next;
+                 pthread_mutex_lock (&disk_thread_lock);
+                 if (current_stim)
+                         pthread_cond_wait (&data_needed, &disk_thread_lock);
+                 current_stim = next_stim;
+                 buffer_pos = 0;
+                 pthread_mutex_unlock (&disk_thread_lock);
 
-//         // allow cancellation at any point
-// 	pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
-//         while (1) {
-//                 // operating on current stimulus
-//                 pthread_mutex_lock (&stimlist_lock);
-//                 current = *_it;
-//                 next = *(_it + 1)
-
-//                 stim->load_samples(self->_samplerate);
-//                 pthread_cond_signal(&data_ready);
-
-//                 pthread_mutex_unlock (&stimlist_lock);
-//         }
-
-//         iterator it = _it;
-//         it->load_samples(self->_samplerate);
-//         return 0;
-// }
+                 next_stim = stim;
+         }
+         else if (current_stim) {
+                 next_stim = stim;
+         }
+         else {
+                 pthread_mutex_lock (&disk_thread_lock);
+                 current_stim = stim;
+                 buffer_pos = 0;
+                 pthread_mutex_unlock (&disk_thread_lock);
+         }
+ }

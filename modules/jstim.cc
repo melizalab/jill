@@ -10,7 +10,6 @@
  */
 #include <iostream>
 #include <signal.h>
-#include <pthread.h>
 #include <boost/scoped_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
@@ -58,13 +57,29 @@ protected:
 jstim_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
 boost::scoped_ptr<util::stimset> stimset;
-util::stimqueue queue = {};
 jack_port_t *port_out, *port_trigout, *port_trigin;
 int ret = EXIT_SUCCESS;
 
-// synchronization for stimqueue
-static pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  data_needed = PTHREAD_COND_INITIALIZER;
+util::stimqueue queue;
+nframes_t last_start = 0;       // last stimulus start time
+nframes_t last_stop = 0;        // last stimulus stop
+
+/** function to register onset/offset and send an appropriate midi event */
+static void
+stim_event(nframes_t base_time, nframes_t frame_time, void * midi, bool onset)
+{
+        jack_midi_data_t *buf = jack_midi_event_reserve(midi, frame_time, strlen(queue.name()) + 2);
+        if (onset) {
+                buf[0] = midi::stim_on;
+                last_start = base_time + frame_time;
+        }
+        else {
+                buf[0] = midi::stim_off;
+                last_stop = base_time + frame_time;
+        }
+        strcpy(reinterpret_cast<char*>(buf)+1, queue.name());
+}
+
 
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
@@ -74,7 +89,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // check that stimulus is queued
         if (!queue.ready()) return 0;
-        bool just_started = false;
 
         nframes_t offset;
         // am I playing a stimulus?
@@ -83,42 +97,37 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // is there an external trigger?
         else if (port_trigin) {
-                just_started = true;
+                // TODO scan for event
+                if (offset >= nframes) return 0;
+                stim_event(time, offset, trig, true);
         }
         // has enough time elapsed since the last stim?
         else {
-                offset = queue.offset(time, options.min_interval, options.min_gap);
-                just_started = true;
+                // deltas with last events - overflow is correct because time >= lastX
+                nframes_t dstart = time - last_start;
+                nframes_t dstop = time - last_stop;
+                // now we have to check for overflow
+                nframes_t ostart = (dstart > options.min_interval) ? 0 : options.min_interval - dstart;
+                nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
+                offset = std::max(ostart, ostop);
+                if (offset >= nframes) return 0;
+                stim_event(time, offset, trig, true);
         }
 
-        if (offset >= nframes) return 0;
-
-        std::string const & name = queue.current_stim->name();
-        // generate onset event if not already playing
-        if (just_started) {
-                queue.start(time + offset);
-                jack_midi_data_t *buf = jack_midi_event_reserve(trig, offset, name.length() + 2);
-                buf[0] = midi::stim_on;
-                strcpy(reinterpret_cast<char*>(buf)+1, name.c_str());
-        }
-
+        // copy samples, if there are any
         sample_t *out = client->samples(port_out, nframes);
         nframes_t nsamples = std::min(queue.nsamples(), nframes);
         memcpy(out + offset, queue.buffer(), nsamples);
         queue.advance(nsamples);
 
-        // did the stimulus end?
+        // is the stimulus stopped?
         if (queue.nsamples() == 0) {
-                // signal disk thread we are done with this stimulus
-                queue.stop(time + offset + nsamples);
-                if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
-                        pthread_cond_signal (&data_needed);
-                        pthread_mutex_unlock (&disk_thread_lock);
-                }
-
-                jack_midi_data_t *buf = jack_midi_event_reserve(trig, offset + nsamples, name.length() + 2);
-                buf[0] = midi::stim_off;
-                strcpy(reinterpret_cast<char*>(buf)+1, name.c_str());
+                // did it end in this frame?
+                if (nsamples > 0)
+                        stim_event(time, offset + nsamples, trig, false);
+                // try to release the stimulus. may not have an effect, in which
+                // case we'll try again on the next loop
+                queue.release();
         }
 
         return 0;
@@ -188,36 +197,22 @@ main(int argc, char **argv)
 
                 /*
                  * main thread: queue up current and next stimulus. wait on
-                 * process thread for signal to move to next stimulus
+                 * process thread for signal to move to next stimulus. loop
+                 * until stimset->next returns 0.
                  */
-                pthread_mutex_lock (&disk_thread_lock);
-                queue.current_stim = stimset->next();
-                while(queue.current_stim) {
-                        client->log() << "stim: " << queue.current_stim->name() << endl;
-                        queue.next_stim = stimset->next(); // 0 = all played
-                        // check if process finished playing the current
-                        // stimulus while we were loading the next one; if not,
-                        // wait for condition variable
-                        if (queue.current_stim)
-                                pthread_cond_wait (&data_needed, &disk_thread_lock);
-                        queue.current_stim = queue.next_stim;
+                queue.enqueue(stimset->next());
+                while(queue.ready()) {
+                        client->log() << "stim: " << queue.name() << endl;
+                        queue.enqueue(stimset->next());
                 }
 
-                pthread_mutex_unlock (&disk_thread_lock);
                 client->log() << "end of stimulus queue" << endl;
                 // give the process loop a chance to clear the port buffer
                 usleep(2e6 * client->buffer_size() / client->sampling_rate());
 
 		return ret;
 	}
-	/*
-	 * These catch statements handle two kinds of exceptions.  The
-	 * Exit exception is thrown to terminate the application
-	 * normally (i.e. if the user asked for the app version or
-	 * usage); other exceptions are typically thrown if there's a
-	 * serious error, in which case the user is notified on
-	 * stderr.
-	 */
+
 	catch (Exit const &e) {
 		return e.status();
 	}
@@ -226,7 +221,6 @@ main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	/* Because we used smart pointers and locally scoped variables, there is no cleanup to do! */
 }
 
 
