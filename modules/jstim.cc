@@ -64,38 +64,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         return 0;
 }
 
-// /**
-//  * Callback for samplerate changes. However, this function is only called once.
-//  */
-// int
-// samplerate_callback(jack_client *client, nframes_t samplerate)
-// {
-//         using std::endl;
-// 	nframes_t period_size = options.period_size_ms * samplerate / 1000;
-// 	int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
-// 	int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
-// 	int open_count_thresh = options.open_crossing_rate * period_size / 1000 * open_crossing_periods;
-// 	int close_count_thresh = options.close_crossing_rate * period_size / 1000 * close_crossing_periods;
-
-//         trigger.reset(new dsp::crossing_trigger<sample_t>(options.open_threshold,
-//                                                          open_count_thresh,
-//                                                          open_crossing_periods,
-//                                                          options.close_threshold,
-//                                                          close_count_thresh,
-//                                                          close_crossing_periods,
-//                                                          period_size));
-
-//         // Log parameters
-//         client->log(false) << "period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
-//         client->log(false) << "open threshold: " << options.open_threshold << endl;
-//         client->log(false) << "open count thresh: " << open_count_thresh << endl;
-//         client->log(false) << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
-//         client->log(false) << "close threshold: " << options.close_threshold << endl;
-//         client->log(false) << "close count thresh: " << close_count_thresh << endl;
-//         client->log(false) << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
-//         return 0;
-// }
-
 void
 init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_t const default_nreps)
 {
@@ -111,9 +79,10 @@ init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_
                 catch (...) {
                         nreps = default_nreps;
                 }
-                sset->add(new file::stimfile(p.string()), nreps);
+                jill::stimulus_t *stim = new file::stimfile(p.string());
+                sset->add(stim, nreps);
+                client->log() << "stimulus: " << p.stem() << " (" << stim->duration() << " s)" << std::endl;
         }
-
 }
 
 
@@ -129,34 +98,22 @@ main(int argc, char **argv)
 
                 stimset.reset(new util::stimset(client->sampling_rate()));
                 init_stimset(stimset.get(), options.stimuli, options.nreps);
-        jill::stimulus_t const *fp = stimset->next();
-        while (fp != 0) {
-                printf("%s\n", fp->path().c_str());
-                assert(fp->buffer() != 0);
-                fp = stimset->next();
-        }
 
-                // port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
-                //                                JackPortIsInput | JackPortIsTerminal, 0);
-                // port_trig = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
-                //                                 JackPortIsOutput | JackPortIsTerminal, 0);
-                // if (options.count("count-port")) {
-                //         port_count = client->register_port("count",JACK_DEFAULT_AUDIO_TYPE,
-                //                                           JackPortIsOutput | JackPortIsTerminal, 0);
-                // }
+                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                                                 JackPortIsOutput | JackPortIsTerminal, 0);
+                port_trigout = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
+                                                     JackPortIsOutput | JackPortIsTerminal, 0);
+                if (options.count("trig")) {
+                        port_trigin = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
+                                                           JackPortIsOutput | JackPortIsTerminal, 0);
+                }
 
-                // client->set_sample_rate_callback(samplerate_callback);
                 // client->set_process_callback(process);
-                // client->activate();
+                client->activate();
 
-		// vector<string>::const_iterator it;
-		// for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-		// 	client->connect_port(*it, "in");
-		// }
-
-		// for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-		// 	client->connect_port("trig_out",*it);
-		// }
+                client->connect_ports("out", options.output_ports.begin(), options.output_ports.end());
+                client->connect_ports("trig_out", options.trigout_ports.begin(), options.trigout_ports.end());
+                client->connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(), "trig_in");
 
                 // while(1) {
                 //         sleep(1);

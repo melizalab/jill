@@ -178,6 +178,20 @@ public:
 	 */
 	void connect_port(std::string const & src, std::string const & dest);
 
+        /** Connect a sequence of ports to a destination */
+        template <typename It>
+        void connect_ports(It const & begin, It const & end, std::string const & dest) {
+                for (It it = begin; it != end; ++it)
+                        connect_port(*it, dest);
+        }
+
+        /** Connect a sequence of ports to a source */
+        template <typename It>
+        void connect_ports(std::string const & src, It const & begin, It const & end) {
+                for (It it = begin; it != end; ++it)
+                        connect_port(src, *it);
+        }
+
 	/**
 	 * Disconnect the client from all its ports.
 	 */

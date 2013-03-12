@@ -23,13 +23,6 @@
 
 using namespace jill;
 
-/**
- * This class parses options for the program from the command-line
- * and/or a configuration file.  As in writer.cc, we also want to
- * parse the default options for the JACK client, so we will derive
- * from a class that handles these options. There are a lot of
- * options, so this class requires a lot of boilerplate code.
- */
 class jdetect_options : public program_options {
 
 public:
@@ -181,14 +174,8 @@ main(int argc, char **argv)
                 client->set_process_callback(process);
                 client->activate();
 
-		vector<string>::const_iterator it;
-		for (it = options.input_ports.begin(); it != options.input_ports.end(); ++it) {
-			client->connect_port(*it, "in");
-		}
-
-		for (it = options.output_ports.begin(); it != options.output_ports.end(); ++it) {
-			client->connect_port("trig_out",*it);
-		}
+                client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
+                client->connect_ports("trig_out", options.output_ports.begin(), options.output_ports.end());
 
                 while(1) {
                         sleep(1);
@@ -229,8 +216,6 @@ jdetect_options::jdetect_options(std::string const &program_name, std::string co
                  "set client name")
                 ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
-        cmd_opts.add(jillopts);
-        visible_opts.add(jillopts);
 
         // tropts is a group of options
         po::options_description tropts("Trigger options");
@@ -251,13 +236,9 @@ jdetect_options::jdetect_options(std::string const &program_name, std::string co
                 ("close-period", po::value<float>(&close_crossing_period_ms)->default_value(5000),
                  "set integration time for close gate (ms)");
 
-        // we add our group of options to various groups
-        // already defined in the base class.
-        cmd_opts.add(tropts);
-        // cfg_opts holds options that are parsed from a configuration file
-        cfg_opts.add(tropts);
-        // visible_opts holds options that are shown in the help text
-        visible_opts.add(tropts);
+        cmd_opts.add(jillopts).add(tropts);
+        cfg_opts.add(jillopts).add(tropts);
+        visible_opts.add(jillopts).add(tropts);
 }
 
 void
