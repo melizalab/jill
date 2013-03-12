@@ -79,6 +79,16 @@ struct stimqueue {
         /** the number of samples left in the stimulus */
         nframes_t nsamples() const { return current_stim->nframes() - buffer_pos; }
 
+        /** set start time */
+        void start(nframes_t time) { last_start = time; }
+
+        /** set stop time and clear current stimulus */
+        void stop(nframes_t time) {
+                last_stop = time;
+                buffer_pos = 0;
+                current_stim = 0;
+        }
+
         /** advance the read pointer  */
         void advance(nframes_t samples) { buffer_pos = std::min(nframes_t(buffer_pos + samples),
                                                                 current_stim->nframes()); }
