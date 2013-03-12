@@ -13,6 +13,7 @@
 #define _STIMSET_HH
 
 #include <vector>
+#include <algorithm>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include "../types.hh"
 
@@ -33,7 +34,7 @@ public:
         void shuffle();
 
         /**
-         * Get the next item in the stimset. Guaranteed to be loaded and
+         * Get the next item in the stimset. Blocks until stimulus is loaded and
          * resampled.
          *
          * @return pointer to next stimulus, or 0 if at the end of the list.
@@ -67,6 +68,21 @@ struct stimqueue {
         /** return true if the current stimulus is loaded */
         bool ready() const { return current_stim && current_stim->buffer(); }
 
+        /** true if the stimulus is playing (samples have been read) */
+        bool playing() const {
+                return current_stim && (buffer_pos > 0) && (buffer_pos < current_stim->nframes());
+        }
+
+        /** the current buffer position */
+        sample_t const * buffer() const { return current_stim->buffer() + buffer_pos; }
+
+        /** the number of samples left in the stimulus */
+        nframes_t nsamples() const { return current_stim->nframes() - buffer_pos; }
+
+        /** advance the read pointer  */
+        void advance(nframes_t samples) { buffer_pos = std::min(nframes_t(buffer_pos + samples),
+                                                                current_stim->nframes()); }
+
         /**
          * compare the current time against the last start and stop times and
          * determine if it's time to play the current stimulus
@@ -78,7 +94,7 @@ struct stimqueue {
          * @return the time to start the stimulus, relative to the current time
          */
 
-        nframes_t offset(nframes_t time, nframes_t min_start, nframes_t min_stop) {
+        nframes_t offset(nframes_t time, nframes_t min_start, nframes_t min_stop) const {
                 // deltas with last events - overflow is correct because time >= lastX
                 nframes_t dstart = time - last_start;
                 nframes_t dstop = time - last_stop;

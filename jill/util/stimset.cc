@@ -23,7 +23,6 @@ void
 stimset::add(jill::stimulus_t * stim, size_t nreps)
 {
         _stimuli.push_back(stim);
-        stim->load_samples();
         // pthread_mutex_lock (&stimlist_lock);
         for (size_t i = 0; i < nreps; ++i) {
                 _stimlist.push_back(stim);
@@ -45,7 +44,7 @@ stimset::shuffle()
 jill::stimulus_t const *
 stimset::next()
 {
-        jill::stimulus_t const *ret;
+        jill::stimulus_t *ret;
         // pthread_mutex_lock (&stimlist_lock);
         if (_it == _stimlist.end()) {
                 _it = _stimlist.begin();
@@ -53,6 +52,7 @@ stimset::next()
         }
         else {
                 ret  = *_it;
+                ret->load_samples();
                 // if (!ret->buffer())
                 //         pthread_cond_wait (&data_ready, &stimlist_lock);
                 ++_it;
