@@ -54,7 +54,7 @@ test_stimset(int argc, char **argv)
         sset.shuffle();
         jill::stimulus_t const *fp = sset.next();
         while (fp != 0) {
-                printf("%s\n", fp->path().c_str());
+                printf("%s\n", fp->name().c_str());
                 assert(fp->buffer() != 0);
                 count -= 1;
                 fp = sset.next();

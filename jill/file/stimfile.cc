@@ -12,12 +12,14 @@
 #include "stimfile.hh"
 
 #include <boost/static_assert.hpp>
+#include <boost/filesystem.hpp>
 #include <samplerate.h>
 
+namespace fs = boost::filesystem;
 using namespace jill::file;
 
 stimfile::stimfile(std::string const & path)
-        : _path(path), _sndfile(0)
+        : _name(fs::path(path).stem().string()), _sndfile(0)
 {
         _sndfile = sf_open(path.c_str(), SFM_READ, &_sfinfo);
         if (_sndfile == 0) throw jill::FileError(sf_strerror(_sndfile));

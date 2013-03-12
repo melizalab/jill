@@ -34,7 +34,7 @@ public:
         stimfile(std::string const & path);
         ~stimfile();
 
-        std::string const & path() const { return _path; }
+        std::string const & name() const { return _name; }
 
         nframes_t nframes() const { return _nframes; }
         nframes_t samplerate() const { return _samplerate; }
@@ -49,7 +49,7 @@ public:
         void load_samples(nframes_t samplerate=0);
 
 private:
-        std::string _path;
+        std::string _name;
         SF_INFO _sfinfo;
         SNDFILE *_sndfile;
 

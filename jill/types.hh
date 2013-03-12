@@ -45,7 +45,7 @@ public:
         virtual ~stimulus_t() {}
 
         /** An identifier for the stimulus */
-        virtual std::string const & path() const = 0;
+        virtual std::string const & name() const = 0;
 
         virtual nframes_t nframes() const = 0;
         virtual nframes_t samplerate() const = 0;
