@@ -116,8 +116,9 @@ The following hardware-incompatible message types are defined for JILL modules:
 
 | status | explanation | data size | data contents                                |
 |--------+-------------+-----------+----------------------------------------------|
-|   0x0x | stim on     | n         | stimulus name, null-termianated UTF-8 string |
-|   0x1x | stim off    | n         | stimulus name                                |
+|   0x0x | stim on     | n         | stimulus name (null-terminated UTF-8 string) |
+|   0x1x | stim off    | n         | stimulus name (string)                       |
+|   0x2x | info        | n         | an informative message (string)              |
 
 
 
@@ -419,14 +420,15 @@ neurons.
 *** JACK Ports
 
 + out :: sampled, output. Carries the audio signal for the stimulus.
-+ trig_out :: event, output. Generates note on events when the stimulus starts
-              and note off events when it ends. For recording, the channel value
++ trig_out :: event, output. Generates stim on events when the stimulus starts
+              and stim off events when it ends. For recording, the channel value
               is 0. For search, the channel value is 8. The data is the basename
               of the stimulus file, UTF-8 encoded, and null-terminated. *This
-              message is not hardware-compatible.*
+              message is not hardware-compatible* and is intended for
+              consumption by *jrecord*.
 + trig_in :: (optional) event, input. Only created for triggered mode. Initiates
-             stimulus playback synchronized to the time of any note_on events
-             with channel values less than 8. Ignores note_off events.
+             stimulus playback synchronized to the time of any note_on or
+             stim_on events. Ignores note_off events.
 
 *** JACK Events
 
@@ -434,16 +436,12 @@ neurons.
    buffer. Between stimuli, writes zeros to the output. The use of fixed buffers
    assumes that stimuli are relatively short and memory is plentiful, but allows
    stimulus onset to be synchonized precisely with note on events. On stimulus
-   onset, writes a note_on event to the event output. On stimulus offset, writes
-   a note_off event to the event output. Also monitors a variable that indicates
-   whether an xrun occurred, and if so, terminates playback and sends a system
-   event message.
+   onset, writes a stim_on event to the event output. On stimulus offset, writes
+   a stim_off event to the event output.
 2. Registration/unregistration events are ignored
 3. Port connections and disconnections are ignored
-4. Xruns cause a flag shared with the process callback to be set so that an
-   error event can be sent to downstream clients. Xruns are also logged.
-5. Changes to period size also cause the xrun flag to be set, because this will
-   result in a gap in the audio stream.
+4. Xruns cause the process thread to terminate any active playback
+5. Changes to period size also terminate active playback
 6. Server shutdown causes termination of the client.
 
 *** ØMQ Sockets
@@ -459,19 +457,17 @@ SIGINT, SIGTERM, and SIGHUP events cause termination of the client.
 
 Commandline options:
 
-1. Record or search mode
-2. External trigger, fixed interval, or fixed gap. Keypress?
-3. Number of repetitions
+1. When to start stimuli: external trigger, or minimum interval/gap. Keypress?
+2. Default number of repetitions
+3. Loop endlessly or once
 4. Whether to randomize stimulus order
-5. List of stimulus files
+5. List of stimulus files (and optional numerical values indicating number of reps)
 
-On startup, load stimulus files into memory, resampling as necessary to match
-sampling rate of the JACK system. Alternatively, first determine the order of
-playback, load the first stimulus, and dispatch a thread to load the remaining
-stimuli (some small danger of this not completing before they are needed).
+On startup, parse list of stimulus files and generate a (randomized) list.
 
 Initialize client, register ports and callbacks, start client, connect ports.
 
+While the process thread is running, load and resample input files as needed.
 When the process thread indicates it has played all the stimuli, shut down the
 client and terminate program.
 
