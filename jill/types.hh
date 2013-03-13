@@ -39,33 +39,6 @@ typedef jack_time_t utime_t;
 /** A data type holding extended position information. Inherited from JACK */
 typedef jack_position_t position_t;
 
-/** interface for a stimulus */
-class stimulus_t : boost::noncopyable {
-public:
-        virtual ~stimulus_t() {}
-
-        /** An identifier for the stimulus */
-        virtual std::string const & name() const = 0;
-
-        virtual nframes_t nframes() const = 0;
-        virtual nframes_t samplerate() const = 0;
-        float duration() const { return float(nframes()) / samplerate(); }
-
-        /**
-         * @return framebuffer for stimulus, or 0 if not loaded. Length will be
-         * equal to @a nframes()
-         */
-        virtual sample_t const * buffer() const = 0;
-
-        /**
-         * Load samples and resample as needed.
-         *
-         * @param samplerate - the target samplerate, or 0 to use the file's rate
-         */
-        virtual void load_samples(nframes_t samplerate=0) = 0;
-
-};
-
 /** Type for jack errors */
 struct JackError : public std::runtime_error {
         JackError(std::string const & w) : std::runtime_error(w) { }

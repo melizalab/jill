@@ -14,6 +14,9 @@
 
 using namespace jill::util;
 
+// static member initialization
+const nullstim stimset::end;
+
 stimset::stimset(nframes_t samplerate)
         : _samplerate(samplerate)
 {}
@@ -38,57 +41,14 @@ stimset::shuffle()
 jill::stimulus_t const *
 stimset::next()
 {
-        jill::stimulus_t *ret;
         if (_it == _stimlist.end()) {
                 _it = _stimlist.begin();
-                ret = 0;
+                return &end;
         }
         else {
-                ret  = *_it;
-                ret->load_samples();
+                jill::stimulus_t *ret = *_it;
+                ret->load_samples(_samplerate);
                 ++_it;
-        }
-        return ret;
-}
-
-stimqueue::stimqueue()
-        : current_stim(0), next_stim(0), buffer_pos(0)
-{
-        pthread_mutex_init(&disk_thread_lock, 0);
-        pthread_cond_init(&data_needed, 0);
-}
-
-void
-stimqueue::release()
-{
-        if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
-                current_stim = 0;
-                pthread_cond_signal (&data_needed);
-                pthread_mutex_unlock (&disk_thread_lock);
+                return ret;
         }
 }
-
-void
-stimqueue::enqueue(jill::stimulus_t const * stim)
- {
-         if (next_stim) {
-
-                 pthread_mutex_lock (&disk_thread_lock);
-                 if (current_stim)
-                         pthread_cond_wait (&data_needed, &disk_thread_lock);
-                 current_stim = next_stim;
-                 buffer_pos = 0;
-                 pthread_mutex_unlock (&disk_thread_lock);
-
-                 next_stim = stim;
-         }
-         else if (current_stim) {
-                 next_stim = stim;
-         }
-         else {
-                 pthread_mutex_lock (&disk_thread_lock);
-                 current_stim = stim;
-                 buffer_pos = 0;
-                 pthread_mutex_unlock (&disk_thread_lock);
-         }
- }

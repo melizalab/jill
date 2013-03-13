@@ -12,19 +12,31 @@
 #ifndef _STIMSET_HH
 #define _STIMSET_HH
 
-#include <pthread.h>
 #include <vector>
-#include <algorithm>
 #include <boost/ptr_container/ptr_vector.hpp>
-#include "../types.hh"
+#include "../stimulus.hh"
 
 namespace jill { namespace util {
 
+/** represents the end of the list of stimuli */
+struct nullstim : public jill::stimulus_t {
+        char const * name() const { return "end of queue"; }
+        nframes_t nframes() const { return 0; }
+        nframes_t samplerate() const { return 0; }
+        float duration() const { return 0.0; }
+        sample_t const * buffer() const { return 0; }
+};
 
+/**
+ * Represents a list of stimuli to be presented. Stimuli can be present in the
+ * list more than once, and the list can be shuffled.  Each element of the list
+ * is released in order.
+ */
 class stimset : boost::noncopyable {
 
 public:
         typedef std::vector<jill::stimulus_t *>::iterator iterator;
+        static const nullstim end;
 
         stimset(nframes_t samplerate);
 
@@ -38,8 +50,8 @@ public:
          * Get the next item in the stimset. Blocks until stimulus is loaded and
          * resampled.
          *
-         * @return pointer to next stimulus, or 0 if at the end of the list.
-         * Will only return 0 once and then returns to the top.
+         * @return pointer to next stimulus, or an instance of nullstim if at the end of the list.
+         * Will only return nullstim once and then returns to the top.
          */
         jill::stimulus_t const * next();
 
@@ -49,76 +61,6 @@ private:
         std::vector<jill::stimulus_t *> _stimlist; // doesn't own
         iterator _it;
         nframes_t _samplerate;
-
-};
-
-/**
- * Represents a two-element stimulus queue. One thread is pulling data off the
- * current stimulus, while another is making sure the next stimulus is loaded.
- *
- * Provides some synchronization between threads. The reader thread should check
- * ready(), use the frame buffer (advancing the read pointer as necessary), then
- * call release() when done. The (slow) writer thread should call enqueue()
- * whenever it has a stimulus loaded.  This will block until the reader calls
- * release(), at which point it will swap in the next stimulus.
- */
-class stimqueue {
-
-public:
-        stimqueue();
-
-        /** return true if the current stimulus is loaded */
-        bool ready() const { return current_stim && current_stim->buffer(); }
-
-        /** true if the stimulus is playing (samples have been read) */
-        bool playing() const {
-                return current_stim && (buffer_pos > 0);
-        }
-
-        /** the current buffer position */
-        sample_t const * buffer() const { return current_stim->buffer() + buffer_pos; }
-
-        /** the number of samples left in the stimulus */
-        nframes_t nsamples() const { return current_stim->nframes() - buffer_pos; }
-
-        /** the name of the current stimulus */
-        char const * name() const { return current_stim->name().c_str(); }
-
-        /**
-         * Advance the read pointer.
-         *
-         * @param samples   the numbers of samples to advance. will not advance
-         *                  beyond end of buffer
-         * @pre ready() is true and the caller is the read thread
-         */
-        void advance(nframes_t samples) {
-                buffer_pos = std::min(nframes_t(buffer_pos + samples),
-                                      current_stim->nframes());
-        }
-
-        /**
-         *  Release the current stimulus. This is a wait-free, thread-safe
-         *  function. If the object is locked, it will return immediately, but
-         *  will need to be called again to release the current stimulus.
-         */
-        void release();
-
-        /**
-         * Enqueue a new stimulus. This function will block until there is room
-         * in the queue for the argument.  If the queue is not full, the new
-         * stimulus will be added to the next free position.
-         *
-         * @param stim   the stimulus to enqueue
-         */
-        void enqueue(jill::stimulus_t const * stim);
-
-private:
-        jill::stimulus_t const * current_stim;     // currently playing stim
-        jill::stimulus_t const * next_stim;        // next stim in queue
-        size_t buffer_pos;                         // position in current buffer
-
-        pthread_mutex_t disk_thread_lock;
-        pthread_cond_t  data_needed;
 
 };
 

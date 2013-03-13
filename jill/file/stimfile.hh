@@ -15,8 +15,7 @@
 #include <string>
 #include <boost/scoped_array.hpp>
 #include <sndfile.h>
-
-#include "../types.hh"
+#include "../stimulus.hh"
 
 namespace jill { namespace file {
 
@@ -34,7 +33,7 @@ public:
         stimfile(std::string const & path);
         ~stimfile();
 
-        std::string const & name() const { return _name; }
+        char const * name() const { return _name.c_str(); }
 
         nframes_t nframes() const { return _nframes; }
         nframes_t samplerate() const { return _samplerate; }

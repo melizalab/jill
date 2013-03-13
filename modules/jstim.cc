@@ -19,6 +19,7 @@
 #include "jill/midi.hh"
 #include "jill/file/stimfile.hh"
 #include "jill/util/stimset.hh"
+#include "jill/util/stimqueue.hh"
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jstim"
@@ -88,7 +89,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         jack_midi_clear_buffer(trig);
 
         // check that stimulus is queued
-        if (!queue.ready()) return 0;
+        if (!queue.ready()) {
+                // sort of hacky: if the queue is full and there's no buffer
+                // it's because the current stim is empty (or the end-of-queue type)
+                if (queue.full()) queue.release();
+                return 0;
+        }
 
         nframes_t offset;
         // am I playing a stimulus?
@@ -117,7 +123,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // copy samples, if there are any
         sample_t *out = client->samples(port_out, nframes);
         nframes_t nsamples = std::min(queue.nsamples(), nframes);
-        memcpy(out + offset, queue.buffer(), nsamples);
+        memcpy(out + offset, queue.buffer(), nsamples * sizeof(sample_t));
         queue.advance(nsamples);
 
         // is the stimulus stopped?
@@ -201,12 +207,11 @@ main(int argc, char **argv)
                  * until stimset->next returns 0.
                  */
                 queue.enqueue(stimset->next());
-                while(queue.ready()) {
-                        client->log() << "stim: " << queue.name() << endl;
+                while(options.count("loop") || queue.ready()) {
                         queue.enqueue(stimset->next());
+                        client->log() << "stim: " << queue.name() << endl;
                 }
 
-                client->log() << "end of stimulus queue" << endl;
                 // give the process loop a chance to clear the port buffer
                 usleep(2e6 * client->buffer_size() / client->sampling_rate());
 
@@ -242,6 +247,7 @@ jstim_options::jstim_options(std::string const &program_name, std::string const 
         po::options_description opts("Stimulus options");
         opts.add_options()
                 ("shuffle,s", "shuffle order of presentation")
+                ("loop,l",    "loop endlessly")
                 ("repeats,r", po::value<size_t>(&nreps)->default_value(1), "default number of repetitions")
                 ("gap,g",     po::value<float>(&min_gap_sec)->default_value(1.0),
                  "minimum gap between sound (s)")
