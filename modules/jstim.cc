@@ -61,31 +61,35 @@ boost::scoped_ptr<util::stimset> stimset;
 jack_port_t *port_out, *port_trigout, *port_trigin;
 int ret = EXIT_SUCCESS;
 
-util::stimqueue queue;
+util::stimqueue queue;          // manages queue of stimuli
+int xruns = 0;
 nframes_t last_start = 0;       // last stimulus start time
 nframes_t last_stop = 0;        // last stimulus stop
 
-/** function to register onset/offset and send an appropriate midi event */
-static void
-stim_event(nframes_t base_time, nframes_t frame_time, void * midi, bool onset)
-{
-        jack_midi_data_t *buf = jack_midi_event_reserve(midi, frame_time, strlen(queue.name()) + 2);
-        if (onset) {
-                buf[0] = midi::stim_on;
-                last_start = base_time + frame_time;
-        }
-        else {
-                buf[0] = midi::stim_off;
-                last_stop = base_time + frame_time;
-        }
-        strcpy(reinterpret_cast<char*>(buf)+1, queue.name());
-}
-
-
+/* the realtime process loop */
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         void *trig = client->events(port_trigout, nframes);
+        sample_t *out = client->samples(port_out, nframes);
+        // zero output buffer - inefficient but simple here
+        memset(out, 0, nframes * sizeof(sample_t));
+
+        // handle xruns
+        if (xruns) {
+                // playing stimuli are truncated
+                if (queue.playing()) {
+                        std::string s(queue.name());
+                        s += " TRUNCATED";
+                        midi::write_message(trig, 0, midi::stim_off, s.c_str());
+                        queue.advance(queue.nsamples()); // stop playback
+                }
+                midi::write_message(trig, 1, midi::info, "xrun detected");
+                // reset timers because running time has changed
+                last_start = last_stop = time;
+                // indicate we've handled the xrun
+                __sync_add_and_fetch(&xruns, -1);
+        }
 
         // check that stimulus is queued
         if (!queue.ready()) {
@@ -116,7 +120,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                         }
                 }
                 if (offset >= nframes) return 0;
-                stim_event(time, offset, trig, true);
+                last_start = time + offset;
+                midi::write_message(trig, offset, midi::stim_on, queue.name());
         }
         // has enough time elapsed since the last stim?
         else {
@@ -128,11 +133,11 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
                 offset = std::max(ostart, ostop);
                 if (offset >= nframes) return 0;
-                stim_event(time, offset, trig, true);
+                last_start = time + offset;
+                midi::write_message(trig, offset, midi::stim_on, queue.name());
         }
 
         // copy samples, if there are any
-        sample_t *out = client->samples(port_out, nframes);
         nframes_t nsamples = std::min(queue.nsamples(), nframes);
         memcpy(out + offset, queue.buffer(), nsamples * sizeof(sample_t));
         queue.advance(nsamples);
@@ -140,8 +145,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // is the stimulus stopped?
         if (queue.nsamples() == 0) {
                 // did it end in this frame?
-                if (nsamples > 0)
-                        stim_event(time, offset + nsamples, trig, false);
+                if (nsamples > 0) {
+                        last_stop = time + offset + nsamples;
+                        midi::write_message(trig, offset + nsamples, midi::stim_off, queue.name());
+                }
                 // try to release the stimulus. may not have an effect, in which
                 // case we'll try again on the next loop
                 queue.release();
@@ -150,8 +157,32 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         return 0;
 }
 
+int
+jack_xrun(jack_client *client, float delay)
+{
+        __sync_add_and_fetch(&xruns, 1); // gcc specific
+        return 0;
+}
+
+int
+jack_bufsize(jack_client *client, nframes_t nframes)
+{
+        __sync_add_and_fetch(&xruns, 1); // gcc specific
+        return 0;
+}
 
 void
+signal_handler(int sig)
+{
+        __sync_add_and_fetch(&xruns, 1); // gcc specific
+        // not strictly async safe
+        usleep(2e6 * client->buffer_size() / client->sampling_rate());
+        exit(1);
+}
+
+
+/* parse the list of stimuli */
+static void
 init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_t const default_nreps)
 {
         using namespace boost::filesystem;
@@ -208,8 +239,17 @@ main(int argc, char **argv)
                                                             JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
+                // register signal handlers
+		signal(SIGINT,  signal_handler);
+		signal(SIGTERM, signal_handler);
+		signal(SIGHUP,  signal_handler);
+
+                client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
                 client->activate();
+                // set this after starting the client so it will only be called
+                // when the buffer size *changes*
+                client->set_buffer_size_callback(jack_bufsize);
 
                 client->connect_ports("out", options.output_ports.begin(), options.output_ports.end());
                 client->connect_ports("trig_out", options.trigout_ports.begin(), options.trigout_ports.end());
@@ -218,7 +258,7 @@ main(int argc, char **argv)
                 /*
                  * main thread: queue up current and next stimulus. wait on
                  * process thread for signal to move to next stimulus. loop
-                 * until stimset->next returns 0.
+                 * until the queue is empty
                  */
                 queue.enqueue(stimset->next());
                 while(options.count("loop") || queue.ready()) {
@@ -226,7 +266,7 @@ main(int argc, char **argv)
                         client->log() << "stim: " << queue.name() << endl;
                 }
 
-                // give the process loop a chance to clear the port buffer
+                // give the process loop a chance to clear the midi output buffer
                 usleep(2e6 * client->buffer_size() / client->sampling_rate());
 
 		return ret;

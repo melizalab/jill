@@ -19,15 +19,6 @@ namespace po = boost::program_options;
 using namespace jill;
 using namespace std;
 
-template <typename T>
-T vecmax(T const * vec, size_t size)
-{
-        T ret = vec[0];
-        for (size_t i = 0; i < size; ++i)
-                ret = std::max(vec[i],ret);
-        return ret;
-}
-
 /* test loading and resampling */
 void
 test_stimfile(file::stimfile & f)
@@ -46,7 +37,6 @@ test_stimfile(file::stimfile & f)
         for (size_t *sr = srates; *sr; ++sr) {
                 f.load_samples(*sr);
                 assert(f.buffer() != 0);
-                printf("max: %f\n", vecmax(f.buffer(), f.nframes()));
                 assert(fabs(f.duration() - duration) < (1.0 / (float)fmin(*sr,samplerate)));
                 assert(f.samplerate() == *sr );
         }
@@ -109,6 +99,9 @@ test_stimqueue(util::stimset & sset)
                 assert(queue.playing());
                 assert(queue.nsamples() == n - 10);
                 assert(queue.buffer() == buf + 10);
+
+                queue.advance(queue.nsamples());
+                assert(queue.nsamples() == 0);
 
                 queue.release();
                 queue.enqueue(sset.next());

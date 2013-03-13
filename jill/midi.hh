@@ -12,6 +12,7 @@
 #define _MIDI_HH 1
 
 #include "types.hh"
+#include <errno.h>
 #include <jack/midiport.h>
 
 /**
@@ -24,6 +25,7 @@ namespace jill { namespace midi {
 enum midi_status {
         stim_on = 0x00,      // non-standard, message is a string
         stim_off = 0x10,     // non-standard, message is a string
+        info = 0x20,         // non-standard, message is a string
         note_on = 0x90,      // used for onsets and single events
         note_off = 0x80,     // used for offsets
         key_pres = 0xa0,     // key pressure
@@ -45,8 +47,35 @@ enum default_value {
         default_velocity = 64
 };
 
+/**
+ * Write a string message to a midi buffer.
+ *
+ * @param buffer   the JACK midi buffer
+ * @param time     the offset of the message (in samples)
+ * @param status   the status byte
+ * @param message  the string message, or 0 to send an empty message
+ *
+ */
+inline int
+write_message(void * buffer, nframes_t time, midi_status status, char const * message=0)
+{
+        size_t len = 1;
+        if (message)
+                len += strlen(message) + 1; // add the null byte
+        jack_midi_data_t *buf = jack_midi_event_reserve(buffer, time, len);
+        if (buf) {
+                buf[0] = (char)status;
+                if (message) strcpy(reinterpret_cast<char*>(buf)+1, message);
+                return 0;
+        }
+        else
+                return ENOBUFS;
+}
+
 
 }}
+
+
 
 // /** A wrapper for jack midi buffers that exposes an iterator interface */
 // class midi_buffer : boost::noncopyable {
