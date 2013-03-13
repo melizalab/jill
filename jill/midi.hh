@@ -45,7 +45,28 @@ enum default_value {
         default_velocity = 64
 };
 
+
 }}
+
+// /** A wrapper for jack midi buffers that exposes an iterator interface */
+// class midi_buffer : boost::noncopyable {
+
+// public:
+//         /**
+//          * Initialize object by getting the buffer for a JACK port. Will clear
+//          * the buffer if it's an output port
+//          */
+//         midi_buffer(jack_port_t *, nframes_t);
+
+//         /** Initialize the object from a pointer to a JACK midi buffer */
+//         explicit midi_buffer(void *);
+
+
+
+// private:
+//         void * _buffer;
+
+// };
 
 #endif /* _MIDI_HH */
 

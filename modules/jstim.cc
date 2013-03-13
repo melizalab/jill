@@ -86,7 +86,6 @@ int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         void *trig = client->events(port_trigout, nframes);
-        jack_midi_clear_buffer(trig);
 
         // check that stimulus is queued
         if (!queue.ready()) {
@@ -103,7 +102,19 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // is there an external trigger?
         else if (port_trigin) {
-                // TODO scan for event
+                offset = nframes + 1;
+                jack_midi_event_t event;
+                void * midi_buffer = client->events(port_trigin, nframes);
+                nframes_t nevents = jack_midi_get_event_count(midi_buffer);
+                for (nframes_t i = 0; i < nevents; ++i) {
+                        jack_midi_event_get(&event, midi_buffer, i);
+                        if (event.size < 1) continue;
+                        char t = event.buffer[0] & midi::type_nib;
+                        if (t == (char)midi::stim_on || t == (char)midi::note_on) {
+                                offset = event.time;
+                                break;
+                        }
+                }
                 if (offset >= nframes) return 0;
                 stim_event(time, offset, trig, true);
         }
@@ -173,10 +184,12 @@ main(int argc, char **argv)
                 client.reset(new jack_client(options.client_name));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
-                client->log(false) << "minimum gap: " << options.min_gap_sec << "s ("
-                                   << options.min_gap << " samples)" << endl;
-                client->log(false) << "minimum interval: " << options.min_interval_sec << "s ("
-                                   << options.min_interval << " samples)" << endl;
+                if (!options.count("trig")) {
+                        client->log(false) << "minimum gap: " << options.min_gap_sec << "s ("
+                                           << options.min_gap << " samples)" << endl;
+                        client->log(false) << "minimum interval: " << options.min_interval_sec << "s ("
+                                           << options.min_interval << " samples)" << endl;
+                }
 
                 stimset.reset(new util::stimset(client->sampling_rate()));
                 init_stimset(stimset.get(), options.stimuli, options.nreps);
@@ -190,8 +203,9 @@ main(int argc, char **argv)
                 port_trigout = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
+                        client->log(false) << "triggering playback from trig_in" << endl;
                         port_trigin = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
-                                                           JackPortIsOutput | JackPortIsTerminal, 0);
+                                                            JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
                 client->set_process_callback(process);
@@ -241,7 +255,8 @@ jstim_options::jstim_options(std::string const &program_name, std::string const 
                  "set client name")
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output audio port")
                 ("event,e",   po::value<vector<string> >(&trigout_ports), "add connection to output event port")
-                ("trig,t",    po::value<vector<string> >(&trigin_ports), "add connection to input trigger port");
+                ("trig,t",    po::value<vector<string> >(&trigin_ports)->multitoken()->zero_tokens(),
+                 "add connection to input trigger port");
 
         // tropts is a group of options
         po::options_description opts("Stimulus options");
