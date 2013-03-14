@@ -325,5 +325,6 @@ void
 jack_client::shutdown_callback_(jack_status_t code, char const * reason, void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
+        self->log() << "the server is shutting us down: " << reason << std::endl;
 	if (self->_shutdown_cb) self->_shutdown_cb(code, reason);
 }

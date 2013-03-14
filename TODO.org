@@ -1,5 +1,11 @@
 
 
+* DONE fix storage of uuids
+
+storing uuids as 16-byte strings is problematic because of nulls. change
+specification to be either a 36-byte hex representation or a 128-bit integer.
+The latter isn't supported on all platforms.
+
 * TODO profile arf thread
 
 using test_arf_thread I find a limit to how many channels I can write
@@ -9,7 +15,17 @@ though I also got a malloc error when I tried to do 200 channels with a 2048
 period.  The compression setting doesn't seem to make a difference.  Need to do
 some serious profiling.
 
-* TODO fix storage of event types
+* TODO fix port registration / buffer size bug
+
+This is an annoying one. jack_client maintains a list of ports it has
+registered, which it updates through the a port registration callback. This is a
+nice solution that maintains a realtime-safe access point for the port list, but
+these callbacks don't actually get called until the client is activated and
+typically after the buffer size callback. In jrecord I'm using the buffer size
+callback to adjust the size of the ringbuffer, but on the first call it doesn't
+know how many ports are registered.
+
+* DONE fix storage of event types
 
 Event data will be stored in arrays with a compound datatype. Empty events are
 discarded. Because the length of the message may vary, the bytes after the
@@ -18,7 +34,14 @@ read vlen types that are not strings!  Storing all event data in strings is
 problematic, though, because normal MIDI messages are not null-terminated and
 may in fact have \0 in them at various places.  Options are:
 
-1. fix h5py
-2. wait until I have a better sense of what the extended messages will look
-   like (i.e. work on jstim)
+1. store the data in the correct format (char vlens) and try to fix h5py.
+   definitely non-trivial.
+2. translate all events into hex-encoded strings. This is pretty hacky and
+   doubles the storage size.
+3. translate standard midi messages into strings, e.g. "note on: 64 00".
+   Probably the worst option because it locks in a specific interpretation of
+   the messages
 
+I think #2 is the best option at the moment, with a note that #1 may be
+supported in the future.  I'm only going to require hex encoding for MIDI
+messages with non-string payloads

@@ -38,6 +38,7 @@ public:
 	/** Ports to connect to */
 	std::vector<std::string> output_ports;
         std::vector<std::string> trigout_ports;
+        midi::type trigout_chan;
 	std::vector<std::string> trigin_ports;
 
         std::vector<std::string> stimuli; // this is postprocessed
@@ -177,7 +178,7 @@ signal_handler(int sig)
         __sync_add_and_fetch(&xruns, 1); // gcc specific
         // not strictly async safe
         usleep(2e6 * client->buffer_size() / client->sampling_rate());
-        exit(1);
+        exit(sig);
 }
 
 
@@ -215,7 +216,10 @@ main(int argc, char **argv)
                 client.reset(new jack_client(options.client_name));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
+                options.trigout_chan &= midi::chan_nib;
+
                 if (!options.count("trig")) {
+                        client->log(false) << "playing stimuli with\n";
                         client->log(false) << "minimum gap: " << options.min_gap_sec << "s ("
                                            << options.min_gap << " samples)" << endl;
                         client->log(false) << "minimum interval: " << options.min_interval_sec << "s ("
@@ -295,6 +299,8 @@ jstim_options::jstim_options(std::string const &program_name, std::string const 
                  "set client name")
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output audio port")
                 ("event,e",   po::value<vector<string> >(&trigout_ports), "add connection to output event port")
+                ("chan,c",    po::value<midi::type>(&trigout_chan)->default_value(0),
+                 "set MIDI channel for output messages (0-16)")
                 ("trig,t",    po::value<vector<string> >(&trigin_ports)->multitoken()->zero_tokens(),
                  "add connection to input trigger port");
 

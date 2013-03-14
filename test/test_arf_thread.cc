@@ -15,7 +15,7 @@
 #include "jill/file/arf_thread.hh"
 
 #define CLIENT_NAME "test_arf_thread"
-#define NSAMPLED 10
+#define NSAMPLED 1
 #define NEVENT 1
 #define COMPRESSION 1
 

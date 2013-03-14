@@ -10,6 +10,7 @@
 
 #include "arf_thread.hh"
 #include <boost/format.hpp>
+#include <boost/algorithm/hex.hpp>
 #include <sys/time.h>
 #include <arf.hpp>
 #include "../jack_client.hh"
@@ -27,9 +28,10 @@ struct datatype_traits<jill::file::message_t> {
 	static hid_t value() {
                 hid_t str = H5Tcopy(H5T_C_S1);
                 H5Tset_size(str, H5T_VARIABLE);
+                H5Tset_cset(str, H5T_CSET_UTF8);
                 hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jill::file::message_t));
-                H5Tinsert(ret, "sec", HOFFSET(jill::file::message_t, sec), H5T_STD_I64LE);
-                H5Tinsert(ret, "usec", HOFFSET(jill::file::message_t, usec), H5T_STD_I64LE);
+                H5Tinsert(ret, "sec", HOFFSET(jill::file::message_t, sec), H5T_NATIVE_INT64);
+                H5Tinsert(ret, "usec", HOFFSET(jill::file::message_t, usec), H5T_NATIVE_INT64);
                 H5Tinsert(ret, "message", HOFFSET(jill::file::message_t, message), str);
                 H5Tclose(str);
                 return ret;
@@ -37,32 +39,19 @@ struct datatype_traits<jill::file::message_t> {
 };
 
 template<>
-struct datatype_traits<jack_midi_event_t> {
+struct datatype_traits<jill::file::event_t> {
 	static hid_t value() {
-                hid_t midi = H5Tvlen_create(H5T_NATIVE_CHAR);
-                hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jack_midi_event_t));
-                H5Tinsert(ret, "start", HOFFSET(jack_midi_event_t, time), H5T_NATIVE_UINT);
-                H5Tinsert(ret, "midi", HOFFSET(jack_midi_event_t, size), midi);
-                H5Tclose(midi);
+                hid_t str = H5Tcopy(H5T_C_S1);
+                H5Tset_size(str, H5T_VARIABLE);
+                H5Tset_cset(str, H5T_CSET_UTF8);
+                hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jill::file::event_t));
+                H5Tinsert(ret, "start", HOFFSET(jill::file::event_t, start), H5T_NATIVE_UINT32);
+                H5Tinsert(ret, "status", HOFFSET(jill::file::event_t, status), H5T_NATIVE_UINT8);
+                H5Tinsert(ret, "message", HOFFSET(jill::file::event_t, message), str);
+                H5Tclose(str);
                 return ret;
         }
 };
-
-
-// template<>
-// struct datatype_traits<event_t> {
-// 	static hid_t value() {
-//                 hid_t str = H5Tcopy(H5T_C_S1);
-//                 H5Tset_size(str, H5T_VARIABLE);
-//                 hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(jill::file::event_t));
-//                 H5Tinsert(ret, "start", HOFFSET(jill::file::event_t, start), H5T_STD_U32LE);
-//                 H5Tinsert(ret, "type", HOFFSET(jill::file::event_t, type), H5T_NATIVE_CHAR);
-//                 H5Tinsert(ret, "chan", HOFFSET(jill::file::event_t, chan), H5T_NATIVE_CHAR);
-//                 H5Tinsert(ret, "message", HOFFSET(jill::file::event_t, message), str);
-//                 H5Tclose(str);
-//                 return ret;
-//         }
-// };
 
 }}}
 
@@ -128,7 +117,7 @@ arf_thread::new_datasets()
                                                                    false, 1024, _compression);
                 }
                 else {
-                        pt = _entry->create_packet_table<jack_midi_event_t>(name,"samples",arf::EVENT,
+                        pt = _entry->create_packet_table<event_t>(name,"samples",arf::EVENT,
                                                                               false, 1024, _compression);
                 }
                 _do_log(make_string() << "[" << _client->name() << "] created dataset: " << pt->name());
@@ -249,8 +238,23 @@ arf_thread::write_continuous(void * arg)
                                         nframes_t nevents = jack_midi_get_event_count(data);
                                         for (nframes_t j = 0; j < nevents; ++j) {
                                                 jack_midi_event_get(&event, data, j);
-                                                event.time += period->time - entry_start;
-                                                self->_dsets[i]->write(&event, 1);
+                                                if (event.size == 0) continue;
+                                                event_t e = { period->time - entry_start,
+                                                              event.buffer[0],
+                                                              "" };
+                                                // hex encode standard midi events
+                                                if (event.size > 1) {
+                                                        if (event.buffer[0] < midi::note_off)
+                                                                e.message = reinterpret_cast<char*>(event.buffer+1);
+                                                        else {
+                                                                std::string s(event.size*2,0);
+                                                                boost::algorithm::hex(event.buffer+1,
+                                                                                      event.buffer+event.size,
+                                                                                      s.begin());
+                                                                e.message = s.c_str();
+                                                        }
+                                                }
+                                                self->_dsets[i]->write(&e, 1);
                                         }
                                 }
                         }

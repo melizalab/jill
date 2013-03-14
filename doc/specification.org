@@ -32,7 +32,6 @@ details.
 You should have received a copy of the GNU General Public License along with
 this program; if not, see <http://www.gnu.org/licenses>.
 
-
 * Language
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
@@ -67,60 +66,14 @@ Clients operate on these buffers in their realtime processing loops.
 
 There are two kinds of ports defined in JACK (at present). Audio ports contain
 floating point samples.  MIDI ports contain a series of MIDI messages with
-sample indices that give their temporal position within the realtime audio stream.
+sample indices that give their temporal position within the realtime audio
+stream (see [[MIDI messages]]).
 
 JILL modules must register with the JACK server as a client. Module
 specifications must indicate how many ports a module will register, their
 function, their type (sampled or event) and their direction (input or output);
 and whether the client will register, unregister, connect, or disconnect any
 ports during normal operation.
-
-*** MIDI messages
-
-In JACK, MIDI messages consist of a status byte followed by zero or more data
-bytes. Status bytes use the highest bit (0x80-0xFF) and data bytes do not
-(0x00-0x7F). JILL modules *must* send conforming MIDI messages if the high bit
-of the status byte is set. JILL modules *may* send messages in which the status
-byte has the high bit clear, but these must not be sent to standard MIDI
-devices. The specification for any module outputting MIDI must indicate whether
-its messages are hardware-compatible.  The following message types are defined
-by the MIDI standard:
-
-| status | explanation       | data size | data contents           |
-|--------+-------------------+-----------+-------------------------|
-|   0x8x | note on           |         2 | pitch, velocity         |
-|   0x9x | note off          |         2 | pitch, velocity         |
-|   0xAx | key pressure      |         2 | key, pressure           |
-|   0xBx | controller change |         2 | controller, value       |
-|   0xCx | program change    |         1 | preset                  |
-|   0xDx | channel pressure  |         1 | pressure                |
-|   0xEx | pitch bend        |         2 | bend (short LE int)     |
-|   0xF0 | system exclusive  |         n | vendor id, message      |
-|   0xF2 | song position     |         2 | position (short LE int) |
-|   0xF3 | song select       |         1 | song number             |
-|   0xF6 | tune request      |         0 |                         |
-|   0xF7 | end of sysex      |         0 |                         |
-|   0xF8 | timing tick       |         0 |                         |
-|   0xFA | start song        |         0 |                         |
-|   0xFB | continue song     |         0 |                         |
-|   0xFC | stop song         |         0 |                         |
-|   0xFE | active sensing    |         0 |                         |
-|   0xFF | system reset      |         0 |                         |
-
-For status bytes 0x80 to 0xEF, the lowest four bits indicate the channel. JILL
-modules should use channel 0 unless there is a good reason to do otherwise. If
-pitch and velocity are not meaningful, default values of 60 and 64 should be
-used.
-
-The following hardware-incompatible message types are defined for JILL modules:
-
-| status | explanation | data size | data contents                                |
-|--------+-------------+-----------+----------------------------------------------|
-|   0x0x | stim on     | n         | stimulus name (null-terminated UTF-8 string) |
-|   0x1x | stim off    | n         | stimulus name (string)                       |
-|   0x2x | info        | n         | an informative message (string)              |
-
-
 
 ** JACK Events
 
@@ -141,7 +94,9 @@ some event types.
 5. changes to period size. The period size is how many samples are passed to the
    clients in the process loop. Changes to period size cause gaps in the
    processing stream.
-6. server shutdown. Clients should clean up any open files, etc, when this occurs.
+6. server shutdown. Modules should clean up any open files, etc, when this
+   occurs. Note that at this point the client has been disconnected from the
+   JACK daemon.
 7. timebase changes. These events occur when a client requests a new position in
    the processing stream. As of this writing, clients should ignore these events
    and must not request timebase changes.
@@ -170,7 +125,11 @@ specification.
 ** UNIX Signals
 
 In addition, the specification must state how clients will handle standard POSIX
-termination signals SIGINT, SIGTERM, and SIGHUP to avoid data loss.
+termination signals SIGINT, SIGTERM, and SIGHUP to avoid data loss.  In
+general, modules are not responsible for making downstream clients aware of any
+events that can be inferred from the appropriate JACK callback.  However, it is
+considered good practice to follow any note_on or stim_on events with the
+appropriate offset event when shutting down.
 
 ** Options and behavior
 
@@ -192,8 +151,8 @@ stop thresholds.
         crosses onset or offset thresholds
 + trig_out :: event data, output. Emits note on and note off events indicating
               the times when the signal crossed the onset or offset threshold,
-              respectively. The channel information in the event is not
-              specified. Output is hardware-compatible.
+              respectively. The channel for the event can be set by the user.
+              Output is hardware-compatible.
 + count :: (optional) sampled data, outout. Provides debug information about the
            state of the signal detector. The meaning of the signal depends on
            the implementation of the detector.
@@ -211,9 +170,10 @@ The client shall not make any changes to its ports during operation.
 2. Port registration and unregistrations are ignored.
 3. Port connections and disconnections are ignored.
 4. Although xruns indicate missing data, the detector must continue to function
-   on the available data. Even if the last event was a note on, a weak signal
-   will eventually cause the offset threshold to be crossed, and the resulting
-   note off signal will be in sync with the auditory data at that point.
+   as though they had not occurred. Even if the last event was a note on, a weak
+   signal will eventually cause the offset threshold to be crossed, and the
+   resulting note off signal will be in sync with the auditory data at that
+   point.
 5. Changes to buffer size are ignored, unless they necessitate a change to the
    parameters of the detector.
 6. Server shutdowns cause the client to terminate.
@@ -225,13 +185,12 @@ provides a mechanism for changing parameters. The status socket publishes
 information about changes to parameters and onset/offset events.
 
 **** TODO specify status message format
+**** TODO implement adjust parameters in running jdetect
 
 *** UNIX Signals
 
-Termination signals have their default behavior (cause the client to exit).
-Clients subscribing to the event port are responsible for detecting the
-disconnection and handling the condition where the program is terminated after
-a note on event but before a note off event.
+Termination signals have their default behavior (cause the client to exit). If
+the last ouput was a note_on event, a note_off event will be sent.
 
 *** Options and behavior
 
@@ -240,8 +199,6 @@ signal detector. These will depend on the implementation. Onset and offset
 events and their times will be logged. The client may accept input during
 operation to adjust these parameters, and it may provide information on the
 terminal as to the current state of the detector.
-
-**** TODO implement adjust parameters in running jdetect
 
 ** jrecord
 
@@ -366,18 +323,19 @@ data will be stored in HDF5 array datasets, with elements corresponding to
 individual frames and a datatype that matches the internal JACK sample type
 (typically single-precision floats).
 
-Event data will be stored in arrays with a compound datatype. Empty events are
-discarded. Because the length of the message may vary, the bytes after the
-status byte need to be stored in a variable length type. However, h5py cannot
-read vlen types that are not strings!
+Event data will be stored in arrays with a compound datatype. Empty events (i.e.
+without a status byte) are discarded. The time and status byte are stored in
+fixed-length fields, and the rest of the message is stored in a variable length
+field.
 
 : start       - the time of the event (sample count)
 : status      - the MIDI status byte (char)
-: data        - the MIDI message (vlen, char)
+: data        - the MIDI message (vlen string or char array)
 
-Note that for some kinds of data, only the times are important (e.g., spike
-times), and the data field can be ignored.  For other kinds of data, like
-stimulus onset and offset times, the messages will need to be parsed.
+At present, h5py cannot read vlen types that are not strings, so *jrecord* will
+store messages as strings. Standard MIDI messages (see [[MIDI messages]]) must be
+stored in hex encoding; extended message types with a string payload are stored
+in standard UTF-8 encoding.
 
 **** jrecord log
 
@@ -440,8 +398,10 @@ neurons.
    a stim_off event to the event output.
 2. Registration/unregistration events are ignored
 3. Port connections and disconnections are ignored
-4. Xruns cause the process thread to terminate any active playback
-5. Changes to period size also terminate active playback
+4. Xruns cause the process thread to terminate any active playback. The
+   stim_off event generated when this happens should indicate that the stimulus
+   was truncated.
+5. Changes to period size also terminate active playbacks.
 6. Server shutdown causes termination of the client.
 
 *** ØMQ Sockets
@@ -451,7 +411,8 @@ other programs to initiate stimulus playback.
 
 *** UNIX Signals
 
-SIGINT, SIGTERM, and SIGHUP events cause termination of the client.
+SIGINT, SIGTERM, and SIGHUP events cause termination of the client.  The client
+should try to send a stim_off event.
 
 *** Options and behavior
 
@@ -480,5 +441,54 @@ signal acquisition routines with JACK callbacks.
 ** jspikes
 
 Replaces aspikes for online spike detection.
+
+
+* Appendices
+
+*** MIDI messages
+
+In JACK, MIDI messages consist of a status byte followed by zero or more data
+bytes. Status bytes use the highest bit (0x80-0xFF) and data bytes do not
+(0x00-0x7F). JILL modules *must* send conforming MIDI messages if the high bit
+of the status byte is set. JILL modules *may* send messages in which the status
+byte has the high bit clear, but these must not be sent to standard MIDI
+devices. The specification for any module outputting MIDI must indicate whether
+its messages are hardware-compatible.  The following message types are defined
+by the MIDI standard:
+
+| status | explanation       | data size | data contents           |
+|--------+-------------------+-----------+-------------------------|
+|   0x8x | note on           |         2 | pitch, velocity         |
+|   0x9x | note off          |         2 | pitch, velocity         |
+|   0xAx | key pressure      |         2 | key, pressure           |
+|   0xBx | controller change |         2 | controller, value       |
+|   0xCx | program change    |         1 | preset                  |
+|   0xDx | channel pressure  |         1 | pressure                |
+|   0xEx | pitch bend        |         2 | bend (short LE int)     |
+|   0xF0 | system exclusive  |         n | vendor id, message      |
+|   0xF2 | song position     |         2 | position (short LE int) |
+|   0xF3 | song select       |         1 | song number             |
+|   0xF6 | tune request      |         0 |                         |
+|   0xF7 | end of sysex      |         0 |                         |
+|   0xF8 | timing tick       |         0 |                         |
+|   0xFA | start song        |         0 |                         |
+|   0xFB | continue song     |         0 |                         |
+|   0xFC | stop song         |         0 |                         |
+|   0xFE | active sensing    |         0 |                         |
+|   0xFF | system reset      |         0 |                         |
+
+For status bytes 0x80 to 0xEF, the lowest four bits indicate the channel. JILL
+modules should use channel 0 unless there is a good reason to do otherwise. If
+pitch and velocity are not meaningful, default values of 60 and 64 should be
+used.
+
+The following hardware-incompatible message types are defined for JILL modules:
+
+| status | explanation | data size | data contents                                |
+|--------+-------------+-----------+----------------------------------------------|
+|   0x0x | stim on     | n         | stimulus name (null-terminated UTF-8 string) |
+|   0x1x | stim off    | n         | stimulus name (string)                       |
+|   0x2x | info        | n         | an informative message (string)              |
+
 
 

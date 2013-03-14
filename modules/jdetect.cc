@@ -35,6 +35,8 @@ public:
 	std::vector<std::string> input_ports;
 	/** A vector of outputs to connect to the client */
 	std::vector<std::string> output_ports;
+        /** The MIDI output channel */
+        midi::type output_chan;
 
 	float open_threshold;
 	float close_threshold;
@@ -57,12 +59,12 @@ jdetect_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
 boost::scoped_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
-int ret = EXIT_SUCCESS;
+int stopping = 0;               // set to 1 to get process to clean up
 
 /* data storage for event times */
 struct event_t {
         nframes_t time;
-        midi::midi_status status;
+        int status;
 };
 dsp::ringbuffer<event_t> trig_times(128);
 
@@ -72,6 +74,15 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 	sample_t *in = client->samples(port_in, nframes);
         sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
         void *trig_buffer = client->events(port_trig, nframes);
+        jack_midi_data_t buf[] = { jack_midi_data_t(options.output_chan & midi::chan_nib),
+                                   midi::default_pitch, midi::default_velocity };
+
+        if (stopping && trigger->open()) {
+                buf[0] += midi::note_off;
+                jack_midi_event_write(trig_buffer, 0, buf, 3);
+                __sync_add_and_fetch(&stopping, -1);
+                return 0;
+        }
 
 	// Step 1: Pass samples to window discriminator; its state may
 	// change, in which case the return value will be > -1 and
@@ -81,16 +92,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 	int offset = trigger->push(in, nframes, out);
         if (offset < 0) return 0;
 
-        // store data sent to logger
-        event_t event = { offset + time, (trigger->open()) ? midi::note_on : midi::note_off };
-        // this is a standard note on or note off message
-        jack_midi_data_t *buf = jack_midi_event_reserve(trig_buffer, offset, 3);
-        if (buf) {
-                buf[0] = event.status;
-                buf[1] = midi::default_pitch;
-                buf[2] = midi::default_velocity;
-        }
-        else {
+        buf[0] += (trigger->open()) ? midi::note_on : midi::note_off;
+        event_t event = { time + offset, buf[0] & midi::type_nib }; // data sent to logger
+        if (jack_midi_event_write(trig_buffer, offset, buf, 3) != 0) {
                 // indicate error to logger function
                 event.status = midi::sysex;
         }
@@ -108,9 +112,9 @@ std::size_t log_times(event_t const * events, std::size_t count)
                 e = events+i;
                 std::ostream &os = client->log();
                 if (e->status==midi::note_on)
-                        os << "signal onset:";
+                        os << "signal on: ";
                 else if (e->status==midi::note_off)
-                        os << "signal offset:";
+                        os << "signal off:";
                 else
                         os << "WARNING: detected but couldn't send event: ";
                 os << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
@@ -118,8 +122,17 @@ std::size_t log_times(event_t const * events, std::size_t count)
         return i;
 }
 
+void
+signal_handler(int sig)
+{
+        __sync_add_and_fetch(&stopping, 1);
+        // wait for at least one process loop; not strictly async safe
+        usleep(2e6 * client->buffer_size() / client->sampling_rate());
+        exit(sig);
+}
+
 /**
- * Callback for samplerate changes. However, this function is only called once.
+ * Callback for samplerate changes. This function is only called once.
  */
 int
 samplerate_callback(jack_client *client, nframes_t samplerate)
@@ -170,6 +183,11 @@ main(int argc, char **argv)
                                                           JackPortIsOutput | JackPortIsTerminal, 0);
                 }
 
+                // register signal handlers
+		signal(SIGINT,  signal_handler);
+		signal(SIGTERM, signal_handler);
+		signal(SIGHUP,  signal_handler);
+
                 client->set_sample_rate_callback(samplerate_callback);
                 client->set_process_callback(process);
                 client->activate();
@@ -182,7 +200,7 @@ main(int argc, char **argv)
                         trig_times.pop(log_times); // calls visitor function on ringbuffer
                 }
 
-		return ret;
+		return EXIT_SUCCESS;
 	}
 	/*
 	 * These catch statements handle two kinds of exceptions.  The
@@ -215,7 +233,9 @@ jdetect_options::jdetect_options(std::string const &program_name, std::string co
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
-                ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
+                ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port")
+                ("chan,c",    po::value<midi::type>(&output_chan)->default_value(0),
+                 "set MIDI channel for output messages (0-16)");
 
         // tropts is a group of options
         po::options_description tropts("Trigger options");
