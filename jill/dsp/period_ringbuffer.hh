@@ -43,21 +43,6 @@ public:
         typedef ringbuffer<char> super;
         typedef super::data_type data_type;
 
-        /**
-         * Define the header for the period. Contains information about
-         * timestamp, and frame count.
-         */
-        struct period_info_t {
-                nframes_t time;    // time of the current period
-                nframes_t nframes; // number of frames in period
-                void *arg;         // pointer to external data
-
-                std::size_t bytes() const { return nframes * sizeof(sample_t); }
-                std::size_t size() const { return sizeof(period_info_t) + bytes(); }
-                void * data() { return this + 1; }
-                void const * data() const { return this + 1; }
-        };
-
 	typedef boost::function<void (void const * src, period_info_t & info)> visitor_type;
 
         /**
@@ -87,7 +72,6 @@ public:
          * Look at the next period in the buffer. If a period is available,
          * returns a pointer to the header. You can then copy out just the
          * payload or the whole chunk. Be sure to call release() when done.
-         *
          *
          * @return period_info_t* for the next period, or 0 if none is
          * available.

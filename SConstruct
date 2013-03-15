@@ -63,6 +63,7 @@ env = Environment(ENV=os.environ,
 		  PREFIX=install_prefix,
 		  LIBDIR=install_libdir,
 		  BINDIR=install_bindir,
+                  CPPPATH=['#/arf'],
                   tools=['default'])
 
 if os.environ.has_key('CFLAGS'):
@@ -76,8 +77,7 @@ if system=='Darwin':
     env.Append(CPPPATH=['/opt/local/include'],
                LIBPATH=['/opt/local/lib'])
 if int(debug):
-    env.Append(CCFLAGS=['-g2', '-Wall','-DDEBUG=1'],
-               CPPPATH=['#/arf'])
+    env.Append(CCFLAGS=['-g2', '-Wall','-DDEBUG=1'])
 else:
     env.Append(CCFLAGS=['-O2'])
 

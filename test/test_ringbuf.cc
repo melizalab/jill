@@ -75,7 +75,7 @@ test_period_ringbuf(std::size_t nchannels)
         }
 
         for (chan = 0; chan < nchannels; ++chan) {
-                jill::dsp::period_ringbuffer::period_info_t info;
+                jill::period_info_t info;
                 info.time = 0;
                 info.nframes = BUFSIZE;
                 channels[chan] = chan; // has to be stable
@@ -86,7 +86,7 @@ test_period_ringbuf(std::size_t nchannels)
         }
 
         for (chan = 0; chan < nchannels; ++chan) {
-                jill::dsp::period_ringbuffer::period_info_t const *info;
+                jill::period_info_t const *info;
                 info = rb.peek();
 
                 assert(info != 0);
@@ -94,7 +94,7 @@ test_period_ringbuf(std::size_t nchannels)
                 assert(info->nframes == BUFSIZE);
                 assert(*(std::size_t*)(info->arg) == chan);
 
-                assert(memcmp(buf, info->data(), info->bytes()) == 0);
+                assert(memcmp(buf, info+1, info->bytes()) == 0);
 
                 // check that repeated calls to peek return same data
                 info = rb.peek();

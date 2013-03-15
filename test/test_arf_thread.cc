@@ -6,116 +6,125 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
+#include <boost/scoped_ptr.hpp>
 #include <map>
 #include <string>
 
-#include "jill/jack_client.hh"
-#include "jill/dsp/period_ringbuffer.hh"
-#include "jill/file/arf_thread.hh"
+#include "jill/file/multichannel_writer.hh"
 
 #define CLIENT_NAME "test_arf_thread"
-#define NSAMPLED 1
-#define NEVENT 1
-#define COMPRESSION 1
+#define PERIOD_SIZE 1024
+#define NPERIODS 1024
 
 using namespace jill;
 
-boost::scoped_ptr<jack_client> client;
-dsp::period_ringbuffer ringbuffer(1024);
-boost::scoped_ptr<file::arf_thread> arf_thread;
-std::map<std::string, std::string> attrs;
+boost::scoped_ptr<data_thread> writer;
+unsigned short seed[3] = { 0 };
+sample_t test_data[PERIOD_SIZE];
 
-int
-process(jack_client *client, nframes_t nframes, nframes_t time)
+void setup()
 {
-        sample_t *port_buffer;
-        std::list<jack_port_t*>::const_iterator it;
-
-        if (ringbuffer.reserve(time, nframes, client->ports().size()) == 0) {
-                arf_thread->xrun();
-                return 0;
+        for (size_t idx = 0; idx < PERIOD_SIZE; ++idx) {
+                test_data[idx] = nrand48(seed);
         }
-
-        for (it = client->ports().begin(); it != client->ports().end(); ++it) {
-                port_buffer = client->samples(*it, nframes);
-                ringbuffer.push(port_buffer);
-        }
-
-	/* signal that there is data available */
-	if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
-	    pthread_cond_signal (&data_ready);
-	    pthread_mutex_unlock (&disk_thread_lock);
-	}
-
-        return 0;
 }
 
-
-void
-setup()
-{
-        attrs["creator"] = CLIENT_NAME;
-        char buf[64];
-
-        client.reset(new jack_client(CLIENT_NAME));
-        for (int i = 0; i < NSAMPLED; ++i) {
-                sprintf(buf,"pcm_%04d",i);
-                client->register_port(buf,JACK_DEFAULT_AUDIO_TYPE,
-                                      JackPortIsInput | JackPortIsTerminal);
-        }
-        for (int i = 0; i < NEVENT; ++i) {
-                sprintf(buf,"evt_%04d",i);
-                client->register_port(buf,JACK_DEFAULT_MIDI_TYPE,
-                                      JackPortIsInput | JackPortIsTerminal);
-        }
-
-        ringbuffer.resize(client->buffer_size() * (NSAMPLED+NEVENT) * 10);
-        client->log() << "ringbuffer size (bytes)" << ringbuffer.write_space();
-
-        arf_thread.reset(new file::arf_thread("test.arf",
-                                              &attrs,
-                                              client.get(),
-                                              &ringbuffer,
-                                              COMPRESSION));
-
-        client->set_process_callback(process);
-        arf_thread->start();
-        client->activate();
-}
 
 void
 signal_handler(int sig)
 {
-        arf_thread->stop();
-}
-
-
-void
-teardown()
-{
-        arf_thread->join();
-        client->deactivate();
+        printf("got interrupt; trying to stop thread\n");
+        writer->stop();
+        writer->join();
+        printf("passed tests\n");
+        exit(sig);
 }
 
 void
 test_write_log()
 {
-        arf_thread->log("[" CLIENT_NAME "] a random log message");
+        writer->log("[" CLIENT_NAME "] a random log message");
 }
+
+void
+start_dummy_writer(nframes_t buffer_size)
+{
+        writer.reset(new file::multichannel_writer(buffer_size));
+        writer->start();
+}
+
+/**
+ * Test compliance and performance of writer thread types. Throttles the rate of
+ * writing data until no xruns are emitted for some duration.
+ *
+ * @param max_time    the amount of time without xruns needed to exit
+ * @return final rate, in bytes/sec
+ */
+double
+test_write_data(boost::posix_time::time_duration const & max_time)
+{
+	using namespace boost::posix_time;
+        const size_t max_periods = 1 << 20; // sanity
+        // long sleep_us = 0;
+        timespec sleep_time = { 0, 0 };
+
+        period_info_t info = {0, PERIOD_SIZE, 0};
+        ptime last_xrun_t(microsec_clock::local_time());
+        size_t last_xrun_i = 0;
+        for (size_t i = 0; i < max_periods; ++i) {
+                info.time = i;
+                nframes_t r = writer->push(test_data, info);
+                if (r < PERIOD_SIZE) {
+                        last_xrun_i = i;
+                        last_xrun_t = microsec_clock::local_time();
+                        sleep_time.tv_nsec += 100;
+                        // sleep_us += 1;
+                }
+                else {
+                        time_duration dur = microsec_clock::local_time() - last_xrun_t;
+                        if (dur > max_time) {
+                                // printf("sleep size: %ld\n", sleep_us);
+                                printf("sleep was %ld ns\n", sleep_time.tv_nsec);
+                                double rate = (double)(i - last_xrun_i) * (info.nframes / 1.024) /
+                                        dur.total_milliseconds();
+                                return rate;
+                        }
+                }
+                nanosleep(&sleep_time, 0);
+                // usleep(sleep_us);
+        }
+        return -1;
+}
+
 
 int
 main(int argc, char **argv)
 {
         setup();
+
         signal(SIGINT,  signal_handler);
         signal(SIGTERM, signal_handler);
         signal(SIGHUP,  signal_handler);
         printf("Hit Ctrl-C to stop test\n");
 
+        start_dummy_writer(PERIOD_SIZE);
         test_write_log();
-        teardown();
+        // test stopping writer without storing any data
+        writer->stop();
+        writer->join();
 
-        printf("passed tests\n");
+        printf("Testing dummy writer\n");
+        nframes_t buffer_sizes[] = {PERIOD_SIZE * 3, PERIOD_SIZE * 5,
+                                    PERIOD_SIZE * 10, PERIOD_SIZE * 20, 0};
+        for (nframes_t *buffer_size = buffer_sizes; *buffer_size; ++buffer_size) {
+                start_dummy_writer(*buffer_size);
+                double rate = test_write_data(boost::posix_time::seconds(2));
+                writer->stop();
+                writer->join();
+                printf("buffer size %d :: write rate of %.2f kS/s\n", *buffer_size, rate);
+        }
+
         return 0;
 }

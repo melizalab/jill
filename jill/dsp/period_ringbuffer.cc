@@ -12,6 +12,7 @@
 
 #include "period_ringbuffer.hh"
 
+using jill::period_info_t;
 using namespace jill::dsp;
 using std::size_t;
 
@@ -25,18 +26,19 @@ period_ringbuffer::~period_ringbuffer()
 jill::nframes_t
 period_ringbuffer::push(void const * src, period_info_t const & info)
 {
-        if (info.size() > write_space()) return 0;
+        std::size_t size = sizeof(period_info_t) + info.bytes();
+        if (size > write_space()) return 0;
         char * dst = buffer() + write_offset();
         // store header
         memcpy(dst, &info, sizeof(period_info_t));
         // store data
         memcpy(dst + sizeof(period_info_t), src, info.bytes());
         // advance write pointer
-        super::push(0, info.size());
+        super::push(0, size);
         return info.nframes;
 }
 
-period_ringbuffer::period_info_t const *
+period_info_t const *
 period_ringbuffer::peek()
 {
         if (!read_space())
@@ -50,5 +52,5 @@ period_ringbuffer::release()
 {
         period_info_t const * ptr = peek();
         if (ptr)
-                super::pop(0, ptr->size());
+                super::pop(0, sizeof(period_info_t) + ptr->bytes());
 }

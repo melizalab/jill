@@ -27,19 +27,28 @@ class data_thread : boost::noncopyable {
 
 public:
         virtual ~data_thread() {}
+
         /**
-         * Store data to be processed. Thread-safe, wait-free.
+         * Store data to be processed. Thread-safe, lock-free.
          *
-         * @param data     the buffer from a single channel
-         * @param nframes  the number of sample frames in the data
-         * @param time     the sample offset of the data
+         * @param data     the buffer from a single channel. must have at least
+         *                 as many elements as info.nframes
+         * @param info     a structure with information about the period
+         * @return the number of frames actually written
          */
-        virtual void store(void * arg, nframes_t nframes, nframes_t time) = 0;
+        virtual nframes_t push(void const * arg, period_info_t const & info) = 0;
 
-        /** Increment the overrun/underrun counter. Thread-safe, wait-free. */
+        /** Increment the overrun/underrun counter. Thread-safe, lock-free. */
         virtual void xrun() {}
+        /** Return the current state of the xrun counter */
+        // virtual int  xruns() const;
 
-        /** Tell the thread to stop writing and exit. Thread-safe, wait-free */
+        /**
+         * Tell the thread to finish writing and exit. Thread-safe, lock-free.
+         * The thread may not check this condition until it has finished writing
+         * all data in the buffer, so calling this while another thread is still
+         * calling store() may lead to undefined behavior.
+         */
         virtual void stop() {}
 
         /**
@@ -52,7 +61,7 @@ public:
         /** Start the thread writing samples */
         virtual void start() {}
 
-        /** Wait for the thread to finish */
+        /** Wait for the thread to finish. Blocks, potentially for a long time. */
         virtual void join() {}
 
 };
