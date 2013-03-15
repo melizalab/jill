@@ -16,107 +16,39 @@ using namespace jill::dsp;
 using std::size_t;
 
 period_ringbuffer::period_ringbuffer(std::size_t nsamples)
-        : super(nsamples * sizeof(sample_t)), _read_hdr(0), _write_hdr(0),
-          _chans_to_read(0), _chans_to_write(0)
+        : super(nsamples * sizeof(sample_t))
 {}
 
 period_ringbuffer::~period_ringbuffer()
 {}
 
-size_t
-period_ringbuffer::reserve(nframes_t time, nframes_t nframes, nframes_t nchannels)
-{
-        if (_chans_to_write || _write_hdr)
-                throw std::logic_error("attempted to reserve period before finishing last one");
-        size_t chunk_size = sizeof(period_info_t) + nframes * nchannels * sizeof(sample_t);
-        size_t chunks_avail = write_space() / chunk_size;
-        if (chunks_avail < 1)
-                return 0;
-
-        _write_hdr = reinterpret_cast<period_info_t*>(buffer() + write_offset());
-        _write_hdr->time = time;
-        _write_hdr->nbytes = nframes * sizeof(sample_t);
-        _write_hdr->nchannels = _chans_to_write = nchannels;
-        return chunks_avail;
-}
-
 jill::nframes_t
-period_ringbuffer::chans_to_write() const
+period_ringbuffer::push(void const * src, period_info_t const & info)
 {
-        return _chans_to_write;
-}
-
-void
-period_ringbuffer::push(void const * src)
-{
-        if (!_chans_to_write || !_write_hdr)
-                throw std::logic_error("attempted to write period before reserving header");
-        void * ptr = buffer() + write_offset() + _write_hdr->offset(_write_hdr->nchannels - _chans_to_write);
-        memcpy(ptr, src, _write_hdr->nbytes);
-        _chans_to_write -= 1;
-        if (_chans_to_write == 0) {
-                // advances pointer
-                super::push(0, _write_hdr->size());
-                _write_hdr = 0;
-        }
+        if (info.size() > write_space()) return 0;
+        char * dst = buffer() + write_offset();
+        // store header
+        memcpy(dst, &info, sizeof(period_info_t));
+        // store data
+        memcpy(dst + sizeof(period_info_t), src, info.bytes());
+        // advance write pointer
+        super::push(0, info.size());
+        return info.nframes;
 }
 
 period_ringbuffer::period_info_t const *
-period_ringbuffer::request()
+period_ringbuffer::peek()
 {
-
-        if (_chans_to_read || _read_hdr)
-                throw std::logic_error("attempted to request period before finishing last one");
         if (!read_space())
                 return 0;
-        _read_hdr = reinterpret_cast<period_info_t*>(buffer() + read_offset());
-        _chans_to_read = _read_hdr->nchannels;
-        return _read_hdr;
+        return reinterpret_cast<period_info_t*>(buffer() + read_offset());
 }
 
-jill::nframes_t
-period_ringbuffer::chans_to_read() const
-{
-        return _chans_to_read;
-}
 
 void
-period_ringbuffer::pop(void * dest)
+period_ringbuffer::release()
 {
-        // TODO  use copier functor (weird pointer arithmetic and type converisons)
-        if (!_chans_to_read || !_read_hdr)
-                throw std::logic_error("attempted to read period before requesting header (or out of channels)");
-        void const * ptr = buffer() + read_offset() + _read_hdr->offset(_read_hdr->nchannels - _chans_to_read);
-        if (dest) memcpy(dest, ptr, _read_hdr->nbytes);
-        _chans_to_read -= 1;
-        if (_chans_to_read == 0) {
-                // advances pointer
-                super::pop(0, _read_hdr->size());
-                _read_hdr = 0;
-        }
-
-}
-
-void *
-period_ringbuffer::peek(nframes_t chan)
-{
-        if (!_chans_to_read || !_read_hdr)
-                throw std::logic_error("attempted to read period before requesting header (or out of channels)");
-        if (chan >= _read_hdr->nchannels)
-                throw std::runtime_error("channel value out of bounds in ringbuffer peek");
-        return buffer() + read_offset() + _read_hdr->offset(chan);
-}
-
-// TODO visitor pop function, and copying pop as special case
-
-void
-period_ringbuffer::pop_all(void * dest)
-{
-        if (!_read_hdr)
-                throw std::logic_error("attempted to read period before requesting header");
-        void const * ptr = buffer() + read_offset();
-        if (dest) memcpy(dest, ptr, _read_hdr->size());
-        super::pop(0, _read_hdr->size());
-        _chans_to_read = 0;
-        _read_hdr = 0;
+        period_info_t const * ptr = peek();
+        if (ptr)
+                super::pop(0, ptr->size());
 }

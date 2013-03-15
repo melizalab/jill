@@ -42,21 +42,23 @@ class period_ringbuffer : public ringbuffer<char>
 public:
         typedef ringbuffer<char> super;
         typedef super::data_type data_type;
-	typedef boost::function<void (void const * src, nframes_t nframes)> read_visitor_type;
 
         /**
          * Define the header for the period. Contains information about
-         * timestamp, frame count, and channel count. TODO: do we need an offset
-         * field that ensures audio data are aligned properly for optimized
-         * copies?
+         * timestamp, and frame count.
          */
         struct period_info_t {
-                nframes_t time;
-                nframes_t nbytes; // NB: converted from frame count
-                nframes_t nchannels;
-                nframes_t offset(nframes_t chan=0) const { return sizeof(period_info_t) + nbytes * chan;}
-                nframes_t size() const { return nbytes * nchannels + sizeof(period_info_t);}
+                nframes_t time;    // time of the current period
+                nframes_t nframes; // number of frames in period
+                void *arg;         // pointer to external data
+
+                std::size_t bytes() const { return nframes * sizeof(sample_t); }
+                std::size_t size() const { return sizeof(period_info_t) + bytes(); }
+                void * data() { return this + 1; }
+                void const * data() const { return this + 1; }
         };
+
+	typedef boost::function<void (void const * src, period_info_t & info)> visitor_type;
 
         /**
          * Initialize ringbuffer.
@@ -71,104 +73,32 @@ public:
         ~period_ringbuffer();
 
         /**
-         * Reserve space for a period
+         * Store data for one channel in a period
          *
-         * Checks to see if there is enough room for the period, and if so,
-         * writes the header. Subsequent calls to push are used to write a
-         * single channel to the period.  Only once all the period is fully
-         * written is the write pointer advanced.
+         * @param data  the block of data to store
+         * @param info  the header for the period
          *
-         * @param time      the timestamp for the period
-         * @param size      the number of frames per channel in the period
-         * @param nchannels the number of channels in the period
-         *
-         * @return the number of periods that could fit in the buffer. If the
-         *         a complete period cannot fit, the header is NOT written and
-         *         the return value is zero.
-         *
-         * @throws std::logic_error if the previous chunk is not completely written
+         * @returns the number of samples written, or 0 if there wasn't enough
+         *          room for all of them. Will not write partial chunks.
          */
-        std::size_t reserve(nframes_t time, nframes_t nframes, nframes_t nchannels);
+	nframes_t push(void const * src, period_info_t const & info);
 
         /**
-         * Return the number of channels in the current write chunk, or zero if a
-         * chunk has not been requested.
-         */
-        nframes_t chans_to_write() const;
-
-        /**
-         * Write the data for one channel in a period
+         * Look at the next period in the buffer. If a period is available,
+         * returns a pointer to the header. You can then copy out just the
+         * payload or the whole chunk. Be sure to call release() when done.
          *
-         * Writing per-channel is largely a matter of convenience because that's
-         * how the data is accessed in JACK. The object keeps track of how many
-         * channels have been written.  Attempting to write a channel before the
-         * header is written for a new chunk raises an error.
-         *
-         * @param data the block of data to be written. At least
-         *             nframes*sizeof(sample_t) bytes
-         *
-         * @ throws std::logic_error if the number of calls exceeds the number of channels
-         *          or the header has not been written
-         */
-	void push(void const * src);
-
-        /**
-         * Request a period from the buffer
-         *
-         * If a period is available, returns a pointer to the header. After
-         * acquiring the header, the client should read each channel in the
-         * period using pop(). After all the channels have been read the read
-         * pointer will be advanced.
          *
          * @return period_info_t* for the next period, or 0 if none is
          * available.
          *
-         * @throws std::logic_error if the method is called before all channels
-         * have been read
          */
-        period_info_t const * request();
+        period_info_t const * peek();
 
         /**
-         * Return the number of remaining channels in the current read chunk, or
-         * zero if a chunk has not been requested.
+         * Release the next period in the queue after peeking at it.
          */
-        nframes_t chans_to_read() const;
-
-        /**
-         * Copy data for a channel in the current period.
-         *
-         * @param dest the destination buffer. Must have as many bytes as there
-         * are per channel (period_info_t.nframes * sizeof(sample_t))
-         *
-         * @throws std::logic_error if called before request() or after all
-         * channels have been read
-         */
-        void pop(void * dest);
-
-        /**
-         * Peek at data for a channel. MUST call pop_all(0) at the end to advance.
-         *
-         * @param chan    the index of the channel to read.data_fun
-         *
-         * @throws std::logic_error if called before request() or after all
-         * channels have been read
-         */
-        void * peek(nframes_t chan);
-
-        /**
-         * @brief Copy all data from a period
-         *
-         * Copies the entire period, including the header, into a block of
-         * memory.  Call request() first and allocate sizeof(period_info_t) +
-         * sizeof(sample_t) * nframes * nchannels
-         */
-        void pop_all(void * dest);
-
-private:
-        period_info_t *_read_hdr;
-        period_info_t *_write_hdr;
-        nframes_t _chans_to_read;
-        nframes_t _chans_to_write;
+        void release();
 
 };
 

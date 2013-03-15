@@ -60,123 +60,48 @@ test_ringbuffer(std::size_t chunksize, std::size_t reps)
 }
 
 void
-test_period_ringbuf_popall(std::size_t nchannels)
-{
-        printf("Testing period ringbuffer (full period read): nchannels=%zu\n", nchannels);
-        jill::sample_t buf[BUFSIZE];
-        std::size_t i;
-        for (i = 0; i < BUFSIZE; ++i) {
-                buf[i] = nrand48(seed);
-        }
-        jill::dsp::period_ringbuffer::period_info_t const *info;
-        jill::dsp::period_ringbuffer rb(BUFSIZE*nchannels*5);
-        printf("created ringbuffer; size=%zu bytes\n", rb.size());
-
-        assert(rb.reserve(25, BUFSIZE, nchannels) > 0);
-
-        for (i = 0; i < nchannels; ++i) {
-                assert(rb.chans_to_write() == nchannels - i);
-                rb.push(buf);
-                assert(rb.chans_to_write() == nchannels - i - 1);
-        }
-
-        info = rb.request();
-
-        assert(info != 0);
-        assert(info->nchannels == nchannels);
-        assert(info->nbytes == BUFSIZE * sizeof(jill::sample_t));
-
-        void * output = malloc(info->size());
-        rb.pop_all(output);
-
-        assert(memcmp(output, info, sizeof(jill::dsp::period_ringbuffer::period_info_t)) == 0);
-}
-
-
-void
 test_period_ringbuf(std::size_t nchannels)
 {
-        printf("Testing period ringbuffer: nchannels=%zu\n", nchannels);
-        bool flag = false;
-        jill::sample_t buf[BUFSIZE], fbuf[BUFSIZE];
-        std::size_t i;
-        for (i = 0; i < BUFSIZE; ++i) {
-                buf[i] = nrand48(seed);
-        }
-        jill::dsp::period_ringbuffer::period_info_t const *info;
+        printf("Testing period ringbuffer nchannels=%zu\n", nchannels);
         jill::dsp::period_ringbuffer rb(BUFSIZE*nchannels*5);
         printf("created ringbuffer; size=%zu bytes\n", rb.size());
 
-        assert(rb.chans_to_write() == 0);
-        assert(rb.chans_to_read() == 0);
-        assert(rb.request() == 0); // can't see data yet
+        jill::sample_t buf[BUFSIZE];
+        std::size_t channels[nchannels];
+        std::size_t idx, chan;
 
-        // write N-1 periods
-        for (int j = 0; j < 4; ++j) {
-
-                try {
-                        rb.push(buf);
-                }
-                catch (std::logic_error) {
-                        flag = true;
-                }
-                assert(flag);
-                flag = false;
-
-                assert(rb.reserve(25, BUFSIZE, nchannels) > 0);
-
-                for (i = 0; i < nchannels; ++i) {
-                        assert(rb.chans_to_write() == nchannels - i);
-                        rb.push(buf);
-                        assert(rb.chans_to_write() == nchannels - i - 1);
-                }
-
-                try {
-                        rb.push(buf);
-                }
-                catch (std::logic_error) {
-                        flag = true;
-                }
-                assert(flag);
-                flag = false;
-
+        for (idx = 0; idx < BUFSIZE; ++idx) {
+                buf[idx] = nrand48(seed);
         }
-        // read chunks
-        for (int j = 0; j < 4; ++j) {
 
-                try {
-                        rb.pop(buf);
-                }
-                catch (std::logic_error) {
-                        flag = true;
-                }
-                assert(flag);
-                flag = false;
+        for (chan = 0; chan < nchannels; ++chan) {
+                jill::dsp::period_ringbuffer::period_info_t info;
+                info.time = 0;
+                info.nframes = BUFSIZE;
+                channels[chan] = chan; // has to be stable
+                info.arg = channels+chan;
 
-                info = rb.request();
+                std::size_t stored = rb.push(buf, info);
+                assert (stored == BUFSIZE);
+        }
+
+        for (chan = 0; chan < nchannels; ++chan) {
+                jill::dsp::period_ringbuffer::period_info_t const *info;
+                info = rb.peek();
 
                 assert(info != 0);
-                assert(info->nchannels == nchannels);
-                assert(info->time == 25);
-                assert(info->nbytes == BUFSIZE * sizeof(jill::sample_t));
+                assert(info->time == 0);
+                assert(info->nframes == BUFSIZE);
+                assert(*(std::size_t*)(info->arg) == chan);
 
-                for (i = 0; i < nchannels; ++i) {
-                        assert (rb.chans_to_read() == nchannels - i);
-                        assert(memcmp(rb.peek(i), buf, info->nbytes) == 0);
-                        rb.pop(fbuf);
-                        assert(memcmp(fbuf, buf, info->nbytes) == 0);
-                        assert (rb.chans_to_read() == nchannels - i - 1);
-                }
-                assert (rb.chans_to_read() == 0);
+                assert(memcmp(buf, info->data(), info->bytes()) == 0);
 
-                try {
-                        rb.pop(buf);
-                }
-                catch (std::logic_error) {
-                        flag = true;
-                }
-                assert(flag);
-                flag = false;
+                // check that repeated calls to peek return same data
+                info = rb.peek();
+                assert(info != 0);
+                assert(*(std::size_t*)(info->arg) == chan);
+
+                rb.release();
         }
 }
 
@@ -190,7 +115,6 @@ main(int argc, char **argv)
 
         test_period_ringbuf(1);
         test_period_ringbuf(3);
-        test_period_ringbuf_popall(3);
 
         printf("passed tests\n");
         return 0;
