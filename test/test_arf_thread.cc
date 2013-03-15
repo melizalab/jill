@@ -62,7 +62,7 @@ start_dummy_writer(nframes_t buffer_size)
  * @param max_time    the amount of time without xruns needed to exit
  * @return final rate, in bytes/sec
  */
-double
+long
 test_write_data(boost::posix_time::time_duration const & max_time)
 {
 	using namespace boost::posix_time;
@@ -79,23 +79,18 @@ test_write_data(boost::posix_time::time_duration const & max_time)
                 if (r < PERIOD_SIZE) {
                         last_xrun_i = i;
                         last_xrun_t = microsec_clock::local_time();
-                        sleep_time.tv_nsec += 100;
+                        sleep_time.tv_nsec += 1;
                         // sleep_us += 1;
                 }
                 else {
                         time_duration dur = microsec_clock::local_time() - last_xrun_t;
                         if (dur > max_time) {
-                                // printf("sleep size: %ld\n", sleep_us);
-                                printf("sleep was %ld ns\n", sleep_time.tv_nsec);
-                                double rate = (double)(i - last_xrun_i) * (info.nframes / 1.024) /
-                                        dur.total_milliseconds();
-                                return rate;
+                                break;
                         }
                 }
                 nanosleep(&sleep_time, 0);
-                // usleep(sleep_us);
         }
-        return -1;
+        return sleep_time.tv_nsec;
 }
 
 
@@ -120,10 +115,10 @@ main(int argc, char **argv)
                                     PERIOD_SIZE * 10, PERIOD_SIZE * 20, 0};
         for (nframes_t *buffer_size = buffer_sizes; *buffer_size; ++buffer_size) {
                 start_dummy_writer(*buffer_size);
-                double rate = test_write_data(boost::posix_time::seconds(2));
+                long rate = test_write_data(boost::posix_time::seconds(3));
                 writer->stop();
                 writer->join();
-                printf("buffer size %d :: write rate of %.2f kS/s\n", *buffer_size, rate);
+                printf("buffer size %d, period size %d :: sleep was %ld ns\n", *buffer_size, PERIOD_SIZE, rate);
         }
 
         return 0;
