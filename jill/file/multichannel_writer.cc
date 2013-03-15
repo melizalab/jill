@@ -17,6 +17,9 @@ multichannel_writer::multichannel_writer(nframes_t buffer_size)
 
 multichannel_writer::~multichannel_writer()
 {
+        // bad stuff could happen if the thread is not joined
+        stop();                 // no more new data; exit writer thread
+        join();                 // wait for writer thread to exit
         pthread_mutex_destroy(&_lock);
         pthread_cond_destroy(&_ready);
 }
@@ -24,6 +27,7 @@ multichannel_writer::~multichannel_writer()
 nframes_t
 multichannel_writer::push(void const * arg, period_info_t const & info)
 {
+        if (_stop) return 0;
         nframes_t r = _buffer->push(arg, info);
         if (r != info.nframes) xrun();
         // signal writer thread
@@ -39,12 +43,6 @@ multichannel_writer::xrun()
 {
         __sync_add_and_fetch(&_xruns, 1);
 }
-
-// int
-// multichannel_writer::xruns() const
-// {
-//         return _xruns;
-// }
 
 void
 multichannel_writer::stop()
@@ -112,7 +110,7 @@ void
 multichannel_writer::write(period_info_t const * info)
 {
 #if DEBUG
-        std::cout << "got period: time=" << info->time << ", nframes=" << info->nframes << std::endl;
+        std::cout << "\rgot period: time=" << info->time << ", nframes=" << info->nframes << std::flush;
 #endif
 }
 

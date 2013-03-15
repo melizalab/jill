@@ -15,6 +15,23 @@ though I also got a malloc error when I tried to do 200 channels with a 2048
 period.  The compression setting doesn't seem to make a difference.  Need to do
 some serious profiling.
 
+The first step is to try to factor out the jack client code so that the disk
+code can be tested without needing to connect to the jack daemon.  It would
+also be good to encapsulate as much of the mutex logic as possible.
+
+I'm doing a rudimentary performance test by measuring how much have to throttle
+back the fast thread in order not to have any xruns. For the "dummy writer",
+which just talks to stdout, it seems like as long as the buffer is at least 5
+times the size of the period, we only need a 1 ns throttle (plus whatever time
+it takes to look up the current time). A 1024 sample period is ~ 200 us at 48
+kHz, so this is more than fast enough for >256 channels.
+
+Well, it makes a difference if I actually allow the data to go to stdout
+instead of just redirecting to /dev/null. With no optimizations, a 20x buffer
+needs a throttle of 4051 ns.
+
+Let's see how the arf thread does.
+
 * TODO fix port registration / buffer size bug
 
 This is an annoying one. jack_client maintains a list of ports it has

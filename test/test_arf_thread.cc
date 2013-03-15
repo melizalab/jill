@@ -51,6 +51,7 @@ test_write_log()
 void
 start_dummy_writer(nframes_t buffer_size)
 {
+        fprintf(stderr, "Testing dummy writer, buffer size = %d\n", buffer_size);
         writer.reset(new file::multichannel_writer(buffer_size));
         writer->start();
 }
@@ -102,23 +103,23 @@ main(int argc, char **argv)
         signal(SIGINT,  signal_handler);
         signal(SIGTERM, signal_handler);
         signal(SIGHUP,  signal_handler);
-        printf("Hit Ctrl-C to stop test\n");
+        fprintf(stderr, "Hit Ctrl-C to stop test\n");
 
         start_dummy_writer(PERIOD_SIZE);
         test_write_log();
         // test stopping writer without storing any data
         writer->stop();
-        writer->join();
 
-        printf("Testing dummy writer\n");
-        nframes_t buffer_sizes[] = {PERIOD_SIZE * 3, PERIOD_SIZE * 5,
-                                    PERIOD_SIZE * 10, PERIOD_SIZE * 20, 0};
-        for (nframes_t *buffer_size = buffer_sizes; *buffer_size; ++buffer_size) {
-                start_dummy_writer(*buffer_size);
-                long rate = test_write_data(boost::posix_time::seconds(3));
+        long throttle_rates[argc];
+        for (int i = 1; i < argc; ++i) {
+                nframes_t buffer_size = atoi(argv[i]);
+                start_dummy_writer(buffer_size);
+                throttle_rates[i] = test_write_data(boost::posix_time::seconds(3));
                 writer->stop();
-                writer->join();
-                printf("buffer size %d, period size %d :: sleep was %ld ns\n", *buffer_size, PERIOD_SIZE, rate);
+        }
+        writer->join();
+        for (int i = 1; i < argc; ++i) {
+                fprintf(stderr, "\nbuffer size %d :: sleep was %ld ns\n", atoi(argv[i]), throttle_rates[i]);
         }
 
         return 0;

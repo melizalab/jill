@@ -29,14 +29,13 @@ class multichannel_writer : public data_thread {
 
 public:
         multichannel_writer(nframes_t buffer_size=4096);
-        ~multichannel_writer();
+        virtual ~multichannel_writer();
 
-        virtual nframes_t push(void const * arg, period_info_t const & info);
-        virtual void xrun();
-        // virtual int  xruns() const;
-        virtual void stop();
-        virtual void start();
-        virtual void join();
+        nframes_t push(void const * arg, period_info_t const & info);
+        void xrun();
+        void stop();
+        void start();
+        void join();
 
         /**
          * Resize the ringbuffer. Blocks until the write thread has emptied the

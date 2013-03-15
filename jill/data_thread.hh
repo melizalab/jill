@@ -26,6 +26,7 @@ namespace jill {
 class data_thread : boost::noncopyable {
 
 public:
+        /** the destructor may block until the disk thread is done */
         virtual ~data_thread() {}
 
         /**
@@ -34,20 +35,19 @@ public:
          * @param data     the buffer from a single channel. must have at least
          *                 as many elements as info.nframes
          * @param info     a structure with information about the period
-         * @return the number of frames actually written
+         *
+         * @return the number of frames actually written. this may be less than
+         * the number of frames requested if (a) any underlying buffers are full
+         * or (b) stop() has been called
          */
         virtual nframes_t push(void const * arg, period_info_t const & info) = 0;
 
         /** Increment the overrun/underrun counter. Thread-safe, lock-free. */
         virtual void xrun() {}
-        /** Return the current state of the xrun counter */
-        // virtual int  xruns() const;
 
         /**
          * Tell the thread to finish writing and exit. Thread-safe, lock-free.
-         * The thread may not check this condition until it has finished writing
-         * all data in the buffer, so calling this while another thread is still
-         * calling store() may lead to undefined behavior.
+         * Also informs push() not to store any additional samples.
          */
         virtual void stop() {}
 
@@ -58,10 +58,16 @@ public:
          */
         virtual void log(std::string const & msg) {}
 
-        /** Start the thread writing samples */
+        /**
+         * Start the thread writing samples
+         *
+         * @pre the thread is not already running
+         */
         virtual void start() {}
 
-        /** Wait for the thread to finish. Blocks, potentially for a long time. */
+        /**
+         * Wait for the thread to finish. Blocks, potentially for a long time.
+         */
         virtual void join() {}
 
 };
