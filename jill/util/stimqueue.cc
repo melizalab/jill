@@ -20,6 +20,12 @@ stimqueue::stimqueue()
         pthread_cond_init(&data_needed, 0);
 }
 
+stimqueue::~stimqueue()
+{
+        pthread_mutex_destroy(&disk_thread_lock);
+        pthread_cond_destroy(&data_needed);
+}
+
 void
 stimqueue::release()
 {

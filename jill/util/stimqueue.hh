@@ -32,6 +32,7 @@ class stimqueue {
 
 public:
         stimqueue();
+        ~stimqueue();
 
         /** return true if the current stimulus is loaded */
         bool ready() const { return current_stim && current_stim->buffer(); }
