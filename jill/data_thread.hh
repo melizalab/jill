@@ -67,6 +67,8 @@ public:
 
         /**
          * Wait for the thread to finish. Blocks, potentially for a long time.
+         * Deriving classes should call this in the destructor to ensure their
+         * resources are available to the disk thread until it stops.
          */
         virtual void join() {}
 

@@ -62,3 +62,7 @@ may in fact have \0 in them at various places.  Options are:
 I think #2 is the best option at the moment, with a note that #1 may be
 supported in the future.  I'm only going to require hex encoding for MIDI
 messages with non-string payloads
+
+* TODO abstract jack_client class
+
+should anticipate non-jack data sources

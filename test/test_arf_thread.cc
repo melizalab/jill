@@ -18,13 +18,18 @@
 
 #define CLIENT_NAME "test_arf_thread"
 #define PERIOD_SIZE 1024
+#define NCHANNELS 2
 #define NPERIODS 1024
 
+using namespace std;
 using namespace jill;
 
 boost::scoped_ptr<data_thread> writer;
 unsigned short seed[3] = { 0 };
 sample_t test_data[PERIOD_SIZE];
+
+map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
+        ("experiment","testing");
 
 void setup()
 {
@@ -61,9 +66,6 @@ start_dummy_writer(nframes_t buffer_size)
 void
 start_arf_writer(nframes_t buffer_size)
 {
-        using namespace std;
-        map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
-                ("experiment","testing");
         fprintf(stderr, "Testing arf writer, buffer size = %d\n", buffer_size);
         writer.reset(new file::arf_writer("test.arf", attrs));
         writer->start();
@@ -81,20 +83,16 @@ test_write_data(boost::posix_time::time_duration const & max_time)
 {
 	using namespace boost::posix_time;
         const size_t max_periods = 1 << 20; // sanity
-        // long sleep_us = 0;
         timespec sleep_time = { 0, 0 };
 
         period_info_t info = {0, PERIOD_SIZE, 0};
         ptime last_xrun_t(microsec_clock::local_time());
-        size_t last_xrun_i = 0;
         for (size_t i = 0; i < max_periods; ++i) {
-                info.time = i;
+                info.time = (i / NCHANNELS) * PERIOD_SIZE;
                 nframes_t r = writer->push(test_data, info);
                 if (r < PERIOD_SIZE) {
-                        last_xrun_i = i;
                         last_xrun_t = microsec_clock::local_time();
                         sleep_time.tv_nsec += 1;
-                        // sleep_us += 1;
                 }
                 else {
                         time_duration dur = microsec_clock::local_time() - last_xrun_t;
@@ -111,6 +109,11 @@ test_write_data(boost::posix_time::time_duration const & max_time)
 int
 main(int argc, char **argv)
 {
+        long throttle_rate;
+        nframes_t buffer_size = 20480;
+        if (argc > 1) {
+                buffer_size = atoi(argv[1]);
+        }
         setup();
 
         signal(SIGINT,  signal_handler);
@@ -123,22 +126,19 @@ main(int argc, char **argv)
         // test stopping writer without storing any data
         writer->stop();
 
-        long throttle_rates[argc];
-        for (int i = 1; i < argc; ++i) {
-                nframes_t buffer_size = atoi(argv[i]);
-                start_dummy_writer(buffer_size);
-                throttle_rates[i] = test_write_data(boost::posix_time::seconds(3));
-                writer->stop();
-        }
-        writer->join();
-        for (int i = 1; i < argc; ++i) {
-                fprintf(stderr, "\nbuffer size %d :: sleep was %ld ns\n", atoi(argv[i]), throttle_rates[i]);
-        }
+        // start_dummy_writer(buffer_size);
+        // test_write_log();
+        // throttle_rate = test_write_data(boost::posix_time::seconds(3));
+        // writer->stop();
+        // writer->join();
+        // fprintf(stderr, "\nbuffer size %d :: sleep was %ld ns\n", buffer_size, throttle_rate);
 
-        start_arf_writer(PERIOD_SIZE);
+        start_arf_writer(buffer_size);
         test_write_log();
-        // test stopping writer without storing any data
+        throttle_rate = test_write_data(boost::posix_time::seconds(3));
         writer->stop();
+        writer->join();
+        fprintf(stderr, "\nbuffer size %d :: sleep was %ld ns\n", buffer_size, throttle_rate);
 
 
         return 0;

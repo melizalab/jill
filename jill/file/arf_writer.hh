@@ -56,18 +56,22 @@ protected:
         void flush();
 
 private:
+        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
+
+
         // would be nice to have a proxy for this to allow stream syntax
         void _do_log(std::string const & msg);     // no lock
 
         void _get_last_entry_index();
         void new_entry(nframes_t sample_count);
-        void new_dataset();
+        // look up dataset, creating it as needed
+        dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
 
         // owned resources
         arf::file_ptr _file;                       // output file
         arf::packet_table_ptr _log;                // log dataset
         arf::entry_ptr _entry;                     // current entry (owned by thread)
-        std::vector<arf::packet_table_ptr> _dsets; // pointers to packet tables (owned)
+        dset_map_type _dsets;                      // pointers to packet tables (owned)
         int _compression;                          // compression level for new datasets
         std::string _agent_name;                   // used in log messages
 
@@ -75,6 +79,7 @@ private:
         nframes_t _entry_start;                    // offset sample counts
         nframes_t _period_start;                   // assign chunks to channels
         std::size_t _entry_idx;                    // manage entry numbering
+        std::size_t _channel_idx;                  // index channel
 
         // unowned resources
         std::map<std::string,std::string> const & _attrs;  // attributes for new entries

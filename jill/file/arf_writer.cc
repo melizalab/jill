@@ -1,6 +1,7 @@
 
 
 #include <arf.hpp>
+#include <boost/format.hpp>
 #include <boost/algorithm/hex.hpp>
 #include <sys/time.h>
 
@@ -58,26 +59,26 @@ arf_writer::arf_writer(string const & filename,
                        jack_port_t *trigger_port,
                        int compression)
         : _compression(compression),
+          _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0),
           _attrs(entry_attrs),
           _client(jack_client),
           _trigger(trigger_port)
 {
         if (_client) _agent_name = _client->name();
-
         _file.reset(new arf::file(filename, "a"));
 
         // open/create log
+        arf::h5t::wrapper<jill::file::message_t> t;
+        arf::h5t::datatype logtype(t);
         if (_file->contains(JILL_LOGDATASET_NAME)) {
                 _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME));
-                // compare datatype
-                arf::h5t::wrapper<jill::file::message_t> t;
-                arf::h5t::datatype expected(t);
-                if (expected != *(_log->datatype())) {
+                if (logtype != *(_log->datatype())) {
                         throw arf::Exception(JILL_LOGDATASET_NAME " has wrong datatype");
                 }
         }
         else {
-                _log = _file->create_packet_table<jill::file::message_t>(JILL_LOGDATASET_NAME);
+                _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME,
+                                                       logtype, 1024, _compression));
         }
         _do_log(make_string() << "[" << _agent_name << "] opened file: " << filename);
 
@@ -86,10 +87,10 @@ arf_writer::arf_writer(string const & filename,
 
 arf_writer::~arf_writer()
 {
-        // need to make sure writer thread is stopped before cleanup of this
-        // class's members begins
-        stop();                 // no more new data; exit writer thread
-        join();                 // wait for writer thread to exit
+        // make sure writer thread is stopped before cleanup of this class's
+        // members begins.
+        stop();
+        join();
 }
 
 /*
@@ -133,11 +134,11 @@ arf_writer::_get_last_entry_index()
 void
 arf_writer::new_entry(nframes_t sample_count)
 {
-        char name[32];
-        char const * templ = "jrecord_%04d";
+        boost::format fmt("jrecord_%|04|");
 
-        _entry_idx += 1;
-        sprintf(name, templ, _entry_idx);
+        fmt % _entry_idx++;
+
+        _dsets.clear();         // release old packet tables
 
         if (_entry) {
                 _do_log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
@@ -145,21 +146,47 @@ arf_writer::new_entry(nframes_t sample_count)
 
         timeval tp;
         gettimeofday(&tp, 0);
-        _entry.reset(new arf::entry(*_file, name, &tp));
+        _entry.reset(new arf::entry(*_file, fmt.str(), &tp));
         _do_log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
 
-        arf::h5a::node::attr_writer n = _entry->write_attribute();
-        n("jack_frame",sample_count);
-        for_each(_attrs.begin(), _attrs.end(), n);
+        arf::h5a::node::attr_writer a = _entry->write_attribute();
+        a("jack_frame",sample_count);
+        for_each(_attrs.begin(), _attrs.end(), a);
         if (_client) {
-                n("jack_usec",_client->time(sample_count));
+                a("jack_usec",_client->time(sample_count));
         }
+}
 
+arf_writer::dset_map_type::iterator
+arf_writer::get_dataset(string const & name, bool is_sampled)
+{
+        dset_map_type::iterator dset = _dsets.find(name);
+        if (dset == _dsets.end()) {
+                arf::packet_table_ptr pt;
+                // std::pair<std::string, arf::packet_table_ptr> val;
+                // val.first = name;
+                if (is_sampled) {
+                        pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
+                                                                          false, 1024, _compression);
+                }
+                else {
+                        pt = _entry->create_packet_table<event_t>(name, "samples", arf::EVENT,
+                                                                          false, 1024, _compression);
+                }
+                if (_client) {
+                        pt->write_attribute("sampling_rate", _client->sampling_rate());
+                }
+                _do_log(make_string() << "[" << _agent_name << "] created dataset: " << pt->name());
+                dset = _dsets.insert(dset, make_pair(name,pt));
+        }
+        return dset;
 }
 
 void
 arf_writer::write(period_info_t const * info)
 {
+        std::string dset_name;
+        bool is_sampled = true;
         // start new entry?
         // in triggered mode?
         if (!_entry && _trigger) {
@@ -177,8 +204,20 @@ arf_writer::write(period_info_t const * info)
                 // create dataset as needed
         }
         else {
-                // otherwise how do we know what channel?
+                // no port information (primarily a test case)
+                // use time to infer channel
+                boost::format fmt("pcm_%|03|");
+                if (info->time > _period_start) {
+                        // new period
+                        _channel_idx = 0;
+                        _period_start = info->time;
+                }
+                // assume the port type is audio
+                dset_name = (fmt % _channel_idx++).str();
         }
+        dset_map_type::iterator dset = get_dataset(dset_name, is_sampled);
+
+
 }
 
 void
