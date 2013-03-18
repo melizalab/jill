@@ -127,6 +127,7 @@ arf_writer::_get_last_entry_index()
         vector<string> entries = _file->children();
         for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
                 int rc = sscanf(it->c_str(), templ, &val);
+                val += 1;
                 if (rc == 1 && val > _entry_idx) _entry_idx = val;
         }
 }
@@ -139,6 +140,7 @@ arf_writer::new_entry(nframes_t sample_count)
         fmt % _entry_idx++;
 
         _dsets.clear();         // release old packet tables
+        _entry_start = sample_count;
 
         if (_entry) {
                 _do_log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
@@ -150,10 +152,10 @@ arf_writer::new_entry(nframes_t sample_count)
         _do_log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
 
         arf::h5a::node::attr_writer a = _entry->write_attribute();
-        a("jack_frame",sample_count);
+        a("jack_frame",_entry_start);
         for_each(_attrs.begin(), _attrs.end(), a);
         if (_client) {
-                a("jack_usec",_client->time(sample_count));
+                a("jack_usec",_client->time(_entry_start));
         }
 }
 
@@ -188,20 +190,31 @@ arf_writer::write(period_info_t const * info)
         std::string dset_name;
         bool is_sampled = true;
         // start new entry?
+        // was there an xrun?
+        if (_xruns) {
+                _do_log(make_string() << "[" << _agent_name << "] ERROR: xrun");
+                _entry->write_attribute("jill_error","data xrun");
+                if (!_trigger) {
+                        _entry.reset(); // new entry
+                }
+                __sync_add_and_fetch(&_xruns, -1);
+        }
+
         // in triggered mode?
         if (!_entry && _trigger) {
-                // check trigger port
                 //new_entry(info->time);
         }
         // in continuous mode, will we overflow the sample count?
         else if (!_entry || info->time < _entry_start) {
                 new_entry(info->time);
         }
+
         // get jack port information
         if (info->arg) {
                 jack_port_t *port = static_cast<jack_port_t*>(info->arg);
                 // use name information in port to look up dataset
-                // create dataset as needed
+                dset_name = jack_port_short_name(port);
+                is_sampled = strcmp(jack_port_type(port),JACK_DEFAULT_AUDIO_TYPE)==0;
         }
         else {
                 // no port information (primarily a test case)
@@ -212,11 +225,43 @@ arf_writer::write(period_info_t const * info)
                         _channel_idx = 0;
                         _period_start = info->time;
                 }
-                // assume the port type is audio
+                // assume the port type is audio - not really any way to
+                // simulate midi data outside jack framework
                 dset_name = (fmt % _channel_idx++).str();
         }
         dset_map_type::iterator dset = get_dataset(dset_name, is_sampled);
 
+        if (is_sampled) {
+                dset->second->write(info + 1, info->nframes);
+        }
+        else {
+                // based on my inspection of jackd source, JACK api should
+                // declare port_buffer argument const, so this cast should be
+                // safe
+                void * data = const_cast<period_info_t*>(info+1);
+                jack_midi_event_t event;
+                nframes_t nevents = jack_midi_get_event_count(data);
+                for (nframes_t j = 0; j < nevents; ++j) {
+                        jack_midi_event_get(&event, data, j);
+                        if (event.size == 0) continue;
+                        event_t e = { info->time - _entry_start,
+                                      event.buffer[0],
+                                      "" };
+                        // hex encode standard midi events
+                        if (event.size > 1) {
+                                if (event.buffer[0] < midi::note_off)
+                                        e.message = reinterpret_cast<char*>(event.buffer+1);
+                                else {
+                                        std::string s(event.size*2,0);
+                                        boost::algorithm::hex(event.buffer+1,
+                                                              event.buffer+event.size,
+                                                              s.begin());
+                                        e.message = s.c_str();
+                                }
+                        }
+                        dset->second->write(&e, 1);
+                }
+        }
 
 }
 

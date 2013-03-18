@@ -52,7 +52,7 @@ signal_handler(int sig)
 void
 test_write_log()
 {
-        writer->log("[" CLIENT_NAME "] a random log message");
+        writer->log("[] a random log message");
 }
 
 void
@@ -64,12 +64,33 @@ start_dummy_writer(nframes_t buffer_size)
 }
 
 void
-start_arf_writer(nframes_t buffer_size)
+start_arf_writer(nframes_t buffer_size, int compression=0)
 {
-        fprintf(stderr, "Testing arf writer, buffer size = %d\n", buffer_size);
-        writer.reset(new file::arf_writer("test.arf", attrs));
+        fprintf(stderr, "Testing arf writer, buffer size=%d, compression=%d\n", buffer_size, compression);
+        writer.reset(new file::arf_writer("test.arf", attrs, 0, 0, compression));
         writer->start();
 }
+
+void
+test_write_data_rate(boost::posix_time::time_duration const & max_time)
+{
+	using namespace boost::posix_time;
+        size_t i = 0;
+        period_info_t info = {0, PERIOD_SIZE, 0};
+        ptime start(microsec_clock::local_time());
+        time_duration dur(seconds(0));
+        while (dur < max_time) {
+                info.time = (i / NCHANNELS) * PERIOD_SIZE;
+                nframes_t r = writer->push(test_data, info);
+                if (r == PERIOD_SIZE)
+                        ++i;
+                dur = microsec_clock::local_time() - start;
+        }
+        long ms = dur.total_milliseconds();
+        fprintf(stderr, "\nrate: %ld periods in %ld ms\n", i * NCHANNELS, ms);
+}
+
+
 
 /**
  * Test compliance and performance of writer thread types. Throttles the rate of
@@ -79,15 +100,16 @@ start_arf_writer(nframes_t buffer_size)
  * @return final rate, in bytes/sec
  */
 long
-test_write_data(boost::posix_time::time_duration const & max_time)
+test_write_data_speed(boost::posix_time::time_duration const & max_time)
 {
 	using namespace boost::posix_time;
         const size_t max_periods = 1 << 20; // sanity
         timespec sleep_time = { 0, 0 };
+        size_t i;
 
         period_info_t info = {0, PERIOD_SIZE, 0};
         ptime last_xrun_t(microsec_clock::local_time());
-        for (size_t i = 0; i < max_periods; ++i) {
+        for (i = 0; i < max_periods; ++i) {
                 info.time = (i / NCHANNELS) * PERIOD_SIZE;
                 nframes_t r = writer->push(test_data, info);
                 if (r < PERIOD_SIZE) {
@@ -102,6 +124,8 @@ test_write_data(boost::posix_time::time_duration const & max_time)
                 }
                 nanosleep(&sleep_time, 0);
         }
+        if (i >= max_periods-1)
+                fprintf(stderr, "frame counter overrun; max rate may not be correct");
         return sleep_time.tv_nsec;
 }
 
@@ -109,7 +133,6 @@ test_write_data(boost::posix_time::time_duration const & max_time)
 int
 main(int argc, char **argv)
 {
-        long throttle_rate;
         nframes_t buffer_size = 20480;
         if (argc > 1) {
                 buffer_size = atoi(argv[1]);
@@ -126,20 +149,17 @@ main(int argc, char **argv)
         // test stopping writer without storing any data
         writer->stop();
 
-        // start_dummy_writer(buffer_size);
-        // test_write_log();
-        // throttle_rate = test_write_data(boost::posix_time::seconds(3));
-        // writer->stop();
-        // writer->join();
-        // fprintf(stderr, "\nbuffer size %d :: sleep was %ld ns\n", buffer_size, throttle_rate);
+        start_dummy_writer(buffer_size);
+        test_write_data_rate(boost::posix_time::seconds(5));
+        writer->stop();
+        writer->join();
 
         start_arf_writer(buffer_size);
         test_write_log();
-        throttle_rate = test_write_data(boost::posix_time::seconds(3));
+        test_write_data_rate(boost::posix_time::seconds(5));
         writer->stop();
         writer->join();
-        fprintf(stderr, "\nbuffer size %d :: sleep was %ld ns\n", buffer_size, throttle_rate);
-
+        writer.reset();
 
         return 0;
 }

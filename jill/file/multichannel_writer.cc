@@ -25,7 +25,7 @@ multichannel_writer::push(void const * arg, period_info_t const & info)
 {
         if (_stop) return 0;
         nframes_t r = _buffer->push(arg, info);
-        if (r != info.nframes) xrun();
+        // if (r != info.nframes) xrun();
         // signal writer thread
         if (pthread_mutex_trylock (&_lock) == 0) {
                 pthread_cond_signal (&_ready);

@@ -39,6 +39,9 @@ public:
          * @return the number of frames actually written. this may be less than
          * the number of frames requested if (a) any underlying buffers are full
          * or (b) stop() has been called
+         *
+         * @note user is responsible for calling xrun() if nothing was written
+         * and the data thread needs to be informed of this
          */
         virtual nframes_t push(void const * arg, period_info_t const & info) = 0;
 
