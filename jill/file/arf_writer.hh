@@ -59,6 +59,7 @@ private:
         // would be nice to have a proxy for this to allow stream syntax
         void _do_log(std::string const & msg);     // no lock
 
+        void _get_last_entry_index();
         void new_entry(nframes_t sample_count);
         void new_dataset();
 
@@ -69,7 +70,11 @@ private:
         std::vector<arf::packet_table_ptr> _dsets; // pointers to packet tables (owned)
         int _compression;                          // compression level for new datasets
         std::string _agent_name;                   // used in log messages
+
+        // local state
         nframes_t _entry_start;                    // offset sample counts
+        nframes_t _period_start;                   // assign chunks to channels
+        std::size_t _entry_idx;                    // manage entry numbering
 
         // unowned resources
         std::map<std::string,std::string> const & _attrs;  // attributes for new entries

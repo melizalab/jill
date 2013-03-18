@@ -17,6 +17,10 @@
 #include <arf/types.hpp>
 #include <stdexcept>
 
+#if DEBUG
+#include <iostream>
+#endif
+
 /**
  * @file types.hh
  * @brief Data types and forward declarations.

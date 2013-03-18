@@ -1,10 +1,6 @@
 #include "multichannel_writer.hh"
 #include "../dsp/period_ringbuffer.hh"
 
-#if DEBUG
-#include <iostream>
-#endif
-
 using namespace jill;
 using namespace jill::file;
 

@@ -9,10 +9,12 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <boost/scoped_ptr.hpp>
+#include <boost/assign/list_of.hpp>
 #include <map>
 #include <string>
 
 #include "jill/file/multichannel_writer.hh"
+#include "jill/file/arf_writer.hh"
 
 #define CLIENT_NAME "test_arf_thread"
 #define PERIOD_SIZE 1024
@@ -53,6 +55,17 @@ start_dummy_writer(nframes_t buffer_size)
 {
         fprintf(stderr, "Testing dummy writer, buffer size = %d\n", buffer_size);
         writer.reset(new file::multichannel_writer(buffer_size));
+        writer->start();
+}
+
+void
+start_arf_writer(nframes_t buffer_size)
+{
+        using namespace std;
+        map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
+                ("experiment","testing");
+        fprintf(stderr, "Testing arf writer, buffer size = %d\n", buffer_size);
+        writer.reset(new file::arf_writer("test.arf", attrs));
         writer->start();
 }
 
@@ -121,6 +134,12 @@ main(int argc, char **argv)
         for (int i = 1; i < argc; ++i) {
                 fprintf(stderr, "\nbuffer size %d :: sleep was %ld ns\n", atoi(argv[i]), throttle_rates[i]);
         }
+
+        start_arf_writer(PERIOD_SIZE);
+        test_write_log();
+        // test stopping writer without storing any data
+        writer->stop();
+
 
         return 0;
 }

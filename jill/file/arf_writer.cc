@@ -51,13 +51,13 @@ struct datatype_traits<event_t> {
 
 }}}
 
+
 arf_writer::arf_writer(string const & filename,
                        map<string,string> const & entry_attrs,
                        jack_client *jack_client,
                        jack_port_t *trigger_port,
                        int compression)
         : _compression(compression),
-          _entry_start(0),
           _attrs(entry_attrs),
           _client(jack_client),
           _trigger(trigger_port)
@@ -80,10 +80,17 @@ arf_writer::arf_writer(string const & filename,
                 _log = _file->create_packet_table<jill::file::message_t>(JILL_LOGDATASET_NAME);
         }
         _do_log(make_string() << "[" << _agent_name << "] opened file: " << filename);
+
+        _get_last_entry_index();
 }
 
 arf_writer::~arf_writer()
-{}
+{
+        // need to make sure writer thread is stopped before cleanup of this
+        // class's members begins
+        stop();                 // no more new data; exit writer thread
+        join();                 // wait for writer thread to exit
+}
 
 /*
  * Write a message to the root-level log dataset in the output file. This
@@ -112,8 +119,41 @@ arf_writer::_do_log(string const & msg)
 }
 
 void
+arf_writer::_get_last_entry_index()
+{
+        char const * templ = "jrecord_%ud";
+        size_t val;
+        vector<string> entries = _file->children();
+        for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
+                int rc = sscanf(it->c_str(), templ, &val);
+                if (rc == 1 && val > _entry_idx) _entry_idx = val;
+        }
+}
+
+void
 arf_writer::new_entry(nframes_t sample_count)
 {
+        char name[32];
+        char const * templ = "jrecord_%04d";
+
+        _entry_idx += 1;
+        sprintf(name, templ, _entry_idx);
+
+        if (_entry) {
+                _do_log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
+        }
+
+        timeval tp;
+        gettimeofday(&tp, 0);
+        _entry.reset(new arf::entry(*_file, name, &tp));
+        _do_log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
+
+        arf::h5a::node::attr_writer n = _entry->write_attribute();
+        n("jack_frame",sample_count);
+        for_each(_attrs.begin(), _attrs.end(), n);
+        if (_client) {
+                n("jack_usec",_client->time(sample_count));
+        }
 
 }
 
@@ -123,10 +163,26 @@ arf_writer::write(period_info_t const * info)
         // start new entry?
         // in triggered mode?
         if (!_entry && _trigger) {
+                // check trigger port
+                //new_entry(info->time);
         }
-        // overflow the sample count?
+        // in continuous mode, will we overflow the sample count?
         else if (!_entry || info->time < _entry_start) {
                 new_entry(info->time);
         }
+        // get jack port information
+        if (info->arg) {
+                jack_port_t *port = static_cast<jack_port_t*>(info->arg);
+                // use name information in port to look up dataset
+                // create dataset as needed
+        }
+        else {
+                // otherwise how do we know what channel?
+        }
+}
 
+void
+arf_writer::flush()
+{
+        if (_file) _file->flush();
 }
