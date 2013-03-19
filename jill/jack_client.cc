@@ -21,6 +21,7 @@ using namespace jill;
 
 
 jack_client::jack_client(std::string const & name)
+        : _nports(0)
 {
 	jack_status_t status;
 	_client = jack_client_open(name.c_str(), JackNoStartServer, &status);
@@ -60,6 +61,10 @@ jack_client::register_port(std::string const & name, std::string const & type,
         if (port == NULL) {
                 throw JackError(util::make_string() << "unable to allocate port " << name);
         }
+        _ports.push_front(port);
+        _nports += 1;
+        log() << "port registered: " << jack_port_name(port)
+              << " (" << jack_port_type(port) << ")" << std::endl;
         return port;
 }
 
@@ -75,6 +80,9 @@ jack_client::unregister_port(jack_port_t *port)
         int ret = jack_port_unregister(_client, port);
         if (ret)
                 throw JackError(util::make_string() << "unable to unregister port (err=" << ret << ")");
+        _ports.remove(port);
+        _nports += -1;
+        log() << "port unregistered: " << jack_port_name(port) << std::endl;
 }
 
 void
@@ -265,17 +273,6 @@ jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
 	jack_client *self = static_cast<jack_client*>(arg);
         jack_port_t *port = jack_port_by_id(self->_client, id);
         if (!jack_port_is_mine(self->_client, port)) return;
-        if (registered) {
-                self->_ports.push_front(port);
-                self->_nports += 1;
-                self->log() << "port registered: " << jack_port_name(port)
-                            << " (" << jack_port_type(port) << ")" << std::endl;
-        }
-        else {
-                self->_ports.remove(port);
-                self->_nports += -1;
-                self->log() << "port unregistered: " << jack_port_name(port) << std::endl;
-        }
         if (self->_portreg_cb)
                 self->_portreg_cb(self, port, registered);
 }
@@ -342,9 +339,6 @@ jack_client::set_sample_rate_callback(SamplingRateCallback const & cb) {
 void
 jack_client::set_buffer_size_callback(BufferSizeCallback const & cb) {
         _buffer_size_cb = cb;
-        if (cb) {
-                cb(this, buffer_size());
-        }
 }
 
 void
