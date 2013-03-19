@@ -46,7 +46,8 @@ public:
         std::map<std::string, std::string> additional_options;
 
         std::string output_file;
-	float prebuffer_size_s;
+	float pretrigger_size_s;
+	float posttrigger_size_s;
 	float buffer_size_s;
 	int max_size_mb;
         int compression;
@@ -233,8 +234,10 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
         tropts.add_options()
                 ("attr,a",     po::value<vector<string> >(),
                  "set additional attributes for recorded entries (key=value)")
-                ("prebuffer", po::value<float>(&prebuffer_size_s)->default_value(1.0),
-                 "set prebuffer duration for triggered acquisition (s)")
+                ("pretrigger", po::value<float>(&pretrigger_size_s)->default_value(1.0),
+                 "duration to record before onset trigger (s)")
+                ("posttrigger", po::value<float>(&posttrigger_size_s)->default_value(0.0),
+                 "duration to record after offset trigger (s)")
                 ("compression", po::value<int>(&compression)->default_value(0),
                  "set compression in output file (0-9)");
 
