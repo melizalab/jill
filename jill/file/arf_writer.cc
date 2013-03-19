@@ -24,7 +24,7 @@ struct datatype_traits<message_t> {
 	static hid_t value() {
                 hid_t str = H5Tcopy(H5T_C_S1);
                 H5Tset_size(str, H5T_VARIABLE);
-                H5Tset_cset(str, H5T_CSET_UTF8);
+                H5Tset_cset(str, H5T_CSET_ASCII);
                 hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(message_t));
                 H5Tinsert(ret, "sec", HOFFSET(message_t, sec), H5T_NATIVE_INT64);
                 H5Tinsert(ret, "usec", HOFFSET(message_t, usec), H5T_NATIVE_INT64);
@@ -50,7 +50,6 @@ struct datatype_traits<event_t> {
 };
 
 }}}
-
 
 arf_writer::arf_writer(string const & filename,
                        map<string,string> const & entry_attrs,
@@ -247,6 +246,7 @@ arf_writer::do_write(period_info_t const * info)
                 void * data = const_cast<period_info_t*>(info+1);
                 jack_midi_event_t event;
                 nframes_t nevents = jack_midi_get_event_count(data);
+                string s;
                 for (nframes_t j = 0; j < nevents; ++j) {
                         jack_midi_event_get(&event, data, j);
                         if (event.size == 0) continue;
@@ -258,7 +258,7 @@ arf_writer::do_write(period_info_t const * info)
                                 if (e.status < midi::note_off)
                                         e.message = reinterpret_cast<char*>(event.buffer+1);
                                 else {
-                                        std::string s = jill::util::to_hex(event.buffer+1,event.size-1);
+                                        s = jill::util::to_hex(event.buffer+1,event.size-1);
                                         e.message = s.c_str();
                                 }
                         }
@@ -273,5 +273,4 @@ arf_writer::flush()
 {
         if (_file) _file->flush();
 }
-
 

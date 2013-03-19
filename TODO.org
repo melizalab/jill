@@ -97,4 +97,8 @@ common logic for writing a period is now in do_write.
 
 * TODO fix corrupted event
 
-for some reason the first event stored by arf_writer is not properly serialized
+for some reason the first event stored by arf_writer is not properly stored and
+appears as a bunch of junk
+
+pathetic. was trying to store data from a stack-allocated string that went out
+of scope.
