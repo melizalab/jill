@@ -39,32 +39,50 @@ public:
          * @param filename     the file to write to
          * @param entry_attrs  map of attributes to set on newly-created entries
          * @param jack_client  optional, client used to look up time and samplerate
-         * @param trigger_port optional, use this port to start/stop entries
          * @param compression  the compression level for new datasets
          */
         arf_writer(std::string const & filename,
                    std::map<std::string,std::string> const & entry_attrs,
                    jill::jack_client *jack_client=0,
-                   jack_port_t *trigger_port=0,
                    int compression=0);
-        virtual ~arf_writer();
+        ~arf_writer();
 
         void log(std::string const & msg);
 
 protected:
+        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
+
         void write(period_info_t const * info);
         void flush();
 
-private:
-        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
-
-        // would be nice to have a proxy for this to allow stream syntax
-        void _do_log(std::string const & msg);     // no lock
-
-        void _get_last_entry_index();
+        /** Create a new entry starting at sample_count */
         void new_entry(nframes_t sample_count);
-        // look up dataset, creating it as needed
+
+        /**
+         * Look up dataset in current entry, creating as needed
+         *
+         * @param name         the name of the dataset
+         * @param is_sampled   whether the dataset holds samples or events
+         * @return derefable iterator for appropriate dataset
+         */
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
+
+        /**
+         * Write a message to the log without locking. Should only be called by
+         * the disk thread
+         */
+        void do_log(std::string const & msg);      // no lock
+
+        /**
+         * Write the period to disk.
+         *
+         * @pre the entry for storing the data has been created
+         */
+        void do_write(period_info_t const * info); // after prep
+
+private:
+        void _get_last_entry_index();
+        // look up dataset, creating it as needed
 
         // owned resources
         arf::file_ptr _file;                       // output file
@@ -82,8 +100,7 @@ private:
 
         // unowned resources
         std::map<std::string,std::string> const & _attrs;  // attributes for new entries
-        jill::jack_client *_client;                        //
-        jack_port_t *_trigger;                             // if set, breaks up entries
+        jill::jack_client *_client; // pointer to jack client for samplerate etc lookup
 };
 
 }}

@@ -6,7 +6,7 @@ storing uuids as 16-byte strings is problematic because of nulls. change
 specification to be either a 36-byte hex representation or a 128-bit integer.
 The latter isn't supported on all platforms.
 
-* TODO profile arf thread
+* DONE profile arf thread
 
 using test_arf_thread I find a limit to how many channels I can write
 simultaneously without causing buffer overruns. 100 is too many. Increasing the
@@ -32,7 +32,10 @@ needs a throttle of 4051 ns.
 
 Let's see how the arf thread does.
 
-* TODO fix port registration / buffer size bug
+With no optimizations I can do 12 channels and gzip1 compression with no
+problems. Closing this for now.
+
+* DONE fix port registration / buffer size bug
 
 This is an annoying one. jack_client maintains a list of ports it has
 registered, which it updates through the a port registration callback. This is a
@@ -41,6 +44,10 @@ these callbacks don't actually get called until the client is activated and
 typically after the buffer size callback. In jrecord I'm using the buffer size
 callback to adjust the size of the ringbuffer, but on the first call it doesn't
 know how many ports are registered.
+
+Fixed this by moving the port bookkeeping code to the register/unregister
+functions. This should result in no loss of flexibility b/c other clients
+shouldn't be doing anything with a module's ports anyway.
 
 * DONE fix storage of event types
 
@@ -69,4 +76,25 @@ should anticipate non-jack data sources
 
 * TODO create proxy class for log function in arf_writer?
 
+it's annoying to use make_string all the time is all
+
 * TODO replace pthread threading code with boost?
+* TODO write trigger logic for arf_writer
+
+This is moderately tricky because of the prebuffer. The function needs to
+
+1) check whether the period is from the trigger port
+2) if recording:
+   1) if there was an offset event write data up to offset + postbuffer; copy
+      remainder to prebuffer
+   2) else, write all data
+3) else:
+   1) if there was an onset event, write data from prebuffer plus rest of period
+   2) else, copy data to prebuffer
+
+It's complicated enough I'm going to move the logic into a derived class. The
+common logic for writing a period is now in do_write.
+
+* TODO fix corrupted event
+
+for some reason the first event stored by arf_writer is not properly serialized

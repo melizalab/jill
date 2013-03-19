@@ -167,7 +167,6 @@ main(int argc, char **argv)
                 arf_thread.reset(new file::arf_writer(options.output_file,
                                                       options.additional_options,
                                                       client.get(),
-                                                      port_trig,
                                                       options.compression));
                 arf_thread->log("[" PROGRAM_NAME "] version = " PROGRAM_VERSION);
                 client->log() << "opened output file " << options.output_file << endl;

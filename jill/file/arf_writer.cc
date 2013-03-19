@@ -55,13 +55,11 @@ struct datatype_traits<event_t> {
 arf_writer::arf_writer(string const & filename,
                        map<string,string> const & entry_attrs,
                        jack_client *jack_client,
-                       jack_port_t *trigger_port,
                        int compression)
         : _compression(compression),
           _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0),
           _attrs(entry_attrs),
-          _client(jack_client),
-          _trigger(trigger_port)
+          _client(jack_client)
 {
         if (_client) _agent_name = _client->name();
         _file.reset(new arf::file(filename, "a"));
@@ -79,7 +77,7 @@ arf_writer::arf_writer(string const & filename,
                 _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME,
                                                        logtype, 1024, _compression));
         }
-        _do_log(make_string() << "[" << _agent_name << "] opened file: " << filename);
+        do_log(make_string() << "[" << _agent_name << "] opened file: " << filename);
 
         _get_last_entry_index();
 }
@@ -104,13 +102,13 @@ arf_writer::log(string const & msg)
 {
         pthread_mutex_lock (&_lock);
         if (_file && _log) {
-                _do_log(msg);
+                do_log(msg);
         }
 	pthread_mutex_unlock (&_lock);
 }
 
 void
-arf_writer::_do_log(string const & msg)
+arf_writer::do_log(string const & msg)
 {
         struct timeval tp;
         gettimeofday(&tp,0);
@@ -142,13 +140,13 @@ arf_writer::new_entry(nframes_t sample_count)
         _entry_start = sample_count;
 
         if (_entry) {
-                _do_log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
+                do_log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
         }
 
         timeval tp;
         gettimeofday(&tp, 0);
         _entry.reset(new arf::entry(*_file, fmt.str(), &tp));
-        _do_log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
+        do_log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
 
         arf::h5a::node::attr_writer a = _entry->write_attribute();
         a("jack_frame",_entry_start);
@@ -177,7 +175,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                 if (_client) {
                         pt->write_attribute("sampling_rate", _client->sampling_rate());
                 }
-                _do_log(make_string() << "[" << _agent_name << "] created dataset: " << pt->name());
+                do_log(make_string() << "[" << _agent_name << "] created dataset: " << pt->name());
                 dset = _dsets.insert(dset, make_pair(name,pt));
         }
         return dset;
@@ -186,38 +184,40 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
 void
 arf_writer::write(period_info_t const * info)
 {
-        std::string dset_name;
-        bool is_sampled = true;
-        // start new entry?
-        // was there an xrun?
-        if (_xruns) {
+
+        /* handle xruns */
+        // is this the first channel in the period?
+        if (_xruns && _channel_idx == 0) {
                 if (_client)
                         _client->log() << "xrun" << std::endl;
-                _do_log(make_string() << "[" << _agent_name << "] ERROR: xrun");
+                do_log(make_string() << "[" << _agent_name << "] ERROR: xrun");
 
                 if (_entry) {
                         // tag entry as possibly corrupt
                         _entry->write_attribute("jill_error","data xrun");
                 }
-                if (!_trigger) {
-                        _entry.reset(); // new entry
-                }
+                _entry.reset(); // new entry
                 __sync_add_and_fetch(&_xruns, -1);
         }
 
-        // in triggered mode?
-        if (!_entry && _trigger) {
-                //new_entry(info->time);
-        }
-        // in continuous mode, will we overflow the sample count?
-        else if (!_entry || info->time < _entry_start) {
+        /* create new entry if needed */
+        if (!_entry || info->time < _entry_start) {
                 new_entry(info->time);
         }
 
-        // get jack port information
+        do_write(info);
+}
+
+void
+arf_writer::do_write(period_info_t const * info)
+{
+        std::string dset_name;
+        bool is_sampled = true;
+
+        /* get channel information */
         if (info->arg) {
-                jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
                 // use name information in port to look up dataset
+                jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
                 dset_name = jack_port_short_name(port);
                 is_sampled = strcmp(jack_port_type(port),JACK_DEFAULT_AUDIO_TYPE)==0;
         }
@@ -236,6 +236,7 @@ arf_writer::write(period_info_t const * info)
         }
         dset_map_type::iterator dset = get_dataset(dset_name, is_sampled);
 
+        /* write the data */
         if (is_sampled) {
                 dset->second->write(info + 1, info->nframes);
         }
