@@ -317,7 +317,7 @@ jstim_options::jstim_options(std::string const &program_name, std::string const 
 
         cmd_opts.add(jillopts).add(opts);
         cmd_opts.add_options()
-                ("stim", po::value<vector<string> >(&stimuli)->multitoken(), "output filename");
+                ("stim", po::value<vector<string> >(&stimuli)->multitoken(), "stimulus file");
         pos_opts.add("stim", -1);
         cfg_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);

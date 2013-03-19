@@ -130,10 +130,13 @@ jack_shutdown(jack_status_t code, char const *)
 void
 signal_handler(int sig)
 {
+        if (client)
+                client->deactivate();
         if (arf_thread) {
                 arf_thread->stop();
                 arf_thread->join();
         }
+
         exit(sig);
 }
 
@@ -141,7 +144,7 @@ int
 main(int argc, char **argv)
 {
 	using namespace std;
-        jack_port_t *port_trig;
+        jack_port_t *port_trig = 0;
 
         vector<string>::const_iterator it;
         util::port_registry ports;
@@ -153,8 +156,10 @@ main(int argc, char **argv)
                 client.reset(new jack_client(options.client_name));
 
                 /* create ports: one for trigger, and one for each input */
-                port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
-                                                  JackPortIsInput | JackPortIsTerminal, 0);
+                if (options.count("trig")) {
+                        port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
+                                                          JackPortIsInput | JackPortIsTerminal, 0);
+                }
                 ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
 
                 // set up disk thread
@@ -174,7 +179,7 @@ main(int argc, char **argv)
                 // register callbacks
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
-                // client->set_process_callback(process);
+                client->set_process_callback(process);
                 client->set_port_connect_callback(jack_portcon);
 
                 // activate process callback
@@ -221,7 +226,8 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
                 ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
-                ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
+                ("trig,t",    po::value<vector<string> >(&trig_ports)->multitoken()->zero_tokens(),
+                 "record in triggered mode (optionally specify input ports)")
                 ("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
                  "minimum ringbuffer size (s)");
 
@@ -229,9 +235,8 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
         tropts.add_options()
                 ("attr,a",     po::value<vector<string> >(),
                  "set additional attributes for recorded entries (key=value)")
-                ("continuous,c", "record in continuous mode (default is in triggered epochs)")
                 ("prebuffer", po::value<float>(&prebuffer_size_s)->default_value(1.0),
-                 "set prebuffer size (s)")
+                 "set prebuffer duration for triggered acquisition (s)")
                 ("compression", po::value<int>(&compression)->default_value(0),
                  "set compression in output file (0-9)");
 

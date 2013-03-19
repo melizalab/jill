@@ -58,7 +58,6 @@ protected:
 private:
         typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
 
-
         // would be nice to have a proxy for this to allow stream syntax
         void _do_log(std::string const & msg);     // no lock
 
