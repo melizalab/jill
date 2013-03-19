@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
+#include <signal.h>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <boost/scoped_ptr.hpp>
