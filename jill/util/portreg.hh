@@ -35,11 +35,10 @@ public:
          * type of the source port.
          *
          * @param client   the client to register the port on
-         * @param name     the name of the target port. If undefined, named sequentially.
          * @param src      the name of the source port. if invalid, a warning is issued
+         * @param name     the name of the target port. If undefined, named sequentially.
          */
-        int add(jack_client * client, std::string const & src, std::string const & name);
-        int add(jack_client * client, std::string const & src);
+        int add(jack_client * client, std::string const & src, char const * name=0);
 
         /** Add a sequence of ports to the list */
         template <typename Iterator>
@@ -50,13 +49,6 @@ public:
                 }
                 return i;
         }
-
-        /**
-         * Register ports listed in a file. The file should be
-         * whitespace-delimited, with two columns corresponding to the name of
-         * name of the source port and the name of the target port.
-         */
-        int add_from_file(jack_client * client, std::istream & is);
 
         /**
          * Connect registered ports to their sources. If the port is already

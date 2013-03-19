@@ -61,9 +61,8 @@ void
 test_to_hex()
 {
         int vals[] = {0xf0, 0xab, 0x90, 0x00};
-        char buf[16];
-        jill::util::to_hex(vals, 4, buf);
-        assert(strcmp(buf,"f0ab9000")==0);
+        std::string s = jill::util::to_hex(vals, 4);
+        assert(s=="f0ab9000");
 }
 
 

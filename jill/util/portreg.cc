@@ -18,7 +18,7 @@ port_registry::port_registry()
 {}
 
 int
-port_registry::add(jack_client * client, string const & src, string const & name)
+port_registry::add(jack_client * client, string const & src, char const * name)
 {
         jack_port_t *p = client->get_port(src);
         if (p==0) {
@@ -32,46 +32,21 @@ port_registry::add(jack_client * client, string const & src, string const & name
                 return 0;
         }
 
+        if (!name) {
+                char buf[16];
+                if (strcmp(jack_port_type(p),JACK_DEFAULT_AUDIO_TYPE)==0)
+                        sprintf(buf,"pcm_%03d",_name_index);
+                else
+                        sprintf(buf,"evt_%03d",_name_index);
+                _name_index++;
+                name = buf;
+        }
+
         client->register_port(name,
                               jack_port_type(p),
                               JackPortIsInput | JackPortIsTerminal, 0);
         _ports[name] = src;
         return 1;
-}
-
-
-int
-port_registry::add(jack_client * client, string const & src)
-{
-        char buf[16];
-        sprintf(buf,"in_%03d",_name_index);
-        int rv = add(client, src, buf);
-        _name_index += rv;
-        return rv;
-}
-
-
-int
-port_registry::add_from_file(jack_client * client, std::istream & is)
-{
-        using namespace std;
-        using namespace boost;
-        boost::char_separator<char> sep(" \t\n");
-        // using namespace boost::filesystem;
-        // path portfile(path);
-	// if (!is_regular_file(configfile)) return;
-        // ifstream ff(portfile);
-        string line;
-        // ifstream ff(path.c_str(), ifstream::in);
-
-        int i = 0;
-        while (getline(is, line)) {
-                tokenizer<boost::char_separator<char> > tok(line, sep);
-                vector<string> fields(tok.begin(), tok.end());
-                if (fields.size() < 2) continue;
-                i += add(client, fields[0], fields[1]);
-        }
-        return i;
 }
 
 void

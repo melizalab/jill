@@ -254,12 +254,11 @@ arf_writer::write(period_info_t const * info)
                                       "" };
                         // hex encode standard midi events
                         if (event.size > 1) {
-                                if (event.buffer[0] < midi::note_off)
+                                if (e.status < midi::note_off)
                                         e.message = reinterpret_cast<char*>(event.buffer+1);
                                 else {
-                                        char s[event.size*2];
-                                        jill::util::to_hex(event.buffer+1,event.size-1,s);
-                                        e.message = s;
+                                        std::string s = jill::util::to_hex(event.buffer+1,event.size-1);
+                                        e.message = s.c_str();
                                 }
                         }
                         dset->second->write(&e, 1);
