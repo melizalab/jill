@@ -15,6 +15,7 @@
 
 #include "jill/file/multichannel_writer.hh"
 #include "jill/file/arf_writer.hh"
+#include "jill/util/string.hh"
 
 #define CLIENT_NAME "test_arf_thread"
 #define PERIOD_SIZE 1024
@@ -54,6 +55,16 @@ test_write_log()
 {
         writer->log("[] a random log message");
 }
+
+void
+test_to_hex()
+{
+        int vals[] = {0xf0, 0xab, 0x90, 0x00};
+        char buf[16];
+        jill::util::to_hex(vals, 4, buf);
+        assert(strcmp(buf,"f0ab9000")==0);
+}
+
 
 void
 start_dummy_writer(nframes_t buffer_size)
@@ -140,6 +151,7 @@ main(int argc, char **argv)
                 buffer_size = atoi(argv[1]);
         }
         setup();
+        test_to_hex();
 
         signal(SIGINT,  signal_handler);
         signal(SIGTERM, signal_handler);
