@@ -88,6 +88,7 @@ public:
         typedef boost::function<int (jack_client* client, float usec_delay)> XrunCallback;
         typedef boost::function<void (jack_status_t code, char const * reason)> ShutdownCallback;
 
+        typedef std::list<jack_port_t*> port_list_type;
 	/**
 	 * Initialize a new JACK client. All clients are identified to the JACK
 	 * server by an alphanumeric name, which is specified here. Creates the
@@ -124,40 +125,19 @@ public:
 	 * data [type @a ProcessCallback]
 	 *
 	 */
-	void set_process_callback(ProcessCallback const & cb) {
-		_process_cb = cb;
-	}
-
-	void set_port_registration_callback(PortRegisterCallback const & cb) {
-		_portreg_cb = cb;
-	}
-
-	void set_port_connect_callback(PortConnectCallback const & cb) {
-		_portconn_cb = cb;
-	}
+	void set_process_callback(ProcessCallback const & cb);
 
         /**
          * Set the callback for when the samplerate changes. Currently, this
          * will be called only when the callback is set or changed.
          */
-	void set_sample_rate_callback(SamplingRateCallback const & cb) {
-		_sampling_rate_cb = cb;
-                if (cb) {
-                        cb(this, sampling_rate());
-                }
-	}
+	void set_sample_rate_callback(SamplingRateCallback const & cb);
 
-	void set_buffer_size_callback(BufferSizeCallback const & cb) {
-		_buffer_size_cb = cb;
-	}
-
-	void set_xrun_callback(XrunCallback const & cb) {
-		_xrun_cb = cb;
-	}
-
-        void set_shutdown_callback(ShutdownCallback const & cb) {
-                _shutdown_cb = cb;
-        }
+	void set_port_registration_callback(PortRegisterCallback const & cb);
+	void set_port_connect_callback(PortConnectCallback const & cb);
+	void set_buffer_size_callback(BufferSizeCallback const & cb);
+	void set_xrun_callback(XrunCallback const & cb);
+        void set_shutdown_callback(ShutdownCallback const & cb);
 
         /** Activate the client. Do this before attempting to connect ports */
         void activate();
@@ -208,8 +188,8 @@ public:
         jack_client_t* client() { return _client;}
 
         /** List of ports registered through this object. Realtime safe. */
-        std::list<jack_port_t*> const & ports() const { return _ports;}
-        std::size_t nports() const { return _ports.size(); }
+        port_list_type const & ports() const { return _ports;}
+        std::size_t nports() const { return _nports; }
 
         /**
          * Look up a jack port by name. The port doesn't have to be owned by the
@@ -261,7 +241,8 @@ public:
 
 protected:
         /** Ports owned by this client */
-        std::list<jack_port_t*> _ports;
+        port_list_type _ports;
+        std::size_t _nports;
 
 
 private:

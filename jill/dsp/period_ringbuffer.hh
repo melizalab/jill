@@ -57,6 +57,11 @@ public:
         explicit period_ringbuffer(std::size_t nsamples);
         ~period_ringbuffer();
 
+	/// @return the number of complete periods that can be written to the ringbuffer
+	std::size_t write_space(std::size_t period_size) const {
+                return super::read_space() / (period_size + sizeof(period_info_t));
+        }
+
         /**
          * Store data for one channel in a period
          *

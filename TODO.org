@@ -66,3 +66,7 @@ messages with non-string payloads
 * TODO abstract jack_client class
 
 should anticipate non-jack data sources
+
+* TODO create proxy class for log function in arf_writer?
+
+* TODO replace pthread threading code with boost?

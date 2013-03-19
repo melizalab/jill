@@ -27,7 +27,7 @@ jill::nframes_t
 period_ringbuffer::push(void const * src, period_info_t const & info)
 {
         std::size_t size = sizeof(period_info_t) + info.bytes();
-        if (size > write_space()) return 0;
+        if (size > super::write_space()) return 0;
         char * dst = buffer() + write_offset();
         // store header
         memcpy(dst, &info, sizeof(period_info_t));

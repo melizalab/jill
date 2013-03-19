@@ -34,6 +34,12 @@ multichannel_writer::push(void const * arg, period_info_t const & info)
         return r;
 }
 
+nframes_t
+multichannel_writer::write_space(nframes_t nframes) const
+{
+        return _buffer->write_space(nframes);
+}
+
 void
 multichannel_writer::xrun()
 {
@@ -65,13 +71,15 @@ multichannel_writer::join()
         pthread_join(_thread_id, NULL);
 }
 
-void
+nframes_t
 multichannel_writer::resize_buffer(nframes_t buffer_size)
 {
+        if (buffer_size <= _buffer->size()) return _buffer->size();
         // the write thread will keep this locked until the buffer is empty
         pthread_mutex_lock(&_lock);
         _buffer->resize(buffer_size);
         pthread_mutex_unlock(&_lock);
+        return _buffer->size();
 }
 
 void *

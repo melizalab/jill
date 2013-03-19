@@ -22,7 +22,7 @@
 #include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
 #include "jill/util/portreg.hh"
-#include "jill/file/arf_thread.hh"
+#include "jill/file/arf_writer.hh"
 
 #define PROGRAM_NAME "jrecord"
 #define PROGRAM_VERSION "1.3.0"
@@ -49,7 +49,6 @@ public:
 	float prebuffer_size_s;
 	float buffer_size_s;
 	int max_size_mb;
-        int n_input_ports;
         int compression;
 
 protected:
@@ -59,14 +58,9 @@ protected:
 
 };
 
-
 jrecord_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
-dsp::period_ringbuffer ringbuffer(1024); // this may be resized
-boost::scoped_ptr<file::arf_thread> arf_thread;
-jack_port_t *port_trig;
-// has to be a global variable to track port creation
-util::port_registry ports;
+boost::scoped_ptr<file::arf_writer> arf_thread;
 
 /*
  * Copy data from ports into ringbuffer. Note that the first port is the trigger
@@ -78,24 +72,18 @@ int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         sample_t *port_buffer;
-        std::list<jack_port_t*>::const_iterator it;
-        // Reserve space in the ringbuffer. If there's not enough, increase the
-        // xrun count and discard the data (even though we might have been able
-        // to save it by waiting a few cycles)
-        if (ringbuffer.reserve(time, nframes, client->ports().size()) == 0) {
-                arf_thread->xrun();
-                return 0;
-        }
-        for (it = client->ports().begin(); it != client->ports().end(); ++it) {
-                port_buffer = client->samples(*it, nframes);
-                ringbuffer.push(port_buffer);
-        }
+        jack_client::port_list_type::const_iterator it;
 
-	/* signal that there is data available */
-	if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
-	    pthread_cond_signal (&data_ready);
-	    pthread_mutex_unlock (&disk_thread_lock);
-	}
+        // check that the ringbuffer has enough space for all the channels so we
+        // don't write partial periods
+        if (arf_thread->write_space(nframes) < client->nports())
+                arf_thread->xrun();
+
+        for (it = client->ports().begin(); it != client->ports().end(); ++it) {
+                period_info_t info = {time, nframes, &(*it)};
+                port_buffer = client->samples(*it, nframes);
+                arf_thread->push(port_buffer, info);
+        }
 
         return 0;
 }
@@ -111,18 +99,14 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // TODO flush all data in ringbuffer
-
         // reallocate ringbuffer if necessary - 10 periods or 2x seconds
-        nframes_t sz1 = nframes * client->nports() * 10;
-        nframes_t sz2 = client->sampling_rate() * client->nports() * options.buffer_size_s;
-        if (sz1 < sz2) sz1 = sz2;
-        if (ringbuffer.size() < sz1) {
-                ringbuffer.resize(sz1);
-        }
-        client->log() << "ringbuffer size (s): "
-                      << (sz1 / client->sampling_rate())
-                      << std::endl;
+        arf_thread->log(util::make_string() << "[jack] period size = " << nframes);
+        nframes_t sz = std::max(float(nframes) * client->nports() * 20,
+                                client->sampling_rate() * client->nports() * options.buffer_size_s);
+        // only takes effect if requested size > buffer size; blocks until old
+        // data is flushed
+        sz = arf_thread->resize_buffer(sz);
+        client->log() << "ringbuffer size (samples): " << sz  << std::endl;
         return 0;
 }
 
@@ -131,12 +115,8 @@ void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
         util::make_string msg;
-        msg << "[" PROGRAM_NAME "] port " << ((connected) ? "" : "dis") << "connect: "
+        msg << "[jack] port " << ((connected) ? "" : "dis") << "connect: "
             << jack_port_name(port1) << " -> " << jack_port_short_name(port2);
-        // this can cause problems if it's called while the thread is cleaning
-        // up (even with a nice trylock). The solution is to deactivate the
-        // client (disconnecting the ports) or disable this callback before the
-        // program ends.
         if (arf_thread) arf_thread->log(msg);
 }
 
@@ -150,15 +130,21 @@ jack_shutdown(jack_status_t code, char const *)
 void
 signal_handler(int sig)
 {
-        if (arf_thread) arf_thread->stop();
+        if (arf_thread) {
+                arf_thread->stop();
+                arf_thread->join();
+        }
+        exit(sig);
 }
 
 int
 main(int argc, char **argv)
 {
 	using namespace std;
+        jack_port_t *port_trig;
 
         vector<string>::const_iterator it;
+        util::port_registry ports;
 	try {
 		options.parse(argc,argv);
                 cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
@@ -166,20 +152,19 @@ main(int argc, char **argv)
                 // initialize client
                 client.reset(new jack_client(options.client_name));
 
-                // set up disk thread
-                arf_thread.reset(new file::arf_thread(options.output_file,
-                                                      &options.additional_options,
-                                                      client.get(),
-                                                      &ringbuffer,
-                                                      options.compression));
-                arf_thread->log("[" PROGRAM_NAME "] opened file for writing");
-                arf_thread->log("[" PROGRAM_NAME "] version = " PROGRAM_VERSION);
-                client->log() << "opened output file " << options.output_file << endl;
-
                 /* create ports: one for trigger, and one for each input */
                 port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                   JackPortIsInput | JackPortIsTerminal, 0);
                 ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
+
+                // set up disk thread
+                arf_thread.reset(new file::arf_writer(options.output_file,
+                                                      options.additional_options,
+                                                      client.get(),
+                                                      port_trig,
+                                                      options.compression));
+                arf_thread->log("[" PROGRAM_NAME "] version = " PROGRAM_VERSION);
+                client->log() << "opened output file " << options.output_file << endl;
 
                 // register signal handlers
 		signal(SIGINT,  signal_handler);
@@ -191,10 +176,12 @@ main(int argc, char **argv)
                 client->set_xrun_callback(jack_xrun);
                 // client->set_process_callback(process);
                 client->set_port_connect_callback(jack_portcon);
-                client->set_buffer_size_callback(jack_bufsize);
 
                 // activate process callback
                 client->activate();
+
+                // set buffer size after ports have been registered
+                client->set_buffer_size_callback(jack_bufsize);
 
 		/* connect ports */
 		for (it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
@@ -202,9 +189,10 @@ main(int argc, char **argv)
 		}
                 ports.connect_all(client.get()); // connects input ports
 
-                // arf_thread->start();
-                // arf_thread->join();
+                arf_thread->start();
+                arf_thread->join();
 
+                // manually deactivating the client ensures shutdown events get logged
                 client->deactivate();
 
                 return 0;
@@ -232,19 +220,15 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
         jillopts.add_options()
                 ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
-                ("n",          po::value<int>(&n_input_ports)->default_value(0), "number of input ports to create")
                 ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
                 ("trig,t",     po::value<vector<string> >(&trig_ports), "connect to trigger port")
-                ("attr,a",     po::value<vector<string> >(), "set additional attributes for recorded entries (key=value)")
                 ("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
                  "minimum ringbuffer size (s)");
-        cfg_opts.add_options()
-                ("attr,a",     po::value<vector<string> >());
-        cmd_opts.add(jillopts);
-        visible_opts.add(jillopts);
 
         po::options_description tropts("Capture options");
         tropts.add_options()
+                ("attr,a",     po::value<vector<string> >(),
+                 "set additional attributes for recorded entries (key=value)")
                 ("continuous,c", "record in continuous mode (default is in triggered epochs)")
                 ("prebuffer", po::value<float>(&prebuffer_size_s)->default_value(1.0),
                  "set prebuffer size (s)")
@@ -252,16 +236,13 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
                  "set compression in output file (0-9)");
 
         // command-line options
-        cmd_opts.add(tropts);
-        // configuration file options
-        cfg_opts.add(tropts);
-        // options shown in help text
-        visible_opts.add(tropts);
-        // the output template is not added to the visible
-        // options, since it's specified positionally.
+        cmd_opts.add(jillopts).add(tropts);
         cmd_opts.add_options()
                 ("output-file", po::value<std::string>(), "output filename");
         pos_opts.add("output-file", -1);
+
+        cfg_opts.add(jillopts).add(tropts);
+        visible_opts.add(jillopts).add(tropts);
 }
 
 

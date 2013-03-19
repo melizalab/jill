@@ -132,7 +132,7 @@ jack_client::connect_port(std::string const & src, std::string const & dest)
 void
 jack_client::disconnect_all()
 {
-        std::list<jack_port_t*>::const_iterator it;
+        port_list_type::const_iterator it;
         for (it = _ports.begin(); it != _ports.end(); ++it) {
                 int ret = jack_port_disconnect(_client, *it);
                 if (ret)
@@ -267,11 +267,13 @@ jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
         if (!jack_port_is_mine(self->_client, port)) return;
         if (registered) {
                 self->_ports.push_front(port);
+                self->_nports += 1;
                 self->log() << "port registered: " << jack_port_name(port)
                             << " (" << jack_port_type(port) << ")" << std::endl;
         }
         else {
                 self->_ports.remove(port);
+                self->_nports += -1;
                 self->log() << "port unregistered: " << jack_port_name(port) << std::endl;
         }
         if (self->_portreg_cb)
@@ -327,4 +329,45 @@ jack_client::shutdown_callback_(jack_status_t code, char const * reason, void *a
 	jack_client *self = static_cast<jack_client*>(arg);
         self->log() << "the server is shutting us down: " << reason << std::endl;
 	if (self->_shutdown_cb) self->_shutdown_cb(code, reason);
+}
+
+void
+jack_client::set_sample_rate_callback(SamplingRateCallback const & cb) {
+        _sampling_rate_cb = cb;
+        if (cb) {
+                cb(this, sampling_rate());
+        }
+}
+
+void
+jack_client::set_buffer_size_callback(BufferSizeCallback const & cb) {
+        _buffer_size_cb = cb;
+        if (cb) {
+                cb(this, buffer_size());
+        }
+}
+
+void
+jack_client::set_process_callback(ProcessCallback const & cb) {
+        _process_cb = cb;
+}
+
+void
+jack_client::set_port_registration_callback(PortRegisterCallback const & cb) {
+        _portreg_cb = cb;
+}
+
+void
+jack_client::set_port_connect_callback(PortConnectCallback const & cb) {
+        _portconn_cb = cb;
+}
+
+void
+jack_client::set_xrun_callback(XrunCallback const & cb) {
+        _xrun_cb = cb;
+}
+
+void
+jack_client::set_shutdown_callback(ShutdownCallback const & cb) {
+        _shutdown_cb = cb;
 }

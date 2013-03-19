@@ -37,12 +37,19 @@ public:
         void start();
         void join();
 
+	/// @return the number of complete periods that can be stored. wait-free
+        nframes_t write_space(nframes_t nframes) const;
+
         /**
-         * Resize the ringbuffer. Blocks until the write thread has emptied the
+         * Resize the ringbuffer. Only takes effect if the new size is larger
+         * than the current size. Blocks until the write thread has emptied the
          * buffer. If data is being added to the buffer by a realtime thread
          * this may take an extremely long time.
+         *
+         * @param buffer_size   the requested buffer capacity
+         * @return the new capacity of the buffer
          */
-        virtual void resize_buffer(nframes_t buffer_size);
+        virtual nframes_t resize_buffer(nframes_t buffer_size);
 
 protected:
         /**

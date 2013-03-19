@@ -47,7 +47,8 @@ typedef jack_position_t position_t;
 struct period_info_t {
         nframes_t time;    // time of the current period
         nframes_t nframes; // number of frames in period
-        void *arg;         // pointer to external data
+        // NB: requiring const is somewhat restrictive; may change
+        void const * arg;  // pointer to external data
 
         /** The size of the period in bytes */
         std::size_t bytes() const { return nframes * sizeof(sample_t); }

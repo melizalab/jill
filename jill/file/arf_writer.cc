@@ -211,7 +211,7 @@ arf_writer::write(period_info_t const * info)
 
         // get jack port information
         if (info->arg) {
-                jack_port_t *port = static_cast<jack_port_t*>(info->arg);
+                jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
                 // use name information in port to look up dataset
                 dset_name = jack_port_short_name(port);
                 is_sampled = strcmp(jack_port_type(port),JACK_DEFAULT_AUDIO_TYPE)==0;
@@ -270,3 +270,5 @@ arf_writer::flush()
 {
         if (_file) _file->flush();
 }
+
+
