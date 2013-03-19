@@ -2,7 +2,6 @@
 
 #include <arf.hpp>
 #include <boost/format.hpp>
-#include <boost/algorithm/hex.hpp>
 #include <sys/time.h>
 
 #include "arf_writer.hh"
@@ -252,11 +251,9 @@ arf_writer::write(period_info_t const * info)
                                 if (event.buffer[0] < midi::note_off)
                                         e.message = reinterpret_cast<char*>(event.buffer+1);
                                 else {
-                                        std::string s(event.size*2,0);
-                                        boost::algorithm::hex(event.buffer+1,
-                                                              event.buffer+event.size,
-                                                              s.begin());
-                                        e.message = s.c_str();
+                                        char s[event.size*2];
+                                        jill::util::to_hex(event.buffer+1,event.size-1,s);
+                                        e.message = s;
                                 }
                         }
                         dset->second->write(&e, 1);
