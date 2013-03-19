@@ -80,7 +80,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 arf_thread->xrun();
 
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
-                period_info_t info = {time, nframes, &(*it)};
+                period_info_t info = {time, nframes, *it};
                 port_buffer = client->samples(*it, nframes);
                 arf_thread->push(port_buffer, info);
         }
@@ -130,12 +130,12 @@ jack_shutdown(jack_status_t code, char const *)
 void
 signal_handler(int sig)
 {
-        if (client)
-                client->deactivate();
         if (arf_thread) {
                 arf_thread->stop();
                 arf_thread->join();
         }
+        if (client)
+                client->deactivate();
 
         exit(sig);
 }
@@ -181,14 +181,11 @@ main(int argc, char **argv)
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
                 client->set_port_connect_callback(jack_portcon);
-
+                client->set_buffer_size_callback(jack_bufsize);
 
                 // start disk thread and activate process callback
                 arf_thread->start();
                 client->activate();
-
-                // set buffer size after ports have been registered
-                client->set_buffer_size_callback(jack_bufsize);
 
 		/* connect ports */
 		for (it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {

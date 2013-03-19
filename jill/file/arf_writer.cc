@@ -191,7 +191,10 @@ arf_writer::write(period_info_t const * info)
         // start new entry?
         // was there an xrun?
         if (_xruns) {
+                if (_client)
+                        _client->log() << "xrun" << std::endl;
                 _do_log(make_string() << "[" << _agent_name << "] ERROR: xrun");
+
                 if (_entry) {
                         // tag entry as possibly corrupt
                         _entry->write_attribute("jill_error","data xrun");
