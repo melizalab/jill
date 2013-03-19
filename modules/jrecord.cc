@@ -182,7 +182,9 @@ main(int argc, char **argv)
                 client->set_process_callback(process);
                 client->set_port_connect_callback(jack_portcon);
 
-                // activate process callback
+
+                // start disk thread and activate process callback
+                arf_thread->start();
                 client->activate();
 
                 // set buffer size after ports have been registered
@@ -194,7 +196,6 @@ main(int argc, char **argv)
 		}
                 ports.connect_all(client.get()); // connects input ports
 
-                arf_thread->start();
                 arf_thread->join();
 
                 // manually deactivating the client ensures shutdown events get logged

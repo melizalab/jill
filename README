@@ -14,6 +14,8 @@ writing new clients using the JILL framework.
 
 * Requirements
 
+: boost >= 1.50.
+
 JILL's primary dependency is on JACK (http://jackaudio.org). In
 theory, either JACK 1 or JACK 2 can be used, but so far JILL has only
 been tested on JACK 1.
