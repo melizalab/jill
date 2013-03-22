@@ -72,7 +72,8 @@ messages with non-string payloads
 
 * TODO abstract jack_client class
 
-should anticipate non-jack data sources
+should anticipate non-jack data sources; might make it easier to test. However,
+there is a lot of jack-specific code elsewhere that would need to be tracked down.
 
 * TODO create proxy class for log function in arf_writer?
 
@@ -95,7 +96,28 @@ This is moderately tricky because of the prebuffer. The function needs to
 It's complicated enough I'm going to move the logic into a derived class. The
 common logic for writing a period is now in do_write.
 
-* TODO fix corrupted event
+May be difficult to unit test this, although I can probably safely factor out
+the prebuffering code.
+
+The prebuffer is essentially a deque of period buffers.  We copy out the data
+from the ringbuffer and put it in the queue.  When data falls off the end of
+the queue it's released.  Really this should be implemented with a pool of
+reusable memory to avoid calling malloc excessively.
+
+Another option would be to allocate the ringbuffer large enough to hold the
+prebuffer, and then simply retain the periods until they are far enough in the
+past to discard.  The current implementation/interface isn't quite right for
+this.
+
+I wonder, what if I reimplemented the period ringbuffer using preallocated
+structs rather than serializing. Instead of managing read/write pointers I'd be
+managing a memory pool. Resizing the buffer would be messy because each of the
+elements would have to be reallocated, but in practice this is not going to
+happen much....okay, scratch this - it's really not much help - the real issue
+is how =multichannel_writer= handles old data.
+
+
+* DONE fix corrupted event
 
 for some reason the first event stored by arf_writer is not properly stored and
 appears as a bunch of junk

@@ -53,7 +53,6 @@ protected:
         typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
 
         void write(period_info_t const * info);
-        void flush();
 
         /** Create a new entry starting at sample_count */
         void new_entry(nframes_t sample_count);

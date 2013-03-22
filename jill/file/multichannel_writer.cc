@@ -105,7 +105,6 @@ multichannel_writer::thread(void * arg)
                         break;
                 }
         }
-        self->flush();
         pthread_mutex_unlock(&self->_lock);
         return 0;
 }
@@ -115,13 +114,5 @@ multichannel_writer::write(period_info_t const * info)
 {
 #if DEBUG
         std::cout << "\rgot period: time=" << info->time << ", nframes=" << info->nframes << std::flush;
-#endif
-}
-
-void
-multichannel_writer::flush()
-{
-#if DEBUG
-        std::cout << "terminating writer" << std::endl;
 #endif
 }

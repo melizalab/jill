@@ -268,9 +268,3 @@ arf_writer::do_write(period_info_t const * info)
 
 }
 
-void
-arf_writer::flush()
-{
-        if (_file) _file->flush();
-}
-

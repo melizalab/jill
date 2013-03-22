@@ -60,13 +60,6 @@ protected:
          */
         virtual void write(period_info_t const * info);
 
-        /**
-         * Called when the writer thread is exiting, and after all data have
-         * been pulled off the queue.  Allows deriving classes to
-         * ensure any remaining data is written to disk.
-         */
-        virtual void flush();
-
         static void * thread(void * arg);           // the thread entry point
 
         pthread_t _thread_id;                      // thread id
