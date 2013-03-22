@@ -5,6 +5,7 @@
 #include <sys/time.h>
 
 #include "arf_writer.hh"
+#include "../dsp/period_ringbuffer.hh"
 #include "../jack_client.hh"
 #include "../midi.hh"
 #include "../util/string.hh"
@@ -205,6 +206,9 @@ arf_writer::write(period_info_t const * info)
         }
 
         do_write(info);
+
+        /* release data */
+        _buffer->release();
 }
 
 void

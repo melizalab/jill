@@ -85,9 +85,13 @@ public:
         period_info_t const * peek();
 
         /**
-         * Release the next period in the queue after peeking at it.
+         * Release data from the ringbuffer.
+         *
+         * @param nperiods  the number of periods to release. If greater than
+         *                  the number of periods or if 0, releases all
+         *                  available periods.
          */
-        void release();
+        void release(std::size_t nperiods=1);
 
 };
 

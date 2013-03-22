@@ -41,20 +41,30 @@ public:
         nframes_t write_space(nframes_t nframes) const;
 
         /**
-         * Resize the ringbuffer. Only takes effect if the new size is larger
-         * than the current size. Blocks until the write thread has emptied the
-         * buffer. If data is being added to the buffer by a realtime thread
-         * this may take an extremely long time.
+         * Resize the ringbuffer. Determines the best size based on period size
+         * and number of channels in the data. Only takes effect if the new size
+         * is larger than the current size.  The actual size may be larger due
+         * to constraints on the underlying storage mechanism.
          *
-         * @param buffer_size   the requested buffer capacity
-         * @return the new capacity of the buffer
+         * Deriving classes may override this method to provide different
+         * estimates of the appropriate buffer size.
+         *
+         * Blocks until the write thread has emptied the buffer. If data is
+         * being added to the buffer by a realtime thread this may take an
+         * extremely long time.
+         *
+         * @param period_size   the period size
+         * @param period_rate   expected rate of periods/sec
+         * @return the new capacity of the buffer (in samples)
          */
-        virtual nframes_t resize_buffer(nframes_t buffer_size);
+        virtual nframes_t resize_buffer(nframes_t period_size, nframes_t period_rate);
 
 protected:
         /**
          * Entry point for deriving classes to actually so something with the
-         * data pulled off the ringbuffer.
+         * data pulled off the ringbuffer. Deriving classes *must* release data
+         * using _buffer->release() when they are done with the data or the buffer will
+         * overrun.
          *
          * @param info   the header and data for the period
          */

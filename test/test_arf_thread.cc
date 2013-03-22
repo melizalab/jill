@@ -78,7 +78,7 @@ void
 start_arf_writer(nframes_t buffer_size, int compression=0)
 {
         file::arf_writer *f = new file::arf_writer("test.arf", attrs, 0, compression);
-        buffer_size = f->resize_buffer(buffer_size);
+        buffer_size = f->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
         writer.reset(f);
         fprintf(stderr, "Testing arf writer, buffer size=%d, compression=%d\n", buffer_size, compression);
         writer->start();

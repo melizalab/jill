@@ -72,12 +72,14 @@ multichannel_writer::join()
 }
 
 nframes_t
-multichannel_writer::resize_buffer(nframes_t buffer_size)
+multichannel_writer::resize_buffer(nframes_t period_size, nframes_t period_rate)
 {
-        if (buffer_size <= _buffer->size()) return _buffer->size();
+        // calculate minimum buffer size based on ~2 seconds
+        nframes_t nframes = period_size * period_rate * 2;
+        if (nframes <= _buffer->size()) return _buffer->size();
         // the write thread will keep this locked until the buffer is empty
         pthread_mutex_lock(&_lock);
-        _buffer->resize(buffer_size);
+        _buffer->resize(nframes);
         pthread_mutex_unlock(&_lock);
         return _buffer->size();
 }
@@ -95,7 +97,6 @@ multichannel_writer::thread(void * arg)
                 period = self->_buffer->peek();
                 if (period) {
                         self->write(period);
-                        self->_buffer->release();
                 }
                 else if (!self->_stop) {
                         // wait for more data
@@ -109,10 +110,12 @@ multichannel_writer::thread(void * arg)
         return 0;
 }
 
+
 void
 multichannel_writer::write(period_info_t const * info)
 {
 #if DEBUG
         std::cout << "\rgot period: time=" << info->time << ", nframes=" << info->nframes << std::flush;
 #endif
+        _buffer->release();
 }

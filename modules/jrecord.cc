@@ -100,14 +100,11 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // reallocate ringbuffer if necessary - 10 periods or 2x seconds
         arf_thread->log(util::make_string() << "[jack] period size = " << nframes);
-        nframes_t sz = std::max(float(nframes) * client->nports() * 20,
-                                client->sampling_rate() * client->nports() * options.buffer_size_s);
         // only takes effect if requested size > buffer size; blocks until old
         // data is flushed
-        sz = arf_thread->resize_buffer(sz);
-        client->log() << "ringbuffer size (samples): " << sz  << std::endl;
+        nframes = arf_thread->resize_buffer(nframes, client->nports() * client->sampling_rate() / nframes);
+        client->log() << "ringbuffer size (samples): " << nframes << std::endl;
         return 0;
 }
 
@@ -132,6 +129,7 @@ void
 signal_handler(int sig)
 {
         if (arf_thread) {
+                arf_thread->log(util::make_string() << "[" << client->name() << "] got terminate signal");
                 arf_thread->stop();
                 arf_thread->join();
         }

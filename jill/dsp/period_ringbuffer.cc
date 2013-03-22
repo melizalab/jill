@@ -48,9 +48,17 @@ period_ringbuffer::peek()
 
 
 void
-period_ringbuffer::release()
+period_ringbuffer::release(size_t nperiods)
 {
-        period_info_t const * ptr = peek();
-        if (ptr)
-                super::pop(0, sizeof(period_info_t) + ptr->bytes());
+        if (nperiods==0) {
+                super::pop(0,0);
+        }
+        else {
+                period_info_t const * ptr = peek();
+                while (ptr && nperiods) {
+                        super::pop(0, sizeof(period_info_t) + ptr->bytes());
+                        ptr = peek();
+                        nperiods--;
+                }
+        }
 }
