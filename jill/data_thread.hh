@@ -60,6 +60,7 @@ public:
          * @param msg       the message to write
          */
         virtual void log(std::string const & msg) {}
+        std::ostream log();
 
         /**
          * Start the thread writing samples

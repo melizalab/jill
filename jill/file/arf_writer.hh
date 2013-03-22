@@ -1,12 +1,13 @@
 #ifndef _ARF_WRITER_HH
 #define _ARF_WRITER_HH
 
+#include <boost/noncopyable.hpp>
 #include <vector>
 #include <map>
 #include <string>
 #include <arf/types.hpp>
 
-#include "multichannel_writer.hh"
+#include "../types.hh"
 
 namespace jill { namespace file {
 
@@ -29,12 +30,15 @@ struct event_t {
 };
 
 /**
- * This implementation of the disk_thread class stores data in an ARF file.
+ * Class for storing data in an ARF file. It's intended as a mixin for data
+ * writing threads (use protected inheritance)
  */
-class arf_writer : public multichannel_writer {
+class arf_writer : boost::noncopyable {
 public:
+        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
+
         /**
-         * Initialize an ARF writer thread.
+         * Initialize an ARF writer.
          *
          * @param filename     the file to write to
          * @param entry_attrs  map of attributes to set on newly-created entries
@@ -43,45 +47,51 @@ public:
          */
         arf_writer(std::string const & filename,
                    std::map<std::string,std::string> const & entry_attrs,
-                   jill::jack_client *jack_client=0,
+                   jill::jack_client * jack_client=0,
                    int compression=0);
         ~arf_writer();
 
-        void log(std::string const & msg);
+        /** Create a new entry starting at frame_count */
+        void new_entry(nframes_t frame_count);
 
-protected:
-        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
-
-        void write(period_info_t const * info);
-
-        /** Create a new entry starting at sample_count */
-        void new_entry(nframes_t sample_count);
+        /** Close the current entry */
+        void close_entry();
 
         /**
-         * Look up dataset in current entry, creating as needed
+         * Look up dataset in current entry, creating as needed.
          *
-         * @param name         the name of the dataset
+         * @param name         the name of the dataset (channel)
          * @param is_sampled   whether the dataset holds samples or events
          * @return derefable iterator for appropriate dataset
          */
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
 
         /**
-         * Write a message to the log without locking. Should only be called by
-         * the disk thread
+         * Write a message to the log. Not thread safe.
          */
-        void do_log(std::string const & msg);      // no lock
+        void log(std::string const & msg);
 
         /**
-         * Write the period to disk.
+         * Write a period to disk. Looks up the appropriate channel.
          *
          * @pre the entry for storing the data has been created
          */
-        void do_write(period_info_t const * info); // after prep
+        void write(period_info_t const * info);
+
+        /**
+         * Store a record than an xrun occurred in the file
+         */
+        void xrun();
+
+        /** The number of channels received in the current period */
+        nframes_t channels() const { return _channel_idx; }
+        /** The start time of the current entry */
+        nframes_t entry_start() const { return _entry_start; }
+
+        jill::jack_client * const _client; // pointer to jack client for samplerate etc lookup
 
 private:
         void _get_last_entry_index();
-        // look up dataset, creating it as needed
 
         // owned resources
         arf::file_ptr _file;                       // output file
@@ -90,7 +100,7 @@ private:
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         dset_map_type _dsets;                      // pointers to packet tables (owned)
         int _compression;                          // compression level for new datasets
-        std::string _agent_name;                   // used in log messages
+        std::string _agent_name;           // used in log messages
 
         // local state
         nframes_t _entry_start;                    // offset sample counts
@@ -98,8 +108,6 @@ private:
         std::size_t _entry_idx;                    // manage entry numbering
         std::size_t _channel_idx;                  // index channel
 
-        // unowned resources
-        jill::jack_client *_client; // pointer to jack client for samplerate etc lookup
 };
 
 }}

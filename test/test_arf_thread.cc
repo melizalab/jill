@@ -14,11 +14,12 @@
 #include <map>
 #include <string>
 
-#include "jill/file/multichannel_writer.hh"
-#include "jill/file/arf_writer.hh"
+#include "jill/dsp/multichannel_data_thread.hh"
+#include "jill/file/continuous_arf_thread.hh"
 #include "jill/util/string.hh"
 
 #define CLIENT_NAME "test_arf_thread"
+#define COMPRESSION 0
 #define PERIOD_SIZE 1024
 #define NCHANNELS 2
 #define NPERIODS 1024
@@ -70,18 +71,13 @@ void
 start_dummy_writer(nframes_t buffer_size)
 {
         fprintf(stderr, "Testing dummy writer, buffer size = %d\n", buffer_size);
-        writer.reset(new file::multichannel_writer(buffer_size));
+        writer.reset(new dsp::multichannel_data_thread(buffer_size));
         writer->start();
 }
 
 void
-start_arf_writer(nframes_t buffer_size, int compression=0)
+start_continuous_arf_writer(nframes_t buffer_size, int compression=0)
 {
-        file::arf_writer *f = new file::arf_writer("test.arf", attrs, 0, compression);
-        buffer_size = f->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
-        writer.reset(f);
-        fprintf(stderr, "Testing arf writer, buffer size=%d, compression=%d\n", buffer_size, compression);
-        writer->start();
 }
 
 void
@@ -168,7 +164,12 @@ main(int argc, char **argv)
         writer->stop();
         writer->join();
 
-        start_arf_writer(buffer_size);
+        file::continuous_arf_thread *f = new file::continuous_arf_thread("test.arf", attrs, 0, COMPRESSION);
+        buffer_size = f->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
+        writer.reset(f);
+        fprintf(stderr, "Testing arf writer, buffer size=%d, compression=%d\n", buffer_size, COMPRESSION);
+        writer->start();
+
         test_write_log();
         test_write_data_rate(boost::posix_time::seconds(5));
         writer->stop();

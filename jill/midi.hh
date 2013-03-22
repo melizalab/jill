@@ -23,27 +23,27 @@ namespace jill {
 
 struct midi {
 
-        typedef jack_midi_data_t type;
+        typedef jack_midi_data_t data_type;
 
         // status bytes
-        const static type stim_on = 0x00;      // non-standard; message is a string
-        const static type stim_off = 0x10;     // non-standard; message is a string
-        const static type info = 0x20;         // non-standard; message is a string
+        const static data_type stim_on = 0x00;      // non-standard; message is a string
+        const static data_type stim_off = 0x10;     // non-standard; message is a string
+        const static data_type info = 0x20;         // non-standard; message is a string
 
-        const static type note_off = 0x80;     // used for offsets
-        const static type note_on = 0x90;      // used for onsets and single events
-        const static type key_pres = 0xa0;     // key pressure
-        const static type ctl = 0xb0;          // control messages, function?
-        const static type sysex = 0xf0;        // system-exclusive messages
-        const static type sysex_end = 0xf7;    // ends sysex
-        const static type reset = 0xff;
+        const static data_type note_off = 0x80;     // used for offsets
+        const static data_type note_on = 0x90;      // used for onsets and single events
+        const static data_type key_pres = 0xa0;     // key pressure
+        const static data_type ctl = 0xb0;          // control messages, function?
+        const static data_type sysex = 0xf0;        // system-exclusive messages
+        const static data_type sysex_end = 0xf7;    // ends sysex
+        const static data_type reset = 0xff;
 
         // masks for splitting status bytes into type and channel
-        const static type type_nib = 0xf0;
-        const static type chan_nib = 0x0f;
+        const static data_type type_nib = 0xf0;
+        const static data_type chan_nib = 0x0f;
 
-        const static type default_pitch = 60;
-        const static type default_velocity = 64;
+        const static data_type default_pitch = 60;
+        const static data_type default_velocity = 64;
 
         /**
          * Write a string message to a midi buffer.
@@ -54,11 +54,11 @@ struct midi {
          * @param message  the string message, or 0 to send an empty message
          *
          */
-        static int write_message(void * buffer, nframes_t time, type status, char const * message=0) {
+        static int write_message(void * buffer, nframes_t time, data_type status, char const * message=0) {
                 size_t len = 1;
                 if (message)
                         len += strlen(message) + 1; // add the null byte
-                type *buf = jack_midi_event_reserve(buffer, time, len);
+                data_type *buf = jack_midi_event_reserve(buffer, time, len);
                 if (buf) {
                         buf[0] = status;
                         if (message) strcpy(reinterpret_cast<char*>(buf)+1, message);

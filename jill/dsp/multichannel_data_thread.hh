@@ -9,8 +9,8 @@
  * (at your option) any later version.
  *
  */
-#ifndef _MULTICHANNEL_WRITER_HH
-#define _MULTICHANNEL_WRITER_HH
+#ifndef _MULTICHANNEL_DATA_THREAD_HH
+#define _MULTICHANNEL_DATA_THREAD_HH
 
 #include <pthread.h>
 #include <boost/shared_ptr.hpp>
@@ -18,18 +18,19 @@
 
 namespace jill {
 
-namespace dsp { class period_ringbuffer; }
+namespace dsp {
 
-namespace file {
+class period_ringbuffer;
+
 /**
  * A trivial implementation of the data thread that just stores data in a
  * ringbuffer and then throws it away. A useful base for more complex tasks.
  */
-class multichannel_writer : public data_thread {
+class multichannel_data_thread : public data_thread {
 
 public:
-        multichannel_writer(nframes_t buffer_size=4096);
-        virtual ~multichannel_writer();
+        multichannel_data_thread(nframes_t buffer_size=4096);
+        virtual ~multichannel_data_thread();
 
         nframes_t push(void const * arg, period_info_t const & info);
         void xrun();
@@ -41,23 +42,23 @@ public:
         nframes_t write_space(nframes_t nframes) const;
 
         /**
-         * Resize the ringbuffer. Determines the best size based on period size
-         * and number of channels in the data. Only takes effect if the new size
-         * is larger than the current size.  The actual size may be larger due
-         * to constraints on the underlying storage mechanism.
+         * Resize the ringbuffer. Only takes effect if the new size is larger
+         * than the current size. The actual size may be larger due to
+         * constraints on the underlying storage mechanism.
          *
-         * Deriving classes may override this method to provide different
-         * estimates of the appropriate buffer size.
+         * A 2 second buffer is good enough for most purposes. Deriving classes
+         * may override this method to provide different estimates of the
+         * appropriate buffer size.
          *
          * Blocks until the write thread has emptied the buffer. If data is
          * being added to the buffer by a realtime thread this may take an
          * extremely long time.
          *
-         * @param period_size   the period size
-         * @param period_rate   expected rate of periods/sec
-         * @return the new capacity of the buffer (in samples)
+         * @param nsamples   the requested capacity of the buffer (in frames)
+         * @param nchannels  the number of channels in the datastream
+         * @return the new capacity of the buffer
          */
-        virtual nframes_t resize_buffer(nframes_t period_size, nframes_t period_rate);
+        virtual nframes_t resize_buffer(nframes_t nframes, nframes_t nchannels);
 
 protected:
         /**
@@ -78,7 +79,7 @@ protected:
         int _stop;                                 // stop flag
         int _xruns;                                // xrun counter
 
-        boost::shared_ptr<jill::dsp::period_ringbuffer> _buffer;     // ringbuffer
+        boost::shared_ptr<period_ringbuffer> _buffer;     // ringbuffer
 };
 
 }} // jill::file

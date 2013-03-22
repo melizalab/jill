@@ -1,7 +1,6 @@
-
-
 #include <arf.hpp>
 #include <boost/format.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <sys/time.h>
 
 #include "arf_writer.hh"
@@ -56,10 +55,10 @@ arf_writer::arf_writer(string const & filename,
                        map<string,string> const & entry_attrs,
                        jack_client *jack_client,
                        int compression)
-        : _attrs(entry_attrs),
+        : _client(jack_client),
+          _attrs(entry_attrs),
           _compression(compression),
-          _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0),
-          _client(jack_client)
+          _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0)
 {
         if (_client) _agent_name = _client->name();
         _file.reset(new arf::file(filename, "a"));
@@ -77,40 +76,18 @@ arf_writer::arf_writer(string const & filename,
                 _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME,
                                                        logtype, 1024, _compression));
         }
-        do_log(make_string() << "[" << _agent_name << "] opened file: " << filename);
+        log(make_string() << "[" << _agent_name << "] opened file: " << filename);
 
         _get_last_entry_index();
 }
 
 arf_writer::~arf_writer()
-{
-        // make sure writer thread is stopped before cleanup of this class's
-        // members begins.
-        stop();
-        join();
-}
+{}
 
-/*
- * Write a message to the root-level log dataset in the output file. This
- * function attempts to acquire a lock, in order to prevent multiple
- * threads from modifying the ARF file simultaneously.  If this is a problem,
- * could be implemented by copying the message to a queue and letting the
- * writer thread take care of it.
- */
 void
 arf_writer::log(string const & msg)
 {
-        pthread_mutex_lock (&_lock);
-        if (_file && _log) {
-                do_log(msg);
-        }
-	pthread_mutex_unlock (&_lock);
-}
-
-void
-arf_writer::do_log(string const & msg)
-{
-        struct timeval tp;
+        timeval tp;
         gettimeofday(&tp,0);
         jill::file::message_t message = { tp.tv_sec, tp.tv_usec, msg.c_str() };
         _log->write(&message, 1);
@@ -130,29 +107,47 @@ arf_writer::_get_last_entry_index()
 }
 
 void
-arf_writer::new_entry(nframes_t sample_count)
+arf_writer::close_entry()
 {
-        boost::format fmt("jrecord_%|04|");
+        _dsets.clear();         // release any old packet tables
+        if (_entry) {
+                log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
+        }
+        _entry.reset();
+}
 
+
+void
+arf_writer::new_entry(nframes_t frame_count)
+{
+        using namespace boost::gregorian;
+        using namespace boost::posix_time;
+        long frame_usec;
+
+        boost::format fmt("jrecord_%|04|");
         fmt % _entry_idx++;
 
-        _dsets.clear();         // release old packet tables
-        _entry_start = sample_count;
+        close_entry();
+        _entry_start = frame_count;
 
-        if (_entry) {
-                do_log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
+        ptime epoch(date(1970,1,1));
+        ptime now(microsec_clock::universal_time());
+        if (_client) {
+                // adjust time by difference between now and the frame_count
+                frame_usec = _client->time(_entry_start);
+                now -= microseconds(frame_usec - jack_get_time());
         }
+        time_duration timestamp(now - epoch);
+        timeval tp = { timestamp.total_seconds(), timestamp.fractional_seconds() };
 
-        timeval tp;
-        gettimeofday(&tp, 0);
         _entry.reset(new arf::entry(*_file, fmt.str(), &tp));
-        do_log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
+        log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
 
         arf::h5a::node::attr_writer a = _entry->write_attribute();
         a("jack_frame",_entry_start);
         for_each(_attrs.begin(), _attrs.end(), a);
         if (_client) {
-                a("jack_usec",_client->time(_entry_start));
+                a("jack_usec", frame_usec);
         }
 }
 
@@ -162,8 +157,6 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
         dset_map_type::iterator dset = _dsets.find(name);
         if (dset == _dsets.end()) {
                 arf::packet_table_ptr pt;
-                // std::pair<std::string, arf::packet_table_ptr> val;
-                // val.first = name;
                 if (is_sampled) {
                         pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
                                                                           false, 1024, _compression);
@@ -175,7 +168,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                 if (_client) {
                         pt->write_attribute("sampling_rate", _client->sampling_rate());
                 }
-                do_log(make_string() << "[" << _agent_name << "] created dataset: " << pt->name());
+                log(make_string() << "[" << _agent_name << "] created dataset: " << pt->name());
                 dset = _dsets.insert(dset, make_pair(name,pt));
         }
         return dset;
@@ -184,43 +177,15 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
 void
 arf_writer::write(period_info_t const * info)
 {
-
-        /* handle xruns */
-        // is this the first channel in the period?
-        if (_xruns && _channel_idx == 0) {
-                if (_client)
-                        _client->log() << "xrun" << std::endl;
-                do_log(make_string() << "[" << _agent_name << "] ERROR: xrun");
-
-                if (_entry) {
-                        // tag entry as possibly corrupt
-                        _entry->write_attribute("jill_error","data xrun");
-                }
-                _entry.reset(); // new entry
-                __sync_add_and_fetch(&_xruns, -1);
-        }
-
-        /* create new entry if needed */
-        if (!_entry || info->time < _entry_start) {
-                new_entry(info->time);
-        }
-
-        do_write(info);
-
-        /* release data */
-        _buffer->release();
-}
-
-void
-arf_writer::do_write(period_info_t const * info)
-{
         std::string dset_name;
         bool is_sampled = true;
+        jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
+
+        if (!_entry) new_entry(info->time);
 
         /* get channel information */
-        if (info->arg) {
+        if (port) {
                 // use name information in port to look up dataset
-                jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
                 dset_name = jack_port_short_name(port);
                 is_sampled = strcmp(jack_port_type(port),JACK_DEFAULT_AUDIO_TYPE)==0;
         }
@@ -272,3 +237,14 @@ arf_writer::do_write(period_info_t const * info)
 
 }
 
+void
+arf_writer::xrun()
+{
+        if (_client)
+                _client->log() << "xrun" << std::endl;
+        log(make_string() << "[" << _agent_name << "] ERROR: xrun");
+        if (_entry) {
+                // tag entry as possibly corrupt
+                _entry->write_attribute("jill_error","data xrun");
+        }
+}
