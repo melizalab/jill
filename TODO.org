@@ -116,6 +116,21 @@ elements would have to be reallocated, but in practice this is not going to
 happen much....okay, scratch this - it's really not much help - the real issue
 is how =multichannel_writer= handles old data.
 
+I think the thing to do is abstract the release operation through a virtual
+function; deriving classes could then choose to hang on to extra frames. Or
+implement a release() function in MCW that the write() funciton would call. Not
+sure which is best practice, although the latter preserves encapsulation a bit
+better.
+
+Getting there...the period_ringbuffer class needs to be tweaked a bit to make it
+useful as a prebuffer. Basically we need two read pointers - one that tracks the
+"current" time, and another that is only advanced when the resources are
+released.  Semantics of the interface should look something like this:
+
++ peek_newest - access the newest period and advance the peek pointer
++ peek_oldest - access the oldest period in the queue
++ release_oldest - advance the read pointer, releasing the oldest period in the queue
++ release_all - discard the data in the read buffer (e.g. when there is an xrun)
 
 * DONE fix corrupted event
 

@@ -28,16 +28,9 @@ namespace jill { namespace dsp {
  * the chunk size.  The latter is more flexible, as it allows chunk size to
  * change, and also the embedding of timestamp information.
  *
- * The interface is slightly different from the standard ringbuffer, in that the
- * writer first reserves space for the period and then fills it channel by
- * channel.
- *
- * Inherits size and space member functions from dsp::ringbuffer, but these do
- * NOT correspond to periods and should not be used except to check if the
- * buffer is empty or full.
  */
 
-class period_ringbuffer : public ringbuffer<char>
+class period_ringbuffer : protected ringbuffer<char>
 {
 public:
         typedef ringbuffer<char> super;
@@ -57,6 +50,16 @@ public:
         explicit period_ringbuffer(std::size_t nsamples);
         ~period_ringbuffer();
 
+        /// @see ringbuffer::resize()
+        void resize(std::size_t size) {
+                super::resize(size);
+        }
+
+        /// @return the size of the buffer (in objects)
+        std::size_t size() const {
+                return super::size();
+        }
+
 	/// @return the number of complete periods that can be written to the ringbuffer
 	std::size_t write_space(std::size_t period_size) const {
                 return super::write_space() / (period_size + sizeof(period_info_t));
@@ -74,9 +77,12 @@ public:
 	nframes_t push(void const * src, period_info_t const & info);
 
         /**
-         * Look at the next period in the buffer. If a period is available,
+         * Read the next period in the buffer. If a period is available,
          * returns a pointer to the header. You can then copy out just the
-         * payload or the whole chunk. Be sure to call release() when done.
+         * payload or the whole chunk. Successive calls to peek() will access
+         * successive periods.
+         *
+         * @note call release() to release the space
          *
          * @return period_info_t* for the next period, or 0 if none is
          * available.
@@ -92,6 +98,9 @@ public:
          *                  available periods.
          */
         void release(std::size_t nperiods=1);
+
+// private:
+//         std::size_t _peek_ptr;
 
 };
 

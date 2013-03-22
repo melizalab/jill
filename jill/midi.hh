@@ -42,11 +42,12 @@ struct midi {
         const static data_type type_nib = 0xf0;
         const static data_type chan_nib = 0x0f;
 
+        const static data_type default_channel = 0;
         const static data_type default_pitch = 60;
         const static data_type default_velocity = 64;
 
         /**
-         * Write a string message to a midi buffer.
+         * Write a string message to a midi buffer.  This is inlined for speed.
          *
          * @param buffer   the JACK midi buffer
          * @param time     the offset of the message (in samples)
@@ -66,6 +67,32 @@ struct midi {
                 }
                 else
                         return ENOBUFS;
+        }
+
+        /**
+         * Find an onset or offset event in a midi event stream.
+         *
+         * @param midi_buffer  the JACK midi buffer
+         * @param onset        if true, look for onset events; if false, for offsets
+         * @return the time of the first event, or -1 if no event was found.
+         */
+        static int find_trigger(void * midi_buffer, bool onset=true) {
+                jack_midi_event_t event;
+                nframes_t nevents = jack_midi_get_event_count(midi_buffer);
+                for (nframes_t i = 0; i < nevents; ++i) {
+                        jack_midi_event_get(&event, midi_buffer, i);
+                        if (event.size < 1) continue;
+                        data_type t = event.buffer[0] & midi::type_nib;
+                        if (onset) {
+                                if (t == midi::stim_on || t == midi::note_on)
+                                        return event.time;
+                        }
+                        else {
+                                if (t ==midi::stim_off || t ==midi::note_off)
+                                        return event.time;
+                        }
+                }
+                return -1;
         }
 };
 

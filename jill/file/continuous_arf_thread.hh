@@ -25,12 +25,12 @@ public:
                               int compression=0);
         ~continuous_arf_thread();
 
-        // @see data_thread::log()
+        /** @see data_thread::log() */
         void log(std::string const & msg);
 
 protected:
 
-        // @see multichannel_data_thread::write()
+        /** @see multichannel_data_thread::write() */
         void write(period_info_t const * info);
 
 private:

@@ -38,7 +38,7 @@ public:
 	/** Ports to connect to */
 	std::vector<std::string> output_ports;
         std::vector<std::string> trigout_ports;
-        midi::type trigout_chan;
+        midi::data_type trigout_chan;
 	std::vector<std::string> trigin_ports;
 
         std::vector<std::string> stimuli; // this is postprocessed
@@ -107,20 +107,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // is there an external trigger?
         else if (port_trigin) {
-                offset = nframes + 1;
-                jack_midi_event_t event;
                 void * midi_buffer = client->events(port_trigin, nframes);
-                nframes_t nevents = jack_midi_get_event_count(midi_buffer);
-                for (nframes_t i = 0; i < nevents; ++i) {
-                        jack_midi_event_get(&event, midi_buffer, i);
-                        if (event.size < 1) continue;
-                        char t = event.buffer[0] & midi::type_nib;
-                        if (t == (char)midi::stim_on || t == (char)midi::note_on) {
-                                offset = event.time;
-                                break;
-                        }
-                }
-                if (offset >= nframes) return 0;
+                offset = midi::find_trigger(midi_buffer, true);
+                if (offset > nframes) return 0;
                 last_start = time + offset;
                 midi::write_message(trig, offset, midi::stim_on, queue.name());
         }
@@ -267,7 +256,7 @@ main(int argc, char **argv)
                 queue.enqueue(stimset->next());
                 while(options.count("loop") || queue.ready()) {
                         queue.enqueue(stimset->next());
-                        client->log() << "stim: " << queue.name() << endl;
+                        client->log() << "next stim: " << queue.name() << endl;
                 }
 
                 // give the process loop a chance to clear the midi output buffer
@@ -299,7 +288,7 @@ jstim_options::jstim_options(std::string const &program_name, std::string const 
                  "set client name")
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output audio port")
                 ("event,e",   po::value<vector<string> >(&trigout_ports), "add connection to output event port")
-                ("chan,c",    po::value<midi::type>(&trigout_chan)->default_value(0),
+                ("chan,c",    po::value<midi::data_type>(&trigout_chan)->default_value(0),
                  "set MIDI channel for output messages (0-16)")
                 ("trig,t",    po::value<vector<string> >(&trigin_ports)->multitoken()->zero_tokens(),
                  "add connection to input trigger port");
