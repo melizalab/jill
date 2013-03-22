@@ -85,6 +85,7 @@ private:
 
         // owned resources
         arf::file_ptr _file;                       // output file
+        std::map<std::string,std::string> _attrs;  // attributes for new entries
         arf::packet_table_ptr _log;                // log dataset
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         dset_map_type _dsets;                      // pointers to packet tables (owned)
@@ -98,7 +99,6 @@ private:
         std::size_t _channel_idx;                  // index channel
 
         // unowned resources
-        std::map<std::string,std::string> const & _attrs;  // attributes for new entries
         jill::jack_client *_client; // pointer to jack client for samplerate etc lookup
 };
 

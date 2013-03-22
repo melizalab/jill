@@ -56,9 +56,9 @@ arf_writer::arf_writer(string const & filename,
                        map<string,string> const & entry_attrs,
                        jack_client *jack_client,
                        int compression)
-        : _compression(compression),
+        : _attrs(entry_attrs),
+          _compression(compression),
           _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0),
-          _attrs(entry_attrs),
           _client(jack_client)
 {
         if (_client) _agent_name = _client->name();
