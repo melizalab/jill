@@ -145,7 +145,7 @@ public:
 	 *
 	 * @return the number of elements actually read
 	 */
-	std::size_t pop(data_type *dest, std::size_t cnt=0) {
+	std::size_t pop(data_type * dest, std::size_t cnt=0) {
                 detail::copyfrom<data_type> copier(dest);
                 return pop(copier, cnt);
         }

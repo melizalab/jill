@@ -93,7 +93,7 @@ multichannel_data_thread::thread(void * arg)
 	pthread_mutex_lock (&self->_lock);
 
         while (1) {
-                period = self->_buffer->peek();
+                period = self->_buffer->peek_ahead();
                 if (period) {
                         self->write(period);
                 }

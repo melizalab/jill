@@ -122,7 +122,7 @@ arf_writer::new_entry(nframes_t frame_count)
 {
         using namespace boost::gregorian;
         using namespace boost::posix_time;
-        long frame_usec;
+        utime_t frame_usec;
 
         boost::format fmt("jrecord_%|04|");
         fmt % _entry_idx++;

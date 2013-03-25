@@ -74,6 +74,10 @@ test_period_ringbuf(std::size_t nchannels)
                 buf[idx] = nrand48(seed);
         }
 
+        // test initialized state
+        assert(rb.peek() == 0);
+        assert(rb.peek_ahead() == 0);
+
         for (chan = 0; chan < nchannels; ++chan) {
                 jill::period_info_t info;
                 info.time = 0;
@@ -85,6 +89,21 @@ test_period_ringbuf(std::size_t nchannels)
                 assert (stored == BUFSIZE);
         }
 
+        // test read-ahead
+        for (chan = 0; chan < nchannels; ++chan) {
+                jill::period_info_t const *info;
+                info = rb.peek_ahead();
+
+                assert(info != 0);
+                assert(info->time == 0);
+                assert(info->nframes == BUFSIZE);
+                assert(*(std::size_t*)(info->arg) == chan);
+
+                assert(memcmp(buf, info+1, info->bytes()) == 0);
+        }
+
+        assert(rb.peek_ahead() == 0);
+
         for (chan = 0; chan < nchannels; ++chan) {
                 jill::period_info_t const *info;
                 info = rb.peek();
@@ -93,6 +112,7 @@ test_period_ringbuf(std::size_t nchannels)
                 assert(info->time == 0);
                 assert(info->nframes == BUFSIZE);
                 assert(*(std::size_t*)(info->arg) == chan);
+                assert(rb.peek_ahead() == 0);
 
                 assert(memcmp(buf, info+1, info->bytes()) == 0);
 

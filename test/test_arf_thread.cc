@@ -21,7 +21,7 @@
 #define CLIENT_NAME "test_arf_thread"
 #define COMPRESSION 0
 #define PERIOD_SIZE 1024
-#define NCHANNELS 2
+#define NCHANNELS 16
 #define NPERIODS 1024
 
 using namespace std;

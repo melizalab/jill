@@ -17,7 +17,7 @@ using namespace jill::dsp;
 using std::size_t;
 
 period_ringbuffer::period_ringbuffer(std::size_t nsamples)
-        : super(nsamples * sizeof(sample_t))
+        : super(nsamples * sizeof(sample_t)), _read_ahead_ptr(0)
 {}
 
 period_ringbuffer::~period_ringbuffer()
@@ -39,26 +39,40 @@ period_ringbuffer::push(void const * src, period_info_t const & info)
 }
 
 period_info_t const *
-period_ringbuffer::peek()
+period_ringbuffer::peek_ahead()
 {
-        if (!read_space())
-                return 0;
-        return reinterpret_cast<period_info_t*>(buffer() + read_offset());
+        period_info_t const * ptr = 0;
+        if (read_space() > _read_ahead_ptr) {
+                ptr = reinterpret_cast<period_info_t const *>(buffer() + read_offset() + _read_ahead_ptr);
+                _read_ahead_ptr += sizeof(period_info_t) + ptr->bytes();
+        }
+        return ptr;
+}
+
+period_info_t const *
+period_ringbuffer::peek() const
+{
+        period_info_t const * ptr = 0;
+        if (read_space())
+                ptr = reinterpret_cast<period_info_t const *>(buffer() + read_offset());
+        return ptr;
 }
 
 
 void
-period_ringbuffer::release(size_t nperiods)
+period_ringbuffer::release()
 {
-        if (nperiods==0) {
-                super::pop(0,0);
+        period_info_t const * ptr = peek();
+        if (ptr) {
+                if (_read_ahead_ptr > 0)
+                        _read_ahead_ptr -= sizeof(period_info_t) + ptr->bytes();
+                super::pop(0, sizeof(period_info_t) + ptr->bytes());
         }
-        else {
-                period_info_t const * ptr = peek();
-                while (ptr && nperiods) {
-                        super::pop(0, sizeof(period_info_t) + ptr->bytes());
-                        ptr = peek();
-                        nperiods--;
-                }
-        }
+}
+
+void
+period_ringbuffer::release_all()
+{
+        super::pop(0,0);
+        _read_ahead_ptr = 0;
 }

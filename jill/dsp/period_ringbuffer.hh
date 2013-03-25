@@ -21,13 +21,15 @@ namespace jill { namespace dsp {
  * @ingroup buffergroup
  * @brief a chunking, lockfree ringbuffer
  *
- * For multichannel data, the channels all need to be written to the same
- * ringbuffer in order to maintain synchrony with each other. In order for the
- * reader thread to know how much data to pull out of the ringbuffer, the chunk
- * size either needs to be fixed, or there needs to be a header that describes
- * the chunk size.  The latter is more flexible, as it allows chunk size to
- * change, and also the embedding of timestamp information.
+ * This ringbuffer class operates on data in chunks corresponding to a period of
+ * data from JACK. Each chunk comprises a header followed by an array of data.
+ * The header (@see jill::period_info_t) describes the contents of the data,
+ * including its length. Data are added and removed from the queue as chunks.
  *
+ * An additional feature of this interface allows it to be efficiently used as a
+ * prebuffer. The peek_ahead() function provides read-ahead access, which can
+ * used to detect when a trigger event has occurred, while the peek() and
+ * release() functions operate on data at the tail of the queue.
  */
 
 class period_ringbuffer : protected ringbuffer<char>
@@ -35,8 +37,6 @@ class period_ringbuffer : protected ringbuffer<char>
 public:
         typedef ringbuffer<char> super;
         typedef super::data_type data_type;
-
-	typedef boost::function<void (void const * src, period_info_t & info)> visitor_type;
 
         /**
          * Initialize ringbuffer.
@@ -55,7 +55,7 @@ public:
                 super::resize(size);
         }
 
-        /// @return the size of the buffer (in objects)
+        /// @return the size of the buffer (in bytes)
         std::size_t size() const {
                 return super::size();
         }
@@ -77,30 +77,37 @@ public:
 	nframes_t push(void const * src, period_info_t const & info);
 
         /**
-         * Read the next period in the buffer. If a period is available,
-         * returns a pointer to the header. You can then copy out just the
-         * payload or the whole chunk. Successive calls to peek() will access
-         * successive periods.
-         *
-         * @note call release() to release the space
+         * Read-ahead access to the buffer. If a period is available, returns a
+         * pointer to the header. Successive calls will access successive
+         * periods.
          *
          * @return period_info_t* for the next period, or 0 if none is
          * available.
          *
          */
-        period_info_t const * peek();
+        period_info_t const * peek_ahead();
 
         /**
-         * Release data from the ringbuffer.
+         * Read access to the buffer. Returns a pointer to the oldest period in
+         * the read queue, or NULL if the read queue is empty.  Successive calls
+         * will access the oldest period until it is released.
          *
-         * @param nperiods  the number of periods to release. If greater than
-         *                  the number of periods or if 0, releases all
-         *                  available periods.
+         * @return period_info_t* for the oldest period, or 0 if none is
+         * available.
          */
-        void release(std::size_t nperiods=1);
+        period_info_t const * peek() const;
 
-// private:
-//         std::size_t _peek_ptr;
+        /**
+         * Release the oldest period in the read queue, making it available to
+         * the write thread and advancing the read pointer
+         */
+        void release();
+
+        /** Release all data in the read queue */
+        void release_all();
+
+private:
+        std::size_t _read_ahead_ptr; // the number of bytes ahead of the _read_ptr
 
 };
 

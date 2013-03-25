@@ -62,10 +62,10 @@ public:
 
 protected:
         /**
-         * Entry point for deriving classes to actually so something with the
-         * data pulled off the ringbuffer. Deriving classes *must* release data
-         * using _buffer->release() when they are done with the data or the buffer will
-         * overrun.
+         * Entry point for deriving classes to handle data pulled off the
+         * ringbuffer. Deriving classes *must* release data using
+         * _buffer->release() when they are done with the data or the buffer
+         * will overrun.
          *
          * @param info   the header and data for the period
          */

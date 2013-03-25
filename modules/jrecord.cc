@@ -22,7 +22,7 @@
 #include "jill/dsp/period_ringbuffer.hh"
 #include "jill/util/string.hh"
 #include "jill/util/portreg.hh"
-#include "jill/file/arf_writer.hh"
+#include "jill/file/continuous_arf_thread.hh"
 
 #define PROGRAM_NAME "jrecord"
 #define PROGRAM_VERSION "1.3.0"
@@ -61,7 +61,7 @@ protected:
 
 jrecord_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::scoped_ptr<jack_client> client;
-boost::scoped_ptr<file::arf_writer> arf_thread;
+boost::scoped_ptr<dsp::multichannel_data_thread> arf_thread;
 
 /*
  * Copy data from ports into ringbuffer. Note that the first port is the trigger
@@ -162,10 +162,10 @@ main(int argc, char **argv)
                 ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
 
                 // set up disk thread
-                arf_thread.reset(new file::arf_writer(options.output_file,
-                                                      options.additional_options,
-                                                      client.get(),
-                                                      options.compression));
+                arf_thread.reset(new file::continuous_arf_thread(options.output_file,
+                                                                 options.additional_options,
+                                                                 client.get(),
+                                                                 options.compression));
                 arf_thread->log("[" PROGRAM_NAME "] version = " PROGRAM_VERSION);
                 client->log() << "opened output file " << options.output_file << endl;
 
