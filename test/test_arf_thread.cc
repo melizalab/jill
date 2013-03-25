@@ -33,13 +33,22 @@ boost::scoped_ptr<data_thread> writer;
 unsigned short seed[3] = { 0 };
 sample_t test_data[PERIOD_SIZE];
 int chan_idx[NCHANNELS];
+// void * midi_buffer;
 
-
-map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
-        ("experiment","testing");
 
 void setup()
 {
+        // midi_buffer = malloc(PERIOD_SIZE * sizeof(sample_t));
+        // jack_midi_buffer_init(midi_buffer, PERIOD_SIZE * sizeof(sample_t), PERIOD_SIZE);
+
+        // /* populate with a fairly dense list of events */
+        // for (nframes_t time = 100; time < PERIOD_SIZE; time += 100) {
+        //         jack_midi_data_t * buf = jack_midi_event_reserve(midi_buffer, time, 3);
+        //         buf[0] = midi::note_on;
+        //         buf[1] = midi::default_pitch;
+        //         buf[2] = midi::default_velocity;
+        // }
+
         for (size_t idx = 0; idx < PERIOD_SIZE; ++idx) {
                 test_data[idx] = nrand48(seed);
         }
@@ -91,6 +100,7 @@ write_data_rate(boost::posix_time::time_duration const & max_time)
         fprintf(stderr, "\nrate: %ld periods in %ld ms\n", i, ms);
 }
 
+
 size_t
 write_data_simple(nframes_t periods, nframes_t channels, period_info_t * info)
 {
@@ -109,6 +119,8 @@ write_data_simple(nframes_t periods, nframes_t channels, period_info_t * info)
 void
 test_write_continuous()
 {
+        map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
+                ("experiment","write continuous");
         dsp::multichannel_data_thread *p = new file::continuous_arf_thread("test.arf", attrs, 0, COMPRESSION);
         nframes_t buffer_size = p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
         writer.reset(p);
@@ -129,6 +141,8 @@ test_write_triggered()
         size_t periods;
         period_info_t info = {0, PERIOD_SIZE, 0};
         file::triggered_arf_thread *p;
+        map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
+                ("experiment","write triggered");
 
         p = new file::triggered_arf_thread("test.arf", 0, PREBUFFER, POSTBUFFER, attrs, 0, COMPRESSION);
         nframes_t buffer_size = p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
@@ -154,8 +168,11 @@ test_write_triggered()
         // at this point only the last period should be in the buffer
         assert(p->write_space(PERIOD_SIZE) == write_space - NCHANNELS);
 
-        // this is a bit weird to test because start_recording is not intended
-        // to be called externally
+        // now write some additional periods
+        periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        sleep(1);
+        printf("Recorded up to %d\n", info.time);
+        assert(p->write_space(PERIOD_SIZE) == write_space);
 
         writer->stop();
         writer->join();
@@ -172,17 +189,17 @@ main(int argc, char **argv)
         setup();
         test_to_hex();
 
-        // start_dummy_writer(PERIOD_SIZE);
-        // test_write_log();
-        // // test stopping writer without storing any data
-        // writer->stop();
+        start_dummy_writer(PERIOD_SIZE);
+        test_write_log();
+        // test stopping writer without storing any data
+        writer->stop();
 
         // start_dummy_writer(buffer_size);
         // write_data_rate(boost::posix_time::seconds(5));
         // writer->stop();
         // writer->join();
 
-        //test_write_continuous();
+        // test_write_continuous();
 
         test_write_triggered();
 

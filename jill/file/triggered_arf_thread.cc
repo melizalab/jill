@@ -52,22 +52,27 @@ triggered_arf_thread::start_recording(nframes_t event_time)
         period_info_t const * ptr = _buffer->peek();
         assert(ptr);
 
+        /* skip any earlier periods */
         while (ptr->time + ptr->nframes < onset) {
                 _buffer->release();
                 ptr = _buffer->peek();
         }
 
-        /* write partial period */
-        assert(onset > ptr->time);
-#ifndef NDEBUG
-        std::cout << "writing: " << *ptr
-                  << "; first=" << reinterpret_cast<sample_t const *>(ptr + 1)[onset-ptr->time] << std::endl;
-#endif
-        arf_writer::write(ptr, onset - ptr->time);
-        _buffer->release();
-        ptr = _buffer->peek();
+        /* write partial period(s) */
+        while (ptr->time <= onset) {
 
-        /* write old periods to disk - but not current one! */
+#ifndef NDEBUG
+                std::cout << "writing: " << *ptr
+                          << "; @" << onset - ptr->time
+                          << " =" << reinterpret_cast<sample_t const *>(ptr + 1)[onset-ptr->time] << std::endl;
+#endif
+
+                arf_writer::write(ptr, onset - ptr->time);
+                _buffer->release();
+                ptr = _buffer->peek();
+        }
+
+        /* write additional periods in prebuffer, up to current period */
         while (ptr->time + ptr->nframes < event_time) {
 #ifndef NDEBUG
         std::cout << "writing: " << *ptr << std::endl;
@@ -116,8 +121,18 @@ triggered_arf_thread::write(period_info_t const * info)
                         assert(info == _buffer->peek()); // is all old data flushed?
                 }
         }
+        period_info_t const * tail = _buffer->peek();
 
         if (_recording) {
+                // this should only apply in a test case
+#ifndef NDEBUG
+                while (info != tail) {
+                        std::cout << "warning: had to flush an old period, time=" << tail->time << std::endl;
+                        arf_writer::write(tail);
+                        _buffer->release();
+                        tail = _buffer->peek();
+                }
+#endif
                 arf_writer::write(info);
                 _buffer->release();
         }
@@ -129,7 +144,6 @@ triggered_arf_thread::write(period_info_t const * info)
         }
         else {
                 // deal with tail of queue
-                period_info_t const * tail = _buffer->peek();
 #ifndef NDEBUG
                 if (tail)
                         std::cout << "tail: " << *tail << std::endl;

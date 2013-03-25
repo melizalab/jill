@@ -209,7 +209,7 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         if (is_sampled) {
                 assert (stop_frame <= info->nframes);
                 sample_t const * data = reinterpret_cast<sample_t const *>(info + 1);
-                dset->second->write(data + start_frame, stop_frame);
+                dset->second->write(data + start_frame, stop_frame - start_frame);
         }
         else {
                 // based on my inspection of jackd source, JACK api should
