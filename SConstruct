@@ -77,9 +77,9 @@ if system=='Darwin':
     env.Append(CPPPATH=['/opt/local/include'],
                LIBPATH=['/opt/local/lib'])
 if int(debug):
-    env.Append(CCFLAGS=['-g2', '-Wall','-DDEBUG=1'])
+    env.Append(CCFLAGS=['-g2', '-Wall'])
 else:
-    env.Append(CCFLAGS=['-O2'])
+    env.Append(CCFLAGS=['-O2','-DNDEBUG'])
 
 lib = SConscript('jill/SConscript', exports='env libname')
 SConscript('modules/SConscript', exports='env lib')

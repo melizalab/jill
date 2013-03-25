@@ -175,13 +175,14 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
 }
 
 void
-arf_writer::write(period_info_t const * info)
+arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t stop_frame)
 {
         std::string dset_name;
         bool is_sampled = true;
         jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
 
         if (!_entry) new_entry(info->time);
+        stop_frame = std::max(stop_frame, info->nframes);
 
         /* get channel information */
         if (port) {
@@ -206,7 +207,9 @@ arf_writer::write(period_info_t const * info)
 
         /* write the data */
         if (is_sampled) {
-                dset->second->write(info + 1, info->nframes);
+                assert (stop_frame <= info->nframes);
+                sample_t const * data = reinterpret_cast<sample_t const *>(info + 1);
+                dset->second->write(data + start_frame, stop_frame);
         }
         else {
                 // based on my inspection of jackd source, JACK api should
@@ -219,6 +222,7 @@ arf_writer::write(period_info_t const * info)
                 for (nframes_t j = 0; j < nevents; ++j) {
                         jack_midi_event_get(&event, data, j);
                         if (event.size == 0) continue;
+                        if (event.time < start_frame || event.time >= stop_frame) continue;
                         event_t e = { info->time - _entry_start,
                                       event.buffer[0],
                                       "" };

@@ -74,9 +74,13 @@ public:
         /**
          * Write a period to disk. Looks up the appropriate channel.
          *
+         * @param info  pointer to header and data for period
+         * @param start if nonzero, only write frames >= start
+         * @param stop  if nonzero, only write frames < stop
+         *
          * @pre the entry for storing the data has been created
          */
-        void write(period_info_t const * info);
+        void write(period_info_t const * info, nframes_t start=0, nframes_t stop=0);
 
         /**
          * Store a record than an xrun occurred in the file

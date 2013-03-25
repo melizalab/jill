@@ -21,7 +21,7 @@
 #define CLIENT_NAME "test_arf_thread"
 #define COMPRESSION 0
 #define PERIOD_SIZE 1024
-#define NCHANNELS 16
+#define NCHANNELS 2
 #define NPERIODS 1024
 
 using namespace std;
@@ -96,7 +96,7 @@ test_write_data_rate(boost::posix_time::time_duration const & max_time)
                 dur = microsec_clock::local_time() - start;
         }
         long ms = dur.total_milliseconds();
-        fprintf(stderr, "\nrate: %ld periods in %ld ms\n", i * NCHANNELS, ms);
+        fprintf(stderr, "\nrate: %ld periods in %ld ms\n", i, ms);
 }
 
 

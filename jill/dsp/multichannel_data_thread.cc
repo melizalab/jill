@@ -113,8 +113,6 @@ multichannel_data_thread::thread(void * arg)
 void
 multichannel_data_thread::write(period_info_t const * info)
 {
-#if DEBUG
         std::cout << "\rgot period: time=" << info->time << ", nframes=" << info->nframes << std::flush;
-#endif
         _buffer->release();
 }
