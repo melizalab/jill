@@ -61,8 +61,8 @@ public:
         }
 
 	/// @return the number of complete periods that can be written to the ringbuffer
-	std::size_t write_space(std::size_t period_size) const {
-                return super::write_space() / (period_size + sizeof(period_info_t));
+	std::size_t write_space(nframes_t nframes) const {
+                return super::write_space() / (nframes * sizeof(sample_t) + sizeof(period_info_t));
         }
 
         /**

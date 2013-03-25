@@ -68,7 +68,7 @@ test_period_ringbuf(std::size_t nchannels)
 
         jill::sample_t buf[BUFSIZE];
         std::size_t channels[nchannels];
-        std::size_t idx, chan;
+        std::size_t idx, chan, write_space;
 
         for (idx = 0; idx < BUFSIZE; ++idx) {
                 buf[idx] = nrand48(seed);
@@ -77,6 +77,7 @@ test_period_ringbuf(std::size_t nchannels)
         // test initialized state
         assert(rb.peek() == 0);
         assert(rb.peek_ahead() == 0);
+        write_space = rb.write_space(BUFSIZE);
 
         for (chan = 0; chan < nchannels; ++chan) {
                 jill::period_info_t info;
@@ -85,6 +86,7 @@ test_period_ringbuf(std::size_t nchannels)
                 channels[chan] = chan; // has to be stable
                 info.arg = channels+chan;
 
+                assert (rb.write_space(BUFSIZE) == write_space - chan);
                 std::size_t stored = rb.push(buf, info);
                 assert (stored == BUFSIZE);
         }
