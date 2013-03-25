@@ -16,13 +16,15 @@
 
 #include "jill/dsp/multichannel_data_thread.hh"
 #include "jill/file/continuous_arf_thread.hh"
+#include "jill/file/triggered_arf_thread.hh"
 #include "jill/util/string.hh"
 
 #define CLIENT_NAME "test_arf_thread"
 #define COMPRESSION 0
 #define PERIOD_SIZE 1024
 #define NCHANNELS 2
-#define NPERIODS 1024
+#define PREBUFFER 5000
+#define POSTBUFFER 10000
 
 using namespace std;
 using namespace jill;
@@ -30,6 +32,8 @@ using namespace jill;
 boost::scoped_ptr<data_thread> writer;
 unsigned short seed[3] = { 0 };
 sample_t test_data[PERIOD_SIZE];
+int chan_idx[NCHANNELS];
+
 
 map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
         ("experiment","testing");
@@ -39,17 +43,10 @@ void setup()
         for (size_t idx = 0; idx < PERIOD_SIZE; ++idx) {
                 test_data[idx] = nrand48(seed);
         }
-}
+        for (size_t chan = 0; chan < NCHANNELS; ++chan) {
+                chan_idx[chan] = chan;
+        }
 
-
-void
-signal_handler(int sig)
-{
-        printf("got interrupt; trying to stop thread\n");
-        writer->stop();
-        writer->join();
-        printf("passed tests\n");
-        exit(sig);
 }
 
 void
@@ -76,12 +73,7 @@ start_dummy_writer(nframes_t buffer_size)
 }
 
 void
-start_continuous_arf_writer(nframes_t buffer_size, int compression=0)
-{
-}
-
-void
-test_write_data_rate(boost::posix_time::time_duration const & max_time)
+write_data_rate(boost::posix_time::time_duration const & max_time)
 {
 	using namespace boost::posix_time;
         size_t i = 0;
@@ -99,45 +91,76 @@ test_write_data_rate(boost::posix_time::time_duration const & max_time)
         fprintf(stderr, "\nrate: %ld periods in %ld ms\n", i, ms);
 }
 
-
-
-/**
- * Test compliance and performance of writer thread types. Throttles the rate of
- * writing data until no xruns are emitted for some duration.
- *
- * @param max_time    the amount of time without xruns needed to exit
- * @return final rate, in bytes/sec
- */
-long
-test_write_data_speed(boost::posix_time::time_duration const & max_time)
+size_t
+write_data_simple(nframes_t periods, nframes_t channels, period_info_t * info)
 {
-	using namespace boost::posix_time;
-        const size_t max_periods = 1 << 20; // sanity
-        timespec sleep_time = { 0, 0 };
-        size_t i;
 
-        period_info_t info = {0, PERIOD_SIZE, 0};
-        ptime last_xrun_t(microsec_clock::local_time());
-        for (i = 0; i < max_periods; ++i) {
-                info.time = (i / NCHANNELS) * PERIOD_SIZE;
-                nframes_t r = writer->push(test_data, info);
-                if (r < PERIOD_SIZE) {
-                        last_xrun_t = microsec_clock::local_time();
-                        sleep_time.tv_nsec += 1;
+        size_t ret = 0;
+        for (size_t i = 0; i < periods; ++i) {
+                for (size_t chan = 0; chan < channels; ++chan) {
+                        writer->push(test_data, *info);
+                        ret += 1;
                 }
-                else {
-                        time_duration dur = microsec_clock::local_time() - last_xrun_t;
-                        if (dur > max_time) {
-                                break;
-                        }
-                }
-                nanosleep(&sleep_time, 0);
+                info->time += PERIOD_SIZE;
         }
-        if (i >= max_periods-1)
-                fprintf(stderr, "frame counter overrun; max rate may not be correct");
-        return sleep_time.tv_nsec;
+        return ret;
 }
 
+void
+test_write_continuous()
+{
+        dsp::multichannel_data_thread *p = new file::continuous_arf_thread("test.arf", attrs, 0, COMPRESSION);
+        nframes_t buffer_size = p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
+        writer.reset(p);
+        fprintf(stderr, "Testing arf writer, buffer size=%d, compression=%d\n", buffer_size, COMPRESSION);
+        writer->start();
+
+        test_write_log();
+        write_data_rate(boost::posix_time::seconds(5));
+        writer->stop();
+        writer->join();
+        writer.reset();
+}
+
+
+void
+test_write_triggered()
+{
+        size_t periods;
+        period_info_t info = {0, PERIOD_SIZE, 0};
+        file::triggered_arf_thread *p;
+
+        p = new file::triggered_arf_thread("test.arf", 0, PREBUFFER, POSTBUFFER, attrs, 0, COMPRESSION);
+        nframes_t buffer_size = p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
+        nframes_t write_space = p->write_space(PERIOD_SIZE);
+        writer.reset(p);
+        writer->start();
+
+        printf("Testing triggered arf writer, buffer size=%d bytes, %d periods\n", buffer_size, write_space);
+        // write enough data to underfill prebuffer
+        periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        // make sure the thread has not pulled any data off the buffer
+        assert(p->write_space(PERIOD_SIZE) == write_space - periods);
+
+        // now overfill the prebuffer
+        periods += write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        sleep(1);
+        // check that old frames are being dropped
+        nframes_t expected_periods = (PREBUFFER / PERIOD_SIZE) + ((PREBUFFER % PERIOD_SIZE) ? 1 : 0);
+        assert(p->write_space(PERIOD_SIZE) == write_space - expected_periods * NCHANNELS);
+
+        p->start_recording(info.time);
+        printf("Triggered recording at %d; prebuffer size is %d\n", info.time, PREBUFFER);
+        // at this point only the last period should be in the buffer
+        assert(p->write_space(PERIOD_SIZE) == write_space - NCHANNELS);
+
+        // this is a bit weird to test because start_recording is not intended
+        // to be called externally
+
+        writer->stop();
+        writer->join();
+        writer.reset();
+}
 
 int
 main(int argc, char **argv)
@@ -149,32 +172,21 @@ main(int argc, char **argv)
         setup();
         test_to_hex();
 
-        signal(SIGINT,  signal_handler);
-        signal(SIGTERM, signal_handler);
-        signal(SIGHUP,  signal_handler);
-        fprintf(stderr, "Hit Ctrl-C to stop test\n");
+        // start_dummy_writer(PERIOD_SIZE);
+        // test_write_log();
+        // // test stopping writer without storing any data
+        // writer->stop();
 
-        start_dummy_writer(PERIOD_SIZE);
-        test_write_log();
-        // test stopping writer without storing any data
-        writer->stop();
+        // start_dummy_writer(buffer_size);
+        // write_data_rate(boost::posix_time::seconds(5));
+        // writer->stop();
+        // writer->join();
 
-        start_dummy_writer(buffer_size);
-        test_write_data_rate(boost::posix_time::seconds(5));
-        writer->stop();
-        writer->join();
+        //test_write_continuous();
 
-        file::continuous_arf_thread *f = new file::continuous_arf_thread("test.arf", attrs, 0, COMPRESSION);
-        buffer_size = f->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
-        writer.reset(f);
-        fprintf(stderr, "Testing arf writer, buffer size=%d, compression=%d\n", buffer_size, COMPRESSION);
-        writer->start();
+        test_write_triggered();
 
-        test_write_log();
-        test_write_data_rate(boost::posix_time::seconds(5));
-        writer->stop();
-        writer->join();
-        writer.reset();
+        printf("passed tests\n");
 
         return 0;
 }

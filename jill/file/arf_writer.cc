@@ -174,7 +174,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
         return dset;
 }
 
-void
+nframes_t
 arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t stop_frame)
 {
         std::string dset_name;
@@ -182,7 +182,7 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
 
         if (!_entry) new_entry(info->time);
-        stop_frame = std::max(stop_frame, info->nframes);
+        stop_frame = (stop_frame > 0) ? std::min(stop_frame, info->nframes) : info->nframes;
 
         /* get channel information */
         if (port) {
@@ -238,6 +238,7 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
                         dset->second->write(&e, 1);
                 }
         }
+        return stop_frame - start_frame;
 
 }
 

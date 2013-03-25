@@ -17,7 +17,7 @@
 #include <arf/types.hpp>
 #include <stdexcept>
 
-#if DEBUG
+#ifndef NDEBUG
 #include <iostream>
 #endif
 
@@ -52,6 +52,9 @@ struct period_info_t {
 
         /** The size of the period in bytes */
         std::size_t bytes() const { return nframes * sizeof(sample_t); }
+#ifndef NDEBUG
+        friend std::ostream & operator<< (std::ostream &, period_info_t const &);
+#endif
 };
 
 /** Type for jack errors */
