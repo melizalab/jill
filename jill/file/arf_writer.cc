@@ -194,7 +194,7 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
                 // no port information (primarily a test case)
                 // use time to infer channel
                 boost::format fmt("pcm_%|03|");
-                if (info->time > _period_start) {
+                if (info->time != _period_start) {
                         // new period
                         _channel_idx = 0;
                         _period_start = info->time;
