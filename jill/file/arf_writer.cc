@@ -83,7 +83,6 @@ arf_writer::arf_writer(string const & filename,
 
 arf_writer::~arf_writer()
 {
-        close_entry();
         _file->flush();
 }
 

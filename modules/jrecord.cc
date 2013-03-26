@@ -22,6 +22,7 @@
 #include "jill/util/string.hh"
 #include "jill/util/portreg.hh"
 #include "jill/file/continuous_arf_thread.hh"
+#include "jill/file/triggered_arf_thread.hh"
 
 #define PROGRAM_NAME "jrecord"
 #define PROGRAM_VERSION "1.3.0"
@@ -157,16 +158,24 @@ main(int argc, char **argv)
                 if (options.count("trig")) {
                         port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                           JackPortIsInput | JackPortIsTerminal, 0);
+                        arf_thread.reset(new file::triggered_arf_thread(options.output_file,
+                                                                        port_trig,
+                                                                        options.pretrigger_size_s * client->sampling_rate(),
+                                                                        options.posttrigger_size_s * client->sampling_rate(),
+                                                                        options.additional_options,
+                                                                        client.get(),
+                                                                        options.compression));
                 }
-                ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
-
-                // set up disk thread
-                arf_thread.reset(new file::continuous_arf_thread(options.output_file,
-                                                                 options.additional_options,
-                                                                 client.get(),
-                                                                 options.compression));
+                else {
+                        arf_thread.reset(new file::continuous_arf_thread(options.output_file,
+                                                                         options.additional_options,
+                                                                         client.get(),
+                                                                         options.compression));
+                }
                 arf_thread->log("[" PROGRAM_NAME "] version = " PROGRAM_VERSION);
                 client->log() << "opened output file " << options.output_file << endl;
+
+                ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
 
                 // register signal handlers
 		signal(SIGINT,  signal_handler);
