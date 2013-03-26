@@ -67,13 +67,6 @@ triggered_arf_thread::start_recording(nframes_t event_time)
 
         /* write partial period(s) */
         while (ptr->time <= onset) {
-
-#ifndef NDEBUG
-                std::cout << "tail: " << *ptr
-                          << "; @" << onset - ptr->time
-                          << " =" << reinterpret_cast<sample_t const *>(ptr + 1)[onset-ptr->time] << std::endl;
-#endif
-
                 arf_writer::write(ptr, onset - ptr->time);
                 _buffer->release();
                 ptr = _buffer->peek();
@@ -81,9 +74,6 @@ triggered_arf_thread::start_recording(nframes_t event_time)
 
         /* write additional periods in prebuffer, up to current period */
         while (ptr->time + ptr->nframes < event_time) {
-#ifndef NDEBUG
-        std::cout << "tail: " << *ptr << std::endl;
-#endif
                 arf_writer::write(ptr);
                 _buffer->release();
                 ptr = _buffer->peek();
@@ -104,9 +94,6 @@ triggered_arf_thread::write(period_info_t const * info)
 {
         jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
         void * data = const_cast<period_info_t*>(info+1);
-#ifndef NDEBUG
-        std::cout << "head: " << *info << std::endl;
-#endif
 
         /* handle xruns whenever they're detected */
         if (_xruns) {
@@ -130,15 +117,12 @@ triggered_arf_thread::write(period_info_t const * info)
         period_info_t const * tail = _buffer->peek();
 
         if (_recording) {
-                // this should only apply in a test case
-#ifndef NDEBUG
+                // this should only apply in a test case, but it's cheap to be safe
                 while (info != tail) {
-                        std::cout << "tail: " << *tail << std::endl;
                         arf_writer::write(tail);
                         _buffer->release();
                         tail = _buffer->peek();
                 }
-#endif
                 arf_writer::write(info);
                 _buffer->release();
         }
@@ -156,10 +140,6 @@ triggered_arf_thread::write(period_info_t const * info)
         }
         else {
                 // deal with tail of queue
-#ifndef NDEBUG
-                if (tail)
-                        std::cout << "tail: " << *tail << std::endl;
-#endif
                 if (tail && (info->time + info->nframes) - (tail->time + info->nframes) > _pretrigger)
                         _buffer->release();
         }

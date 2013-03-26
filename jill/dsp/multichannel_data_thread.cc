@@ -1,3 +1,4 @@
+#include <iostream>
 #include "multichannel_data_thread.hh"
 #include "period_ringbuffer.hh"
 

@@ -1,4 +1,5 @@
 *.[oa]
 /arf
+/attic
 .sconsign.dblite
 /modules/jrecord

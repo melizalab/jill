@@ -9,6 +9,7 @@
  * (at your option) any later version.
  */
 
+#include <iostream>
 #include "stimqueue.hh"
 
 using namespace jill::util;
@@ -61,8 +62,12 @@ stimqueue::enqueue(jill::stimulus_t const * stim)
          }
  }
 
+namespace jill {
+
 std::ostream & operator<< (std::ostream & os, jill::stimulus_t const & stim)
 {
         os << "stim: " << stim.name();
         return os;
+}
+
 }

@@ -76,7 +76,7 @@ test_to_hex()
 void
 start_dummy_writer(nframes_t buffer_size)
 {
-        fprintf(stderr, "Testing dummy writer, buffer size = %d\n", buffer_size);
+        printf("Testing dummy writer, buffer size = %d\n", buffer_size);
         writer.reset(new dsp::multichannel_data_thread(buffer_size));
         writer->start();
 }
@@ -97,7 +97,7 @@ write_data_rate(boost::posix_time::time_duration const & max_time)
                 dur = microsec_clock::local_time() - start;
         }
         long ms = dur.total_milliseconds();
-        fprintf(stderr, "\nrate: %ld periods in %ld ms\n", i, ms);
+        printf("\nrate: %ld periods in %ld ms\n", i, ms);
 }
 
 
@@ -125,7 +125,7 @@ test_write_continuous()
         dsp::multichannel_data_thread *p = new file::continuous_arf_thread("test.arf", attrs, 0, COMPRESSION);
         nframes_t buffer_size = p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
         writer.reset(p);
-        fprintf(stderr, "Testing arf writer, buffer size=%d, compression=%d\n", buffer_size, COMPRESSION);
+        printf("\nTesting arf writer, buffer size=%d, compression=%d\n", buffer_size, COMPRESSION);
         writer->start();
 
         test_write_log();
@@ -187,7 +187,7 @@ test_write_triggered(nframes_t start_time)
 
         p->stop();
         p->join();
-        printf("pretrig=%d; posttrig=%d; trig_on=%u; trig_off=%u; expected=%d\n",
+        printf("\npretrig=%d; posttrig=%d; trig_on=%u; trig_off=%u; expected=%d\n",
                PREBUFFER, POSTBUFFER, trig_on_time, trig_off_time,
                trig_off_time - trig_on_time + PREBUFFER + POSTBUFFER);
 }
@@ -207,12 +207,12 @@ main(int argc, char **argv)
         // test stopping writer without storing any data
         writer->stop();
 
-        test_write_continuous();
-
         start_dummy_writer(buffer_size);
         write_data_rate(boost::posix_time::seconds(5));
         writer->stop();
         writer->join();
+
+        test_write_continuous();
 
         test_write_triggered(-2 * PREBUFFER);
 

@@ -41,7 +41,7 @@ public:
          */
         virtual void load_samples(nframes_t samplerate=0) {}
 
-        friend std::ostream & operator<<(std::ostream &, stimulus_t const &);
+        friend std::ostream & operator<< (std::ostream &, stimulus_t const &);
 };
 
 }
