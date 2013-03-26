@@ -77,8 +77,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // check that the ringbuffer has enough space for all the channels so we
         // don't write partial periods
-        if (arf_thread->write_space(nframes) < client->nports())
+        if (arf_thread->write_space(nframes) < client->nports()) {
                 arf_thread->xrun();
+                return 0;
+        }
 
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
                 period_info_t info = {time, nframes, *it};

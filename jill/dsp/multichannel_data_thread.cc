@@ -45,6 +45,11 @@ void
 multichannel_data_thread::xrun()
 {
         __sync_add_and_fetch(&_xruns, 1);
+        // notify writer thread if it's waiting
+        if (pthread_mutex_trylock (&_lock) == 0) {
+                pthread_cond_signal (&_ready);
+                pthread_mutex_unlock (&_lock);
+        }
 }
 
 void
