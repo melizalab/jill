@@ -33,6 +33,9 @@ period_ringbuffer::push(void const * src, period_info_t const & info)
         memcpy(dst, &info, sizeof(period_info_t));
         // store data
         memcpy(dst + sizeof(period_info_t), src, info.bytes());
+#if DEBUG == 2
+        std::cout << "push: " << info.time << " arg:" << info.arg << std::endl;
+#endif
         // advance write pointer
         super::push(0, size);
         return info.nframes;
@@ -64,6 +67,9 @@ period_ringbuffer::release()
 {
         period_info_t const * ptr = peek();
         if (ptr) {
+#if DEBUG == 2
+                std::cout << "pop: " << ptr->time << " arg:" << ptr->arg << std::endl;
+#endif
                 if (_read_ahead_ptr > 0)
                         _read_ahead_ptr -= sizeof(period_info_t) + ptr->bytes();
                 super::pop(0, sizeof(period_info_t) + ptr->bytes());

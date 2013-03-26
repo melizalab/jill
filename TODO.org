@@ -80,7 +80,7 @@ there is a lot of jack-specific code elsewhere that would need to be tracked dow
 it's annoying to use make_string all the time is all
 
 * TODO replace pthread threading code with boost?
-* TODO write trigger logic for arf_writer
+* DONE write trigger logic for arf_writer
 
 This is moderately tricky because of the prebuffer. The function needs to
 
@@ -160,6 +160,14 @@ period I compare this value with the current time to determine whether this time
 point has elapsed. The result of the comparison has to be stored in a signed
 variable in case the offset occurred in the period before an overflow.  If it's
 negative, then the offset has passed and the entry can be closed.
+
+* DONE fix assertion failure in triggered_arf_thread
+
+the failed assertion is that all the periods in the tail of the queue have been
+flushed by the start_recording function.  I think it's failing because of how
+the ringbuffer is implemented using mirrored memory - the same object can be
+accessed by pointers with entirely different addresses, so the comparison can't
+be made using addresses.
 
 * DONE fix corrupted event
 

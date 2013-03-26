@@ -80,6 +80,8 @@ if int(debug):
     env.Append(CCFLAGS=['-g2', '-Wall'])
 else:
     env.Append(CCFLAGS=['-O2','-DNDEBUG'])
+if int(debug)==2:
+    env.Append(CCFLAGS=['-DDEBUG=2'])
 
 lib = SConscript('jill/SConscript', exports='env libname')
 SConscript('modules/SConscript', exports='env lib')

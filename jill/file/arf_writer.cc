@@ -120,6 +120,7 @@ arf_writer::close_entry()
         _dsets.clear();         // release any old packet tables
         if (_entry) {
                 log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
+                if (_client) _client->log() << "closed entry: " << _entry->name() << std::endl;
         }
         _entry.reset();
 }
@@ -144,6 +145,7 @@ arf_writer::new_entry(nframes_t frame_count)
                 // adjust time by difference between now and the frame_count
                 frame_usec = _client->time(_entry_start);
                 now -= microseconds(frame_usec - jack_get_time());
+                _client->log() << "opened entry: /" << fmt << " (frame=" << _entry_start << ")" << std::endl;
         }
         time_duration timestamp(now - epoch);
         timeval tp = { timestamp.total_seconds(), timestamp.fractional_seconds() };

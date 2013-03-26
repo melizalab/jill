@@ -103,7 +103,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         arf_thread->log(util::make_string() << "[jack] period size = " << nframes);
         // only takes effect if requested size > buffer size; blocks until old
         // data is flushed
-        nframes = arf_thread->resize_buffer(nframes, client->nports() * client->sampling_rate() / nframes);
+        nframes = arf_thread->resize_buffer(nframes * 32, client->nports());
         client->log() << "ringbuffer size (samples): " << nframes << std::endl;
         return 0;
 }
@@ -249,7 +249,7 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
         // command-line options
         cmd_opts.add(jillopts).add(tropts);
         cmd_opts.add_options()
-                ("output-file", po::value<std::string>(), "output filename");
+                ("output-file,f", po::value<std::string>(), "output filename");
         pos_opts.add("output-file", -1);
 
         cfg_opts.add(jillopts).add(tropts);

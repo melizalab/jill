@@ -50,19 +50,24 @@ public:
         explicit period_ringbuffer(std::size_t nsamples);
         ~period_ringbuffer();
 
-        /// @see ringbuffer::resize()
-        void resize(std::size_t size) {
-                super::resize(size);
+        /// @see ringbuffer::resize(). units are in frames
+        void resize(std::size_t nframes) {
+                super::resize(nframes * sizeof(sample_t));
         }
 
-        /// @return the size of the buffer (in bytes)
+        /// @return the size of the buffer (in frames)
         std::size_t size() const {
-                return super::size();
+                return super::size() / sizeof(sample_t);
         }
 
 	/// @return the number of complete periods that can be written to the ringbuffer
 	std::size_t write_space(nframes_t nframes) const {
                 return super::write_space() / (nframes * sizeof(sample_t) + sizeof(period_info_t));
+        }
+
+        /// @return the number of samples ahead of the read pointer the read-ahead pointer is
+        std::size_t read_ahead_space() const {
+                return _read_ahead_ptr;
         }
 
         /**
