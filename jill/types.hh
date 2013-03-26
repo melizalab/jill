@@ -11,7 +11,6 @@
 #ifndef _TYPES_HH
 #define _TYPES_HH
 
-#include <boost/noncopyable.hpp>
 #include <jack/types.h>
 #include <jack/transport.h>
 #include <arf/types.hpp>

@@ -132,6 +132,35 @@ released.  Semantics of the interface should look something like this:
 + release_oldest - advance the read pointer, releasing the oldest period in the queue
 + release_all - discard the data in the read buffer (e.g. when there is an xrun)
 
+[2013-03-25 Mon] Good progress today, with many roadblocks. prebuffering works
+great. post-trigger recording, not so much.  it's very tricky to figure out when
+to terminate the recording, partly due to the annoyance of unsigned integer
+arithemetic that needs to support overflow, and partly due to the fact that a
+single period with multiple channels gets spread across multiple calls to
+triggered_arf_thread::write().  One option would be to just drop the
+post-trigger logic and force the upstream module generating events to wait
+before issuing the offset.  This is simple but could lack some flexibility in
+the future.
+
+What the logic needs to do is figure out how many samples from the current
+period need to be written, and if no samples need to be written, close the
+entry.  There are three relevant variables: time at start of period; frames in
+the period; and time of the offset event.
+
+To deal with overflows, let's operate with deltas whenever possible, so
+calculate (start - offset) and (start - offset + nframes).  The first of these
+will overflow if the offset occurred in the current period
+
+If start < offset < end, the offset event occurred in the current period. The
+number of samples to be written is min(offset - start + npost, end - start)
+
+[2013-03-26 Tue] Well, it's actually fairly simple. After the trigger I store
+offset + posttrigger (i.e. the time to stop recording). In each successive
+period I compare this value with the current time to determine whether this time
+point has elapsed. The result of the comparison has to be stored in a signed
+variable in case the offset occurred in the period before an overflow.  If it's
+negative, then the offset has passed and the entry can be closed.
+
 * DONE fix corrupted event
 
 for some reason the first event stored by arf_writer is not properly stored and

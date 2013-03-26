@@ -12,6 +12,7 @@
 #ifndef _CROSSING_COUNTER_HH
 #define _CROSSING_COUNTER_HH
 
+#include <boost/noncopyable.hpp>
 #include "counter.hh"
 
 namespace jill { namespace dsp {

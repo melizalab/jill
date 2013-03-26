@@ -34,7 +34,7 @@ public:
         ~triggered_arf_thread();
 
         /** @see data_thread::log() */
-        void log(std::string const & msg);
+        void log(std::string const &);
 
         /**
          * Place the object in recording mode.
@@ -51,12 +51,12 @@ public:
         void stop_recording(nframes_t time);
 
         /** @see multichannel_data_thread::resize_buffer() */
-        nframes_t resize_buffer(nframes_t period_size, nframes_t period_rate);
+        nframes_t resize_buffer(nframes_t, nframes_t);
 
 protected:
 
         /** @see multichannel_data_thread::write() */
-        void write(period_info_t const * info);
+        void write(period_info_t const *);
 
 private:
         jack_port_t const * const _trigger_port;
@@ -64,7 +64,7 @@ private:
         const nframes_t _posttrigger;
 
         bool _recording;
-        nframes_t _posttrig_frames; // post offset frames left to record
+        nframes_t _last_offset; // track time since last offset
 };
 
 }}

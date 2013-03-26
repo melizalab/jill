@@ -24,7 +24,7 @@
 #define PERIOD_SIZE 1024
 #define NCHANNELS 2
 #define PREBUFFER 5000
-#define POSTBUFFER 10000
+#define POSTBUFFER 2000
 
 using namespace std;
 using namespace jill;
@@ -116,6 +116,7 @@ write_data_simple(nframes_t periods, nframes_t channels, period_info_t * info)
         return ret;
 }
 
+
 void
 test_write_continuous()
 {
@@ -136,21 +137,22 @@ test_write_continuous()
 
 
 void
-test_write_triggered()
+test_write_triggered(nframes_t start_time)
 {
+        nframes_t trig_on_time, trig_off_time;
         size_t periods;
-        period_info_t info = {0, PERIOD_SIZE, 0};
+        period_info_t info = {start_time, PERIOD_SIZE, 0};
+
         file::triggered_arf_thread *p;
         map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
                 ("experiment","write triggered");
-
         p = new file::triggered_arf_thread("test.arf", 0, PREBUFFER, POSTBUFFER, attrs, 0, COMPRESSION);
-        nframes_t buffer_size = p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
-        nframes_t write_space = p->write_space(PERIOD_SIZE);
+        p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
         writer.reset(p);
-        writer->start();
 
-        printf("Testing triggered arf writer, buffer size=%d bytes, %d periods\n", buffer_size, write_space);
+        nframes_t write_space = p->write_space(PERIOD_SIZE);
+        p->start();
+
         // write enough data to underfill prebuffer
         periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
         // make sure the thread has not pulled any data off the buffer
@@ -160,23 +162,34 @@ test_write_triggered()
         periods += write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
         sleep(1);
         // check that old frames are being dropped
-        nframes_t expected_periods = (PREBUFFER / PERIOD_SIZE) + ((PREBUFFER % PERIOD_SIZE) ? 1 : 0);
-        assert(p->write_space(PERIOD_SIZE) == write_space - expected_periods * NCHANNELS);
+        nframes_t expected = (PREBUFFER / PERIOD_SIZE) + ((PREBUFFER % PERIOD_SIZE) ? 1 : 0);
+        assert(p->write_space(PERIOD_SIZE) == write_space - expected * NCHANNELS);
 
         p->start_recording(info.time);
-        printf("Triggered recording at %d; prebuffer size is %d\n", info.time, PREBUFFER);
+        trig_on_time = info.time;
         // at this point only the last period should be in the buffer
         assert(p->write_space(PERIOD_SIZE) == write_space - NCHANNELS);
 
         // now write some additional periods
-        periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
         sleep(1);
-        printf("Recorded up to %d\n", info.time);
         assert(p->write_space(PERIOD_SIZE) == write_space);
 
-        writer->stop();
-        writer->join();
-        writer.reset();
+        // stop the recorder (give it a chance to catch up)
+        p->stop_recording(info.time + 100);
+        trig_off_time = info.time + 100;
+        expected = (POSTBUFFER / PERIOD_SIZE) + ((POSTBUFFER % PERIOD_SIZE) ? 1 : 0);
+        write_data_simple(expected, NCHANNELS, &info);
+        sleep(1);
+        assert(p->write_space(PERIOD_SIZE) == write_space);
+
+        periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+
+        p->stop();
+        p->join();
+        printf("pretrig=%d; posttrig=%d; trig_on=%u; trig_off=%u; expected=%d\n",
+               PREBUFFER, POSTBUFFER, trig_on_time, trig_off_time,
+               trig_off_time - trig_on_time + PREBUFFER + POSTBUFFER);
 }
 
 int
@@ -194,14 +207,14 @@ main(int argc, char **argv)
         // test stopping writer without storing any data
         writer->stop();
 
-        // start_dummy_writer(buffer_size);
-        // write_data_rate(boost::posix_time::seconds(5));
-        // writer->stop();
-        // writer->join();
+        test_write_continuous();
 
-        // test_write_continuous();
+        start_dummy_writer(buffer_size);
+        write_data_rate(boost::posix_time::seconds(5));
+        writer->stop();
+        writer->join();
 
-        test_write_triggered();
+        test_write_triggered(-2 * PREBUFFER);
 
         printf("passed tests\n");
 

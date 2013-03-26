@@ -82,7 +82,11 @@ arf_writer::arf_writer(string const & filename,
 }
 
 arf_writer::~arf_writer()
-{}
+{
+#ifndef NDEBUG
+        std::cout << "~arf_writer() : " << _file->name() << " use=" << _file.use_count() << std::endl;
+#endif
+}
 
 void
 arf_writer::log(string const & msg)
@@ -104,6 +108,12 @@ arf_writer::_get_last_entry_index()
                 val += 1;
                 if (rc == 1 && val > _entry_idx) _entry_idx = val;
         }
+}
+
+arf::entry *
+arf_writer::current_entry()
+{
+        return _entry.get();
 }
 
 void
@@ -206,6 +216,9 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         dset_map_type::iterator dset = get_dataset(dset_name, is_sampled);
 
         /* write the data */
+#if DEBUG == 2
+        std::cout << "write to " << dset_name << ": " << *info << std::endl;
+#endif
         if (is_sampled) {
                 assert (stop_frame <= info->nframes);
                 sample_t const * data = reinterpret_cast<sample_t const *>(info + 1);

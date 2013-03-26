@@ -66,10 +66,11 @@ public:
          */
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
 
-        /**
-         * Write a message to the log. Not thread safe.
-         */
+        /** Write a message to the log */
         void log(std::string const & msg);
+
+        /** Store a record than an xrun occurred in the file */
+        void xrun();
 
         /**
          * Write a period to disk. Looks up the appropriate channel.
@@ -84,11 +85,9 @@ public:
          */
         nframes_t write(period_info_t const * info, nframes_t start=0, nframes_t stop=0);
 
-        /**
-         * Store a record than an xrun occurred in the file
-         */
-        void xrun();
 
+        /** Access the current entry. May be invalid if the current entry is closed. */
+        arf::entry * current_entry();
         /** The number of channels received in the current period */
         nframes_t channels() const { return _channel_idx; }
         /** The start time of the current entry */
@@ -106,7 +105,7 @@ private:
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         dset_map_type _dsets;                      // pointers to packet tables (owned)
         int _compression;                          // compression level for new datasets
-        std::string _agent_name;           // used in log messages
+        std::string _agent_name;                   // used in log messages
 
         // local state
         nframes_t _entry_start;                    // offset sample counts

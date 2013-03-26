@@ -1,3 +1,6 @@
+
+#include <boost/type_traits/make_signed.hpp>
+
 #include "triggered_arf_thread.hh"
 #include "../types.hh"
 #include "../dsp/period_ringbuffer.hh"
@@ -7,6 +10,10 @@ using namespace std;
 using namespace jill;
 using namespace jill::file;
 //using jill::util::make_string;
+
+/** A data type for comparing differences between frame counts */
+typedef boost::make_signed<nframes_t>::type framediff_t;
+
 
 triggered_arf_thread::triggered_arf_thread(string const & filename,
                                            jack_port_t const * trigger_port,
@@ -19,7 +26,7 @@ triggered_arf_thread::triggered_arf_thread(string const & filename,
           _trigger_port(trigger_port),
           _pretrigger(pretrigger_frames),
           _posttrigger(posttrigger_frames),
-          _recording(false), _posttrig_frames(0)
+          _recording(false)
 {}
 
 triggered_arf_thread::~triggered_arf_thread()
@@ -46,7 +53,7 @@ void
 triggered_arf_thread::start_recording(nframes_t event_time)
 {
         nframes_t onset = event_time - _pretrigger;
-        new_entry(onset);        // create new entry
+        new_entry(onset);
 
         /* start at tail of queue and find onset */
         period_info_t const * ptr = _buffer->peek();
@@ -62,7 +69,7 @@ triggered_arf_thread::start_recording(nframes_t event_time)
         while (ptr->time <= onset) {
 
 #ifndef NDEBUG
-                std::cout << "writing: " << *ptr
+                std::cout << "tail: " << *ptr
                           << "; @" << onset - ptr->time
                           << " =" << reinterpret_cast<sample_t const *>(ptr + 1)[onset-ptr->time] << std::endl;
 #endif
@@ -75,7 +82,7 @@ triggered_arf_thread::start_recording(nframes_t event_time)
         /* write additional periods in prebuffer, up to current period */
         while (ptr->time + ptr->nframes < event_time) {
 #ifndef NDEBUG
-        std::cout << "writing: " << *ptr << std::endl;
+        std::cout << "tail: " << *ptr << std::endl;
 #endif
                 arf_writer::write(ptr);
                 _buffer->release();
@@ -86,8 +93,10 @@ triggered_arf_thread::start_recording(nframes_t event_time)
 }
 
 void
-triggered_arf_thread::stop_recording(nframes_t offset)
+triggered_arf_thread::stop_recording(nframes_t event_time)
 {
+        _recording = false;
+        _last_offset = event_time + _posttrigger;
 }
 
 void
@@ -113,10 +122,7 @@ triggered_arf_thread::write(period_info_t const * info)
                         if (!_recording)
                                 start_recording(info->time + event_time);
                         else {
-                                // frames to write post trigger, corrected for
-                                // the number before the trigger in this period
-                                _posttrig_frames = _posttrigger + event_time;
-                                _recording = false;
+                                stop_recording(info->time + event_time);
                         }
                         assert(info == _buffer->peek()); // is all old data flushed?
                 }
@@ -127,7 +133,7 @@ triggered_arf_thread::write(period_info_t const * info)
                 // this should only apply in a test case
 #ifndef NDEBUG
                 while (info != tail) {
-                        std::cout << "warning: had to flush an old period, time=" << tail->time << std::endl;
+                        std::cout << "tail: " << *tail << std::endl;
                         arf_writer::write(tail);
                         _buffer->release();
                         tail = _buffer->peek();
@@ -136,10 +142,16 @@ triggered_arf_thread::write(period_info_t const * info)
                 arf_writer::write(info);
                 _buffer->release();
         }
-        else if (_posttrig_frames > 0) {
+        else if (current_entry()) {
                 // write post-trigger periods
-                nframes_t n = arf_writer::write(info, 0, _posttrig_frames);
-                _posttrig_frames -= std::min(_posttrig_frames, n);
+                framediff_t compare = _last_offset - info->time;
+                if (compare < 0) {
+                        arf_writer::close_entry();
+                }
+                else {
+                        nframes_t to_write = std::min((nframes_t)compare, info->nframes);
+                        arf_writer::write(info, 0, to_write);
+                }
                 _buffer->release();
         }
         else {

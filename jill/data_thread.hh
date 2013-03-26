@@ -12,6 +12,7 @@
 #ifndef _DATA_THREAD_HH
 #define _DATA_THREAD_HH
 
+#include <boost/noncopyable.hpp>
 #include "types.hh"
 
 namespace jill {

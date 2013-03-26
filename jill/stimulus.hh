@@ -11,6 +11,7 @@
 #ifndef _STIMULUS_HH
 #define _STIMULUS_HH
 
+#include <boost/noncopyable.hpp>
 #include "types.hh"
 
 namespace jill {
