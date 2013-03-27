@@ -70,16 +70,16 @@ I think #2 is the best option at the moment, with a note that #1 may be
 supported in the future.  I'm only going to require hex encoding for MIDI
 messages with non-string payloads
 
-* TODO abstract jack_client class
+* CANCELED abstract jack_client class?
 
-should anticipate non-jack data sources; might make it easier to test. However,
-there is a lot of jack-specific code elsewhere that would need to be tracked down.
-
-* TODO create proxy class for log function in arf_writer?
-
-it's annoying to use make_string all the time is all
+should we anticipate non-jack data sources? Might make it easier to test.
+However, there is a lot of jack-specific code elsewhere that would need to be
+tracked down, including some of the major types that depend on JACK. See below.
 
 * TODO replace pthread threading code with boost?
+
+might be more portable
+
 * DONE write trigger logic for arf_writer
 
 This is moderately tricky because of the prebuffer. The function needs to
@@ -176,3 +176,25 @@ appears as a bunch of junk
 
 pathetic. was trying to store data from a stack-allocated string that went out
 of scope.
+
+* TODO refactor to create some better abstractions
+
+Without necessarily trying to anticipate all possible data sources, etc, it
+would be good at this stage to try to define some interfaces.  The challenge is
+to try to limit the degree to which they have to interact with each other.  As
+always, logging is particularly troublesome.  The interfaces are:
+
++ jack_client : provides access to the jack subsystem. particularly important
+  are the sampling rate and the functions to convert frame time to microseconds.
+  Currently also does logging but this should probably be provided by a separate interface
++ data_thread : moves data from a fast to a slow thread. this also has a log
+  function which should probably be factored out.
++ data_writer : stores data somewhere. also has a log function!
+
+What I propose to do is move the logging functionality into a separate
+interface, which should probably be implemented by data_writer derived classes.
+jack_client can have a reference to the logger. One potentially tricky aspect is
+that multiple threads may try to generate log messages and some locking is
+needed. Right now I'm dealing with this using multiple inheritance from
+data_thread and data_writer to generate concrete classes, but there may be a
+better solution.

@@ -15,13 +15,12 @@
 #include <jack/midiport.h>
 #include <cerrno>
 #include <algorithm>
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 using namespace jill;
 
 
-jack_client::jack_client(std::string const & name)
-        : _nports(0)
+jack_client::jack_client(std::string const & name, event_logger & logger)
+        : _nports(0), _log(logger)
 {
 	jack_status_t status;
 	_client = jack_client_open(name.c_str(), JackNoStartServer, &status);
@@ -32,7 +31,8 @@ jack_client::jack_client(std::string const & name)
                 err << ")";
                 throw JackError(err);
         }
-        log() << "created client (load=" << cpu_load() << "%)" << std::endl;
+        logger.source() = jack_get_client_name(_client);
+        log() << "created client (load=" << jack_cpu_load(_client) << "%)" << std::endl;
         jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
         jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
         jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
@@ -91,7 +91,7 @@ jack_client::activate()
         int ret = jack_activate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to activate client (err=" << ret << ")");
-        log() << "activated client (load=" << cpu_load() << "%)" << std::endl;
+        log() << "activated client (load=" << jack_cpu_load(_client) << "%)" << std::endl;
 }
 
 void
@@ -194,70 +194,36 @@ jack_client::buffer_size() const
 	return jack_get_buffer_size(_client);
 }
 
-float
-jack_client::cpu_load() const
-{
-	return jack_cpu_load(_client);
-}
-
 std::string
 jack_client::name() const
 {
-	return std::string(jack_get_client_name(_client));
-}
-
-
-bool
-jack_client::transport_rolling() const
-{
-	return (jack_transport_query(_client, NULL) == JackTransportRolling);
-}
-
-
-position_t
-jack_client::position() const
-{
-	position_t pos;
-	jack_transport_query(_client, &pos);
-	return pos;
-}
-
-bool
-jack_client::position(position_t const & pos)
-{
-	// jack doesn't modify pos, should have been const anyway, i guess...
-	return (jack_transport_reposition(_client, const_cast<position_t*>(&pos)) == 0);
+	return jack_get_client_name(_client);
 }
 
 nframes_t
 jack_client::frame() const
 {
-	return jack_get_current_transport_frame(_client);
+	return jack_frame_time(_client);
 }
 
-bool
-jack_client::frame(nframes_t frame)
+nframes_t
+jack_client::frame(utime_t time) const
 {
-	return (jack_transport_locate(_client, frame) == 0);
+        return jack_time_to_frames(_client, time);
 }
 
-jack_time_t
+utime_t
 jack_client::time(nframes_t frame) const
 {
         return jack_frames_to_time(_client, frame);
 }
 
-std::ostream &
-jack_client::log(bool with_time) const
+utime_t
+jack_client::time() const
 {
-	using namespace boost::posix_time;
-        std::cout << '[' << name() << "] ";
-        if (with_time) {
-                ptime t(microsec_clock::local_time());
-                std::cout  << to_iso_string(t) << ' ';
-        }
-        return std::cout;
+        return jack_get_time();
 }
+
 
 int
 jack_client::process_callback_(nframes_t nframes, void *arg)

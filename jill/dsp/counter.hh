@@ -11,7 +11,7 @@
 #ifndef _COUNTER_HH
 #define _COUNTER_HH
 
-#include <ostream>
+#include <iosfwd>
 #include <boost/noncopyable.hpp>
 #include <deque>
 

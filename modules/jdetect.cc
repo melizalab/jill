@@ -17,6 +17,7 @@
 #include "jill/midi.hh"
 #include "jill/dsp/ringbuffer.hh"
 #include "jill/dsp/crossing_trigger.hh"
+#include "jill/util/stream_logger.hh"
 
 #define PROGRAM_NAME "jdetect"
 #define PROGRAM_VERSION "1.3.0"
@@ -36,7 +37,7 @@ public:
 	/** A vector of outputs to connect to the client */
 	std::vector<std::string> output_ports;
         /** The MIDI output channel */
-        midi::type output_chan;
+        midi::data_type output_chan;
 
 	float open_threshold;
 	float close_threshold;
@@ -56,6 +57,7 @@ protected:
 
 
 jdetect_options options(PROGRAM_NAME, PROGRAM_VERSION);
+boost::scoped_ptr<util::stream_logger> logger;
 boost::scoped_ptr<jack_client> client;
 boost::scoped_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
@@ -110,7 +112,7 @@ std::size_t log_times(event_t const * events, std::size_t count)
         std::size_t i;
 	for (i = 0; i < count; ++i) {
                 e = events+i;
-                std::ostream &os = client->log();
+                std::ostream &os = logger->log();
                 if (e->status==midi::note_on)
                         os << "signal on: ";
                 else if (e->status==midi::note_off)
@@ -153,13 +155,13 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
                                                          period_size));
 
         // Log parameters
-        client->log(false) << "period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
-        client->log(false) << "open threshold: " << options.open_threshold << endl;
-        client->log(false) << "open count thresh: " << open_count_thresh << endl;
-        client->log(false) << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
-        client->log(false) << "close threshold: " << options.close_threshold << endl;
-        client->log(false) << "close count thresh: " << close_count_thresh << endl;
-        client->log(false) << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
+        logger->msg() << "period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
+        logger->msg() << "open threshold: " << options.open_threshold << endl;
+        logger->msg() << "open count thresh: " << open_count_thresh << endl;
+        logger->msg() << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
+        logger->msg() << "close threshold: " << options.close_threshold << endl;
+        logger->msg() << "close count thresh: " << close_count_thresh << endl;
+        logger->msg() << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
         return 0;
 }
 
@@ -170,9 +172,9 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-                cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
-                client.reset(new jack_client(options.client_name));
-
+                logger.reset(new util::stream_logger(cout, options.client_name));
+                logger->msg() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
+                client.reset(new jack_client(options.client_name, *logger));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
@@ -234,7 +236,7 @@ jdetect_options::jdetect_options(std::string const &program_name, std::string co
                  "set client name")
                 ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port")
-                ("chan,c",    po::value<midi::type>(&output_chan)->default_value(0),
+                ("chan,c",    po::value<midi::data_type>(&output_chan)->default_value(0),
                  "set MIDI channel for output messages (0-16)");
 
         // tropts is a group of options

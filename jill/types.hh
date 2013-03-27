@@ -16,10 +16,6 @@
 #include <arf/types.hpp>
 #include <stdexcept>
 
-#ifndef NDEBUG
-#include <iostream>
-#endif
-
 /**
  * @file types.hh
  * @brief Data types and forward declarations.

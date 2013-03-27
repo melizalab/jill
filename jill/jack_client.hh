@@ -17,7 +17,8 @@
 #include <string>
 #include <list>
 #include <jack/jack.h>
-#include "types.hh"
+#include "data_source.hh"
+#include "event_logger.hh"
 
 /**
  * @defgroup clientgroup Creating and controlling JACK clients
@@ -43,7 +44,7 @@ namespace jill {
  *
  *
  */
-class jack_client : boost::noncopyable {
+class jack_client : public data_source {
 
 public:
 
@@ -89,6 +90,7 @@ public:
         typedef boost::function<void (jack_status_t code, char const * reason)> ShutdownCallback;
 
         typedef std::list<jack_port_t*> port_list_type;
+
 	/**
 	 * Initialize a new JACK client. All clients are identified to the JACK
 	 * server by an alphanumeric name, which is specified here. Creates the
@@ -96,9 +98,10 @@ public:
 	 *
 	 * @param name   the name of the client as represented to the server.
 	 *               May be changed by the server if not unique.
+         * @param logger reference to object used for logging messages
 	 */
-	jack_client(std::string const & name);
-	virtual ~jack_client();
+	jack_client(std::string const & name, event_logger & logger);
+	~jack_client();
 
         /**
          * @brief Register a new port for the client.
@@ -178,14 +181,14 @@ public:
 	void disconnect_all();
 
         /** Get sample or event buffer for ports */
-        sample_t* samples(std::string const & name, nframes_t nframes);
-        sample_t* samples(jack_port_t *port, nframes_t nframes);
-        void* events(jack_port_t *port, nframes_t);
+        sample_t * samples(std::string const & name, nframes_t nframes);
+        sample_t * samples(jack_port_t *port, nframes_t nframes);
+        void * events(jack_port_t *port, nframes_t);
 
 	/* -- Inspect state of the client or server -- */
 
         /** The JACK client object */
-        jack_client_t* client() { return _client;}
+        jack_client_t * client() { return _client;}
 
         /** List of ports registered through this object. Realtime safe. */
         port_list_type const & ports() const { return _ports;}
@@ -199,53 +202,30 @@ public:
          */
         jack_port_t* get_port(std::string const & name) const;
 
-	/** The sample rate of the client */
-	nframes_t sampling_rate() const;
-
         /** The size of the client's buffer */
         nframes_t buffer_size() const;
-
-        /** CPU load */
-        float cpu_load() const;
 
 	/**  JACK client name */
 	std::string name() const;
 
-	/** The current frame */
+        /* implementations of data_source functions */
+	nframes_t sampling_rate() const;
 	nframes_t frame() const;
-
-	/** Request a new frame position from the transport master */
-	bool frame(nframes_t);
-
-        /** Convert frame count to microseconds */
+        nframes_t frame(utime_t) const;
         utime_t time(nframes_t) const;
-
-	/// Return true if the client is receiving data
-	bool transport_rolling() const;
-
-	/**
-	 *  Get the current position of the transport. The value
-	 *  returned is a special JACK structure that may contain
-	 *  extended information about the position (e.g. beat, bar)
-	 */
-	position_t position() const;
-
-	/** Request a new position from the transport master */
-	bool position(position_t const &);
-
-	/** Pointer to the JACK client. */
-	jack_client_t *_client;
-
-        /** Returns std::cout after printing the client name and timestamp */
-        std::ostream & log(bool with_time=true) const;
+        utime_t time() const;
 
 protected:
         /** Ports owned by this client */
         port_list_type _ports;
         std::size_t _nports;
 
+        /** log a message */
+        std::ostream & log() { return _log.log(); }
 
 private:
+	jack_client_t * _client; // pointer to jack client
+        event_logger & _log;     // logging facility
 
 	ProcessCallback _process_cb;
         PortRegisterCallback _portreg_cb;
@@ -254,6 +234,7 @@ private:
         BufferSizeCallback _buffer_size_cb;
         XrunCallback _xrun_cb;
         ShutdownCallback _shutdown_cb;
+
 
 	/*
 	 * These are the callback functions that are actually

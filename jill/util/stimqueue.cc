@@ -9,7 +9,7 @@
  * (at your option) any later version.
  */
 
-#include <iostream>
+#include <ostream>
 #include "stimqueue.hh"
 
 using namespace jill::util;

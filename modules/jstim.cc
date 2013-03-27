@@ -18,6 +18,7 @@
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
 #include "jill/file/stimfile.hh"
+#include "jill/util/stream_logger.hh"
 #include "jill/util/stimset.hh"
 #include "jill/util/stimqueue.hh"
 #include "jill/dsp/ringbuffer.hh"
@@ -57,6 +58,7 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME, PROGRAM_VERSION);
+boost::scoped_ptr<util::stream_logger> logger;
 boost::scoped_ptr<jack_client> client;
 boost::scoped_ptr<util::stimset> stimset;
 jack_port_t *port_out, *port_trigout, *port_trigin;
@@ -189,7 +191,7 @@ init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_
                 }
                 jill::stimulus_t *stim = new file::stimfile(p.string());
                 sset->add(stim, nreps);
-                client->log() << "stimulus: " << p.stem() << " (" << stim->duration() << " s)" << std::endl;
+                logger->log() << "stimulus: " << p.stem() << " (" << stim->duration() << " s)" << std::endl;
         }
 }
 
@@ -200,25 +202,25 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-                cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
+                logger.reset(new util::stream_logger(cout, options.client_name));
+                logger->msg() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
 
-                client.reset(new jack_client(options.client_name));
+                client.reset(new jack_client(options.client_name, *logger));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
                 options.trigout_chan &= midi::chan_nib;
 
                 if (!options.count("trig")) {
-                        client->log(false) << "playing stimuli with\n";
-                        client->log(false) << "minimum gap: " << options.min_gap_sec << "s ("
-                                           << options.min_gap << " samples)" << endl;
-                        client->log(false) << "minimum interval: " << options.min_interval_sec << "s ("
-                                           << options.min_interval << " samples)" << endl;
+                        logger->msg() << "minimum gap: " << options.min_gap_sec << "s ("
+                                     << options.min_gap << " samples)" << endl;
+                        logger->msg() << "minimum interval: " << options.min_interval_sec << "s ("
+                                << options.min_interval << " samples)" << endl;
                 }
 
                 stimset.reset(new util::stimset(client->sampling_rate()));
                 init_stimset(stimset.get(), options.stimuli, options.nreps);
                 if (options.count("shuffle")) {
-                        client->log() << "shuffled stimuli" << endl;
+                        logger->log() << "shuffled stimuli" << endl;
                         stimset->shuffle();
                 }
 
@@ -227,7 +229,7 @@ main(int argc, char **argv)
                 port_trigout = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
-                        client->log(false) << "triggering playback from trig_in" << endl;
+                        logger->msg() << "triggering playback from trig_in" << endl;
                         port_trigin = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                             JackPortIsInput | JackPortIsTerminal, 0);
                 }
@@ -256,7 +258,7 @@ main(int argc, char **argv)
                 queue.enqueue(stimset->next());
                 while(options.count("loop") || queue.ready()) {
                         queue.enqueue(stimset->next());
-                        client->log() << "next stim: " << queue.name() << endl;
+                        logger->log() << "next stim: " << queue.name() << endl;
                 }
 
                 // give the process loop a chance to clear the midi output buffer

@@ -234,10 +234,11 @@ The client will not make any changes to its port configuration during operation.
 1. The process callback places data into a ringbuffer.  Each period is stored as
    a chunk to ensure synchronization across channels. There is no output.
 2. Registration/unregistration events are ignored.
-3. Port connections and disconnections are logged to the output file. If the
-   trigger port is disconnected, the program is in epoch mode, and recording is
-   in progress, stops in the next period. Disconnected input ports will still be
-   recorded, but will have zeros in the signal.
+3. Port connections and disconnections are logged to the output file. If the the
+   program is in epoch mode, the last connection to the trigger port is
+   disconnected, and recording is in progress, stops in the next period.
+   Disconnected input ports will still be recorded, but will have zeros in the
+   signal.
 4. All xruns are logged to the output file. In continuous mode, xruns cause the
    current entry to be terminated (all data in ringbuffer is flushed to disk)
    and a new entry started. In epoch mode, xruns cause the entry to be flagged,
