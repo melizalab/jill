@@ -203,7 +203,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(cout, options.client_name));
-                logger->msg() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
+                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
 
                 client.reset(new jack_client(options.client_name, *logger));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
@@ -211,9 +211,9 @@ main(int argc, char **argv)
                 options.trigout_chan &= midi::chan_nib;
 
                 if (!options.count("trig")) {
-                        logger->msg() << "minimum gap: " << options.min_gap_sec << "s ("
+                        logger->log() << "minimum gap: " << options.min_gap_sec << "s ("
                                      << options.min_gap << " samples)" << endl;
-                        logger->msg() << "minimum interval: " << options.min_interval_sec << "s ("
+                        logger->log() << "minimum interval: " << options.min_interval_sec << "s ("
                                 << options.min_interval << " samples)" << endl;
                 }
 
@@ -229,7 +229,7 @@ main(int argc, char **argv)
                 port_trigout = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
-                        logger->msg() << "triggering playback from trig_in" << endl;
+                        logger->log() << "triggering playback from trig_in" << endl;
                         port_trigin = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                             JackPortIsInput | JackPortIsTerminal, 0);
                 }

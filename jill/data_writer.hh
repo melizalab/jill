@@ -4,6 +4,7 @@
 #include <boost/noncopyable.hpp>
 #include "types.hh"
 
+
 namespace jill {
 
 /**
@@ -14,23 +15,23 @@ namespace jill {
 class data_writer : boost::noncopyable {
 
 public:
-        virtual ~data_writer() {}
+        ~data_writer() {}
 
         /**
          * Create a new entry, closing the previous one if necessary.
          *
          * @param frame   the frame index at the start of the entry
          */
-        virtual void new_entry(nframes_t frame);
+        virtual void new_entry(nframes_t frame) = 0;
 
         /** Close the current entry */
-        virtual void close_entry();
+        virtual void close_entry() = 0;
 
         /** true if an entry is open for recording */
-        virtual bool ready() const;
+        virtual bool ready() const = 0;
 
         /** Store a record that an xrun occurred in the file */
-        virtual void xrun();
+        virtual void xrun() = 0;
 
         /**
          * Write a period to disk. Looks up the appropriate channel.

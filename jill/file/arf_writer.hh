@@ -1,15 +1,22 @@
 #ifndef _ARF_WRITER_HH
 #define _ARF_WRITER_HH
 
-#include <boost/noncopyable.hpp>
-#include <vector>
 #include <map>
 #include <string>
+#include <iosfwd>
+#include <boost/iostreams/stream.hpp>
+#include <boost/weak_ptr.hpp>
 #include <arf/types.hpp>
 
-#include "../types.hh"
+#include "../data_writer.hh"
+//#include "../data_source.hh"
+#include "../logger_proxy.hh"
 
-namespace jill { namespace file {
+namespace jill {
+
+        class data_source;
+
+namespace file {
 
 /**
  * @brief Storage format for log messages
@@ -30,32 +37,40 @@ struct event_t {
 };
 
 /**
- * Class for storing data in an ARF file. It's intended as a mixin for data
- * writing threads (use protected inheritance)
+ * Class for storing data in an ARF file.
  */
-class arf_writer : boost::noncopyable {
+class arf_writer : public data_writer, public event_logger {
 public:
-        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
-
         /**
          * Initialize an ARF writer.
          *
+         * @param sourcename   identifier of the program/process writing the data
          * @param filename     the file to write to
          * @param entry_attrs  map of attributes to set on newly-created entries
          * @param jack_client  optional, client used to look up time and samplerate
          * @param compression  the compression level for new datasets
          */
-        arf_writer(std::string const & filename,
+        arf_writer(std::string const & sourcename,
+                   std::string const & filename,
                    std::map<std::string,std::string> const & entry_attrs,
-                   jill::jack_client * jack_client=0,
+                   boost::weak_ptr<jill::data_source> data_source,
                    int compression=0);
         ~arf_writer();
 
-        /** Create a new entry starting at frame_count */
-        void new_entry(nframes_t frame_count);
-
-        /** Close the current entry */
+        /* data_writer overrides */
+        void new_entry(nframes_t);
         void close_entry();
+        bool ready() const;
+        void xrun();
+        nframes_t write(period_info_t const *, nframes_t start=0, nframes_t stop=0);
+
+        /* event_logger overrides */
+        std::ostream & log();
+        std::ostream & msg();
+        std::ostream & operator<< (std::string const & source);
+
+protected:
+        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
 
         /**
          * Look up dataset in current entry, creating as needed.
@@ -66,46 +81,27 @@ public:
          */
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
 
-        /** Write a message to the log */
-        void log(std::string const & msg);
-
-        /** Store a record than an xrun occurred in the file */
-        void xrun();
-
-        /**
-         * Write a period to disk. Looks up the appropriate channel.
-         *
-         * @pre the entry for storing the data has been created
-         *
-         * @param info  pointer to header and data for period
-         * @param start if nonzero, only write frames >= start
-         * @param stop  if nonzero, only write frames < stop. okay if stop > info->nframes
-         *
-         * @return the number of frames written
-         */
-        nframes_t write(period_info_t const * info, nframes_t start=0, nframes_t stop=0);
-
-
-        /** Access the current entry. May be invalid if the current entry is closed. */
-        arf::entry * current_entry();
         /** The number of channels received in the current period */
         nframes_t channels() const { return _channel_idx; }
         /** The start time of the current entry */
         nframes_t entry_start() const { return _entry_start; }
 
-        jill::jack_client * const _client; // pointer to jack client for samplerate etc lookup
-
 private:
+        std::streamsize log(char const *, std::streamsize);
         void _get_last_entry_index();
 
+        // references
+        boost::weak_ptr<jill::data_source> _data_source;
+
         // owned resources
+        std::string _sourcename;                   // who's doing the writing
         arf::file_ptr _file;                       // output file
         std::map<std::string,std::string> _attrs;  // attributes for new entries
         arf::packet_table_ptr _log;                // log dataset
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         dset_map_type _dsets;                      // pointers to packet tables (owned)
         int _compression;                          // compression level for new datasets
-        std::string _agent_name;                   // used in log messages
+        boost::iostreams::stream<logger_proxy> _logstream; // provides stream logging
 
         // local state
         nframes_t _entry_start;                    // offset sample counts

@@ -31,8 +31,8 @@ jack_client::jack_client(std::string const & name, event_logger & logger)
                 err << ")";
                 throw JackError(err);
         }
-        logger.source() = jack_get_client_name(_client);
-        log() << "created client (load=" << jack_cpu_load(_client) << "%)" << std::endl;
+        log() << "created client: " << jack_get_client_name(_client)
+              << " (load=" << jack_cpu_load(_client) << "%)" << std::endl;
         jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
         jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
         jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
@@ -194,7 +194,7 @@ jack_client::buffer_size() const
 	return jack_get_buffer_size(_client);
 }
 
-std::string
+char const *
 jack_client::name() const
 {
 	return jack_get_client_name(_client);

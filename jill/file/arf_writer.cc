@@ -1,20 +1,46 @@
 #include <arf.hpp>
+#include <boost/shared_ptr.hpp>
 #include <boost/format.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <sys/time.h>
+#include <jack/jack.h>
 
 #include "arf_writer.hh"
-#include "../dsp/period_ringbuffer.hh"
-#include "../jack_client.hh"
+#include "../data_source.hh"
 #include "../midi.hh"
-#include "../util/string.hh"
 
 #define JILL_LOGDATASET_NAME "jill_log"
 
 using namespace std;
 using namespace jill;
 using namespace jill::file;
-using jill::util::make_string;
+
+typedef boost::shared_ptr<jill::data_source> source_ptr;
+
+/**
+ * convert a midi message to hex
+ * @param in   the midi message
+ * @param size the length of the message
+ * @param out  the output buffer
+ */
+template <typename T>
+static std::string
+to_hex(T const * in, std::size_t size)
+{
+        char out[size*2];
+        for (std::size_t i = 0; i < size; ++i) {
+                sprintf(out + i*2, "%02x", in[i]);
+        }
+        return out;
+}
+
+static boost::posix_time::time_duration
+timeofday(boost::posix_time::ptime const & time)
+{
+        using namespace boost::gregorian;
+        using namespace boost::posix_time;
+        return time - ptime(date(1970,1,1));
+}
 
 // template specializations for compound data types
 namespace arf { namespace h5t { namespace detail {
@@ -24,7 +50,7 @@ struct datatype_traits<message_t> {
 	static hid_t value() {
                 hid_t str = H5Tcopy(H5T_C_S1);
                 H5Tset_size(str, H5T_VARIABLE);
-                H5Tset_cset(str, H5T_CSET_ASCII);
+                H5Tset_cset(str, H5T_CSET_UTF8);
                 hid_t ret = H5Tcreate(H5T_COMPOUND, sizeof(message_t));
                 H5Tinsert(ret, "sec", HOFFSET(message_t, sec), H5T_NATIVE_INT64);
                 H5Tinsert(ret, "usec", HOFFSET(message_t, usec), H5T_NATIVE_INT64);
@@ -51,16 +77,18 @@ struct datatype_traits<event_t> {
 
 }}}
 
-arf_writer::arf_writer(string const & filename,
+arf_writer::arf_writer(string const & sourcename,
+                       string const & filename,
                        map<string,string> const & entry_attrs,
-                       jack_client *jack_client,
+                       boost::weak_ptr<data_source> data_source,
                        int compression)
-        : _client(jack_client),
+        : _data_source(data_source),
+          _sourcename(sourcename),
           _attrs(entry_attrs),
           _compression(compression),
+          _logstream(*this),
           _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0)
 {
-        if (_client) _agent_name = _client->name();
         _file.reset(new arf::file(filename, "a"));
 
         // open/create log
@@ -76,9 +104,9 @@ arf_writer::arf_writer(string const & filename,
                 _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME,
                                                        logtype, 1024, _compression));
         }
-        log(make_string() << "[" << _agent_name << "] opened file: " << filename);
-
         _get_last_entry_index();
+
+        log() << "opened file: " << filename  << std::endl;
 }
 
 arf_writer::~arf_writer()
@@ -87,31 +115,35 @@ arf_writer::~arf_writer()
 }
 
 void
-arf_writer::log(string const & msg)
+arf_writer::new_entry(nframes_t frame_count)
 {
-        timeval tp;
-        gettimeofday(&tp,0);
-        jill::file::message_t message = { tp.tv_sec, tp.tv_usec, msg.c_str() };
-        _log->write(&message, 1);
-}
+        using namespace boost::posix_time;
+        utime_t frame_usec = 0;
 
-void
-arf_writer::_get_last_entry_index()
-{
-        char const * templ = "jrecord_%ud";
-        size_t val;
-        vector<string> entries = _file->children();
-        for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
-                int rc = sscanf(it->c_str(), templ, &val);
-                val += 1;
-                if (rc == 1 && val > _entry_idx) _entry_idx = val;
+        boost::format fmt("%1$s_%2$04d");
+        fmt % _sourcename % _entry_idx++;
+
+        close_entry();
+        _entry_start = frame_count;
+
+        ptime now(microsec_clock::universal_time());
+        if (source_ptr source = _data_source.lock()) {
+                // adjust time by difference between now and the frame_count
+                frame_usec = source->time(_entry_start);
+                now -= microseconds(frame_usec - source->time());
         }
-}
+        time_duration timestamp = timeofday(now);
+        timeval tp = { timestamp.total_seconds(), timestamp.fractional_seconds() };
 
-arf::entry *
-arf_writer::current_entry()
-{
-        return _entry.get();
+        _entry.reset(new arf::entry(*_file, fmt.str(), &tp));
+        log() << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" << std::endl;
+
+        arf::h5a::node::attr_writer a = _entry->write_attribute();
+        a("jack_frame",_entry_start)("jill_process",_sourcename);
+        for_each(_attrs.begin(), _attrs.end(), a);
+        if (frame_usec != 0) {
+                a("jack_usec", frame_usec);
+        }
 }
 
 void
@@ -119,69 +151,25 @@ arf_writer::close_entry()
 {
         _dsets.clear();         // release any old packet tables
         if (_entry) {
-                log(make_string() << "[" << _agent_name << "] closed entry: " << _entry->name());
-                if (_client) _client->log() << "closed entry: " << _entry->name() << std::endl;
+                log() << "closed entry: " << _entry->name() << std::endl;
         }
         _entry.reset();
 }
 
-
-void
-arf_writer::new_entry(nframes_t frame_count)
+bool
+arf_writer::ready() const
 {
-        using namespace boost::gregorian;
-        using namespace boost::posix_time;
-        utime_t frame_usec;
-
-        boost::format fmt("jrecord_%|04|");
-        fmt % _entry_idx++;
-
-        close_entry();
-        _entry_start = frame_count;
-
-        ptime epoch(date(1970,1,1));
-        ptime now(microsec_clock::universal_time());
-        if (_client) {
-                // adjust time by difference between now and the frame_count
-                frame_usec = _client->time(_entry_start);
-                now -= microseconds(frame_usec - jack_get_time());
-                _client->log() << "opened entry: /" << fmt << " (frame=" << _entry_start << ")" << std::endl;
-        }
-        time_duration timestamp(now - epoch);
-        timeval tp = { timestamp.total_seconds(), timestamp.fractional_seconds() };
-
-        _entry.reset(new arf::entry(*_file, fmt.str(), &tp));
-        log(make_string() << "[" << _agent_name << "] created entry: " << _entry->name());
-
-        arf::h5a::node::attr_writer a = _entry->write_attribute();
-        a("jack_frame",_entry_start);
-        for_each(_attrs.begin(), _attrs.end(), a);
-        if (_client) {
-                a("jack_usec", frame_usec);
-        }
+        return _entry;
 }
 
-arf_writer::dset_map_type::iterator
-arf_writer::get_dataset(string const & name, bool is_sampled)
+void
+arf_writer::xrun()
 {
-        dset_map_type::iterator dset = _dsets.find(name);
-        if (dset == _dsets.end()) {
-                arf::packet_table_ptr pt;
-                if (is_sampled) {
-                        pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
-                                                                          false, 1024, _compression);
-                }
-                else {
-                        pt = _entry->create_packet_table<event_t>(name, "samples", arf::EVENT,
-                                                                          false, 1024, _compression);
-                }
-                if (_client) {
-                        pt->write_attribute("sampling_rate", _client->sampling_rate());
-                }
-                log(make_string() << "[" << _agent_name << "] created dataset: " << pt->name());
-                dset = _dsets.insert(dset, make_pair(name,pt));
+        log() << "ERROR: xrun" << std::endl;
+        if (_entry) {
+                // tag entry as possibly corrupt
+                _entry->write_attribute("jill_error","data xrun");
         }
-        return dset;
 }
 
 nframes_t
@@ -241,7 +229,7 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
                                 if (e.status < midi::note_off)
                                         e.message = reinterpret_cast<char*>(event.buffer+1);
                                 else {
-                                        s = jill::util::to_hex(event.buffer+1,event.size-1);
+                                        s = to_hex(event.buffer+1,event.size-1);
                                         e.message = s.c_str();
                                 }
                         }
@@ -252,14 +240,69 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
 
 }
 
-void
-arf_writer::xrun()
+ostream &
+arf_writer::log()
 {
-        if (_client)
-                _client->log() << "xrun" << std::endl;
-        log(make_string() << "[" << _agent_name << "] ERROR: xrun");
-        if (_entry) {
-                // tag entry as possibly corrupt
-                _entry->write_attribute("jill_error","data xrun");
+        return this->operator<<(_sourcename);
+}
+
+ostream &
+arf_writer::operator<< (string const & source)
+{
+        return _logstream << "[" << source << "] ";
+}
+
+
+streamsize
+arf_writer::log(char const * msg, streamsize n)
+{
+        using namespace boost::posix_time;
+        time_duration t = timeofday(microsec_clock::universal_time());
+
+        // strip final \n
+        boost::scoped_array<char> m(new char[n]);
+        memcpy(m.get(),msg,n);
+        m[n-1] = 0x0;
+        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m.get() };
+        _log->write(&message, 1);
+        std::cout << to_iso_string(microsec_clock::local_time()) << ' ' << m.get() << std::endl;
+        return n;
+}
+
+void
+arf_writer::_get_last_entry_index()
+{
+        char const * templ = "jrecord_%ud";
+        size_t val;
+        vector<string> entries = _file->children();
+        for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
+                int rc = sscanf(it->c_str(), templ, &val);
+                val += 1;
+                if (rc == 1 && val > _entry_idx) _entry_idx = val;
         }
 }
+
+
+arf_writer::dset_map_type::iterator
+arf_writer::get_dataset(string const & name, bool is_sampled)
+{
+        dset_map_type::iterator dset = _dsets.find(name);
+        if (dset == _dsets.end()) {
+                arf::packet_table_ptr pt;
+                if (is_sampled) {
+                        pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
+                                                                          false, 1024, _compression);
+                }
+                else {
+                        pt = _entry->create_packet_table<event_t>(name, "samples", arf::EVENT,
+                                                                          false, 1024, _compression);
+                }
+                if (source_ptr source = _data_source.lock()) {
+                        pt->write_attribute("sampling_rate", source->sampling_rate());
+                }
+                log() << "created dataset: " << pt->name() << std::endl;
+                dset = _dsets.insert(dset, make_pair(name,pt));
+        }
+        return dset;
+}
+

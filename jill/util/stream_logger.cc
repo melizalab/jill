@@ -12,19 +12,13 @@ stream_logger::stream_logger(ostream & os, string const & source)
 ostream &
 stream_logger::log()
 {
-        return msg() << timestamp() << ' ';
-}
-
-ostream &
-stream_logger::msg()
-{
-        return _os << '[' << _source << "] ";
+        return this->operator<<(_source);
 }
 
 ostream &
 stream_logger::operator<< (string const & source)
 {
-        return _os << '[' << _source << "] " << timestamp() << ' ';
+        return _os << timestamp() << " [" << source << "] ";
 }
 
 string

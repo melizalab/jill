@@ -64,23 +64,6 @@ private:
         std::ostringstream _stream;
 };
 
-/**
- * convert a midi message to hex
- * @param in   the midi message
- * @param size the length of the message
- * @param out  the output buffer
- */
-template <typename T>
-std::string
-to_hex(T const * in, std::size_t size)
-{
-        char out[size*2];
-        for (std::size_t i = 0; i < size; ++i) {
-                sprintf(out + i*2, "%02x", in[i]);
-        }
-        return out;
-}
-
 }}
 
 #endif // _UTIL_STRING_HH

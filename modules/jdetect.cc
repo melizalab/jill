@@ -155,13 +155,13 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
                                                          period_size));
 
         // Log parameters
-        logger->msg() << "period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
-        logger->msg() << "open threshold: " << options.open_threshold << endl;
-        logger->msg() << "open count thresh: " << open_count_thresh << endl;
-        logger->msg() << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
-        logger->msg() << "close threshold: " << options.close_threshold << endl;
-        logger->msg() << "close count thresh: " << close_count_thresh << endl;
-        logger->msg() << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
+        logger->log() << "period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
+        logger->log() << "open threshold: " << options.open_threshold << endl;
+        logger->log() << "open count thresh: " << open_count_thresh << endl;
+        logger->log() << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
+        logger->log() << "close threshold: " << options.close_threshold << endl;
+        logger->log() << "close count thresh: " << close_count_thresh << endl;
+        logger->log() << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
         return 0;
 }
 
@@ -173,7 +173,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(cout, options.client_name));
-                logger->msg() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
+                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
                 client.reset(new jack_client(options.client_name, *logger));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,

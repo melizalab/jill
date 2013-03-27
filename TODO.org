@@ -198,3 +198,14 @@ that multiple threads may try to generate log messages and some locking is
 needed. Right now I'm dealing with this using multiple inheritance from
 data_thread and data_writer to generate concrete classes, but there may be a
 better solution.
+
+problem 1: arf_writer needs pointer to jack_client to get sampling rate and
+resolve timestamps, and jack_client needs an event_logger reference to log its
+events. One option would be to use a shared ptr for the jack_client (and perhaps
+give arf_writer a boost::weak_ptr); the other would be to give arf_writer some
+methods to set sampling rate.  The timestamp resolution is harder.  I could do
+the conversion from frame count to usecs in multichannel_data_thread, but then
+that means passing additional data to the data_writer....gah!  I could also give
+arf_writer a callback, but that's not super scalable.  I think the weak
+reference is the way to do it.  Going to abstract out some of jack_client into data_client.
+

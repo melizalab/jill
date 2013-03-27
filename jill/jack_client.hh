@@ -206,7 +206,7 @@ public:
         nframes_t buffer_size() const;
 
 	/**  JACK client name */
-	std::string name() const;
+	char const * name() const;
 
         /* implementations of data_source functions */
 	nframes_t sampling_rate() const;

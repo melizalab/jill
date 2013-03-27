@@ -365,7 +365,6 @@ group of the ARF file. The fields in the log are:
 7. initial operating parameters of upstream clients
 8. status events from upstream clients
 
-
 ** jstim
 
 The jstim module's function is to present auditory stimuli through the JACK

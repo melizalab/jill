@@ -13,9 +13,8 @@ public:
         stream_logger(std::ostream & os, std::string const & source);
         ~stream_logger() {}
         std::ostream & log();
-        std::ostream & msg();
         std::ostream & operator<< (std::string const & source);
-        std::string & source() { return _source; }
+        std::string const & source() { return _source; }
 
 protected:
         std::string timestamp() const;
