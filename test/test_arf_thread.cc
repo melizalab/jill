@@ -14,9 +14,8 @@
 #include "jill/file/null_writer.hh"
 #include "jill/file/arf_writer.hh"
 #include "jill/dsp/buffered_data_writer.hh"
-// #include "jill/file/continuous_arf_thread.hh"
-// #include "jill/file/triggered_arf_thread.hh"
-// #include "jill/util/string.hh"
+#include "jill/dsp/triggered_data_writer.hh"
+#include "jill/dsp/period_ringbuffer.hh"
 
 #define CLIENT_NAME "test_arf_thread"
 #define COMPRESSION 0
@@ -30,7 +29,7 @@ using namespace jill;
 
 boost::shared_ptr<data_source> client;
 boost::shared_ptr<data_writer> writer;
-boost::shared_ptr<dsp::buffered_data_writer> thread;
+boost::shared_ptr<data_thread> thread;
 
 unsigned short seed[3] = { 0 };
 sample_t test_data[PERIOD_SIZE];
@@ -65,96 +64,102 @@ write_data_rate(boost::posix_time::time_duration const & max_time)
 }
 
 
-// size_t
-// write_data_simple(nframes_t periods, nframes_t channels, period_info_t * info)
-// {
+size_t
+write_data_simple(nframes_t periods, nframes_t channels, period_info_t * info)
+{
 
-//         size_t ret = 0;
-//         for (size_t i = 0; i < periods; ++i) {
-//                 for (size_t chan = 0; chan < channels; ++chan) {
-//                         writer->push(test_data, *info);
-//                         ret += 1;
-//                 }
-//                 info->time += PERIOD_SIZE;
-//         }
-//         return ret;
-// }
+        size_t ret = 0;
+        for (size_t i = 0; i < periods; ++i) {
+                for (size_t chan = 0; chan < channels; ++chan) {
+                        thread->push(test_data, *info);
+                        ret += 1;
+                }
+                info->time += PERIOD_SIZE;
+        }
+        return ret;
+}
 
+namespace jill { namespace dsp {
 
-// void
-// test_write_continuous()
-// {
-//         map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
-//                 ("experiment","write continuous");
-//         dsp::multichannel_data_thread *p = new file::continuous_arf_thread("test.arf", attrs, 0, COMPRESSION);
-//         nframes_t buffer_size = p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
-//         writer.reset(p);
-//         printf("\nTesting arf writer, buffer size=%d, compression=%d\n", buffer_size, COMPRESSION);
-//         writer->start();
+/* need access to some private members of triggered_data_writer */
+struct triggered_data_writer_test {
+        triggered_data_writer_test(triggered_data_writer * w) : p(w) {
+                p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
+                write_space = p->write_space(PERIOD_SIZE);
+                thread.reset(p);
+                thread->start();
+        }
+        ~triggered_data_writer_test() {
+                thread->stop();
+                thread->join();
+        }
+        void start_recording(nframes_t);
+        void stop_recording(nframes_t);
+        void test(nframes_t);
+        triggered_data_writer *p;
+        nframes_t write_space;
 
-//         test_write_log();
-//         write_data_rate(boost::posix_time::seconds(5));
-//         writer->stop();
-//         writer->join();
-//         writer.reset();
-// }
+};
 
+void
+triggered_data_writer_test::start_recording(nframes_t time)
+{
+        p->start_recording(time);
+        // at this point only the last period should be in the buffer
+        assert(p->write_space(PERIOD_SIZE) == write_space - NCHANNELS);
 
-// void
-// test_write_triggered(nframes_t start_time)
-// {
-//         nframes_t trig_on_time, trig_off_time;
-//         size_t periods;
-//         period_info_t info = {start_time, PERIOD_SIZE, 0};
+        // and flush it so that the next call to write doesn't fail
+        period_info_t const * tail = p->_buffer->peek();
+        while (tail != 0) {
+                p->_writer->write(tail);
+                p->_buffer->release();
+                tail = p->_buffer->peek();
+        }
+}
 
-//         file::triggered_arf_thread *p;
-//         map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
-//                 ("experiment","write triggered");
-//         p = new file::triggered_arf_thread("test.arf", 0, PREBUFFER, POSTBUFFER, attrs, 0, COMPRESSION);
-//         p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
-//         writer.reset(p);
+void
+triggered_data_writer_test::test(nframes_t start_time)
+{
+        size_t periods;
+        period_info_t info = {start_time, PERIOD_SIZE, 0};
+        nframes_t trig_on_time, trig_off_time;
 
-//         nframes_t write_space = p->write_space(PERIOD_SIZE);
-//         p->start();
+        // write enough data to underfill prebuffer
+        periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        // make sure the thread has not pulled any data off the buffer
+        assert(p->write_space(PERIOD_SIZE) == write_space - periods);
 
-//         // write enough data to underfill prebuffer
-//         periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
-//         // make sure the thread has not pulled any data off the buffer
-//         assert(p->write_space(PERIOD_SIZE) == write_space - periods);
+        // now overfill the prebuffer
+        periods += write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        sleep(1);
+        // check that old frames are being dropped
+        nframes_t expected = (PREBUFFER / PERIOD_SIZE) + ((PREBUFFER % PERIOD_SIZE) ? 1 : 0);
+        assert(p->write_space(PERIOD_SIZE) == write_space - expected * NCHANNELS);
 
-//         // now overfill the prebuffer
-//         periods += write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
-//         sleep(1);
-//         // check that old frames are being dropped
-//         nframes_t expected = (PREBUFFER / PERIOD_SIZE) + ((PREBUFFER % PERIOD_SIZE) ? 1 : 0);
-//         assert(p->write_space(PERIOD_SIZE) == write_space - expected * NCHANNELS);
+        start_recording(info.time);
+        trig_on_time = info.time;
 
-//         p->start_recording(info.time);
-//         trig_on_time = info.time;
-//         // at this point only the last period should be in the buffer
-//         assert(p->write_space(PERIOD_SIZE) == write_space - NCHANNELS);
+        // now write some additional periods
+        write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        sleep(1);
+        assert(p->write_space(PERIOD_SIZE) == write_space);
 
-//         // now write some additional periods
-//         write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
-//         sleep(1);
-//         assert(p->write_space(PERIOD_SIZE) == write_space);
+        // stop the recorder (give it a chance to catch up)
+        p->stop_recording(info.time + 100);
+        trig_off_time = info.time + 100;
+        expected = (POSTBUFFER / PERIOD_SIZE) + ((POSTBUFFER % PERIOD_SIZE) ? 1 : 0);
+        write_data_simple(expected, NCHANNELS, &info);
+        sleep(1);
+        assert(p->write_space(PERIOD_SIZE) == write_space);
 
-//         // stop the recorder (give it a chance to catch up)
-//         p->stop_recording(info.time + 100);
-//         trig_off_time = info.time + 100;
-//         expected = (POSTBUFFER / PERIOD_SIZE) + ((POSTBUFFER % PERIOD_SIZE) ? 1 : 0);
-//         write_data_simple(expected, NCHANNELS, &info);
-//         sleep(1);
-//         assert(p->write_space(PERIOD_SIZE) == write_space);
+        p->_writer->close_entry();
 
-//         periods = write_data_simple(PREBUFFER / PERIOD_SIZE, NCHANNELS, &info);
+        printf("\npretrig=%d; posttrig=%d; trig_on=%u; trig_off=%u; expected=%d\n",
+               PREBUFFER, POSTBUFFER, trig_on_time, trig_off_time,
+               trig_off_time - trig_on_time + PREBUFFER + POSTBUFFER);
+}
 
-//         p->stop();
-//         p->join();
-//         printf("\npretrig=%d; posttrig=%d; trig_on=%u; trig_off=%u; expected=%d\n",
-//                PREBUFFER, POSTBUFFER, trig_on_time, trig_off_time,
-//                trig_off_time - trig_on_time + PREBUFFER + POSTBUFFER);
-// }
+}}
 
 int
 main(int argc, char **argv)
@@ -176,16 +181,25 @@ main(int argc, char **argv)
 
         printf("Testing arf writer, no compression\n");
         map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
-                ("experiment","write compressed");
+                ("experiment","write uncompressed");
         writer.reset(new file::arf_writer(CLIENT_NAME, "test.arf", attrs, client, 0));
         writer->log() << "a random log message" << std::endl;
 
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
         write_data_rate(boost::posix_time::seconds(5));
 
-        // test_write_continuous();
+        dsp::triggered_data_writer_test t(new dsp::triggered_data_writer(writer, 0, PREBUFFER, POSTBUFFER));
+        t.test(0);
+        t.test(-2 * PREBUFFER);
 
-        // test_write_triggered(-2 * PREBUFFER);
+        printf("Testing arf writer, compression=1\n");
+        attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
+                ("experiment","write compressed");
+        writer.reset(new file::arf_writer(CLIENT_NAME, "test.arf", attrs, client, 1));
+        writer->log() << "a random log message" << std::endl;
+
+        thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
+        write_data_rate(boost::posix_time::seconds(5));
 
         printf("passed tests\n");
 
