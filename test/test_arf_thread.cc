@@ -168,15 +168,9 @@ main(int argc, char **argv)
 
         printf("Testing dummy writer\n");
         writer.reset(new file::null_writer);
+        writer->log() << "a random log message" << std::endl;
 
         printf("Testing continuous writer thread\n");
-        thread.reset(new dsp::buffered_data_writer(writer, PERIOD_SIZE));
-
-        // test stopping writer without storing any data
-        thread->start();
-        thread->log() << "a random log message" << std::endl;
-        thread->stop();
-
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
         write_data_rate(boost::posix_time::seconds(5));
 
@@ -184,6 +178,7 @@ main(int argc, char **argv)
         map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
                 ("experiment","write compressed");
         writer.reset(new file::arf_writer(CLIENT_NAME, "test.arf", attrs, client, 0));
+        writer->log() << "a random log message" << std::endl;
 
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
         write_data_rate(boost::posix_time::seconds(5));

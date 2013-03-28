@@ -11,7 +11,6 @@ buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer
           _buffer(new dsp::period_ringbuffer(buffer_size))
 {
         // redirect the data_writer's logstream to this class
-        writer->redirect(*this);
         pthread_mutex_init(&_lock, 0);
         pthread_cond_init(&_ready, 0);
 }
@@ -30,11 +29,7 @@ buffered_data_writer::push(void const * arg, period_info_t const & info)
 {
         if (_stop) return 0;
         nframes_t r = _buffer->push(arg, info);
-        // signal writer thread
-        if (pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
+        signal_writer();
         return r;
 }
 
@@ -48,22 +43,14 @@ void
 buffered_data_writer::xrun()
 {
         __sync_add_and_fetch(&_xruns, 1);
-        // notify writer thread if it's waiting
-        if (pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
+        signal_writer();
 }
 
 void
 buffered_data_writer::stop()
 {
         __sync_add_and_fetch(&_stop, 1);
-        // have to notify writer thread if it's waiting
-        if (pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
+        signal_writer();
 }
 
 void
@@ -119,38 +106,32 @@ buffered_data_writer::thread(void * arg)
 }
 
 void
+buffered_data_writer::signal_writer()
+{
+        if (pthread_mutex_trylock (&_lock) == 0) {
+                pthread_cond_signal (&_ready);
+                pthread_mutex_unlock (&_lock);
+        }
+}
+
+void
 buffered_data_writer::write(period_info_t const * info)
 {
-        // /* handle xruns in first period of the channel */
-        if (_xruns && _writer->aligned()) {
-                _writer->xrun();
-                _writer->close_entry(); // new entry
-                __sync_add_and_fetch(&_xruns, -1);
-        }
-
-        /* create new entry if frame counts has overflowed */
-        if (info->time < info->nframes) {
-                _writer->new_entry(info->time);
+        /* handle xruns and overflows in first period of the channel */
+        if (_writer->aligned()) {
+                if (_xruns) {
+                        _writer->xrun();
+                        _writer->close_entry(); // new entry
+                        __sync_add_and_fetch(&_xruns, -1);
+                }
+                else if  (info->time < info->nframes) {
+                        _writer->close_entry();
+                }
         }
 
         _writer->write(info);
 
         /* release data */
         _buffer->release();
-}
-
-std::ostream &
-buffered_data_writer::log()
-{
-        return _writer->log();
-}
-
-std::streamsize
-buffered_data_writer::log(char const * msg, std::streamsize n)
-{
-        pthread_mutex_lock(&_lock);
-        n = _writer->log(msg, n);
-        pthread_mutex_unlock(&_lock);
-        return n;
 }
 

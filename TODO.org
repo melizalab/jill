@@ -261,3 +261,6 @@ handle::file() function actually creates a new object that other objects
 wouldn't know about.  I could force objects to own a reference to the containing
 object but that seems pretty hacky.
 
+Settled on doing fine-grained locks in arf_writer. It may have slowed down the
+writer quite a bit (though we are still getting > 4000 periods/s). need to do
+some serious profiling at some non-premature point.

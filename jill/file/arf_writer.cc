@@ -159,8 +159,12 @@ void
 arf_writer::close_entry()
 {
         _dsets.clear();         // release any old packet tables
+        _channel_idx = 0;
         if (_entry) {
-                log() << "closed entry: " << _entry->name() << std::endl;
+                std::ostream & o = log() << "closed entry: " << _entry->name();
+                if (!aligned())
+                        o << " (warning: datasets have unequal length)";
+                o << std::endl;
         }
         _entry.reset();
 }
@@ -174,7 +178,7 @@ arf_writer::ready() const
 bool
 arf_writer::aligned() const
 {
-        return _channel_idx == _dsets.size();
+        return (_period_start != _entry_start) && (_channel_idx == _dsets.size());
 }
 
 void

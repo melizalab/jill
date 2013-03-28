@@ -36,7 +36,8 @@ struct event_t {
 };
 
 /**
- * Class for storing data in an ARF file.
+ * Class for storing data in an ARF file.  Access is thread-safe, and calls to
+ * non-const member functions may block.
  */
 class arf_writer : public data_writer {
 public:

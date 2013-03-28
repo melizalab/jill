@@ -51,11 +51,18 @@ main(int, char**)
         writer->new_entry(0);
         assert(writer->ready());
 
-        nframes_t n = writer->write(period);
-        assert(n == period->nframes);
+        for (int i = 0; i < 10; ++i) {
+                for (int j = 0; j < 2; ++j ) {
+                        nframes_t n = writer->write(period);
+                        assert(n == period->nframes);
+                }
+                if (i > 0)
+                        assert(writer->aligned());
+                period->time += period->nframes;
+        }
 
-        n = writer->write(period);
-        assert(n == period->nframes);
+        writer->write(period);
+        assert(!writer->aligned());
 
         writer->close_entry();
         assert(!writer->ready());

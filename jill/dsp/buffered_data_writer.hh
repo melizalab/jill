@@ -32,7 +32,7 @@ class period_ringbuffer;
  * This implementation records continuously, starting new entries only when the
  * frame counter overflows or an xrun occurs.
  */
-class buffered_data_writer : public data_thread, public event_logger {
+class buffered_data_writer : public data_thread {
 
 public:
         /**
@@ -53,9 +53,6 @@ public:
         void stop();
         void start();
         void join();
-
-        /* implementations for event_logger */
-        std::ostream & log();
 
 	/// @return the number of complete periods that can be stored. wait-free
         nframes_t write_space(nframes_t nframes) const;
@@ -92,12 +89,10 @@ protected:
         virtual void write(period_info_t const * info);
 
         static void * thread(void * arg);           // the thread entry point
-
-        /* implementation for event_logger */
-        std::streamsize log(char const * msg, std::streamsize n);
+        void signal_writer();                       // flag the condition variable
 
         pthread_t _thread_id;                      // thread id
-        pthread_mutex_t _lock;                     // mutex for disk operations
+        pthread_mutex_t _lock;                     // mutex for condition variable
         pthread_cond_t  _ready;                    // indicates data ready
         int _stop;                                 // stop flag
         int _xruns;                                // xrun counter
