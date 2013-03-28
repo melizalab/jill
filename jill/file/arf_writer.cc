@@ -80,10 +80,8 @@ struct datatype_traits<event_t> {
 arf_writer::arf_writer(string const & sourcename,
                        string const & filename,
                        map<string,string> const & entry_attrs,
-                       boost::weak_ptr<data_source> data_source,
                        int compression)
-        : _data_source(data_source),
-          _sourcename(sourcename),
+        : _sourcename(sourcename),
           _attrs(entry_attrs),
           _compression(compression),
           _logstream(*this),
@@ -190,6 +188,12 @@ arf_writer::xrun()
                 _entry->write_attribute("jill_error","data xrun");
                 pthread_mutex_unlock(&_lock);
         }
+}
+
+void
+arf_writer::set_data_source(boost::weak_ptr<data_source> d)
+{
+        _data_source = d;
 }
 
 nframes_t

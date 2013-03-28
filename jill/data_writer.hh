@@ -1,11 +1,14 @@
 #ifndef _DATA_WRITER_HH
 #define _DATA_WRITER_HH
 
+#include <boost/weak_ptr.hpp>
 #include "event_logger.hh"
 #include "types.hh"
 
 
 namespace jill {
+
+class data_source;
 
 /**
  * ABC for classes that write multichannel sampled and event data to disk. Data
@@ -38,6 +41,12 @@ public:
 
         /** Store a record that an xrun occurred in the file */
         virtual void xrun() = 0;
+
+        /**
+         * Provide the writer with a pointer to an object that can give
+         * samplerate and time information.  This is optional.
+         */
+        virtual void set_data_source(boost::weak_ptr<data_source> data_source) {}
 
         /**
          * Write a period to disk. Looks up the appropriate channel.

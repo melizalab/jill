@@ -53,7 +53,6 @@ public:
         arf_writer(std::string const & sourcename,
                    std::string const & filename,
                    std::map<std::string,std::string> const & entry_attrs,
-                   boost::weak_ptr<data_source> data_source,
                    int compression=0);
         ~arf_writer();
 
@@ -63,6 +62,7 @@ public:
         bool ready() const;
         bool aligned() const;
         void xrun();
+        void set_data_source(boost::weak_ptr<data_source>);
         nframes_t write(period_info_t const *, nframes_t start=0, nframes_t stop=0);
 
         /* event_logger overrides */

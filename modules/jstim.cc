@@ -10,7 +10,7 @@
  */
 #include <iostream>
 #include <signal.h>
-#include <boost/scoped_ptr.hpp>
+#include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 
@@ -58,9 +58,9 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME, PROGRAM_VERSION);
-boost::scoped_ptr<util::stream_logger> logger;
-boost::scoped_ptr<jack_client> client;
-boost::scoped_ptr<util::stimset> stimset;
+boost::shared_ptr<util::stream_logger> logger;
+boost::shared_ptr<jack_client> client;
+boost::shared_ptr<util::stimset> stimset;
 jack_port_t *port_out, *port_trigout, *port_trigin;
 int ret = EXIT_SUCCESS;
 
@@ -206,7 +206,7 @@ main(int argc, char **argv)
                 logger.reset(new util::stream_logger(cout, options.client_name));
                 logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
 
-                client.reset(new jack_client(options.client_name, *logger));
+                client.reset(new jack_client(options.client_name, logger));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
                 options.trigout_chan &= midi::chan_nib;

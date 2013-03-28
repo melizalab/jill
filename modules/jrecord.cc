@@ -148,11 +148,11 @@ main(int argc, char **argv)
                 writer.reset(new file::arf_writer(PROGRAM_NAME,
                                                   options.output_file,
                                                   options.additional_options,
-                                                  client,
                                                   options.compression));
                 writer->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
 
                 client.reset(new jack_client(options.client_name, writer));
+                writer->set_data_source(client);
 
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {

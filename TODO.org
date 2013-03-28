@@ -285,10 +285,28 @@ stimqueue waits in enqueue() and gets released by release(). Currently calling
 enqueue() from main thread, but maybe it's safer to spawn a separate thread that
 can be canceled.
 
-** jrecord
+** DONE jrecord
 
 buffered_data_writer has a mutex and a condition variable. arf_writer also has a
 mutex. there's some cleanup issues here, too, whereby arf_writer locks in order
 to call the flush method.  Maybe that's not necessary?  I removed that (assuming
 that the HDF5 library will clean itself up), and set the signal handler to just
 tell the disk thread to stop, which will cause the program to exit normally.
+
+* TODO jrecord: fix race condition with logger
+
+when starting up a jrecord instance with a lot of channels, the first period may
+arrive in the writer before all the mesages about port connection have been
+emitted.  This situation could apply in other conditions as well. So clearly we
+need some kind of blocking or queue for log messages.  may need to rethink this
+whole effing thing.
+
+* TODO arf_writer: fix cyclical reference problem
+
+as noted earlier, arf_writer can use access to a data_source to calculate
+samplerate and time information; jack_client needs access to an event_logger to
+log events.  it doesn't work to use a weak_ptr in arf_writer that points to an
+unallocated shared_ptr<data_source>, because resetting the
+shared_ptr<data_source> doesn't magically update the weak_ptr.  Probably the
+simplest (if somewhat inelegant) solution is to add a member function to
+data_writer to set that pointer later.
