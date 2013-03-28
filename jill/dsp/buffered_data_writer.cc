@@ -98,6 +98,7 @@ buffered_data_writer::thread(void * arg)
                         pthread_cond_wait (&self->_ready, &self->_lock);
                 }
                 else {
+                        self->_writer->close_entry();
                         break;
                 }
         }

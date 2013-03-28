@@ -112,9 +112,8 @@ arf_writer::arf_writer(string const & sourcename,
 
 arf_writer::~arf_writer()
 {
-        pthread_mutex_lock(&_lock);
-        _file->flush();
-        pthread_mutex_unlock(&_lock);
+        // NB: assume the HDF5 library will close the file properly
+        // without needed to manually flush.
         pthread_mutex_destroy(&_lock);
 }
 
@@ -161,9 +160,9 @@ arf_writer::close_entry()
         _dsets.clear();         // release any old packet tables
         _channel_idx = 0;
         if (_entry) {
-                std::ostream & o = log() << "closed entry: " << _entry->name();
+                std::ostream & o = log() << "closed entry: " << _entry->name() << " (frame=" << _period_start << ")";
                 if (!aligned())
-                        o << " (warning: datasets have unequal length)";
+                        o << " (warning: unequal dataset length)";
                 o << std::endl;
         }
         _entry.reset();

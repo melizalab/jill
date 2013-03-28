@@ -12,10 +12,11 @@
 #ifndef _JACK_CLIENT_HH
 #define _JACK_CLIENT_HH
 
-#include <boost/noncopyable.hpp>
-#include <boost/function.hpp>
 #include <string>
 #include <list>
+#include <boost/noncopyable.hpp>
+#include <boost/function.hpp>
+#include <boost/weak_ptr.hpp>
 #include <jack/jack.h>
 #include "data_source.hh"
 #include "event_logger.hh"
@@ -100,7 +101,7 @@ public:
 	 *               May be changed by the server if not unique.
          * @param logger reference to object used for logging messages
 	 */
-	jack_client(std::string const & name, event_logger & logger);
+	jack_client(std::string const & name, boost::weak_ptr<event_logger> logger);
 	~jack_client();
 
         /**
@@ -221,11 +222,11 @@ protected:
         std::size_t _nports;
 
         /** log a message */
-        std::ostream & log() { return _log.log(); }
+        std::ostream & log();
 
 private:
 	jack_client_t * _client; // pointer to jack client
-        event_logger & _log;     // logging facility
+        boost::weak_ptr<event_logger> _log;     // logging facility
 
 	ProcessCallback _process_cb;
         PortRegisterCallback _portreg_cb;

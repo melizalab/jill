@@ -177,7 +177,7 @@ appears as a bunch of junk
 pathetic. was trying to store data from a stack-allocated string that went out
 of scope.
 
-* TODO refactor to create some better abstractions
+* DONE refactor to create some better abstractions
 
 Without necessarily trying to anticipate all possible data sources, etc, it
 would be good at this stage to try to define some interfaces.  The challenge is
@@ -264,3 +264,31 @@ object but that seems pretty hacky.
 Settled on doing fine-grained locks in arf_writer. It may have slowed down the
 writer quite a bit (though we are still getting > 4000 periods/s). need to do
 some serious profiling at some non-premature point.
+
+
+
+
+* TODO deal with pthread cleanup in destructors
+
+Objects that own pthread objects (mutexes, condition variables) need to clean
+them up on destruction. However, if the destructor gets called from a signal
+handler, there's a chance of a deadlock (if the thread waiting on a condition
+variable is the one that gets the signal, for example).  Signal handlers in
+programs that uses these objects need to set some kind of shutdown flag, exit,
+and let the threads exit naturally.  But of course this doesn't work without
+signaling the condition variables, which isn't supported in signal handlers.
+Some resources indicate only pthread_cancel is async-safe.
+
+** jstim
+
+stimqueue waits in enqueue() and gets released by release(). Currently calling
+enqueue() from main thread, but maybe it's safer to spawn a separate thread that
+can be canceled.
+
+** jrecord
+
+buffered_data_writer has a mutex and a condition variable. arf_writer also has a
+mutex. there's some cleanup issues here, too, whereby arf_writer locks in order
+to call the flush method.  Maybe that's not necessary?  I removed that (assuming
+that the HDF5 library will clean itself up), and set the signal handler to just
+tell the disk thread to stop, which will cause the program to exit normally.

@@ -10,19 +10,19 @@
  *
  *
  */
+#include <iostream>
 #include <signal.h>
 #include <boost/scoped_ptr.hpp>
-#include <boost/format.hpp>
-#include <sys/time.h>
+#include <boost/shared_ptr.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
-#include "jill/dsp/period_ringbuffer.hh"
-#include "jill/util/string.hh"
-#include "jill/util/portreg.hh"
-#include "jill/file/continuous_arf_thread.hh"
-#include "jill/file/triggered_arf_thread.hh"
+#include "jill/file/arf_writer.hh"
+#include "jill/dsp/buffered_data_writer.hh"
+#include "jill/dsp/triggered_data_writer.hh"
+
+// #include "jill/util/portreg.hh"
 
 #define PROGRAM_NAME "jrecord"
 #define PROGRAM_VERSION "1.3.0"
@@ -60,8 +60,10 @@ protected:
 };
 
 jrecord_options options(PROGRAM_NAME, PROGRAM_VERSION);
-boost::scoped_ptr<jack_client> client;
-boost::scoped_ptr<dsp::multichannel_data_thread> arf_thread;
+boost::shared_ptr<file::arf_writer> writer;
+boost::shared_ptr<jack_client> client;
+boost::shared_ptr<dsp::buffered_data_writer> arf_thread;
+jack_port_t * port_trig = 0;
 
 /*
  * Copy data from ports into ringbuffer. Note that the first port is the trigger
@@ -102,11 +104,10 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        arf_thread->log(util::make_string() << "[jack] period size = " << nframes);
         // only takes effect if requested size > buffer size; blocks until old
         // data is flushed
         nframes = arf_thread->resize_buffer(nframes * 32, client->nports());
-        client->log() << "ringbuffer size (samples): " << nframes << std::endl;
+        writer->log() << "ringbuffer size (samples): " << nframes << std::endl;
         return 0;
 }
 
@@ -114,10 +115,9 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
-        util::make_string msg;
-        msg << "[jack] port " << ((connected) ? "" : "dis") << "connect: "
-            << jack_port_name(port1) << " -> " << jack_port_short_name(port2);
-        if (arf_thread) arf_thread->log(msg);
+        if (!connected && port2 == port_trig && jack_port_get_connections(port_trig) == 0) {
+                // TODO close current entry if one is open
+        }
 }
 
 void
@@ -131,53 +131,67 @@ void
 signal_handler(int sig)
 {
         if (arf_thread) {
-                arf_thread->log(util::make_string() << "[" << client->name() << "] got terminate signal");
                 arf_thread->stop();
-                arf_thread->join();
         }
-        if (client)
-                client->deactivate();
-
-        exit(sig);
 }
 
 int
 main(int argc, char **argv)
 {
 	using namespace std;
-        jack_port_t *port_trig = 0;
 
         vector<string>::const_iterator it;
-        util::port_registry ports;
+        map<string,string> port_connections;
 	try {
 		options.parse(argc,argv);
-                cout << "[" << options.client_name << "] " <<  PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
 
-                // initialize client
-                client.reset(new jack_client(options.client_name));
+                writer.reset(new file::arf_writer(PROGRAM_NAME,
+                                                  options.output_file,
+                                                  options.additional_options,
+                                                  client,
+                                                  options.compression));
+                writer->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
+
+                client.reset(new jack_client(options.client_name, writer));
 
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {
                         port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                           JackPortIsInput | JackPortIsTerminal, 0);
-                        arf_thread.reset(new file::triggered_arf_thread(options.output_file,
-                                                                        port_trig,
-                                                                        options.pretrigger_size_s * client->sampling_rate(),
-                                                                        options.posttrigger_size_s * client->sampling_rate(),
-                                                                        options.additional_options,
-                                                                        client.get(),
-                                                                        options.compression));
+                        arf_thread.reset(new dsp::triggered_data_writer(
+                                                 writer,
+                                                 port_trig,
+                                                 options.pretrigger_size_s * client->sampling_rate(),
+                                                 options.posttrigger_size_s * client->sampling_rate()));
                 }
                 else {
-                        arf_thread.reset(new file::continuous_arf_thread(options.output_file,
-                                                                         options.additional_options,
-                                                                         client.get(),
-                                                                         options.compression));
+                        arf_thread.reset(new dsp::buffered_data_writer(writer));
                 }
-                arf_thread->log("[" PROGRAM_NAME "] version = " PROGRAM_VERSION);
-                client->log() << "opened output file " << options.output_file << endl;
 
-                ports.add(client.get(), options.input_ports.begin(), options.input_ports.end());
+                /* register input ports */
+                int name_index = 0;
+                for (it = options.input_ports.begin(); it!= options.input_ports.end(); ++it) {
+                        jack_port_t *p = client->get_port(*it);
+                        if (p==0) {
+                                writer->log() << "error registering port: source port "
+                                              << *it << " does not exist" << endl;
+                        }
+                        else if (!(jack_port_flags(p) & JackPortIsOutput)) {
+                                writer->log() << "error registering port: source port "
+                                              << *it << " is not an output port" << endl;
+                        }
+                        else {
+                                char buf[16];
+                                if (strcmp(jack_port_type(p),JACK_DEFAULT_AUDIO_TYPE)==0)
+                                        sprintf(buf,"pcm_%03d",name_index);
+                                else
+                                        sprintf(buf,"evt_%03d",name_index);
+                                name_index++;
+                                client->register_port(buf, jack_port_type(p),
+                                                      JackPortIsInput | JackPortIsTerminal, 0);
+                                port_connections[buf] = *it;
+                        }
+                }
 
                 // register signal handlers
 		signal(SIGINT,  signal_handler);
@@ -199,7 +213,10 @@ main(int argc, char **argv)
 		for (it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
 			client->connect_port(*it, "trig_in");
 		}
-                ports.connect_all(client.get()); // connects input ports
+                for (map<string,string>::const_iterator it = port_connections.begin();
+                     it != port_connections.end(); ++it) {
+                        if (!it->second.empty()) client->connect_port(it->second, it->first);
+                }
 
                 arf_thread->join();
 
@@ -213,7 +230,7 @@ main(int argc, char **argv)
 	}
 	catch (exception const &e) {
                 cerr << "Error: " << e.what() << endl;
-                if (arf_thread) arf_thread->log(util::make_string() << "[" PROGRAM_NAME "] ERROR: " << e.what());
+                if (writer) writer->log() << "FATAL ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}
 }

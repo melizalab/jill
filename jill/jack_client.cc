@@ -11,6 +11,7 @@
  */
 #include "jack_client.hh"
 #include "util/string.hh"
+#include <boost/shared_ptr.hpp>
 #include <jack/statistics.h>
 #include <jack/midiport.h>
 #include <cerrno>
@@ -19,7 +20,7 @@
 using namespace jill;
 
 
-jack_client::jack_client(std::string const & name, event_logger & logger)
+jack_client::jack_client(std::string const & name, boost::weak_ptr<event_logger> logger)
         : _nports(0), _log(logger)
 {
 	jack_status_t status;
@@ -46,12 +47,17 @@ jack_client::~jack_client()
 {
 	if (_client) {
                 jack_client_close(_client);
-                try {
-                        log() << "closed client" << std::endl;
-                }
-                catch (...) {}
         }
 }
+
+std::ostream &
+jack_client::log()
+ {
+         if (boost::shared_ptr<event_logger> l = _log.lock())
+                 return l->log();
+         else
+                 return std::cout;
+ }
 
 jack_port_t*
 jack_client::register_port(std::string const & name, std::string const & type,
@@ -253,7 +259,7 @@ jack_client::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connecte
                 return;
         if (jack_port_flags(port2) & JackPortIsOutput)
                 std::swap(port1,port2);
-        self->log() << "Ports " << ((connected) ? "" : "dis") << "connected: "
+        self->log() << "ports " << ((connected) ? "" : "dis") << "connected: "
                     << jack_port_name(port1) << " -> " << jack_port_name(port2) << std::endl;
 
         if (self->_portconn_cb) {
