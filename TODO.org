@@ -252,4 +252,12 @@ too thrilled about this.  Another option is to factor out the locking that
 protects the arf file from multiple write accesses into arf_writer, and just use
 the lock in b_d_w for signalling the writer thread through a condition variable.
 I think the place to implement this is in arf_writer itself because then I can
-be pretty fine-grained.
+be pretty fine-grained.  This removes the need to have redirectable proxies.
+The other place to do it is the arf c++ interface itself.  It adds a
+compile-time dependency on boost threads, but that isn't so onerous.  The only
+really tricky bit is that locking would need to be on the file level, and
+objects only know about their containing file through hid_t objects, so the
+handle::file() function actually creates a new object that other objects
+wouldn't know about.  I could force objects to own a reference to the containing
+object but that seems pretty hacky.
+

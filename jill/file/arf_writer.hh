@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <iosfwd>
+#include <pthread.h>
 #include <boost/iostreams/stream.hpp>
 #include <boost/weak_ptr.hpp>
 #include <arf/types.hpp>
@@ -89,6 +90,7 @@ private:
         boost::weak_ptr<jill::data_source> _data_source;
 
         // owned resources
+        pthread_mutex_t _lock;                     // mutex for disk operations
         std::string _sourcename;                   // who's doing the writing
         arf::file_ptr _file;                       // output file
         std::map<std::string,std::string> _attrs;  // attributes for new entries

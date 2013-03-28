@@ -89,6 +89,7 @@ arf_writer::arf_writer(string const & sourcename,
           _logstream(*this),
           _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0)
 {
+        pthread_mutex_init(&_lock, 0);
         _file.reset(new arf::file(filename, "a"));
 
         // open/create log
@@ -111,7 +112,10 @@ arf_writer::arf_writer(string const & sourcename,
 
 arf_writer::~arf_writer()
 {
+        pthread_mutex_lock(&_lock);
         _file->flush();
+        pthread_mutex_unlock(&_lock);
+        pthread_mutex_destroy(&_lock);
 }
 
 void
@@ -135,15 +139,20 @@ arf_writer::new_entry(nframes_t frame_count)
         time_duration timestamp = timeofday(now);
         timeval tp = { timestamp.total_seconds(), timestamp.fractional_seconds() };
 
+        pthread_mutex_lock(&_lock);
         _entry.reset(new arf::entry(*_file, fmt.str(), &tp));
+        pthread_mutex_unlock(&_lock);
+
         log() << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" << std::endl;
 
+        pthread_mutex_lock(&_lock);
         arf::h5a::node::attr_writer a = _entry->write_attribute();
         a("jack_frame",_entry_start)("jill_process",_sourcename);
         for_each(_attrs.begin(), _attrs.end(), a);
         if (frame_usec != 0) {
                 a("jack_usec", frame_usec);
         }
+        pthread_mutex_unlock(&_lock);
 }
 
 void
@@ -174,7 +183,9 @@ arf_writer::xrun()
         log() << "ERROR: xrun" << std::endl;
         if (_entry) {
                 // tag entry as possibly corrupt
+                pthread_mutex_lock(&_lock);
                 _entry->write_attribute("jill_error","data xrun");
+                pthread_mutex_unlock(&_lock);
         }
 }
 
@@ -216,7 +227,9 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         if (is_sampled) {
                 assert (stop_frame <= info->nframes);
                 sample_t const * data = reinterpret_cast<sample_t const *>(info + 1);
+                pthread_mutex_lock(&_lock);
                 dset->second->write(data + start_frame, stop_frame - start_frame);
+                pthread_mutex_unlock(&_lock);
         }
         else {
                 // based on my inspection of jackd source, JACK api should
@@ -242,7 +255,9 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
                                         e.message = s.c_str();
                                 }
                         }
+                        pthread_mutex_lock(&_lock);
                         dset->second->write(&e, 1);
+                        pthread_mutex_unlock(&_lock);
                 }
         }
         return stop_frame - start_frame;
@@ -274,7 +289,9 @@ arf_writer::log(char const * msg, streamsize n)
         memcpy(m.get(),msg,n);
         m[n-1] = 0x0;
         jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m.get() };
+        pthread_mutex_lock(&_lock);
         _log->write(&message, 1);
+        pthread_mutex_unlock(&_lock);
         std::cout << to_iso_string(microsec_clock::local_time()) << ' ' << m.get() << std::endl;
         return n;
 }
@@ -283,7 +300,7 @@ void
 arf_writer::_get_last_entry_index()
 {
         size_t val;
-        vector<string> entries = _file->children();
+        vector<string> entries = _file->children();  // read-only
         for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
                 char const * match = strstr(it->c_str(), _sourcename.c_str());
                 if (match == 0) continue;
@@ -300,6 +317,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
         dset_map_type::iterator dset = _dsets.find(name);
         if (dset == _dsets.end()) {
                 arf::packet_table_ptr pt;
+                pthread_mutex_lock(&_lock);
                 if (is_sampled) {
                         pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
                                                                           false, 1024, _compression);
@@ -311,6 +329,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                 if (source_ptr source = _data_source.lock()) {
                         pt->write_attribute("sampling_rate", source->sampling_rate());
                 }
+                pthread_mutex_unlock(&_lock);
                 log() << "created dataset: " << pt->name() << std::endl;
                 dset = _dsets.insert(dset, make_pair(name,pt));
         }
