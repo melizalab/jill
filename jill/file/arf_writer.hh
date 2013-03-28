@@ -9,8 +9,6 @@
 #include <arf/types.hpp>
 
 #include "../data_writer.hh"
-//#include "../data_source.hh"
-#include "../logger_proxy.hh"
 
 namespace jill {
 
@@ -39,7 +37,7 @@ struct event_t {
 /**
  * Class for storing data in an ARF file.
  */
-class arf_writer : public data_writer, public event_logger {
+class arf_writer : public data_writer {
 public:
         /**
          * Initialize an ARF writer.
@@ -47,13 +45,13 @@ public:
          * @param sourcename   identifier of the program/process writing the data
          * @param filename     the file to write to
          * @param entry_attrs  map of attributes to set on newly-created entries
-         * @param jack_client  optional, client used to look up time and samplerate
+         * @param data_source  the source of the data. may be null
          * @param compression  the compression level for new datasets
          */
         arf_writer(std::string const & sourcename,
                    std::string const & filename,
                    std::map<std::string,std::string> const & entry_attrs,
-                   boost::weak_ptr<jill::data_source> data_source,
+                   boost::weak_ptr<data_source> data_source,
                    int compression=0);
         ~arf_writer();
 
@@ -66,8 +64,7 @@ public:
 
         /* event_logger overrides */
         std::ostream & log();
-        std::ostream & msg();
-        std::ostream & operator<< (std::string const & source);
+        void redirect(event_logger &);
 
 protected:
         typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
@@ -87,7 +84,9 @@ protected:
         nframes_t entry_start() const { return _entry_start; }
 
 private:
+        /* implement event_logger::log */
         std::streamsize log(char const *, std::streamsize);
+        /* find last entry index */
         void _get_last_entry_index();
 
         // references

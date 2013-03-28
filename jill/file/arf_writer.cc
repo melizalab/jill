@@ -243,13 +243,13 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
 ostream &
 arf_writer::log()
 {
-        return this->operator<<(_sourcename);
+        return _logstream << "[" << _sourcename << "] ";
 }
 
-ostream &
-arf_writer::operator<< (string const & source)
+void
+arf_writer::redirect(event_logger &w)
 {
-        return _logstream << "[" << source << "] ";
+        _logstream.open(w);
 }
 
 
@@ -272,11 +272,12 @@ arf_writer::log(char const * msg, streamsize n)
 void
 arf_writer::_get_last_entry_index()
 {
-        char const * templ = "jrecord_%ud";
         size_t val;
         vector<string> entries = _file->children();
         for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
-                int rc = sscanf(it->c_str(), templ, &val);
+                char const * match = strstr(it->c_str(), _sourcename.c_str());
+                if (match == 0) continue;
+                int rc = sscanf(match + _sourcename.length(), "_%ud", &val);
                 val += 1;
                 if (rc == 1 && val > _entry_idx) _entry_idx = val;
         }

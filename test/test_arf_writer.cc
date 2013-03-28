@@ -8,7 +8,6 @@
 
 #include "jill/data_source.hh"
 #include "jill/data_writer.hh"
-#include "jill/logger_proxy.hh"
 #include "jill/file/arf_writer.hh"
 
 
@@ -16,7 +15,7 @@ using namespace std;
 using namespace jill;
 
 // boost::shared_ptr<event_logger> logger;
-boost::shared_ptr<file::arf_writer> writer;
+boost::shared_ptr<data_writer> writer;
 boost::shared_ptr<data_source> client;
 
 int

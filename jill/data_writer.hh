@@ -1,7 +1,7 @@
 #ifndef _DATA_WRITER_HH
 #define _DATA_WRITER_HH
 
-#include <boost/noncopyable.hpp>
+#include "event_logger.hh"
 #include "types.hh"
 
 
@@ -12,7 +12,7 @@ namespace jill {
  * are assumed to be organized in one or more entries, each containing zero or
  * more channels which share a common start time.
  */
-class data_writer : boost::noncopyable {
+class data_writer : public event_logger {
 
 public:
         ~data_writer() {}

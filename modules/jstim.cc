@@ -191,7 +191,8 @@ init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_
                 }
                 jill::stimulus_t *stim = new file::stimfile(p.string());
                 sset->add(stim, nreps);
-                logger->log() << "stimulus: " << p.stem() << " (" << stim->duration() << " s)" << std::endl;
+                logger->log() << "stimulus: " << p.stem() << " (" << stim->samplerate() << " Hz; "
+                              << stim->duration() << " s)" << std::endl;
         }
 }
 
