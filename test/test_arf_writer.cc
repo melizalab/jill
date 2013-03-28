@@ -14,7 +14,19 @@
 using namespace std;
 using namespace jill;
 
-// boost::shared_ptr<event_logger> logger;
+struct redirector : public event_logger {
+        redirector(event_logger &w) : _w(w), was_redirected(false) {
+                w.redirect(*this);
+        }
+        ostream & log() { return _w.log(); }
+        streamsize log(char const * msg, streamsize n) {
+                was_redirected = true;
+                return _w.log(msg, n);
+        }
+        event_logger & _w;
+        bool was_redirected;
+};
+
 boost::shared_ptr<data_writer> writer;
 boost::shared_ptr<data_source> client;
 
@@ -47,4 +59,8 @@ main(int, char**)
 
         writer->close_entry();
         assert(!writer->ready());
+
+        redirector r(*writer);
+        writer->log() << "another log message" << std::endl;
+        assert(r.was_redirected);
 }

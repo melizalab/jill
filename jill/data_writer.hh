@@ -30,6 +30,9 @@ public:
         /** true if an entry is open for recording */
         virtual bool ready() const = 0;
 
+        /** true if the same amount of data has been written to all channels */
+        virtual bool aligned() const = 0;
+
         /** Store a record that an xrun occurred in the file */
         virtual void xrun() = 0;
 

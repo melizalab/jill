@@ -13,14 +13,12 @@ namespace jill {
  * directly using an external stream or using a friend stream proxy.
  */
 struct event_logger : boost::noncopyable {
-        friend class logger_proxy;
         virtual ~event_logger() {}
         /** log an event with time and default source information */
         virtual std::ostream & log() = 0;
         /** redirect the log */
         virtual void redirect(event_logger &) {}
-private:
-        /** write a raw message to the log. only called by logger_proxy */
+        /** write a raw message to the log. needs to be public to support redirection */
         virtual std::streamsize log(const char *s, std::streamsize n) = 0;
 };
 

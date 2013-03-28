@@ -59,6 +59,7 @@ public:
         void new_entry(nframes_t);
         void close_entry();
         bool ready() const;
+        bool aligned() const;
         void xrun();
         nframes_t write(period_info_t const *, nframes_t start=0, nframes_t stop=0);
 
@@ -77,11 +78,6 @@ protected:
          * @return derefable iterator for appropriate dataset
          */
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
-
-        /** The number of channels received in the current period */
-        nframes_t channels() const { return _channel_idx; }
-        /** The start time of the current entry */
-        nframes_t entry_start() const { return _entry_start; }
 
 private:
         /* implement event_logger::log */

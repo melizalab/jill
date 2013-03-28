@@ -162,6 +162,12 @@ arf_writer::ready() const
         return _entry;
 }
 
+bool
+arf_writer::aligned() const
+{
+        return _channel_idx == _dsets.size();
+}
+
 void
 arf_writer::xrun()
 {
@@ -182,6 +188,13 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         if (!_entry) new_entry(info->time);
         stop_frame = (stop_frame > 0) ? std::min(stop_frame, info->nframes) : info->nframes;
 
+        /* does this start a new period */
+        if (info->time != _period_start) {
+                // new period
+                _channel_idx = 0;
+                _period_start = info->time;
+        }
+
         /* get channel information */
         if (port) {
                 // use name information in port to look up dataset
@@ -192,15 +205,11 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
                 // no port information (primarily a test case)
                 // use time to infer channel
                 boost::format fmt("pcm_%|03|");
-                if (info->time != _period_start) {
-                        // new period
-                        _channel_idx = 0;
-                        _period_start = info->time;
-                }
                 // assume the port type is audio - not really any way to
                 // simulate midi data outside jack framework
-                dset_name = (fmt % _channel_idx++).str();
+                dset_name = (fmt % _channel_idx).str();
         }
+        _channel_idx += 1;
         dset_map_type::iterator dset = get_dataset(dset_name, is_sampled);
 
         /* write the data */
@@ -249,6 +258,7 @@ arf_writer::log()
 void
 arf_writer::redirect(event_logger &w)
 {
+        _logstream.close();
         _logstream.open(w);
 }
 

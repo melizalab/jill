@@ -56,13 +56,6 @@ public:
         virtual void stop() {}
 
         /**
-         *  Write a message to the file. Thread-safe, may block.
-         *
-         * @param msg       the message to write
-         */
-        virtual void log(std::string const & msg) {}
-
-        /**
          * Start the thread writing samples
          *
          * @pre the thread is not already running

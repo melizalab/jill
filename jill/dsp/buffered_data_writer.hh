@@ -9,12 +9,15 @@
  * (at your option) any later version.
  *
  */
-#ifndef _MULTICHANNEL_DATA_THREAD_HH
-#define _MULTICHANNEL_DATA_THREAD_HH
+#ifndef _BUFFERED_DATA_WRITER_HH
+#define _BUFFERED_DATA_WRITER_HH
 
+#include <iosfwd>
 #include <pthread.h>
 #include <boost/shared_ptr.hpp>
+#include <boost/iostreams/stream.hpp>
 #include "../data_thread.hh"
+#include "../data_writer.hh"
 
 namespace jill {
 
@@ -23,20 +26,36 @@ namespace dsp {
 class period_ringbuffer;
 
 /**
- * A trivial implementation of the data thread that just stores data in a
- * ringbuffer and then throws it away. A useful base for more complex tasks.
+ * An implementation of the data thread that uses a ringbuffer to move data
+ * between the push() function and a writer thread.  The logic for actually
+ * storing the data (and log messages) is provided through an owned data_writer.
+ * This implementation records continuously, starting new entries only when the
+ * frame counter overflows or an xrun occurs.
  */
-class multichannel_data_thread : public data_thread {
+class buffered_data_writer : public data_thread, public event_logger {
 
 public:
-        multichannel_data_thread(nframes_t buffer_size=4096);
-        virtual ~multichannel_data_thread();
+        /**
+         * Construct new buffered data writer.
+         *
+         * @param writer       a pointer to a heap-allocated data_writer
+         * @param buffer_size  the initial size of the ringbuffer
+         *
+         * @note best practice is to only access @a writer through this object
+         * after initialization, e.g:
+         * buffered_data_writer(new concrete_data_writer(...));
+         */
+        buffered_data_writer(boost::shared_ptr<data_writer> writer, nframes_t buffer_size=4096);
+        virtual ~buffered_data_writer();
 
         nframes_t push(void const * arg, period_info_t const & info);
         void xrun();
         void stop();
         void start();
         void join();
+
+        /* implementations for event_logger */
+        std::ostream & log();
 
 	/// @return the number of complete periods that can be stored. wait-free
         nframes_t write_space(nframes_t nframes) const;
@@ -65,7 +84,8 @@ protected:
          * Entry point for deriving classes to handle data pulled off the
          * ringbuffer. Deriving classes *must* release data using
          * _buffer->release() when they are done with the data or the buffer
-         * will overrun.
+         * will overrun.  The default implementation simply passes the data to
+         * the data_writer::write() function.
          *
          * @param info   the header and data for the period
          */
@@ -73,13 +93,17 @@ protected:
 
         static void * thread(void * arg);           // the thread entry point
 
+        /* implementation for event_logger */
+        std::streamsize log(char const * msg, std::streamsize n);
+
         pthread_t _thread_id;                      // thread id
         pthread_mutex_t _lock;                     // mutex for disk operations
         pthread_cond_t  _ready;                    // indicates data ready
         int _stop;                                 // stop flag
         int _xruns;                                // xrun counter
 
-        boost::shared_ptr<period_ringbuffer> _buffer;     // ringbuffer
+        boost::shared_ptr<data_writer> _writer;            // output
+        boost::shared_ptr<period_ringbuffer> _buffer;      // ringbuffer
 };
 
 }} // jill::file
