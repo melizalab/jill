@@ -267,7 +267,6 @@ some serious profiling at some non-premature point.
 
 
 
-
 * TODO deal with pthread cleanup in destructors
 
 Objects that own pthread objects (mutexes, condition variables) need to clean
@@ -282,8 +281,20 @@ Some resources indicate only pthread_cancel is async-safe.
 ** jstim
 
 stimqueue waits in enqueue() and gets released by release(). Currently calling
-enqueue() from main thread, but maybe it's safer to spawn a separate thread that
-can be canceled.
+enqueue() from main thread, but it's probably safer to spawn a separate thread
+that can be canceled.
+
+[2013-03-29 Fri] combining stimset and stimqueue into a single interface, and
+then have a class readahead_stimqueue that implements it. process() accesses the
+head of the queue through a pointer, and can release the pointer wait-free. the
+main thread modifies the queue with add() and shuffle(), both of which reset the
+queue to the beginning, but don't modify the head.
+
+the queue spawns its own thread which takes care of putting elements from the
+list into the head pointer. a bunch of conditions to check
+
+head = 0 - need data
+ - is there any available?
 
 ** DONE jrecord
 
