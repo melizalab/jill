@@ -244,7 +244,7 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
                         jack_midi_event_get(&event, data, j);
                         if (event.size == 0) continue;
                         if (event.time < start_frame || event.time >= stop_frame) continue;
-                        event_t e = { info->time - _entry_start,
+                        event_t e = { info->time + event.time - _entry_start,
                                       event.buffer[0],
                                       "" };
                         // hex encode standard midi events

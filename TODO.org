@@ -321,7 +321,9 @@ data_writer to set that pointer later.
 this may be an artifact of how the testing is done, but I'm short a few samples.
 Appears to be fine in jrecord.
 
-* TODO jrecord should drop events before entry start
+* DONE jrecord should drop events before entry start
+
+this was a bug in how the stored event time was calculated
 
 * TODO profiling
 
