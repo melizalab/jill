@@ -301,7 +301,7 @@ emitted.  This situation could apply in other conditions as well. So clearly we
 need some kind of blocking or queue for log messages.  may need to rethink this
 whole effing thing.
 
-* TODO arf_writer: fix cyclical reference problem
+* DONE arf_writer: fix cyclical reference problem
 
 as noted earlier, arf_writer can use access to a data_source to calculate
 samplerate and time information; jack_client needs access to an event_logger to

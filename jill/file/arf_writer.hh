@@ -65,10 +65,6 @@ public:
         void set_data_source(boost::weak_ptr<data_source>);
         nframes_t write(period_info_t const *, nframes_t start=0, nframes_t stop=0);
 
-        /* event_logger overrides */
-        std::ostream & log();
-        void redirect(event_logger &);
-
 protected:
         typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
 
@@ -82,8 +78,8 @@ protected:
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
 
 private:
-        /* implement event_logger::log */
-        std::streamsize log(char const *, std::streamsize);
+        /* implement event_logger::write_log */
+        void write_log(timestamp const &, std::string const &);
         /* find last entry index */
         void _get_last_entry_index();
 
@@ -99,7 +95,6 @@ private:
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         dset_map_type _dsets;                      // pointers to packet tables (owned)
         int _compression;                          // compression level for new datasets
-        boost::iostreams::stream<logger_proxy> _logstream; // provides stream logging
 
         // local state
         nframes_t _entry_start;                    // offset sample counts

@@ -192,7 +192,7 @@ init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_
                 jill::stimulus_t *stim = new file::stimfile(p.string());
                 sset->add(stim, nreps);
                 logger->log() << "stimulus: " << p.stem() << " (" << stim->samplerate() << " Hz; "
-                              << stim->duration() << " s)" << std::endl;
+                              << stim->duration() << " s)";
         }
 }
 
@@ -203,8 +203,8 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-                logger.reset(new util::stream_logger(cout, options.client_name));
-                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
+                logger.reset(new util::stream_logger(options.client_name, cout));
+                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
 
                 client.reset(new jack_client(options.client_name, logger));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
@@ -213,15 +213,15 @@ main(int argc, char **argv)
 
                 if (!options.count("trig")) {
                         logger->log() << "minimum gap: " << options.min_gap_sec << "s ("
-                                     << options.min_gap << " samples)" << endl;
+                                      << options.min_gap << " samples)";
                         logger->log() << "minimum interval: " << options.min_interval_sec << "s ("
-                                << options.min_interval << " samples)" << endl;
+                                      << options.min_interval << " samples)";
                 }
 
                 stimset.reset(new util::stimset(client->sampling_rate()));
                 init_stimset(stimset.get(), options.stimuli, options.nreps);
                 if (options.count("shuffle")) {
-                        logger->log() << "shuffled stimuli" << endl;
+                        logger->log() << "shuffled stimuli";
                         stimset->shuffle();
                 }
 
@@ -230,7 +230,7 @@ main(int argc, char **argv)
                 port_trigout = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
-                        logger->log() << "triggering playback from trig_in" << endl;
+                        logger->log() << "triggering playback from trig_in";
                         port_trigin = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                             JackPortIsInput | JackPortIsTerminal, 0);
                 }
@@ -259,7 +259,7 @@ main(int argc, char **argv)
                 queue.enqueue(stimset->next());
                 while(options.count("loop") || queue.ready()) {
                         queue.enqueue(stimset->next());
-                        logger->log() << "next stim: " << queue.name() << endl;
+                        logger->log() << "next stim: " << queue.name();
                 }
 
                 // give the process loop a chance to clear the midi output buffer

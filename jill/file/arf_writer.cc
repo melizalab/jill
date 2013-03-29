@@ -1,19 +1,22 @@
 #include <arf.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/format.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/c_local_time_adjustor.hpp>
 #include <sys/time.h>
 #include <jack/jack.h>
 
 #include "arf_writer.hh"
 #include "../data_source.hh"
 #include "../midi.hh"
+#include "../util/string.hh"
 
 #define JILL_LOGDATASET_NAME "jill_log"
 
 using namespace std;
 using namespace jill;
 using namespace jill::file;
+using namespace boost::posix_time;
+using namespace boost::gregorian;
 
 typedef boost::shared_ptr<jill::data_source> source_ptr;
 
@@ -34,13 +37,7 @@ to_hex(T const * in, std::size_t size)
         return out;
 }
 
-static boost::posix_time::time_duration
-timeofday(boost::posix_time::ptime const & time)
-{
-        using namespace boost::gregorian;
-        using namespace boost::posix_time;
-        return time - ptime(date(1970,1,1));
-}
+static const ptime epoch = ptime(date(1970,1,1));
 
 // template specializations for compound data types
 namespace arf { namespace h5t { namespace detail {
@@ -84,7 +81,6 @@ arf_writer::arf_writer(string const & sourcename,
         : _sourcename(sourcename),
           _attrs(entry_attrs),
           _compression(compression),
-          _logstream(*this),
           _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0)
 {
         pthread_mutex_init(&_lock, 0);
@@ -105,7 +101,7 @@ arf_writer::arf_writer(string const & sourcename,
         }
         _get_last_entry_index();
 
-        log() << "opened file: " << filename  << std::endl;
+        log() << "opened file: " << filename;
 }
 
 arf_writer::~arf_writer()
@@ -118,11 +114,11 @@ arf_writer::~arf_writer()
 void
 arf_writer::new_entry(nframes_t frame_count)
 {
-        using namespace boost::posix_time;
+
         utime_t frame_usec = 0;
 
-        boost::format fmt("%1$s_%2$04d");
-        fmt % _sourcename % _entry_idx++;
+        util::make_string name;
+        name << _sourcename << '_' << setw(4) << setfill('0') << _entry_idx++;
 
         close_entry();
         _entry_start = frame_count;
@@ -133,14 +129,14 @@ arf_writer::new_entry(nframes_t frame_count)
                 frame_usec = source->time(_entry_start);
                 now -= microseconds(frame_usec - source->time());
         }
-        time_duration timestamp = timeofday(now);
-        timeval tp = { timestamp.total_seconds(), timestamp.fractional_seconds() };
+        time_duration ts = now - epoch;
 
         pthread_mutex_lock(&_lock);
-        _entry.reset(new arf::entry(*_file, fmt.str(), &tp));
+        _entry.reset(new arf::entry(*_file, name,
+                                    ts.total_seconds(), ts.fractional_seconds()));
         pthread_mutex_unlock(&_lock);
 
-        log() << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" << std::endl;
+        log() << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" ;
 
         pthread_mutex_lock(&_lock);
         arf::h5a::node::attr_writer a = _entry->write_attribute();
@@ -158,10 +154,10 @@ arf_writer::close_entry()
         _dsets.clear();         // release any old packet tables
         _channel_idx = 0;
         if (_entry) {
-                std::ostream & o = log() << "closed entry: " << _entry->name() << " (frame=" << _period_start << ")";
+                log_msg o = log();
+                o << "closed entry: " << _entry->name() << " (frame=" << _period_start << ")";
                 if (!aligned())
                         o << " (warning: unequal dataset length)";
-                o << std::endl;
         }
         _entry.reset();
 }
@@ -181,7 +177,7 @@ arf_writer::aligned() const
 void
 arf_writer::xrun()
 {
-        log() << "ERROR: xrun" << std::endl;
+        log() << "ERROR: xrun" ;
         if (_entry) {
                 // tag entry as possibly corrupt
                 pthread_mutex_lock(&_lock);
@@ -199,7 +195,7 @@ arf_writer::set_data_source(boost::weak_ptr<data_source> d)
 nframes_t
 arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t stop_frame)
 {
-        std::string dset_name;
+        util::make_string dset_name;
         bool is_sampled = true;
         jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
 
@@ -216,16 +212,14 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         /* get channel information */
         if (port) {
                 // use name information in port to look up dataset
-                dset_name = jack_port_short_name(port);
+                dset_name << jack_port_short_name(port);
                 is_sampled = strcmp(jack_port_type(port),JACK_DEFAULT_AUDIO_TYPE)==0;
         }
         else {
                 // no port information (primarily a test case)
-                // use time to infer channel
-                boost::format fmt("pcm_%|03|");
+                dset_name << "pcm_" << setw(3) << setfill('0') << _channel_idx;
                 // assume the port type is audio - not really any way to
                 // simulate midi data outside jack framework
-                dset_name = (fmt % _channel_idx).str();
         }
         _channel_idx += 1;
         dset_map_type::iterator dset = get_dataset(dset_name, is_sampled);
@@ -271,42 +265,29 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
 
 }
 
-ostream &
-arf_writer::log()
-{
-        return _logstream << "[" << _sourcename << "] ";
-}
-
 void
-arf_writer::redirect(event_logger &w)
+arf_writer::write_log(timestamp const &utc, string const &msg)
 {
-        _logstream.close();
-        _logstream.open(w);
-}
+        typedef boost::date_time::c_local_adjustor<ptime> local_adj;
 
+        util::make_string s;
+        s << '[' << _sourcename << "] " << msg;
+        char const * _msg = s;
 
-streamsize
-arf_writer::log(char const * msg, streamsize n)
-{
-        using namespace boost::posix_time;
-        time_duration t = timeofday(microsec_clock::universal_time());
-
-        // strip final \n
-        boost::scoped_array<char> m(new char[n]);
-        memcpy(m.get(),msg,n);
-        m[n-1] = 0x0;
-        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m.get() };
+        time_duration t = utc - epoch;
+        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), _msg };
         pthread_mutex_lock(&_lock);
         _log->write(&message, 1);
         pthread_mutex_unlock(&_lock);
-        std::cout << to_iso_string(microsec_clock::local_time()) << ' ' << m.get() << std::endl;
-        return n;
+
+        ptime local = local_adj::utc_to_local(utc);
+        std::cout << to_iso_string(local) << ' ' << _msg << std::endl;
 }
 
 void
 arf_writer::_get_last_entry_index()
 {
-        size_t val;
+        unsigned int val;
         vector<string> entries = _file->children();  // read-only
         for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
                 char const * match = strstr(it->c_str(), _sourcename.c_str());
@@ -337,7 +318,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                         pt->write_attribute("sampling_rate", source->sampling_rate());
                 }
                 pthread_mutex_unlock(&_lock);
-                log() << "created dataset: " << pt->name() << std::endl;
+                log() << "created dataset: " << pt->name() ;
                 dset = _dsets.insert(dset, make_pair(name,pt));
         }
         return dset;

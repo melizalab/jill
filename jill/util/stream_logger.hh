@@ -16,7 +16,7 @@ public:
         std::string const & source() { return _source; }
 
 private:
-        void log(timestamp const &, std::string const &);
+        void write_log(timestamp const &, std::string const &);
         std::ostream & _os;
         std::string _source;
 };

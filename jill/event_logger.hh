@@ -35,14 +35,13 @@ public:
 
 private:
         event_logger &_w;
-        timestamp _creation;
+        timestamp _creation;    // in utc
         std::ostringstream * _stream;
 };
 
 /**
- * ABC for classes that can log messages. It provides a stream interface and an
- * option to log the time and source, or just the source.  May be implemented
- * directly using an external stream or using a friend stream proxy.
+ * ABC for classes that can log messages. The public log() member function
+ * returns a proxy object that behaves like a stream.
  */
 class event_logger : boost::noncopyable {
         friend class log_msg;
@@ -50,9 +49,14 @@ public:
         virtual ~event_logger() {}
         /** log an event with time and default source information */
         log_msg log() { return log_msg(*this); }
+
 private:
-        /** write message to the log */
-        virtual void log(timestamp const &, std::string const &) = 0;
+        /**
+         * write message to the log. called by log_msg.
+         *
+         * @param utc  the time of the message, in UTC
+         */
+        virtual void write_log(timestamp const &utc, std::string const &) = 0;
 };
 
 }
