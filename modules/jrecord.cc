@@ -108,6 +108,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         // data is flushed
         nframes = arf_thread->resize_buffer(nframes * 32, client->nports());
         writer->log() << "ringbuffer size (samples): " << nframes;
+        writer->close_entry();
         return 0;
 }
 

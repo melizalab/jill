@@ -79,12 +79,16 @@ readahead_stimqueue::loop()
 
         while (1) {
                 if (_head == 0) {
-                        if (_it == _stimlist.end() && _stimlist.size() > 0) break;
-                        ptr = *_it;
-                        ptr->load_samples(_samplerate);
-                        _log->log() << "next stim: " << ptr->name();
-                        _head = ptr;
-                        _it += 1;
+                        if (_it == _stimlist.end()) {
+                                if (_stimlist.size() > 0) break;
+                        }
+                        else {
+                                ptr = *_it;
+                                ptr->load_samples(_samplerate);
+                                _log->log() << "next stim: " << ptr->name();
+                                _head = ptr;
+                                _it += 1;
+                        }
                 }
                 if (_loop && _it == _stimlist.end()) {
                         _it = _stimlist.begin();

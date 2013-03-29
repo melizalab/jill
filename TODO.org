@@ -333,7 +333,18 @@ Appears to be fine in jrecord.
 * DONE jrecord should drop events before entry start
 
 this was a bug in how the stored event time was calculated
+* TODO handle disconnect of last trigger connection
 
+need a threadsafe way to to do this that makes sure the full period is written
+
+* TODO test xrun handling
+
+* TODO jrecord: more flexible specification of input ports
+
+spec says allow user to connect to all ports of another client, and to set up a
+fixed number of ports. either drop from spec or implement
+
+* DONE terminate jentry on buffer size change
 * TODO profiling
 
 arf_thread's performance isn't quite what I'd like it to be, and it seems much

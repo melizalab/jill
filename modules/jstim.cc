@@ -167,10 +167,17 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 }
 
 void
+jack_shutdown(jack_status_t code, char const *)
+{
+        __sync_add_and_fetch(&xruns, 1); // gcc specific
+        if (queue) queue->stop();
+}
+
+void
 signal_handler(int sig)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
-        queue->stop();
+        if (queue) queue->stop();
 }
 
 
