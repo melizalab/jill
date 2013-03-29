@@ -6,18 +6,11 @@ using namespace std;
 using namespace boost::posix_time;
 using namespace jill::util;
 
-stream_logger::stream_logger(ostream & os, string const & source)
+stream_logger::stream_logger(string const & source, ostream & os)
         : _os(os), _source(source) {}
 
-ostream &
-stream_logger::log()
+void
+stream_logger::log(jill::timestamp const & t, std::string const & msg)
 {
-        return _os << timestamp() << " [" << _source << "] ";
-}
-
-string
-stream_logger::timestamp() const
-{
-        ptime t(microsec_clock::local_time());
-        return to_iso_string(t);
+        _os << to_iso_string(t) << ' ' << msg << endl;
 }
