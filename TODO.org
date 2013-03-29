@@ -267,7 +267,7 @@ some serious profiling at some non-premature point.
 
 
 
-* TODO deal with pthread cleanup in destructors
+* DONE deal with pthread cleanup in destructors
 
 Objects that own pthread objects (mutexes, condition variables) need to clean
 them up on destruction. However, if the destructor gets called from a signal
@@ -278,7 +278,7 @@ and let the threads exit naturally.  But of course this doesn't work without
 signaling the condition variables, which isn't supported in signal handlers.
 Some resources indicate only pthread_cancel is async-safe.
 
-** jstim
+** DONE jstim
 
 stimqueue waits in enqueue() and gets released by release(). Currently calling
 enqueue() from main thread, but it's probably safer to spawn a separate thread
@@ -293,8 +293,6 @@ queue to the beginning, but don't modify the head.
 the queue spawns its own thread which takes care of putting elements from the
 list into the head pointer. a bunch of conditions to check
 
-head = 0 - need data
- - is there any available?
 
 ** DONE jrecord
 

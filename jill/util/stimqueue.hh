@@ -16,15 +16,11 @@ class stimqueue : boost::noncopyable {
 public:
         virtual ~stimqueue() {}
 
-        /**
-         * Get a pointer to the current position in the current stimulus.
-         *
-         * @note for reader thread, wait-free
-         *
-         * @return ponter to current position or nullptr if no stimulus is
-         * available.
-         */
-        // virtual sample_t const * buffer() const = 0;
+        /** signal the queue thread to shut down */
+        virtual void stop() = 0;
+
+        /** wait for the queue to exit */
+        virtual void join() = 0;
 
         /**
          * Get the stimulus currently at the head of the queue.
@@ -39,11 +35,10 @@ public:
         /**
          * Release the current stimulus and notify the queue to load a new one.
          *
+         * @pre head() != 0
          * @note for reader thread, wait-free
-         *
-         * @return true if the stimulus was released
          */
-        virtual bool release() = 0;
+        virtual void release() = 0;
 
         /**
          * Add a stimulus to the queue.  May reset the queue to the beginning;

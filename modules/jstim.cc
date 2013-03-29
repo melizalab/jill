@@ -12,15 +12,13 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/lexical_cast.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
 #include "jill/file/stimfile.hh"
 #include "jill/util/stream_logger.hh"
-#include "jill/util/stimset.hh"
-#include "jill/util/stimqueue.hh"
+#include "jill/util/readahead_stimqueue.hh"
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jstim"
@@ -60,90 +58,95 @@ protected:
 jstim_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::shared_ptr<util::stream_logger> logger;
 boost::shared_ptr<jack_client> client;
-boost::shared_ptr<util::stimset> stimset;
+boost::shared_ptr<util::stimqueue> queue;
 jack_port_t *port_out, *port_trigout, *port_trigin;
 int ret = EXIT_SUCCESS;
 
-util::stimqueue queue;          // manages queue of stimuli
 int xruns = 0;
-nframes_t last_start = 0;       // last stimulus start time
-nframes_t last_stop = 0;        // last stimulus stop
 
-/* the realtime process loop */
+/* the realtime process loop. some complicated logic follows! */
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
-        void *trig = client->events(port_trigout, nframes);
-        sample_t *out = client->samples(port_out, nframes);
-        // zero output buffer - inefficient but simple here
+        // NB static variables are initialized to 0
+        static nframes_t stim_offset; // current position in stimulus buffer
+        static nframes_t last_start;  // last stimulus start time
+        static nframes_t last_stop;   // last stimulus stop
+
+        nframes_t period_offset;      // the offset in the period to start copying
+
+        void * trig = client->events(port_trigout, nframes);
+        sample_t * out = client->samples(port_out, nframes);
+        // zero the output buffer - somewhat inefficient but safer
         memset(out, 0, nframes * sizeof(sample_t));
+
+        // the currently playing stimulus (or nullptr)
+        jill::stimulus_t const * stim = queue->head();
 
         // handle xruns
         if (xruns) {
                 // playing stimuli are truncated
-                if (queue.playing()) {
-                        std::string s(queue.name());
+                if (stim_offset > 0 && stim) {
+                        std::string s(stim->name());
                         s += " TRUNCATED";
                         midi::write_message(trig, 0, midi::stim_off, s.c_str());
-                        queue.advance(queue.nsamples()); // stop playback
+                        // stop playback
+                        stim_offset = stim->nframes();
+                        queue->release();
                 }
-                midi::write_message(trig, 1, midi::info, "xrun detected");
+                // midi::write_message(trig, 1, midi::info, "xrun detected");
                 // reset timers because running time has changed
                 last_start = last_stop = time;
                 // indicate we've handled the xrun
                 __sync_add_and_fetch(&xruns, -1);
         }
 
-        // check that stimulus is queued
-        if (!queue.ready()) {
-                // sort of hacky: if the queue is full and there's no buffer
-                // it's because the current stim is empty (or the end-of-queue type)
-                if (queue.full()) queue.release();
-                return 0;
-        }
+        // if no stimulus queued do nothing
+        if (stim == 0) return 0;
 
-        nframes_t offset;
         // am I playing a stimulus?
-        if (queue.playing()) {
-                offset = 0;
+        if (stim_offset > 0) {
+                period_offset = 0;
         }
         // is there an external trigger?
         else if (port_trigin) {
                 void * midi_buffer = client->events(port_trigin, nframes);
-                offset = midi::find_trigger(midi_buffer, true);
-                if (offset > nframes) return 0;
-                last_start = time + offset;
-                midi::write_message(trig, offset, midi::stim_on, queue.name());
+                period_offset = midi::find_trigger(midi_buffer, true);
+                if (period_offset > nframes) return 0; // no trigger
+                last_start = time + period_offset;
+                midi::write_message(trig, period_offset, midi::stim_on, stim->name());
         }
         // has enough time elapsed since the last stim?
         else {
                 // deltas with last events - overflow is correct because time >= lastX
                 nframes_t dstart = time - last_start;
                 nframes_t dstop = time - last_stop;
-                // now we have to check for overflow
+                // now check for overflow
                 nframes_t ostart = (dstart > options.min_interval) ? 0 : options.min_interval - dstart;
                 nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
-                offset = std::max(ostart, ostop);
-                if (offset >= nframes) return 0;
-                last_start = time + offset;
-                midi::write_message(trig, offset, midi::stim_on, queue.name());
+                period_offset = std::max(ostart, ostop);
+                if (period_offset >= nframes) return 0; // not time yet
+                last_start = time + period_offset;
+                midi::write_message(trig, period_offset, midi::stim_on, stim->name());
         }
+        // sanity check - will be optimized out
+        assert(period_offset < nframes);
 
         // copy samples, if there are any
-        nframes_t nsamples = std::min(queue.nsamples(), nframes);
-        memcpy(out + offset, queue.buffer(), nsamples * sizeof(sample_t));
-        queue.advance(nsamples);
-
-        // is the stimulus stopped?
-        if (queue.nsamples() == 0) {
-                // did it end in this frame?
-                if (nsamples > 0) {
-                        last_stop = time + offset + nsamples;
-                        midi::write_message(trig, offset + nsamples, midi::stim_off, queue.name());
+        nframes_t nsamples = std::min(stim->nframes() - stim_offset, nframes);
+        if (nsamples > 0) {
+                memcpy(out + period_offset,
+                       stim->buffer() + stim_offset,
+                       nsamples * sizeof(sample_t));
+                stim_offset += nsamples;
+                // did the stimulus end?
+                if (stim_offset >= stim->nframes()) {
+                        queue->release();
+                        last_stop = time + period_offset + nsamples;
+                        midi::write_message(trig, period_offset + nsamples,
+                                            midi::stim_off, stim->name());
+                        stim_offset = 0;
                 }
-                // try to release the stimulus. may not have an effect, in which
-                // case we'll try again on the next loop
-                queue.release();
         }
 
         return 0;
@@ -167,15 +170,13 @@ void
 signal_handler(int sig)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
-        // not strictly async safe
-        usleep(2e6 * client->buffer_size() / client->sampling_rate());
-        exit(sig);
+        queue->stop();
 }
 
 
 /* parse the list of stimuli */
 static void
-init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_t const default_nreps)
+init_stimset(std::vector<std::string> const & stims, size_t const default_nreps)
 {
         using namespace boost::filesystem;
 
@@ -183,14 +184,13 @@ init_stimset(util::stimset * sset, std::vector<std::string> const & stims, size_
         for (size_t i = 0; i < stims.size(); ++i) {
                 path p(stims[i]);
                 if (!(exists(p) || is_regular_file(p))) continue;
-                try {
-			nreps = boost::lexical_cast<int>(stims.at(i+1));
-                }
-                catch (...) {
-                        nreps = default_nreps;
+                if ((i+1) < stims.size()) {
+                        if (sscanf(stims[i+1].c_str(),"%zd",&nreps) == 0) {
+                                nreps = default_nreps;
+                        }
                 }
                 jill::stimulus_t *stim = new file::stimfile(p.string());
-                sset->add(stim, nreps);
+                queue->add(stim, nreps);
                 logger->log() << "stimulus: " << p.stem() << " (" << stim->samplerate() << " Hz; "
                               << stim->duration() << " s)";
         }
@@ -218,11 +218,13 @@ main(int argc, char **argv)
                                       << options.min_interval << " samples)";
                 }
 
-                stimset.reset(new util::stimset(client->sampling_rate()));
-                init_stimset(stimset.get(), options.stimuli, options.nreps);
+                queue.reset(new util::readahead_stimqueue(client->sampling_rate(),
+                                                          logger,
+                                                          options.count("loop")));
+                init_stimset(options.stimuli, options.nreps);
                 if (options.count("shuffle")) {
                         logger->log() << "shuffled stimuli";
-                        stimset->shuffle();
+                        queue->shuffle();
                 }
 
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
@@ -251,19 +253,9 @@ main(int argc, char **argv)
                 client->connect_ports("trig_out", options.trigout_ports.begin(), options.trigout_ports.end());
                 client->connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(), "trig_in");
 
-                /*
-                 * main thread: queue up current and next stimulus. wait on
-                 * process thread for signal to move to next stimulus. loop
-                 * until the queue is empty
-                 */
-                queue.enqueue(stimset->next());
-                while(options.count("loop") || queue.ready()) {
-                        queue.enqueue(stimset->next());
-                        logger->log() << "next stim: " << queue.name();
-                }
-
-                // give the process loop a chance to clear the midi output buffer
-                usleep(2e6 * client->buffer_size() / client->sampling_rate());
+                // wait for stimuli to finish playing
+                queue->join();
+                client->deactivate();
 
 		return ret;
 	}

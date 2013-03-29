@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <vector>
 #include <boost/ptr_container/ptr_vector.hpp>
+#include "../event_logger.hh"
 #include "stimqueue.hh"
 
 namespace jill { namespace util {
@@ -21,11 +22,16 @@ namespace jill { namespace util {
 class readahead_stimqueue : public stimqueue {
 
 public:
-        readahead_stimqueue(nframes_t samplerate, bool loop=false);
+        readahead_stimqueue(nframes_t samplerate,
+                            boost::shared_ptr<event_logger> logger,
+                            bool loop=false);
         ~readahead_stimqueue();
 
+        void stop();
+        void join();
+
         stimulus_t const * head() const { return _head; }
-        bool release();
+        void release();
         void add(stimulus_t *, size_t nreps=1);
         void shuffle();
 
@@ -33,6 +39,7 @@ private:
         static void * thread(void * arg); // thread entry point
         void loop();                      // called by thread
 
+        boost::shared_ptr<event_logger> _log;     // logging facility
         nframes_t const _samplerate;
         bool const _loop;
         boost::ptr_vector<stimulus_t> _stimuli;

@@ -9,6 +9,7 @@
 
 #include <boost/program_options.hpp>
 
+#include "jill/event_logger.hh"
 #include "jill/util/readahead_stimqueue.hh"
 #include "jill/file/stimfile.hh"
 
@@ -77,7 +78,8 @@ test_stimqueue(util::stimqueue & q, int count)
 
 int main(int argc, char **argv)
 {
-        util::readahead_stimqueue queue(30000);
+        boost::shared_ptr<event_logger> l;
+        util::readahead_stimqueue queue(30000, l);
         assert(queue.head() == 0);
         int count = load_stimset(queue, argc, argv);
 
