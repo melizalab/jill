@@ -18,7 +18,7 @@ public:
                 std::cout << "\rgot period: time=" << info->time << ", nframes=" << info->nframes << std::flush;
                 return info->nframes;
         }
-        void log(timestamp const &, std::string const & msg) {
+        void write_log(timestamp const &, std::string const & msg) {
                 std::cout << msg << std::endl;
         }
 };

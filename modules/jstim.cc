@@ -272,7 +272,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-                std::cerr << "Error: " << e.what() << std::endl;
+                if (logger) logger->log() << "FATAL ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}
 

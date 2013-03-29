@@ -270,18 +270,18 @@ arf_writer::write_log(timestamp const &utc, string const &msg)
 {
         typedef boost::date_time::c_local_adjustor<ptime> local_adj;
 
-        util::make_string s;
-        s << '[' << _sourcename << "] " << msg;
-        char const * _msg = s;
+        // for some reason make_string's output gets corrupted by H5PTwrite
+        char m[msg.length() + _sourcename.length() + 8];
+        sprintf(m, "[%s] %s", _sourcename.c_str(), msg.c_str());
 
         time_duration t = utc - epoch;
-        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), _msg };
+        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m };
         pthread_mutex_lock(&_lock);
         _log->write(&message, 1);
         pthread_mutex_unlock(&_lock);
 
         ptime local = local_adj::utc_to_local(utc);
-        std::cout << to_iso_string(local) << ' ' << _msg << std::endl;
+        std::cout << to_iso_string(local) << ' ' << m << std::endl;
 }
 
 void

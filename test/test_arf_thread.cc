@@ -31,6 +31,7 @@ boost::shared_ptr<data_source> client;
 boost::shared_ptr<data_writer> writer;
 boost::shared_ptr<data_thread> thread;
 
+nframes_t buffer_size = 20480;
 unsigned short seed[3] = { 0 };
 sample_t test_data[PERIOD_SIZE];
 
@@ -84,7 +85,7 @@ namespace jill { namespace dsp {
 /* need access to some private members of triggered_data_writer */
 struct triggered_data_writer_test {
         triggered_data_writer_test(triggered_data_writer * w) : p(w) {
-                p->resize_buffer(PERIOD_SIZE, NCHANNELS * 16);
+                p->resize_buffer(buffer_size, NCHANNELS);
                 write_space = p->write_space(PERIOD_SIZE);
                 thread.reset(p);
                 thread->start();
@@ -164,7 +165,6 @@ triggered_data_writer_test::test(nframes_t start_time)
 int
 main(int argc, char **argv)
 {
-        nframes_t buffer_size = 20480;
         if (argc > 1) {
                 buffer_size = atoi(argv[1]);
         }
@@ -173,7 +173,7 @@ main(int argc, char **argv)
 
         printf("Testing dummy writer\n");
         writer.reset(new file::null_writer);
-        writer->log() << "a random log message" << std::endl;
+        writer->log() << "a random log message";
 
         printf("Testing continuous writer thread\n");
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
@@ -182,8 +182,8 @@ main(int argc, char **argv)
         printf("Testing arf writer, no compression\n");
         map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
                 ("experiment","write uncompressed");
-        writer.reset(new file::arf_writer(CLIENT_NAME, "test.arf", attrs, client, 0));
-        writer->log() << "a random log message" << std::endl;
+        writer.reset(new file::arf_writer(CLIENT_NAME, "test.arf", attrs, 0));
+        writer->log() << "a random log message";
 
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
         write_data_rate(boost::posix_time::seconds(5));
@@ -195,8 +195,8 @@ main(int argc, char **argv)
         printf("Testing arf writer, compression=1\n");
         attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
                 ("experiment","write compressed");
-        writer.reset(new file::arf_writer(CLIENT_NAME, "test.arf", attrs, client, 1));
-        writer->log() << "a random log message" << std::endl;
+        writer.reset(new file::arf_writer(CLIENT_NAME, "test.arf", attrs, 1));
+        writer->log() << "a random log message";
 
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
         write_data_rate(boost::posix_time::seconds(5));

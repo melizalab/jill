@@ -107,7 +107,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         // only takes effect if requested size > buffer size; blocks until old
         // data is flushed
         nframes = arf_thread->resize_buffer(nframes * 32, client->nports());
-        writer->log() << "ringbuffer size (samples): " << nframes << std::endl;
+        writer->log() << "ringbuffer size (samples): " << nframes;
         return 0;
 }
 
@@ -149,7 +149,7 @@ main(int argc, char **argv)
                                                   options.output_file,
                                                   options.additional_options,
                                                   options.compression));
-                writer->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
+                writer->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
 
                 client.reset(new jack_client(options.client_name, writer));
                 writer->set_data_source(client);
@@ -174,11 +174,11 @@ main(int argc, char **argv)
                         jack_port_t *p = client->get_port(*it);
                         if (p==0) {
                                 writer->log() << "error registering port: source port "
-                                              << *it << " does not exist" << endl;
+                                              << *it << " does not exist";
                         }
                         else if (!(jack_port_flags(p) & JackPortIsOutput)) {
                                 writer->log() << "error registering port: source port "
-                                              << *it << " is not an output port" << endl;
+                                              << *it << " is not an output port";
                         }
                         else {
                                 char buf[16];
@@ -229,7 +229,6 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (exception const &e) {
-                cerr << "Error: " << e.what() << endl;
                 if (writer) writer->log() << "FATAL ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}

@@ -293,13 +293,18 @@ to call the flush method.  Maybe that's not necessary?  I removed that (assuming
 that the HDF5 library will clean itself up), and set the signal handler to just
 tell the disk thread to stop, which will cause the program to exit normally.
 
-* TODO jrecord: fix race condition with logger
+* DONE jrecord: fix race condition with logger
 
 when starting up a jrecord instance with a lot of channels, the first period may
 arrive in the writer before all the mesages about port connection have been
 emitted.  This situation could apply in other conditions as well. So clearly we
 need some kind of blocking or queue for log messages.  may need to rethink this
 whole effing thing.
+
+settled on having a dedicated proxy class somewhat like make_string that
+encapsulates a stringstream object, and that calls a private virtual function on
+the event_logger that created it during destruction.  The stringstream is
+allocated on the heap to allow the proxy to be easily copied.
 
 * DONE arf_writer: fix cyclical reference problem
 
@@ -310,3 +315,18 @@ unallocated shared_ptr<data_source>, because resetting the
 shared_ptr<data_source> doesn't magically update the weak_ptr.  Probably the
 simplest (if somewhat inelegant) solution is to add a member function to
 data_writer to set that pointer later.
+
+* TODO sample count not quite right in test_arf_thread
+
+this may be an artifact of how the testing is done, but I'm short a few samples.
+Appears to be fine in jrecord.
+
+* TODO jrecord should drop events before entry start
+
+* TODO profiling
+
+arf_thread's performance isn't quite what I'd like it to be, and it seems much
+reduced after adding locking to arf_writer.  the granularity of the locks may be
+too fine.
+
+** TODO check for deadlocks
