@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include <iostream>
+#include <boost/ptr_container/ptr_vector.hpp>
 #include <vector>
 #include <string>
 
@@ -11,6 +12,7 @@
 
 #include "jill/event_logger.hh"
 #include "jill/util/readahead_stimqueue.hh"
+#include "jill/util/stream_logger.hh"
 #include "jill/file/stimfile.hh"
 
 size_t srates[] = {10000, 20000, 40000, 80000, 0};
@@ -18,6 +20,9 @@ size_t srates[] = {10000, 20000, 40000, 80000, 0};
 namespace po = boost::program_options;
 using namespace jill;
 using namespace std;
+
+boost::ptr_vector<stimulus_t> _stimuli;
+std::vector<stimulus_t *> _stimlist;
 
 /* test loading and resampling */
 void
@@ -43,15 +48,15 @@ test_stimfile(file::stimfile & f)
 }
 
 int
-load_stimset(util::stimqueue & q, int argc, char **argv)
+load_stimset(int argc, char **argv)
 {
         int count = 0;
         for (int i = 1; i < argc; ++i) {
-                cout << "adding " << argv[i] << " to queue" << endl;
                 int n = (i % 5) + 1;
                 file::stimfile *f = new file::stimfile(argv[i]);
-                // test_stimfile(*f);
-                q.add(f, n);
+                _stimuli.push_back(f);
+                for (int j = 0; j < n; ++j)
+                        _stimlist.push_back(f);
                 count += n;
         }
         return count;
@@ -61,12 +66,11 @@ void
 test_stimqueue(util::stimqueue & q, int count)
 {
         jill::stimulus_t const * ptr;
-        q.shuffle();
-        cout << "expecting " << count << "items in queue" << endl;
+        cout << "expecting " << count << " items in queue" << endl;
         while (count) {
                 ptr = q.head();
                 if (ptr == 0)
-                        sleep(1);
+                        usleep(1000);
                 else {
                         cout << ptr->name() << ": " << ptr->nframes() << " @" << ptr->samplerate() << endl;
                         q.release();
@@ -78,10 +82,12 @@ test_stimqueue(util::stimqueue & q, int count)
 
 int main(int argc, char **argv)
 {
-        boost::shared_ptr<event_logger> l;
-        util::readahead_stimqueue queue(30000, l);
-        assert(queue.head() == 0);
-        int count = load_stimset(queue, argc, argv);
+        boost::shared_ptr<event_logger> l(new util::stream_logger("test_stimset",std::cout));
+        int count = load_stimset(argc, argv);
+        std::random_shuffle(_stimlist.begin(), _stimlist.end());
+
+        util::readahead_stimqueue queue(_stimlist.begin(), _stimlist.end(), 30000, l);
 
         test_stimqueue(queue, count);
+        queue.join();
 }

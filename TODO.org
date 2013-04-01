@@ -344,6 +344,17 @@ need a threadsafe way to to do this that makes sure the full period is written
 
 spec says allow user to connect to all ports of another client, and to set up a
 fixed number of ports. either drop from spec or implement
+* TODO jstim: fix stimulus queue
+
+this is still not behaving very well, althoguh it was working okay on os x.
+partially a specification problem, an interface that's trying to do too much.
+really what I need is a queue that will operate on a generic sequence. One
+thread will run through the queue and load/resample the stimuli, while the RT
+thread runs behind and consumes the elements in the queue.  The queue needs to
+have an option to loop.  The other important element is being able to block the
+main thread until the queue has been exhausted or interrupted.  Where the
+problems are occurring are when the thread is running while stimuli are being
+added to the list, so why not abstract this out.
 
 * DONE terminate jentry on buffer size change
 * TODO profiling

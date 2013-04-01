@@ -7,57 +7,45 @@
 namespace jill { namespace util {
 
 /**
- * Represents a thread-safe stimulus queue. One thread is reading data from the
- * stimulus at the head of the queue, while an internal thread takes care of
- * loading stimuli.
+ * Represents a stimulus queue that provides wait-free access to a series of
+ * stimuli in order. The queue may loop endlessly, and a background thread may
+ * be responsible for preparing the data.  The method(s) for adding stimuli to the
+ * queue are implementation-specific.
  */
 class stimqueue : boost::noncopyable {
 
 public:
         virtual ~stimqueue() {}
 
-        /** signal the queue thread to shut down */
-        virtual void stop() = 0;
-
-        /** wait for the queue to exit */
-        virtual void join() = 0;
-
         /**
          * Get the stimulus currently at the head of the queue.
          *
-         * @note for reader thread, wait-free
+         * @note must be wait-free
          *
          * @return pointer to current stimulus, or nullptr if no stimulus is
          * available
          */
-        virtual stimulus_t const * head() const = 0;
+        virtual stimulus_t const * head() = 0;
 
         /**
          * Release the current stimulus and notify the queue to load a new one.
          *
          * @pre head() != 0
-         * @note for reader thread, wait-free
+         * @note must be wait-free
          */
         virtual void release() = 0;
 
         /**
-         * Add a stimulus to the queue.  May reset the queue to the beginning;
-         * may block.
-         *
-         * @note for the writer thread
-         *
-         * @param stim  pointer to stimulus object. samples do not need to be
-         * loaded yet. The queue will own the object.
-         * @param nreps  the number of times to play the stimulus in each block
+         * Terminate the queue. It may be necessary to call this function if
+         * there is a background thread or the queue is set to loop endlessly.
          */
-        virtual void add(stimulus_t * stim, size_t nreps=1) = 0;
+        virtual void stop() = 0;
 
         /**
-         * Shuffle the stimulus list and start at the beginning. May block.
-         *
-         * @param for the writer thread
+         * Blocks until the queue has been exhausted (the last stimulus in the
+         * list has been released, or stop() has been called.
          */
-        virtual void shuffle() {}
+        virtual void join() = 0;
 
 };
 

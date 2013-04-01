@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -58,7 +59,9 @@ protected:
 jstim_options options(PROGRAM_NAME, PROGRAM_VERSION);
 boost::shared_ptr<util::stream_logger> logger;
 boost::shared_ptr<jack_client> client;
-boost::shared_ptr<util::stimqueue> queue;
+boost::shared_ptr<util::readahead_stimqueue> queue;
+boost::ptr_vector<stimulus_t> _stimuli;
+std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_trigout, *port_trigin;
 int ret = EXIT_SUCCESS;
 
@@ -197,9 +200,9 @@ init_stimset(std::vector<std::string> const & stims, size_t const default_nreps)
                         }
                 }
                 jill::stimulus_t *stim = new file::stimfile(p.string());
-                queue->add(stim, nreps);
-                logger->log() << "stimulus: " << p.stem() << " (" << stim->samplerate() << " Hz; "
-                              << stim->duration() << " s)";
+                _stimuli.push_back(stim);
+                for (size_t j = 0; j < nreps; ++j)
+                        _stimlist.push_back(stim);
         }
 }
 
@@ -225,14 +228,16 @@ main(int argc, char **argv)
                                       << options.min_interval << " samples)";
                 }
 
-                queue.reset(new util::readahead_stimqueue(client->sampling_rate(),
-                                                          logger,
-                                                          options.count("loop")));
+                /* stimulus queue */
                 init_stimset(options.stimuli, options.nreps);
                 if (options.count("shuffle")) {
                         logger->log() << "shuffled stimuli";
-                        queue->shuffle();
+                        random_shuffle(_stimlist.begin(), _stimlist.end());
                 }
+                queue.reset(new util::readahead_stimqueue(_stimlist.begin(), _stimlist.end(),
+                                                          client->sampling_rate(),
+                                                          logger,
+                                                          options.count("loop")));
 
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput | JackPortIsTerminal, 0);
