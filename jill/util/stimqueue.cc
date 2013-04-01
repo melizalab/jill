@@ -23,6 +23,11 @@ stimqueue::stimqueue()
 
 stimqueue::~stimqueue()
 {
+        // release anything waiting on data_needed
+        // if (pthread_mutex_trylock (&disk_thread_lock) == 0) {
+        //         pthread_cond_broadcast(&data_needed);
+        //         pthread_mutex_unlock (&disk_thread_lock);
+        // }
         pthread_mutex_destroy(&disk_thread_lock);
         pthread_cond_destroy(&data_needed);
 }
