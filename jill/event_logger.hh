@@ -1,43 +1,59 @@
 #ifndef _EVENT_LOGGER_HH
 #define _EVENT_LOGGER_HH
 
-// #include <iosfwd>
 #include <boost/noncopyable.hpp>
-#include <sstream>
+#include <boost/date_time/posix_time/ptime.hpp>
+#include <iosfwd>
 
-// #include <boost/iostreams/categories.hpp>  // sink_tag
 
 namespace jill {
 
-struct log_proxy;
+typedef boost::posix_time::ptime timestamp;
 
-/**
- * ABC for classes that can log messages. It provides a stream interface and an
- * option to log the time and source, or just the source.  May be implemented
- * directly using an external stream or using a friend stream proxy.
- */
-struct event_logger : boost::noncopyable {
-        friend class log_proxy;
+class event_logger;
 
-        virtual ~event_logger() {}
-        /** log an event with time and default source information */
-        virtual log_proxy log() = 0;
+class log_msg {
 
-private:
-        /** write a raw message to the log */
-        virtual std::streamsize log(const char *s, std::streamsize n) = 0;
-};
+public:
+        log_msg(event_logger &);
+        // log_msg & operator= (log_msg &);
+        ~log_msg();
 
-struct log_proxy {
-        log_proxy(event_logger &w) : _w(w) {}
-        ~log_proxy() {
-// send message
+        template <typename T>
+        log_msg & operator<< (T const& t) {
+                *_stream << t;
+                return *this;
         }
-        std::streamsize write(char const * s, std::streamsize n) {
-                return _w.log(s, n);
+
+        log_msg & operator<< (std::ostream & (*pf)(std::ostream &)) {
+                pf(*_stream);
+                return *this;
         }
+
 private:
         event_logger &_w;
+        timestamp _creation;    // in utc
+        std::ostringstream * _stream;
+};
+
+/**
+ * ABC for classes that can log messages. The public log() member function
+ * returns a proxy object that behaves like a stream.
+ */
+class event_logger : boost::noncopyable {
+        friend class log_msg;
+public:
+        virtual ~event_logger() {}
+        /** log an event with time and default source information */
+        log_msg log() { return log_msg(*this); }
+
+private:
+        /**
+         * write message to the log. called by log_msg.
+         *
+         * @param utc  the time of the message, in UTC
+         */
+        virtual void write_log(timestamp const &utc, std::string const &) = 0;
 };
 
 }

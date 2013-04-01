@@ -18,9 +18,9 @@ public:
                 std::cout << "\rgot period: time=" << info->time << ", nframes=" << info->nframes << std::flush;
                 return info->nframes;
         }
-        std::ostream & log() { return std::cout; }
-        std::streamsize log(const char *s, std::streamsize n) { return 0; }
-
+        void write_log(timestamp const &, std::string const & msg) {
+                std::cout << msg << std::endl;
+        }
 };
 
 }}

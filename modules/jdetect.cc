@@ -10,7 +10,7 @@
  */
 #include <iostream>
 #include <signal.h>
-#include <boost/scoped_ptr.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -57,9 +57,9 @@ protected:
 
 
 jdetect_options options(PROGRAM_NAME, PROGRAM_VERSION);
-boost::scoped_ptr<util::stream_logger> logger;
-boost::scoped_ptr<jack_client> client;
-boost::scoped_ptr<dsp::crossing_trigger<sample_t> > trigger;
+boost::shared_ptr<util::stream_logger> logger;
+boost::shared_ptr<jack_client> client;
+boost::shared_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
 int stopping = 0;               // set to 1 to get process to clean up
 
@@ -112,14 +112,14 @@ std::size_t log_times(event_t const * events, std::size_t count)
         std::size_t i;
 	for (i = 0; i < count; ++i) {
                 e = events+i;
-                std::ostream &os = logger->log();
+                log_msg os = logger->log();
                 if (e->status==midi::note_on)
                         os << "signal on: ";
                 else if (e->status==midi::note_off)
                         os << "signal off:";
                 else
                         os << "WARNING: detected but couldn't send event: ";
-                os << " frames=" << e->time << ", us=" << client->time(e->time) << std::endl;
+                os << " frames=" << e->time << ", us=" << client->time(e->time);
         }
         return i;
 }
@@ -155,13 +155,13 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
                                                          period_size));
 
         // Log parameters
-        logger->log() << "period size: " << options.period_size_ms << " ms, " << period_size << " samples" << endl;
-        logger->log() << "open threshold: " << options.open_threshold << endl;
-        logger->log() << "open count thresh: " << open_count_thresh << endl;
-        logger->log() << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods " << endl;
-        logger->log() << "close threshold: " << options.close_threshold << endl;
-        logger->log() << "close count thresh: " << close_count_thresh << endl;
-        logger->log() << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods " << endl;
+        logger->log() << "period size: " << options.period_size_ms << " ms, " << period_size << " samples";
+        logger->log() << "open threshold: " << options.open_threshold;
+        logger->log() << "open count thresh: " << open_count_thresh;
+        logger->log() << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods ";
+        logger->log() << "close threshold: " << options.close_threshold;
+        logger->log() << "close count thresh: " << close_count_thresh;
+        logger->log() << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods ";
         return 0;
 }
 
@@ -172,9 +172,9 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-                logger.reset(new util::stream_logger(cout, options.client_name));
-                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION << endl;
-                client.reset(new jack_client(options.client_name, *logger));
+                logger.reset(new util::stream_logger(options.client_name, cout));
+                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
+                client.reset(new jack_client(options.client_name, logger));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
@@ -216,11 +216,10 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-                std::cerr << "Error: " << e.what() << std::endl;
+                if (logger) logger->log() << "FATAL ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}
 
-	/* Because we used smart pointers and locally scoped variables, there is no cleanup to do! */
 }
 
 

@@ -221,11 +221,8 @@ provides the ability to record data prior to the actual epoch onset event.
              terminate. Multiple inputs may be connected to this port, in which
              case the events will be mixed. Onset events are ignored during
              recording epochs; offset events are ignored outside of recording
-             epochs. Channel values less than 8 initiate recording; all other
-             channel values indicate the message is purely informative. All
-             events, including their channel information, are logged. In
-             continuous recording mode, this port will still be created, but it
-             will not affect acquisition.
+             epochs. All events, including their channel information, are
+             logged. In continuous recording mode, this port is not created.
 
 The client will not make any changes to its port configuration during operation.
 
@@ -236,7 +233,7 @@ The client will not make any changes to its port configuration during operation.
 2. Registration/unregistration events are ignored.
 3. Port connections and disconnections are logged to the output file. If the the
    program is in epoch mode, the last connection to the trigger port is
-   disconnected, and recording is in progress, stops in the next period.
+   disconnected, and recording is in progress, stops in the next period (TODO).
    Disconnected input ports will still be recorded, but will have zeros in the
    signal.
 4. All xruns are logged to the output file. In continuous mode, xruns cause the
@@ -331,7 +328,7 @@ field.
 
 : start       - the time of the event (sample count)
 : status      - the MIDI status byte (char)
-: data        - the MIDI message (vlen string or char array)
+: message     - the MIDI message (vlen string or char array)
 
 At present, h5py cannot read vlen types that are not strings, so *jrecord* will
 store messages as strings. Standard MIDI messages (see [[MIDI messages]]) must be
@@ -349,10 +346,10 @@ should be considered authoritative.
 The log is an extensible dataset with the name =jill_log= stored under the root
 group of the ARF file. The fields in the log are:
 
-: sec  - the time of the event, in seconds since the epoch
-: usec - the time of the event, in microseconds
-: msg  - the event message, vlen string with the format "source: event description"
-:        where source is the client or process giving rise to the message
+: sec      - the time of the event, in seconds since the epoch
+: usec     - the time of the event, in microseconds
+: message  - the event message, vlen string with the format "source: event description"
+:            where source is the client or process giving rise to the message
 
 *jrecord* will record the following messages:
 

@@ -16,7 +16,7 @@
 #include <list>
 #include <boost/noncopyable.hpp>
 #include <boost/function.hpp>
-#include <boost/weak_ptr.hpp>
+#include <boost/shared_ptr.hpp>
 #include <jack/jack.h>
 #include "data_source.hh"
 #include "event_logger.hh"
@@ -101,7 +101,7 @@ public:
 	 *               May be changed by the server if not unique.
          * @param logger reference to object used for logging messages
 	 */
-	jack_client(std::string const & name, boost::weak_ptr<event_logger> logger);
+	jack_client(std::string const & name, boost::shared_ptr<event_logger> logger);
 	~jack_client();
 
         /**
@@ -221,12 +221,9 @@ protected:
         port_list_type _ports;
         std::size_t _nports;
 
-        /** log a message */
-        std::ostream & log();
-
 private:
 	jack_client_t * _client; // pointer to jack client
-        boost::weak_ptr<event_logger> _log;     // logging facility
+        boost::shared_ptr<event_logger> _log;     // logging facility
 
 	ProcessCallback _process_cb;
         PortRegisterCallback _portreg_cb;

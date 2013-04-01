@@ -10,17 +10,13 @@ namespace jill { namespace util {
 class stream_logger : public event_logger {
 
 public:
-        stream_logger(std::ostream & os, std::string const & source);
+        stream_logger(std::string const & source, std::ostream & os);
         ~stream_logger() {}
-        std::ostream & log();
 
         std::string const & source() { return _source; }
 
-protected:
-        std::string timestamp() const;
-
 private:
-        std::streamsize log(const char *s, std::streamsize n) { return 0; }
+        void write_log(timestamp const &, std::string const &);
         std::ostream & _os;
         std::string _source;
 };

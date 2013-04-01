@@ -1,16 +1,16 @@
 #include <cstdlib>
 #include <unistd.h>
-#include <cstdio>
 #include <cstring>
 #include <cassert>
 
+#include <iostream>
 #include <vector>
 #include <string>
 
 #include <boost/program_options.hpp>
 
-#include "jill/util/stimset.hh"
-#include "jill/util/stimqueue.hh"
+#include "jill/event_logger.hh"
+#include "jill/util/readahead_stimqueue.hh"
 #include "jill/file/stimfile.hh"
 
 size_t srates[] = {10000, 20000, 40000, 80000, 0};
@@ -43,75 +43,45 @@ test_stimfile(file::stimfile & f)
 }
 
 int
-load_stimset(util::stimset & sset, int argc, char **argv)
+load_stimset(util::stimqueue & q, int argc, char **argv)
 {
         int count = 0;
         for (int i = 1; i < argc; ++i) {
-                printf("opening %s\n", argv[i]);
+                cout << "adding " << argv[i] << " to queue" << endl;
                 int n = (i % 5) + 1;
                 file::stimfile *f = new file::stimfile(argv[i]);
-                test_stimfile(*f);
-                sset.add(f, n);
+                // test_stimfile(*f);
+                q.add(f, n);
                 count += n;
         }
         return count;
 }
 
 void
-test_stimset(util::stimset & sset, int expected_count)
+test_stimqueue(util::stimqueue & q, int count)
 {
-        printf("stimset has %d entries\n", expected_count);
-        sset.shuffle();
-        stimulus_t const *fp = sset.next();
-        while (fp->buffer()) {
-                expected_count -= 1;
-                fp = sset.next();
+        jill::stimulus_t const * ptr;
+        q.shuffle();
+        cout << "expecting " << count << "items in queue" << endl;
+        while (count) {
+                ptr = q.head();
+                if (ptr == 0)
+                        sleep(1);
+                else {
+                        cout << ptr->name() << ": " << ptr->nframes() << " @" << ptr->samplerate() << endl;
+                        q.release();
+                        count -= 1;
+                }
         }
-        assert (expected_count == 0);
-}
-
-
-void
-test_stimqueue(util::stimset & sset)
-{
-        util::stimqueue queue;
-        assert (!queue.ready());
-        assert (!queue.playing());
-
-        sset.shuffle();
-        queue.enqueue(sset.next());
-        assert(queue.ready());
-
-        // how to test mutex?
-
-        queue.enqueue(sset.next());
-        while (queue.ready()) {
-
-                assert(!queue.playing());
-                assert(strlen(queue.name()) > 0);
-                printf("%s\n", queue.name());
-                assert(queue.nsamples() > 0);
-
-                sample_t const * buf = queue.buffer();
-                nframes_t n = queue.nsamples();
-                assert(buf);
-                queue.advance(10);
-                assert(queue.playing());
-                assert(queue.nsamples() == n - 10);
-                assert(queue.buffer() == buf + 10);
-
-                queue.advance(queue.nsamples());
-                assert(queue.nsamples() == 0);
-
-                queue.release();
-                queue.enqueue(sset.next());
-        }
+        assert(q.head() == 0);
 }
 
 int main(int argc, char **argv)
 {
-        util::stimset sset(30000);
-        int count = load_stimset(sset, argc, argv);
-        test_stimset(sset, count);
-        test_stimqueue(sset);
+        boost::shared_ptr<event_logger> l;
+        util::readahead_stimqueue queue(30000, l);
+        assert(queue.head() == 0);
+        int count = load_stimset(queue, argc, argv);
+
+        test_stimqueue(queue, count);
 }

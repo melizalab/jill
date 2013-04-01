@@ -1,5 +1,10 @@
 *.[oa]
+*.arf
+core*
+.sconsign.dblite
 /arf
 /attic
-.sconsign.dblite
-/modules/jrecord
+/resources
+/modules
+/test
+/test_wav
