@@ -69,10 +69,12 @@ triggered_data_writer::start_recording(nframes_t event_time)
 }
 
 void
-triggered_data_writer::stop_recording(nframes_t event_time)
+triggered_data_writer::close_entry(nframes_t event_time)
 {
-        _recording = false;
-        _last_offset = event_time + _posttrigger;
+        // this will be a noop if another thread has closed or is closing the entry
+        if (__sync_bool_compare_and_swap(&_recording,true,false)) {
+                __sync_bool_compare_and_swap(&_last_offset,_last_offset,event_time + _posttrigger);
+        }
 }
 
 void
@@ -99,7 +101,7 @@ triggered_data_writer::write(period_info_t const * period)
                 else {
                         int event_time = midi::find_trigger(data, false);
                         if (event_time > 0)
-                                stop_recording(period->time + event_time);
+                                close_entry(period->time + event_time);
                 }
         }
 

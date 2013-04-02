@@ -76,6 +76,15 @@ public:
          */
         virtual nframes_t resize_buffer(nframes_t nframes, nframes_t nchannels);
 
+        /**
+         * Tell the disk thread to close the current entry when all the channels
+         * have been written.
+         *
+         * @param time   the time to close the entry (may be ignored by some implementations)
+         */
+        virtual void close_entry(nframes_t time);
+
+
 protected:
         /**
          * Entry point for deriving classes to handle data pulled off the
@@ -96,6 +105,7 @@ protected:
         pthread_cond_t  _ready;                    // indicates data ready
         int _stop;                                 // stop flag
         int _xruns;                                // xrun counter
+        int _entry_close;                          // flag to close entry
 
         boost::shared_ptr<data_writer> _writer;            // output
         boost::shared_ptr<period_ringbuffer> _buffer;      // ringbuffer

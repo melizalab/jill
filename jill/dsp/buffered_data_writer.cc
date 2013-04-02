@@ -6,7 +6,7 @@ using namespace jill;
 using namespace jill::dsp;
 
 buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, nframes_t buffer_size)
-        : _stop(0), _xruns(0),
+        : _stop(0), _xruns(0), _entry_close(0),
           _writer(writer),
           _buffer(new dsp::period_ringbuffer(buffer_size))
 {
@@ -44,6 +44,12 @@ buffered_data_writer::xrun()
 {
         __sync_add_and_fetch(&_xruns, 1);
         signal_writer();
+}
+
+void
+buffered_data_writer::close_entry(nframes_t)
+{
+        __sync_add_and_fetch(&_entry_close,1);
 }
 
 void
@@ -124,6 +130,10 @@ buffered_data_writer::write(period_info_t const * info)
                         _writer->xrun();
                         _writer->close_entry(); // new entry
                         __sync_add_and_fetch(&_xruns, -1);
+                }
+                else if (_entry_close) {
+                        _writer->close_entry();
+                        __sync_add_and_fetch(&_entry_close, -1);
                 }
                 else if  (info->time < info->nframes) {
                         _writer->close_entry();

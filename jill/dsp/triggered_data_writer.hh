@@ -34,6 +34,13 @@ public:
         /** @see buffered_data_writer::resize_buffer() */
         nframes_t resize_buffer(nframes_t, nframes_t);
 
+        /**
+         * Close entry at event_time plus the post-trigger frames. It's okay
+         * to call from another thread before the data writer thread has reached
+         * event_time in the data stream.
+         */
+        void close_entry(nframes_t event_time);
+
 protected:
 
         /** @see buffered_data_writer::write() */
@@ -42,10 +49,6 @@ protected:
 private:
         /** Place the object in recording mode. */
         void start_recording(nframes_t time);
-
-        /** Stop recording mode. */
-        void stop_recording(nframes_t time);
-
 
         jack_port_t const * const _trigger_port;
         const nframes_t _pretrigger;

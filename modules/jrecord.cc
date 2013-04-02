@@ -64,6 +64,7 @@ boost::shared_ptr<file::arf_writer> writer;
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<dsp::buffered_data_writer> arf_thread;
 jack_port_t * port_trig = 0;
+int _close_entry_flag = 0;
 
 /*
  * Copy data from ports into ringbuffer. Note that the first port is the trigger
@@ -88,6 +89,11 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 period_info_t info = {time, nframes, *it};
                 port_buffer = client->samples(*it, nframes);
                 arf_thread->push(port_buffer, info);
+        }
+
+        if (_close_entry_flag) {
+                arf_thread->close_entry(time);
+                __sync_add_and_fetch(&_close_entry_flag,-1);
         }
 
         return 0;
@@ -116,9 +122,13 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
-        if (!connected && port2 == port_trig && jack_port_get_connections(port_trig) == 0) {
-                // TODO close current entry if one is open
+        const char ** connects = jack_port_get_connections(port_trig);
+        // can't directly compare port addresses
+        if (!connected && strcmp(jack_port_name(port2),jack_port_name(port_trig))==0 && connects == 0) {
+                // flag process to close current entry
+                __sync_add_and_fetch(&_close_entry_flag,1);
         }
+        if (connects) jack_free(connects);
 }
 
 void

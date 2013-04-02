@@ -56,16 +56,16 @@ public:
         virtual void stop() {}
 
         /**
-         * Start the thread writing samples
+         * Start the thread writing samples.
          *
          * @pre the thread is not already running
          */
         virtual void start() {}
 
         /**
-         * Wait for the thread to finish. Blocks, potentially for a long time.
-         * Deriving classes should call this in the destructor to ensure their
-         * resources are available to the disk thread until it stops.
+         * Wait for the thread to finish. Deriving classes should call this in
+         * the destructor to ensure their resources are available to the disk
+         * thread until it stops.
          */
         virtual void join() {}
 

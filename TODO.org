@@ -338,13 +338,11 @@ this was a bug in how the stored event time was calculated
 
 need a threadsafe way to to do this that makes sure the full period is written
 
-* TODO test xrun handling
-
 * TODO jrecord: more flexible specification of input ports
 
 spec says allow user to connect to all ports of another client, and to set up a
 fixed number of ports. either drop from spec or implement
-* TODO jstim: fix stimulus queue
+* DONE jstim: fix stimulus queue
 
 this is still not behaving very well, althoguh it was working okay on os x.
 partially a specification problem, an interface that's trying to do too much.
@@ -357,10 +355,14 @@ problems are occurring are when the thread is running while stimuli are being
 added to the list, so why not abstract this out.
 
 * DONE terminate jentry on buffer size change
-* TODO profiling
+* TODO testing and profiling
+
+** TODO check for deadlocks
 
 arf_thread's performance isn't quite what I'd like it to be, and it seems much
 reduced after adding locking to arf_writer.  the granularity of the locks may be
 too fine.
 
-** TODO check for deadlocks
+** TODO run jack_interposer
+
+** TODO test xrun handling

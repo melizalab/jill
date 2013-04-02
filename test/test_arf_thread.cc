@@ -95,7 +95,6 @@ struct triggered_data_writer_test {
                 thread->join();
         }
         void start_recording(nframes_t);
-        void stop_recording(nframes_t);
         void test(nframes_t);
         triggered_data_writer *p;
         nframes_t write_space;
@@ -146,7 +145,7 @@ triggered_data_writer_test::test(nframes_t start_time)
         assert(p->write_space(PERIOD_SIZE) == write_space);
 
         // stop the recorder (give it a chance to catch up)
-        p->stop_recording(info.time + 100);
+        p->close_entry(info.time + 100);
         trig_off_time = info.time + 100;
         expected = (POSTBUFFER / PERIOD_SIZE) + ((POSTBUFFER % PERIOD_SIZE) ? 1 : 0);
         write_data_simple(expected, NCHANNELS, &info);
