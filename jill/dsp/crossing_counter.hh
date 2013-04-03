@@ -72,7 +72,7 @@ public:
 			if (_period_nsamples >= _period_size)
 			{
 				_counter.push(_period_crossings);
-				if (_counter.is_full() && ret < 0) {
+				if (_counter.full() && ret < 0) {
 					if (count_thresh > 0 && _counter.running_count() > count_thresh)
 						ret = period;
 					else if (count_thresh < 0 && _counter.running_count() < -count_thresh)

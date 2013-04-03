@@ -334,7 +334,7 @@ Appears to be fine in jrecord.
 * DONE jrecord should drop events before entry start
 
 this was a bug in how the stored event time was calculated
-* TODO handle disconnect of last trigger connection
+* DONE handle disconnect of last trigger connection
 
 need a threadsafe way to to do this that makes sure the full period is written
 
@@ -357,6 +357,10 @@ added to the list, so why not abstract this out.
 * DONE terminate jentry on buffer size change
 * TODO testing and profiling
 
+** TODO check for memory leaks
+
+need to compile a test hdf5 library so I can run valgrind
+
 ** TODO check for deadlocks
 
 arf_thread's performance isn't quite what I'd like it to be, and it seems much
@@ -364,5 +368,12 @@ reduced after adding locking to arf_writer.  the granularity of the locks may be
 too fine.
 
 ** TODO run jack_interposer
+*** DONE jstim
+*** DONE jdetect
+
+failed the test because std::deque allocates memory. switched to a boost::circular_buffer.
+
+*** TODO jrecord
+
 
 ** TODO test xrun handling
