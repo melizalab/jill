@@ -364,6 +364,27 @@ uninitialized variable in init_stimset
 should happen in arf_writer
 
 * TODO jrecord won't trigger off jdetect
+
+* TODO fix cascading xruns in jrecord
+
+jrecord can have cascading xruns triggered by elsewhere in the system. I think
+this comes about because process() keeps incrementing the xrun counter while the
+disk thread is handling the previous xrun. One option would be to clear out the
+read buffer; a better option would be to have the process loop stop adding data
+to the buffer until the disk thread has dealt with the problem, though this
+involves some careful signalling.  Need to keep in mind what's happening with
+the triggered writer, which is currently specified not to close the entry.
+
+rethinking the xrun handling. Instead of being an incrementing counter, should
+be a state.  Other threads put a data_thread into an xrun state, which it
+handles according to implementation, and then returns to a normal state.  The
+implementation can also decide how to handle incoming data.  The RT thread
+doesn't necessarily need to be aware of the xrun state.
+
+Okay, I think I've got this working. buffered_data_writer::thread() handles the
+Stopping state, but the virtual write() method handles the Xrun state.  This
+means the period is passed to write() without checking whether it's null.
+
 * TODO testing and profiling
 
 ** TODO check for memory leaks
@@ -405,14 +426,6 @@ boost::circular_buffer, passed.
 ** TODO test xrun handling
 
 jstim and jdetect weren't closing with shutdown. needed handlers.
-
-jrecord can have cascading xruns triggered by elsewhere in the system. I think
-this comes about because process() keeps incrementing the xrun counter while the
-disk thread is handling the previous xrun. One option would be to clear out the
-read buffer; a better option would be to have the process loop stop adding data
-to the buffer until the disk thread has dealt with the problem, though this
-involves some careful signalling.  Need to keep in mind what's happening with
-the triggered writer, which is currently specified not to close the entry.
 
 ** TODO stress tests
 
@@ -467,3 +480,10 @@ when the ringbuffer is empty. Hopefully by using idle cycles to take care of
 disk stuff we can avoid huge pauses when closing entries, etc. Average cpu load
 does appear to be a bit higher (10-11%). This should also work for
 triggered_data_writer.
+
+*** [2013-04-05 Fri]
+
+Tried running jrecord with two channels overnight. It simply stopped writing
+about a half hour after it was started. Looks like this is due to an xrun. The
+reason it gets stuck in the xrun state is that data are no longer added to the
+buffer, so the write() method that would clear the xrun flag never gets called.

@@ -76,11 +76,12 @@ struct midi {
          * @param onset        if true, look for onset events; if false, for offsets
          * @return the time of the first event, or -1 if no event was found.
          */
-        static int find_trigger(void * midi_buffer, bool onset=true) {
+        static int find_trigger(void const * midi_buffer, bool onset=true) {
+                void * buf = const_cast<void *>(midi_buffer);
                 jack_midi_event_t event;
-                nframes_t nevents = jack_midi_get_event_count(midi_buffer);
+                nframes_t nevents = jack_midi_get_event_count(buf);
                 for (nframes_t i = 0; i < nevents; ++i) {
-                        jack_midi_event_get(&event, midi_buffer, i);
+                        jack_midi_event_get(&event, buf, i);
                         if (event.size < 1) continue;
                         data_type t = event.buffer[0] & midi::type_nib;
                         if (onset) {
@@ -97,28 +98,6 @@ struct midi {
 };
 
 }
-
-
-
-// /** A wrapper for jack midi buffers that exposes an iterator interface */
-// class midi_buffer : boost::noncopyable {
-
-// public:
-//         /**
-//          * Initialize object by getting the buffer for a JACK port. Will clear
-//          * the buffer if it's an output port
-//          */
-//         midi_buffer(jack_port_t *, nframes_t);
-
-//         /** Initialize the object from a pointer to a JACK midi buffer */
-//         explicit midi_buffer(void *);
-
-
-
-// private:
-//         void * _buffer;
-
-// };
 
 #endif /* _MIDI_HH */
 

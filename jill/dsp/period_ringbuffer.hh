@@ -70,6 +70,16 @@ public:
                 return _read_ahead_ptr;
         }
 
+        /// @return true if the buffer contains no data
+        bool empty() const {
+                return read_space() == 0;
+        }
+
+        /// @return true if the peek_ahead pointer is at the end of the read buffer
+        bool empty_ahead() const {
+                return read_space() == _read_ahead_ptr;
+        }
+
         /**
          * Store data for one channel in a period
          *

@@ -239,7 +239,7 @@ The client will not make any changes to its port configuration during operation.
 4. All xruns are logged to the output file. In continuous mode, xruns cause the
    current entry to be terminated (all data in ringbuffer is flushed to disk)
    and a new entry started. In epoch mode, xruns cause the entry to be flagged,
-   but the data are recorded as is.
+   but the data are recorded as is (there are likely to be gaps in the data).
 5. Changes to period size result in a log entry and cause all the data in the
    ringbuffer to be flushed to disk. Because this introduces a gap in the data
    stream, the current entry will be terminated. In continuous mode, a new entry

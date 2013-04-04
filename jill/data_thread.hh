@@ -18,35 +18,41 @@
 namespace jill {
 
 /**
- * The interface for a slow data handler. A fast thread sends it samples that
- * this class handles at whatever pace it can. Designed for multiple channels.
- * Deriving classes will have to specify how the data are stored, and how
- * parameters like the number and names of channels, and the buffersize should
- * be configured.
+ * The interface for a data handler. A fast thread sends it samples through
+ * push(), and the state of the handler can be manipulated through a set of
+ * member functions.  The handler can be in several states:
+ *
+ * Stopped: [initial state] data is not being written to disk. any background
+ *          threads are inactive
+ * Running: [Stopped=>start()] push() accepts samples, samples are written
+ * Xrun:    [Running=>xrun()] initiate when an overrun occurs. returns to Running
+ *          after remaining samples in the buffer are flushed
+ * Stopping: [Running=>stop()] remaining samples in the buffer are flushed.
+ *          returns to Stopped.
  */
 class data_thread : boost::noncopyable {
 
 public:
-        /** the destructor may block until the disk thread is done */
         virtual ~data_thread() {}
 
         /**
-         * Store data to be processed. Thread-safe, lock-free.
+         * Process incoming data according to current state. In Stopped and
+         * Running, data are stored for further processing. In Xrun and
+         * Stopping, data are silently discarded. Always thread-safe
+         * and lock-free.
          *
          * @param data     the buffer from a single channel. must have at least
          *                 as many elements as info.nframes
          * @param info     a structure with information about the period
          *
-         * @return the number of frames actually written. this may be less than
-         * the number of frames requested if (a) any underlying buffers are full
-         * or (b) stop() has been called
-         *
-         * @note user is responsible for calling xrun() if nothing was written
-         * and the data thread needs to be informed of this
+         * @return in Stopped and Running, the number of frames stored. This may
+         * be less than the number of frames requested if any underlying buffers
+         * are full. In Stopping and Xrun, always the number of frames
+         * requested.
          */
         virtual nframes_t push(void const * arg, period_info_t const & info) = 0;
 
-        /** Increment the overrun/underrun counter. Thread-safe, lock-free. */
+        /** Signal an overrun/underrun. Thread-safe, lock-free. */
         virtual void xrun() {}
 
         /**
@@ -65,7 +71,8 @@ public:
         /**
          * Wait for the thread to finish. Deriving classes should call this in
          * the destructor to ensure their resources are available to the disk
-         * thread until it stops.
+         * thread until it stops.  Users must call this before the object is
+         * destroyed to avoid losing data.
          */
         virtual void join() {}
 

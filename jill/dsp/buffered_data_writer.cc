@@ -5,21 +5,28 @@
 using namespace jill;
 using namespace jill::dsp;
 
+#if DEBUG > 1
+#include <fstream>
+std::ofstream plog("period_log.txt");
+#endif
+
 buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, nframes_t buffer_size)
-        : _stop(0), _xruns(0), _entry_close(0),
+        : _xrun(false),
+          _entry_close(false),
           _writer(writer),
-          _buffer(new dsp::period_ringbuffer(buffer_size))
+          _buffer(new dsp::period_ringbuffer(buffer_size)),
+          _stop(false)
 {
-        // redirect the data_writer's logstream to this class
         pthread_mutex_init(&_lock, 0);
         pthread_cond_init(&_ready, 0);
 }
 
 buffered_data_writer::~buffered_data_writer()
 {
-        // bad stuff could happen if the thread is not joined
+        // need to make sure synchrons are not in use
         stop();                 // no more new data; exit writer thread
         join();                 // wait for writer thread to exit
+        // pthread_cancel(_thread_id);
         pthread_mutex_destroy(&_lock);
         pthread_cond_destroy(&_ready);
 }
@@ -27,8 +34,9 @@ buffered_data_writer::~buffered_data_writer()
 nframes_t
 buffered_data_writer::push(void const * arg, period_info_t const & info)
 {
-        if (_stop) return 0;
-        nframes_t r = _buffer->push(arg, info);
+        nframes_t r;
+        if (_stop || _xrun) r = info.nframes;
+        else r = _buffer->push(arg, info);
         signal_writer();
         return r;
 }
@@ -42,26 +50,29 @@ buffered_data_writer::write_space(nframes_t nframes) const
 void
 buffered_data_writer::xrun()
 {
-        __sync_add_and_fetch(&_xruns, 1);
-        signal_writer();
+        if (__sync_bool_compare_and_swap(&_xrun, false, true))
+                signal_writer();
 }
 
 void
 buffered_data_writer::close_entry(nframes_t)
 {
-        __sync_add_and_fetch(&_entry_close,1);
+        __sync_bool_compare_and_swap(&_entry_close, false, true);
 }
 
 void
 buffered_data_writer::stop()
 {
-        __sync_add_and_fetch(&_stop, 1);
+        __sync_bool_compare_and_swap(&_stop, false, true);
         signal_writer();
 }
 
 void
 buffered_data_writer::start()
 {
+        _xrun = false;
+        _stop = false;
+        _entry_close = false;
         int ret = pthread_create(&_thread_id, NULL, buffered_data_writer::thread, this);
         if (ret != 0)
                 throw std::runtime_error("Failed to start writer thread");
@@ -95,22 +106,30 @@ buffered_data_writer::thread(void * arg)
 	pthread_mutex_lock (&self->_lock);
 
         while (1) {
+#if DEBUG > 1
+                plog << "\nbdw: x=" << self->_xrun << ", s=" << self->_stop << ", ec=" << self->_entry_close;
+#endif
                 period = self->_buffer->peek_ahead();
-                if (period) {
-                        self->write(period);
-                }
-                else if (!self->_stop) {
-                        // no samples available. use this opportunity to flush
-                        self->_writer->flush();
-                        // then wait for more data
-                        pthread_cond_wait (&self->_ready, &self->_lock);
-                }
-                else {
-                        self->_writer->close_entry();
-                        break;
+                self->write(period);
+                /* handle empty ringbuf according to state */
+                if (period == 0) {
+                        if (self->_stop) {
+                                self->_writer->close_entry();
+                                break;
+                        }
+                        else {
+#if DEBUG > 1
+                                plog << ", flushing";
+#endif
+                                // use this opportunity to flush
+                                self->_writer->flush();
+                                // then wait for more data
+                                pthread_cond_wait (&self->_ready, &self->_lock);
+                        }
                 }
         }
         pthread_mutex_unlock(&self->_lock);
+        __sync_bool_compare_and_swap(&self->_stop, true, false);
         return 0;
 }
 
@@ -124,27 +143,33 @@ buffered_data_writer::signal_writer()
 }
 
 void
-buffered_data_writer::write(period_info_t const * info)
+buffered_data_writer::write(period_info_t const * period)
 {
-        /* handle xruns and overflows in first period of the channel */
-        if (_writer->aligned()) {
-                if (_xruns) {
+        /* no data */
+        if (period == 0) {
+                if (_xrun) {
+                        /* buffer is flushed; clear xrun state */
                         _writer->xrun();
                         _writer->close_entry(); // new entry
-                        __sync_add_and_fetch(&_xruns, -1);
+                        __sync_bool_compare_and_swap(&_xrun, true, false);
                 }
-                else if (_entry_close) {
+                return;
+        }
+        /* handle entry close requests and overflows in first period of the channel */
+        if (_writer->aligned()) {
+                if (_entry_close) {
                         _writer->close_entry();
-                        __sync_add_and_fetch(&_entry_close, -1);
+                        __sync_bool_compare_and_swap(&_entry_close, true, false);
                 }
-                else if  (info->time < info->nframes) {
+                else if  (period->time < period->nframes) {
                         _writer->close_entry();
                 }
         }
-
-        _writer->write(info);
+#if DEBUG > 1
+        plog << ", period t=" << period->time;
+#endif
+        _writer->write(period);
 
         /* release data */
         _buffer->release();
 }
-

@@ -22,8 +22,6 @@
 #include "jill/dsp/buffered_data_writer.hh"
 #include "jill/dsp/triggered_data_writer.hh"
 
-// #include "jill/util/portreg.hh"
-
 #define PROGRAM_NAME "jrecord"
 #define PROGRAM_VERSION "1.3.0"
 

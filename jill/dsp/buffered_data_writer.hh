@@ -84,6 +84,7 @@ public:
          */
         virtual void close_entry(nframes_t time);
 
+        friend std::ostream & operator<< (std::ostream &, buffered_data_writer const &);
 
 protected:
         /**
@@ -93,22 +94,26 @@ protected:
          * will overrun.  The default implementation simply passes the data to
          * the data_writer::write() function.
          *
-         * @param info   the header and data for the period
+         * @param info   the header and data for the period. may be null if
+         *               there's no data
          */
         virtual void write(period_info_t const * info);
 
         static void * thread(void * arg);           // the thread entry point
         void signal_writer();                       // flag the condition variable
 
-        pthread_t _thread_id;                      // thread id
         pthread_mutex_t _lock;                     // mutex for condition variable
         pthread_cond_t  _ready;                    // indicates data ready
-        int _stop;                                 // stop flag
-        int _xruns;                                // xrun counter
-        int _entry_close;                          // flag to close entry
+        bool _xrun;                                 // xrun flag
+        bool _entry_close;                          // close entry flag
 
         boost::shared_ptr<data_writer> _writer;            // output
         boost::shared_ptr<period_ringbuffer> _buffer;      // ringbuffer
+
+private:
+        pthread_t _thread_id;                      // thread id
+        bool _stop;                                 // stop flag
+
 };
 
 }} // jill::file

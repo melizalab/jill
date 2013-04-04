@@ -81,16 +81,19 @@ void
 triggered_data_writer::write(period_info_t const * period)
 {
         jack_port_t const * port = static_cast<jack_port_t const *>(period->arg);
-        void * data = const_cast<period_info_t*>(period+1);
+        // std::cout << "pulled period, time=" << period->time << std::endl;
 
-        /* handle xruns whenever they're detected */
-        if (_xruns) {
+        /* handle xruns whenever detected. some additional samples may be dropped */
+        if (_xrun) {
+                __sync_bool_compare_and_swap(&_xrun, true, false);
                 _writer->xrun(); // marks entry and logs xrun
-                __sync_add_and_fetch(&_xruns, -1);
         }
+
+        if (period == 0) return;
 
         /* handle trigger channel */
         if (port && port == _trigger_port) {
+                void const * data = static_cast<void const *>(period+1);
                 // scan for onset & offset events
                 if (!_writer->ready()) {
                         int event_time = midi::find_trigger(data, true);

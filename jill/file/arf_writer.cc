@@ -235,7 +235,7 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         }
         else {
                 // based on my inspection of jackd source, JACK api should
-                // declare port_buffer argument const, so this cast should be
+                // declare port_buffer argument const, so const_cast should be
                 // safe
                 void * data = const_cast<period_info_t*>(info+1);
                 jack_midi_event_t event;
