@@ -103,8 +103,6 @@ public:
 	}
         /** @return the size of the analysis period (in samples) */
 	size_type period_size() const { return _period_size; }
-        /** @return reference to the threshold. */
-	sample_type &thresh() { return _thresh; }
         /** @return current value of the threshold. */
         sample_type thresh() const { return _thresh;}
 

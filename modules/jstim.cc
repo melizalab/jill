@@ -254,6 +254,7 @@ main(int argc, char **argv)
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
+                client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
                 client->activate();

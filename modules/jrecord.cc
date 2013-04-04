@@ -122,7 +122,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
-        const char ** connects = jack_port_get_connections(port_trig);
+        const char ** connects = (port_trig) ? jack_port_get_connections(port_trig) : 0;
         // can't directly compare port addresses
         if (!connected && strcmp(jack_port_name(port2),jack_port_name(port_trig))==0 && connects == 0) {
                 // flag process to close current entry

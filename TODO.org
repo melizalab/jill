@@ -355,6 +355,7 @@ problems are occurring are when the thread is running while stimuli are being
 added to the list, so why not abstract this out.
 
 * DONE terminate jentry on buffer size change
+* TODO jrecord won't trigger off jdetect
 * TODO testing and profiling
 
 ** TODO check for memory leaks
@@ -371,9 +372,23 @@ too fine.
 *** DONE jstim
 *** DONE jdetect
 
-failed the test because std::deque allocates memory. switched to a boost::circular_buffer.
+failed the test because std::deque allocates memory. switched to a
+boost::circular_buffer, passed.
 
 *** TODO jrecord
 
 
 ** TODO test xrun handling
+
+** TODO stress tests
+
+*** [2013-04-03 Wed]
+
+run jstim, jdetect, and jrecord. Started jrecord at 1752, ran until 0007 after
+creating 1008 entries and then died (error message is "Killed"). jack reports a
+graph timeout from jstim first followed by a client disconnect from jrecord.
+The kernel reports that it killed jrecord because it ran out of memory, so the
+xrun in jstim may have been a consequence of that.
+
+The test.arf file doesn't contain any entries, which suggests that the data were
+never flushed to disk.

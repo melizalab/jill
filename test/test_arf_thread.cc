@@ -61,7 +61,7 @@ write_data_rate(boost::posix_time::time_duration const & max_time)
         long ms = dur.total_milliseconds();
         thread->stop();
         thread->join();
-        printf("\nrate: %ld periods in %ld ms\n", i, ms);
+        printf("\nrate: %ld periods in %ld ms (%.2f MB/s)\n", i, ms, float(i) * PERIOD_SIZE / (1e6 * ms / 1000));
 }
 
 

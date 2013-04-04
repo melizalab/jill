@@ -56,4 +56,5 @@ main(int, char**)
         writer->close_entry();
         assert(!writer->ready());
 
+        free(buf);
 }
