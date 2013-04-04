@@ -199,6 +199,7 @@ init_stimset(std::vector<std::string> const & stims, size_t const default_nreps)
                                 nreps = default_nreps;
                         }
                 }
+                else nreps = default_nreps;
                 jill::stimulus_t *stim = new file::stimfile(p.string());
                 _stimuli.push_back(stim);
                 for (size_t j = 0; j < nreps; ++j)
