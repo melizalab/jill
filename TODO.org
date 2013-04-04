@@ -406,6 +406,14 @@ boost::circular_buffer, passed.
 
 jstim and jdetect weren't closing with shutdown. needed handlers.
 
+jrecord can have cascading xruns triggered by elsewhere in the system. I think
+this comes about because process() keeps incrementing the xrun counter while the
+disk thread is handling the previous xrun. One option would be to clear out the
+read buffer; a better option would be to have the process loop stop adding data
+to the buffer until the disk thread has dealt with the problem, though this
+involves some careful signalling.  Need to keep in mind what's happening with
+the triggered writer, which is currently specified not to close the entry.
+
 ** TODO stress tests
 
 *** [2013-04-03 Wed]
@@ -451,3 +459,11 @@ solution, though it does concentrate the load at a specific point.
 Added a flush statement to the packet table destructor. Memory is still growing
 uncontrollably.  Ah! The packet table identifier wasn't being freed.  Now the
 memory stabilizes at 6.9% even when recording 12 channels.
+
+back to continuous mode. With 12 channels, memory usage stabilizes around 6.7%
+and cpu around 6.3%. the data don't seem to ever be flushed to disk, so I'm not
+sure where it's living. One thought would be to call flush every so often, or
+when the ringbuffer is empty. Hopefully by using idle cycles to take care of
+disk stuff we can avoid huge pauses when closing entries, etc. Average cpu load
+does appear to be a bit higher (10-11%). This should also work for
+triggered_data_writer.

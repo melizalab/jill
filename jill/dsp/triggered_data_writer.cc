@@ -118,7 +118,6 @@ triggered_data_writer::write(period_info_t const * period)
                 framediff_t compare = _last_offset - period->time;
                 if (compare < 0) {
                         _writer->close_entry();
-                        _writer->flush();
                 }
                 else {
                         nframes_t to_write = std::min((nframes_t)compare, period->nframes);

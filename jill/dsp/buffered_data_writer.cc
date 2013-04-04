@@ -100,7 +100,9 @@ buffered_data_writer::thread(void * arg)
                         self->write(period);
                 }
                 else if (!self->_stop) {
-                        // wait for more data
+                        // no samples available. use this opportunity to flush
+                        self->_writer->flush();
+                        // then wait for more data
                         pthread_cond_wait (&self->_ready, &self->_lock);
                 }
                 else {

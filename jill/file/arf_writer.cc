@@ -315,11 +315,11 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                 pthread_mutex_lock(&_lock);
                 if (is_sampled) {
                         pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
-                                                                          false, 1024, _compression);
+                                                                          false, ARF_CHUNK_SIZE, _compression);
                 }
                 else {
                         pt = _entry->create_packet_table<event_t>(name, "samples", arf::EVENT,
-                                                                          false, 1024, _compression);
+                                                                          false, ARF_CHUNK_SIZE, _compression);
                 }
                 if (source_ptr source = _data_source.lock()) {
                         pt->write_attribute("sampling_rate", source->sampling_rate());
