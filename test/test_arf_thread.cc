@@ -32,6 +32,7 @@ boost::shared_ptr<data_writer> writer;
 boost::shared_ptr<data_thread> thread;
 
 nframes_t buffer_size = 20480;
+int nseconds = 5;
 unsigned short seed[3] = { 0 };
 sample_t test_data[PERIOD_SIZE];
 
@@ -167,6 +168,9 @@ main(int argc, char **argv)
         if (argc > 1) {
                 buffer_size = atoi(argv[1]);
         }
+        if (argc > 2) {
+                nseconds = atoi(argv[2]);
+        }
         setup();
         printf("Buffer size is %u\n", buffer_size);
 
@@ -185,7 +189,7 @@ main(int argc, char **argv)
         writer->log() << "a random log message";
 
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
-        write_data_rate(boost::posix_time::seconds(5));
+        write_data_rate(boost::posix_time::seconds(nseconds));
 
         dsp::triggered_data_writer_test t(new dsp::triggered_data_writer(writer, 0, PREBUFFER, POSTBUFFER));
         t.test(0);
@@ -198,7 +202,7 @@ main(int argc, char **argv)
         writer->log() << "a random log message";
 
         thread.reset(new dsp::buffered_data_writer(writer, buffer_size));
-        write_data_rate(boost::posix_time::seconds(5));
+        write_data_rate(boost::posix_time::seconds(nseconds));
 
         printf("passed tests\n");
 

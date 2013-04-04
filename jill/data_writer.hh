@@ -61,6 +61,13 @@ public:
          */
         virtual nframes_t write(period_info_t const * info, nframes_t start=0, nframes_t stop=0) = 0;
 
+        /**
+         * Request data to be flushed disk. Implementing classes must flush data
+         * to disk on cleanup or at appropriate intervals, but this function is
+         * provided so callers can request a flush when the system load is light.
+         */
+        virtual void flush() {}
+
 };
 
 }

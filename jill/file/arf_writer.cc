@@ -11,6 +11,7 @@
 #include "../util/string.hh"
 
 #define JILL_LOGDATASET_NAME "jill_log"
+#define ARF_CHUNK_SIZE 1024
 
 using namespace std;
 using namespace jill;
@@ -97,7 +98,7 @@ arf_writer::arf_writer(string const & sourcename,
         }
         else {
                 _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME,
-                                                       logtype, 1024, _compression));
+                                                       logtype, ARF_CHUNK_SIZE, _compression));
         }
         _get_last_entry_index();
 
@@ -263,6 +264,12 @@ arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t s
         }
         return stop_frame - start_frame;
 
+}
+
+void
+arf_writer::flush()
+{
+        _file->flush();
 }
 
 void

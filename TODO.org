@@ -355,12 +355,36 @@ problems are occurring are when the thread is running while stimuli are being
 added to the list, so why not abstract this out.
 
 * DONE terminate jentry on buffer size change
+* DONE jstim doesnt't work with one stimulus
+
+uninitialized variable in init_stimset
+
+* TODO better handling of corrupted arf files
+
+should happen in arf_writer
+
 * TODO jrecord won't trigger off jdetect
 * TODO testing and profiling
 
 ** TODO check for memory leaks
 
-need to compile a test hdf5 library so I can run valgrind
+valgrind slows down the programs too much to run them under jack, so the tests
+here are on the test programs.
+
+boost::uuid generates a lot of uninitialized memory warnings, but that's part of
+the implementation for randomness.
+
+*** DONE jstim - test_stimset
+
+*** DONE jdetect - counter, ringbuffer
+
+*** DONE jrecord - ringbuffer, arf_writer, arf_thread
+
+had to compile a test hdf5 library so I can run valgrind. arf_writer generates a
+lot of reachable leaks from hdf5 calls. Some of these appear to be related to
+cleanup of the packet tables. The size of the reachable memory doesn't increase
+with multiple entries, so I'm going to conclude the library can take care of
+itself on this front.
 
 ** TODO check for deadlocks
 
@@ -368,17 +392,19 @@ arf_thread's performance isn't quite what I'd like it to be, and it seems much
 reduced after adding locking to arf_writer.  the granularity of the locks may be
 too fine.
 
-** TODO run jack_interposer
+** DONE run jack_interposer
 *** DONE jstim
 *** DONE jdetect
 
 failed the test because std::deque allocates memory. switched to a
 boost::circular_buffer, passed.
 
-*** TODO jrecord
+*** DONE jrecord
 
 
 ** TODO test xrun handling
+
+jstim and jdetect weren't closing with shutdown. needed handlers.
 
 ** TODO stress tests
 
@@ -392,3 +418,36 @@ xrun in jstim may have been a consequence of that.
 
 The test.arf file doesn't contain any entries, which suggests that the data were
 never flushed to disk.
+
+*** [2013-04-04 Thu]
+
+run jrecord in continuous mode with 11 inputs. memory usage seems to
+stabilize around ~3.6%. test.arf continues to grow.  however, at a certain point I
+start seeing xruns (around 2GB).
+
+set up test_arf_writer to write an arbitrary number of peirods. I do get
+significant pauses, which are probably related to disk flushes.
+
+now, it's possible this is an artifact of using the version of hdf5 that works
+with valgrind. recompile with development hdf5 (is it threadsafe?). No, I still
+get big pauses, and if anything they're worse.
+
+One obvious solution is to increase the size of the ringbuffer.  Tried 256k
+frames (1 MB), with a marginal improvement in uncompressed access.  Of course,
+this is sort of what one expects given that buffering protects us from worst-case
+scenarios rather than average.
+
+Might also try increasing the chunk size in the arf packet tables.
+
+in triggered mode with one channel, memory grows at a moderate pace, but doesn't
+seem to stabilize. presumably this means there are unflushed resources.  With 12
+channels the rate of growth is much, much faster.  If the unflushed resources
+are packet tables (see above in memcheck section), this would be consistent with
+the faster rate of growth.  Perhaps I should be trying to flush at some point.
+I could either get the triggered_data_writer to do it during down time, or I
+could add a flush statement to the h5pt destructor.  The latter is a cleaner
+solution, though it does concentrate the load at a specific point.
+
+Added a flush statement to the packet table destructor. Memory is still growing
+uncontrollably.  Ah! The packet table identifier wasn't being freed.  Now the
+memory stabilizes at 6.9% even when recording 12 channels.

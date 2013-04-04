@@ -64,6 +64,7 @@ public:
         void xrun();
         void set_data_source(boost::weak_ptr<data_source>);
         nframes_t write(period_info_t const *, nframes_t start=0, nframes_t stop=0);
+        void flush();
 
 protected:
         typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
