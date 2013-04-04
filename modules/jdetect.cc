@@ -133,6 +133,15 @@ signal_handler(int sig)
         exit(sig);
 }
 
+void
+jack_shutdown(jack_status_t code, char const *)
+{
+        __sync_add_and_fetch(&stopping, 1);
+        // wait for at least one process loop
+        usleep(2e6 * client->buffer_size() / client->sampling_rate());
+        exit(-1);
+}
+
 /**
  * Callback for samplerate changes. This function is only called once.
  */
@@ -190,6 +199,7 @@ main(int argc, char **argv)
 		signal(SIGTERM, signal_handler);
 		signal(SIGHUP,  signal_handler);
 
+                client->set_shutdown_callback(jack_shutdown);
                 client->set_sample_rate_callback(samplerate_callback);
                 client->set_process_callback(process);
                 client->activate();
