@@ -35,10 +35,26 @@ nframes_t
 buffered_data_writer::push(void const * arg, period_info_t const & info)
 {
         nframes_t r;
-        if (_stop || _xrun) r = info.nframes;
-        else r = _buffer->push(arg, info);
-        signal_writer();
+        if (_stop || _xrun) {
+#if DEBUG > 1
+                std::cerr << "in Xrun: frame " << info.time << " discarded" << std::endl;
+#endif
+                r = info.nframes;
+        }
+        else {
+                r = _buffer->push(arg, info);
+                if (r < info.nframes) xrun();
+        }
         return r;
+}
+
+void
+buffered_data_writer::data_ready()
+{
+        if (pthread_mutex_trylock (&_lock) == 0) {
+                pthread_cond_signal (&_ready);
+                pthread_mutex_unlock (&_lock);
+        }
 }
 
 nframes_t
@@ -50,8 +66,7 @@ buffered_data_writer::write_space(nframes_t nframes) const
 void
 buffered_data_writer::xrun()
 {
-        if (__sync_bool_compare_and_swap(&_xrun, false, true))
-                signal_writer();
+        __sync_bool_compare_and_swap(&_xrun, false, true);
 }
 
 void
@@ -64,7 +79,7 @@ void
 buffered_data_writer::stop()
 {
         __sync_bool_compare_and_swap(&_stop, false, true);
-        signal_writer();
+        data_ready();
 }
 
 void
@@ -87,11 +102,11 @@ buffered_data_writer::join()
 nframes_t
 buffered_data_writer::resize_buffer(nframes_t nframes, nframes_t nchannels)
 {
-        nframes_t nsamples = nframes * nchannels;
-        if (nsamples <= _buffer->size()) return _buffer->size();
         // the write thread will keep this locked until the buffer is empty
         pthread_mutex_lock(&_lock);
-        _buffer->resize(nsamples);
+        nframes_t nsamples = nframes * nchannels;
+        if (nsamples > _buffer->size())
+                _buffer->resize(nsamples);
         pthread_mutex_unlock(&_lock);
         return _buffer->size();
 }
@@ -107,7 +122,7 @@ buffered_data_writer::thread(void * arg)
 
         while (1) {
 #if DEBUG > 1
-                plog << "\nbdw: x=" << self->_xrun << ", s=" << self->_stop << ", ec=" << self->_entry_close;
+                plog << "\nbdw: ws=" << self->write_space(1024) << ",x=" << self->_xrun << ", s=" << self->_stop << ", ec=" << self->_entry_close;
 #endif
                 period = self->_buffer->peek_ahead();
                 self->write(period);
@@ -131,15 +146,6 @@ buffered_data_writer::thread(void * arg)
         pthread_mutex_unlock(&self->_lock);
         __sync_bool_compare_and_swap(&self->_stop, true, false);
         return 0;
-}
-
-void
-buffered_data_writer::signal_writer()
-{
-        if (pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
 }
 
 void

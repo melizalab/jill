@@ -98,7 +98,7 @@ struct triggered_data_writer_test {
         }
         void await_writer() {
                 while (!p->_buffer->empty_ahead()) {
-                        p->signal_writer();
+                        p->data_ready();
                         usleep(1000);
                 }
         }

@@ -278,7 +278,7 @@ jack_client::xrun_callback_(void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
         float delay = jack_get_xrun_delayed_usecs(self->_client);
-        self->_log->log() << "XRUN (us): " << delay ;
+        self->_log->log() << "jack xrun (us): " << delay ;
 	return (self->_xrun_cb) ? self->_xrun_cb(self, delay) : 0;
 }
 

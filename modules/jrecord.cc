@@ -77,10 +77,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         jack_client::port_list_type::const_iterator it;
 
         // check that the ringbuffer has enough space for all the channels so we
-        // don't write partial periods
+        // don't write partial periods. If full, put the thread into Xrun state.
+        // It will probably discard the samples until it can clear out the buffer
         if (arf_thread->write_space(nframes) < client->nports()) {
                 arf_thread->xrun();
-                return 0;
         }
 
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
@@ -93,6 +93,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 arf_thread->close_entry(time);
                 __sync_add_and_fetch(&_close_entry_flag,-1);
         }
+        arf_thread->data_ready();
 
         return 0;
 }
@@ -108,9 +109,8 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // only takes effect if requested size > buffer size; blocks until old
-        // data is flushed
-        nframes = arf_thread->resize_buffer(nframes * 32, client->nports());
+        // blocks until old data is flushed
+        nframes = arf_thread->resize_buffer(client->sampling_rate() * options.buffer_size_s, client->nports());
         writer->log() << "ringbuffer size (samples): " << nframes;
         writer->close_entry();
         return 0;

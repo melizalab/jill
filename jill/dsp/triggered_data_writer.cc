@@ -80,8 +80,7 @@ triggered_data_writer::close_entry(nframes_t event_time)
 void
 triggered_data_writer::write(period_info_t const * period)
 {
-        jack_port_t const * port = static_cast<jack_port_t const *>(period->arg);
-        // std::cout << "pulled period, time=" << period->time << std::endl;
+        jack_port_t const * port;
 
         /* handle xruns whenever detected. some additional samples may be dropped */
         if (_xrun) {
@@ -90,6 +89,7 @@ triggered_data_writer::write(period_info_t const * period)
         }
 
         if (period == 0) return;
+        port = static_cast<jack_port_t const *>(period->arg);
 
         /* handle trigger channel */
         if (port && port == _trigger_port) {

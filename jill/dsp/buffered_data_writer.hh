@@ -49,6 +49,7 @@ public:
         virtual ~buffered_data_writer();
 
         nframes_t push(void const * arg, period_info_t const & info);
+        void data_ready();
         void xrun();
         void stop();
         void start();
@@ -100,7 +101,6 @@ protected:
         virtual void write(period_info_t const * info);
 
         static void * thread(void * arg);           // the thread entry point
-        void signal_writer();                       // flag the condition variable
 
         pthread_mutex_t _lock;                     // mutex for condition variable
         pthread_cond_t  _ready;                    // indicates data ready

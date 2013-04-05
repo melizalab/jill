@@ -76,13 +76,6 @@ should we anticipate non-jack data sources? Might make it easier to test.
 However, there is a lot of jack-specific code elsewhere that would need to be
 tracked down, including some of the major types that depend on JACK. See below.
 
-* TODO replace pthread threading code with boost?
-
-Would be more portable. might also deal with an annoying problem where pthreads
-can reuse thread ids, so joining in the destructor of buffered_data_writer can
-be problematic, if another thread has been started and takes the released id.
-No problems as long as running only one thread, so maybe put this off for now.
-
 * DONE write trigger logic for arf_writer
 
 This is moderately tricky because of the prebuffer. The function needs to
@@ -268,8 +261,6 @@ Settled on doing fine-grained locks in arf_writer. It may have slowed down the
 writer quite a bit (though we are still getting > 4000 periods/s). need to do
 some serious profiling at some non-premature point.
 
-
-
 * DONE deal with pthread cleanup in destructors
 
 Objects that own pthread objects (mutexes, condition variables) need to clean
@@ -304,7 +295,6 @@ mutex. there's some cleanup issues here, too, whereby arf_writer locks in order
 to call the flush method.  Maybe that's not necessary?  I removed that (assuming
 that the HDF5 library will clean itself up), and set the signal handler to just
 tell the disk thread to stop, which will cause the program to exit normally.
-
 * DONE jrecord: fix race condition with logger
 
 when starting up a jrecord instance with a lot of channels, the first period may
@@ -329,22 +319,12 @@ shared_ptr<data_source> doesn't magically update the weak_ptr.  Probably the
 simplest (if somewhat inelegant) solution is to add a member function to
 data_writer to set that pointer later.
 
-* TODO sample count not quite right in test_arf_thread
-
-this may be an artifact of how the testing is done, but I'm short a few samples.
-Appears to be fine in jrecord.
-
 * DONE jrecord should drop events before entry start
 
 this was a bug in how the stored event time was calculated
 * DONE handle disconnect of last trigger connection
 
 need a threadsafe way to to do this that makes sure the full period is written
-
-* TODO jrecord: more flexible specification of input ports
-
-spec says allow user to connect to all ports of another client, and to set up a
-fixed number of ports. either drop from spec or implement
 * DONE jstim: fix stimulus queue
 
 this is still not behaving very well, althoguh it was working okay on os x.
@@ -362,13 +342,7 @@ added to the list, so why not abstract this out.
 
 uninitialized variable in init_stimset
 
-* TODO better handling of corrupted arf files
-
-should happen in arf_writer
-* TODO jstim: handle invalid stimulus files
-* TODO jrecord won't trigger off jdetect
-
-* TODO fix cascading xruns in jrecord
+* DONE fix cascading xruns in jrecord
 
 jrecord can have cascading xruns triggered by elsewhere in the system. I think
 this comes about because process() keeps incrementing the xrun counter while the
@@ -394,11 +368,42 @@ jack_sequencer.  A problem in jack?
 
 Can't test this using a output filestream in the process loop because there are
 spikes in wait time writing to a file. Best bet is probably to monitor the
-verbose output from jackd (a running indication of the delay for the process graph)
+verbose output from jackd (a running indication of the delay for the process
+graph). With one channel there is tons of headroom (21000+ usec), and writing is
+stable for > 40 minutes.  Then the buffer fills and doesn't get emptied.
+
+Ah hah! process() is checking the fill state of the buffer, and puts bdw back
+into Xrun state, which means it never has a chance to clear itself.  The buffer
+size check kind of breaks encapsulation under the new scheme.
+
+Changed things around a bit to reduce the number of calls to trylock.  Seems
+pretty stable now.
+
+* TODO [#C] sample count not quite right in test_arf_thread
+
+this may be an artifact of how the testing is done, but I'm short a few samples.
+Appears to be fine in jrecord.
+
+* TODO better handling of corrupted arf files
+
+should happen in arf_writer
+* TODO [#A] jstim: handle invalid stimulus files
+* TODO [#A] jrecord won't trigger off jdetect
+* TODO [#B] jrecord: more flexible specification of input ports
+
+spec says allow user to connect to all ports of another client, and to set up a
+fixed number of ports. either drop from spec or implement
+
+* TODO [#C] replace pthread threading code with boost?
+
+Would be more portable. might also deal with an annoying problem where pthreads
+can reuse thread ids, so joining in the destructor of buffered_data_writer can
+be problematic, if another thread has been started and takes the released id.
+No problems as long as running only one thread, so maybe put this off for now.
 
 * TODO testing and profiling
 
-** TODO check for memory leaks
+** DONE check for memory leaks
 
 valgrind slows down the programs too much to run them under jack, so the tests
 here are on the test programs.
@@ -433,10 +438,11 @@ boost::circular_buffer, passed.
 
 *** DONE jrecord
 
-
-** TODO test xrun handling
+** DONE test xrun handling
 
 jstim and jdetect weren't closing with shutdown. needed handlers.
+
+wrote a little xrun generator
 
 ** TODO stress tests
 
