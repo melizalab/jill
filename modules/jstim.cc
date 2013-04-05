@@ -90,14 +90,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         if (xruns) {
                 // playing stimuli are truncated
                 if (stim_offset > 0 && stim) {
-                        std::string s(stim->name());
-                        s += " TRUNCATED";
-                        midi::write_message(trig, 0, midi::stim_off, s.c_str());
-                        // stop playback
                         stim_offset = stim->nframes();
-                        queue->release();
                 }
-                // midi::write_message(trig, 1, midi::info, "xrun detected");
                 // reset timers because running time has changed
                 last_start = last_stop = time;
                 // indicate we've handled the xrun
@@ -142,14 +136,14 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                        stim->buffer() + stim_offset,
                        nsamples * sizeof(sample_t));
                 stim_offset += nsamples;
+        }
                 // did the stimulus end?
-                if (stim_offset >= stim->nframes()) {
-                        queue->release();
-                        last_stop = time + period_offset + nsamples;
-                        midi::write_message(trig, period_offset + nsamples,
-                                            midi::stim_off, stim->name());
-                        stim_offset = 0;
-                }
+        if (stim_offset >= stim->nframes()) {
+                queue->release();
+                last_stop = time + period_offset + nsamples;
+                midi::write_message(trig, period_offset + nsamples,
+                                    midi::stim_off, stim->name());
+                stim_offset = 0;
         }
 
         return 0;

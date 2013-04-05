@@ -78,7 +78,10 @@ tracked down, including some of the major types that depend on JACK. See below.
 
 * TODO replace pthread threading code with boost?
 
-might be more portable
+Would be more portable. might also deal with an annoying problem where pthreads
+can reuse thread ids, so joining in the destructor of buffered_data_writer can
+be problematic, if another thread has been started and takes the released id.
+No problems as long as running only one thread, so maybe put this off for now.
 
 * DONE write trigger logic for arf_writer
 
@@ -362,7 +365,7 @@ uninitialized variable in init_stimset
 * TODO better handling of corrupted arf files
 
 should happen in arf_writer
-
+* TODO jstim: handle invalid stimulus files
 * TODO jrecord won't trigger off jdetect
 
 * TODO fix cascading xruns in jrecord
@@ -384,6 +387,14 @@ doesn't necessarily need to be aware of the xrun state.
 Okay, I think I've got this working. buffered_data_writer::thread() handles the
 Stopping state, but the virtual write() method handles the Xrun state.  This
 means the period is passed to write() without checking whether it's null.
+
+nope, it's still doing the silent fail. or else the jack daemon kills us,
+supposedly because an upstream client fails. this can be either jstim or
+jack_sequencer.  A problem in jack?
+
+Can't test this using a output filestream in the process loop because there are
+spikes in wait time writing to a file. Best bet is probably to monitor the
+verbose output from jackd (a running indication of the delay for the process graph)
 
 * TODO testing and profiling
 

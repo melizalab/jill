@@ -396,8 +396,9 @@ neurons.
 2. Registration/unregistration events are ignored
 3. Port connections and disconnections are ignored
 4. Xruns cause the process thread to terminate any active playback. The
-   stim_off event generated when this happens should indicate that the stimulus
-   was truncated.
+   stim_off event generated when this happens should reflect the time when the
+   signal truncated. Other clients will be notified of the xrun through the JACK
+   event mechanism.
 5. Changes to period size also terminate active playbacks.
 6. Server shutdown causes termination of the client.
 
