@@ -23,7 +23,7 @@
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jstim"
-#define PROGRAM_VERSION "1.3.0"
+#define PROGRAM_VERSION "2.0.0-beta1"
 
 using namespace jill;
 

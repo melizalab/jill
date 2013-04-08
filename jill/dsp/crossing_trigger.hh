@@ -28,25 +28,6 @@ namespace jill { namespace dsp {
  * There is no underlying storage for samples. Depending on the application, the
  * storage might need to be re-entrant, or involve prebuffering.
  *
- * Choosing the parameters can be a bit tricky, so a few pointers:
- *
- * The open/close sample thresholds determine the amplitude
- * sensitivity of the gates. They can be adjusted dynamically using
- * the open_thresh() and close_thresh() methods if necessary.
- *
- * The crossing rate, analysis window, and period size all contribute
- * to the threshold for average crossing rate, which is equal to
- * count_thresh / (period_size * window_periods).  Crossing rate is
- * related to the frequency and power of the signal.
- *
- * The integration time is determined by period_size * window_periods.
- * Longer integration times make the gates less sensitive to temporary
- * dips or spikes in power, at some cost in sensitivity and temporal
- * resolution.
- *
- * The analysis granularity is controlled by period_size.  Longer
- * periods are more efficient; smaller periods carry more fine-grained
- * temporal information.
  */
 template <typename T>
 class crossing_trigger : boost::noncopyable {

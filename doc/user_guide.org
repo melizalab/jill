@@ -7,234 +7,235 @@
 #+OPTIONS: ^:nil H:2
 #+STYLE:    <link rel="stylesheet" href="org.css" type="text/css" />
 
-The idea behind JILL (and JACK) is to process audio data with a set of
-simple modules that can be linked together to perform more complex
-tasks.  The JACK server (or daemon) provides the mechanism for
-connecting different modules together and moving data between them.
+*JILL* consists of a set of modules (programs) that use the JACK realtime audio
+framework to run auditory behavioral and neuroscience experiments.  This
+document describes how to get started using JILL with some common use cases.
 
-Generally speaking, audio data comes from two sources: data
-acquisition hardware (sound cards) and recorded sounds stored on a
-disk somewhere.  Conversely, data generally needs to get one of three
-places: a sound card for playback, a file for storage, or a program
-for visualization.  Between these sources and sinks one may want to
-alter the data in some way -- filtering, combining, or selectively
-processing it.
 
-Thus, the first step in using JILL/JACK is to determine where the data
-comes from and where it needs to go.  Then, find out what modules
-perform the tasks in that process, and link them up.  The example
-below shows how to do this for a fairly complicated process: recording
-from a microphone whenever the signal goes over a threshold.  This
-should give a good idea of how to design tool chains to solve other
-problems.
-
-The modules provided with JILL can be used for a surprisingly broad
-range of tasks, but it may be necessary to create a new module.
-Consult the Programmer's Guide for more information.
-
-* Example: Triggered Recording
+* Triggered Recording
 
 Let's say you want to record a bird's song, and you only want to save
 the sound when the bird is singing.  The task, then, is to take data
 from one of the channels on the sound card, run it through some kind
 of detector, and then use that detector to determine when data from
-that same channel gets written to disk.  As it happens, both of these
-tasks can be done with modules that are already written: jill_thresh,
-and jill_capture.
+that same channel gets written to disk.
 
 ** Startup
 
-The first thing to do is start up the JACK server and connect it to
-the sound card.  We'll use qjackctl to demonstrate, but it's also
-possible to do all of these actions from the command line.
+The first thing to do is start up the JACK server and connect it to the sound
+card. We'll use =qjackctl= to demonstrate (see [[qjackctl]] for instructions on
+installing this program), but it's also possible to do all of these actions from
+the command line.
 
-The qjackctl interface initially looks like this:
+The =qjackctl= interface initially looks like this:
 
 [[file:qjackctl.png]]
 
-To configure the JACK server, click setup.  A window with many
-configuration options will open. As shown in the figure, turn on
-Realtime, and set the Frames/Period to something like 256.  Smaller
-values decrease the latency but increase the computational load.
+To configure the JACK server, click setup. A window with many configuration
+options will open. As shown in the figure, turn on Realtime, and set the
+Frames/Period to something like 1024. For this application, latency is not an
+issue, so increase the period size if you're getting xruns.
 
 [[file:qjackctl-config.png]]
 
-The correct driver to select will depend on the machine. On linux
-machines, the correct choice is usually 'alsa'; on OS X machines the
-correct choice is usually 'coreaudio'.  Close the setup window (with
-OK) and then click /Start/ in the main interface. The display should
-show the the server is running along with some useful statistics.
+The correct driver to select will depend on the machine. On linux machines, the
+correct choice is usually 'alsa'; on OS X machines the correct choice is usually
+'coreaudio'. Close the setup window (with OK) and then click /Start/ in the main
+interface. The display should show the the server is running along with some
+useful statistics.
 
 ** Making connections
 
-JILL/JACK modules communicate with each other through ports.  There
-are input ports and output ports, and you can make connections from
-outputs to inputs to move data around.  In this section we'll
-demonstrate making connections with qjackctl and a third-party
-visualization program (see [[id:4440DFC4-C760-42EF-BEC3-4DC1DB234541][YASS]] for installation instructions).
+JILL/JACK modules communicate with each other through ports. There are input
+ports and output ports, and you can make connections from outputs to inputs to
+move data around. In this section we'll demonstrate making connections with
+=qjackctl= and a third-party visualization program (see [[id:4440DFC4-C760-42EF-BEC3-4DC1DB234541][YASS]] for installation
+instructions).
 
-Start yass at the command line (e.g. 'yass &').  By default, yass will
-create two graphs, which can be connected to one or more output
-channels.  Initially the plots will be gray, indicating that there
-isn't any signal.  Click 'Connect' in qjackctl to open up an interface
-for making connections:
+Start yass at the command line (e.g. 'yass &'). By default, yass will create two
+graphs, which can be connected to one or more output channels. Initially the
+plots will be gray, indicating that there isn't any signal. Click 'Connect' in
+=qjackctl= to open up an interface for making connections:
 
 [[file:qjackctl-connect.png]]
 
-To make a connection, select an output and an input port and click
-'Connect'.  In the figure above I've connected the first capture
-channel of the soundcard to the first channel of yass.  If the channel
-is hooked up to a microphone or other sound source, the yass plot will
-show its activity, as below.
+To make a connection, select an output and an input port and click 'Connect'. In
+the figure above I've connected the first capture channel of the soundcard to
+the first channel of yass. If the channel is hooked up to a microphone or other
+sound source, the yass plot will show its activity, as below.
 
 [[file:yass.png]]
 
-Note that you can connect multiple output ports to the same input
-port, in which case the inputs will be /mixed/: the data from the
-output ports will be added together, and this sum will appear in the
-input port.  The same output port can be connected to multiple input
-ports.
+Note that you can connect multiple output ports to the same input port, in which
+case the inputs will be /mixed/: the data from the output ports will be added
+together, and this sum will appear in the input port. The same output port can
+be connected to multiple input ports.
 
 ** Detecting the signal
 
-JILL supplies a module that can detect when an input signal is likely
-to contain interesting data.  It uses a window discriminator, which
-counts the number of times the signal crosses a threshold, maintaining
-a running count that's compared against another threshold.  When the
-number of crossings in the analysis window (defined by the user)
-exceeds a threshold, the discriminator's 'gate' opens.  Once the gate is
-open, the signal continues to be compared against a threshold (which
-can be different), and a separate running count is kept.  Once the
-number of crossings drops below a certain number, the gate is closed.
+The =jdetect= module uses a simple window discriminator to detect when a signal
+is occurring on a channel. It works by counting the number of times the signal
+crosses a threshold, maintaining a running count that's compared against another
+threshold. When the number of crossings in the analysis window (defined by the
+user) exceeds a threshold, the discriminator's 'gate' opens. Once the gate is
+open, the signal continues to be compared against a threshold (which can be
+different), and a separate running count is kept. Once the number of crossings
+drops below a certain number, the gate is closed.
 
-The window discriminator is in a module called 'jill_thresh'.  There
-are a number of options for this program that are described in the
-program's help ('jill_thresh -h').  For now, we'll use the default
-settings.  The jill_thresh program has three ports: an input port, an
-output port, and a status port.  The input port receives the auditory
-signal; the output port will be 0 (low) when the gate is closed, and
-around 0.6 (high) when the gate is open.  The status port is a readout
-of the running threshold crossing count and is useful for setting
-thresholds.
+There are a number of options for =jdetect= that are described in the program's
+help (=jdetect -h=). For now, we'll use the default settings. The =jdetect=
+program has three ports: an input port, an output port, and an optional status
+port. The input port receives the auditory signal; the output port emits events
+when the gate opens and closes. The status port is a readout of the running
+threshold crossing count and is useful for setting thresholds.
 
-JILL modules can be connected using qjackctl, but it's often much more
-convenient to use the command line.JILL modules have a common
-command-line syntax for connecting ports.  The inputs are connected
-with the '-i' flag, outputs with the '-o' flag, and auxiliary inputs
-with '-c'.  Not all modules will support '-c' ports.  Multiple
-connections can be specified by supplying multiple '-i/o/c' arguments;
-usually this will result in mixing (or splitting in the case of output
-ports).
-
-To start up the jill_thresh module and connect its input to the first
-capture channel, and its status output to the oscilloscope:
+JILL modules can be connected using =qjackctl= or =jack_connect=, but it's often
+more convenient to connect the modules on startup using commandline options. To
+start up the =jdetect= module and connect its input to the first capture
+channel, and its status output to the oscilloscope:
 
 #+begin_src sh
-jill_thresh -i alsa_pcm:capture_1 -c yass:in_2
+jdetect -i alsa_pcm:capture_1 --count-port
 #+end_src
 
-The second channel of yass will now show the output of the
-integrator, as below:
+Now connect yass to the status port of =jdetect= using qjackctl or the following
+shell command: =jack_connect jdetect:count yass:in_2=. The second channel of yass
+will now show the output of the integrator, as below:
 
 [[file:yass-integrate.png]]
 
-Note how the signal in the upper trace causes the state of the
-integrator to increase.  When the integrator crosses its threshold,
-the output port of jill_thresh will go high, and there will be a
-logged message, for example:
+Note how the signal in the upper trace causes the state of the integrator to
+increase. When the integrator crosses its threshold, the output port of
+=jdetect= will go high, and there will be a logged message, for example:
 
-#+begin_src sh
-[jill_thresh] 20110912T115534.193623 Signal start @ 33708544
-[jill_thresh] 20110912T115538.791071 Signal stop  @ 33911296
-#+end_src
+: 20130408T105856.109825 [jdetect] signal on:  frames=79373312, us=518609266225
+: 20130408T105910.111175 [jdetect] signal off: frames=80038848, us=518623130887
 
-The first set of numbers is a timestamp for the event; the number
-after the '@' symbol indicate the sample count, relative to the start
-of the jack daemon.
+The first set of numbers is a timestamp for the event, and jdetect also reports
+the frame count (a number internal to the JACK system) and a
+microsecond-resolution timestamp.
+
+*** jdetect parameters
+
+Choosing the parameters for =jdetect= can be a bit tricky, so a few pointers:
+
+The open and close gates operate independently. If the open gate is too
+sensitive, it will trigger on transient noises. If it's not sensitive enough, it
+won't trigger weven then when the animal is vocalizing. If the close gate is too
+sensitive, recording may stop during brief gaps in the vocalization. If it's not
+sensitive enough the recordings may not stop.
+
+The analysis granularity of both gates is controlled by /period-size/. Longer
+periods are more efficient; smaller periods carry more fine-grained temporal
+information.
+
+Each gate is controlled by three parameters: /X-thresh/, /X-rate/, and
+/X-period/. The average crossing rate must exceed (for opening) or drop below
+(for closing) =X-rate / (period-size * X-period)=. Crossing rate is related to
+the frequency and power of the signal.
+
+The integration time is determined by =period-size * X-period=. Longer
+integration times make the gates less sensitive to temporary dips or spikes in
+power, at some cost in sensitivity and temporal resolution.
 
 ** Triggered recordings
 
-The jill_thresh event event in itself will not cause any data to be
-recorded. That's the job of jill_capture.  There's another recording
-module, jill_writer, but it simply records everything.  The
-jill_capture module will monitor a control port, and when the value of
-this port goes high, it will start recording from its input port.
-When the control signal goes low, recording stops.
+The =jdetect= module doesn't record data, but it can trigger other modules, like
+=jrecord=. The =jrecord= module can record multiple channels, either
+continuously or in response to a trigger event.
 
-The jill_capture module saves data in ARF format.  ARF files are based
-on HDF5 (http://www.hdfgroup.org), a hierarchical storage format.
-Each recording episode is saved as a separate entry (or group) in the
-ARF/HDF5 file.  The input and control port can be connected in
-qjackctl, or they can be specified on the command line:
+The =jrecord= module saves data in ARF format (https://github.com/dmeliza/arf),
+a hierarchical storage format based on HDF5. Each recording episode is saved as
+a separate entry (or group) in the ARF/HDF5 file. The input and trigger port can
+be connected in =qjackctl=, or they can be specified on the command line:
 
-#+begin_src sh
-jill_capture -i alsa_pcm:capture_1 -c jill_thresh:trig_out test.arf
-#+end_src
+: jrecord -t jdetect:trig_out -i alsa_pcm:capture_1 test.arf
 
-Like jill_thresh, jill_capture has many options.  An important option
-is the prebuffer size, which sets how much of the signal before the
-trigger event should be recorded.  The default size is 1 second.
-Another option, 'max-size', controls how large the output ARF file is
-allowed to get before a new one is opened.  If this option is enabled,
-the data will be stored in successively numbered files, like
-'test_0000.arf', 'test_0001.arf', and so on.
+The /pretrigger/ and /posttrigger/ options to =jrecord= tell it how much data to
+record before the onset trigger and after the offset trigger. The default is a 1
+second pretrigger.
 
-** Variations
+* Recording stimulus-evoked activity
 
-*** Testing with a sound file
+This section introduces a third module, =jstim=, which plays data from sound
+files.  The output of =jstim= can be wired to an analog output of the sound
+card, or to the input port of another JACK module.  In this example, we're going
+to send the data to an output port while recording neural activity from several
+input ports.
 
-Let's say you want to test the threshold values in jill_thresh.  Is
-there a way to do this without waiting for your animal to vocalize?
-Yes, because you can spool data from a file into the input of jill
-thresh.  The jill_play module will read sound files and output them to
-a port.  The following commands will start a jill_thresh module and
-then test it with a file:
+First, start =jrecord= in triggered acquisition mode:
 
-#+begin_src sh
-jill_thresh &
-jill_play -o jill_thresh:in test.wav
-#+end_src
+: jrecord -t -f bu70_1.arf -i alsa_pcm:capture_1 -i alsa_pcm:capture_2 -i alsa_pcm:capture_3 ...
 
-*** Recording multiple channels from a single trigger
+Or use a configuration file to specify the input ports:
 
-Now what if you're collecting data from multiple channels, audio and
-physiological, and you'd like to trigger recording from all the
-channels synchronously?  That's also easy to set up, because multiple
-jill_capture clients can connect to the same jill_thresh module.
+: jrecord -C multichannel.ini -a animal=bu70 -a site=1 -f bu70_1.arf
 
-#+begin_src sh
-  # trigger from the audio channel
-  jill_thresh -i alsa_pcm:capture_0 &
-  # record the audio channel to audio.arf
-  jill_capture -i alsa_pcm:capture_0 -c jill_thresh:trig_out audio.arf &
-  # record the physiological channel to physiology.arf
-  jill_capture -i alsa_pcm:capture_1 -c jill_thresh:trig_out physiology.arf
-#+end_src
+Note the use of the =-a= flags to set attributes on the recorded entries.
+=multichannel.ini= might look something like:
 
-Future versions of jill_capture may support the ability to store
-multiple channels to the same ARF file.
+: trig
+: in=system:capture_1
+: in=system:capture_2
+: in=system:capture_3
+: in=system:capture_4
+: in=system:capture_5
+: in=system:capture_6
+: in=system:capture_7
+: in=system:capture_8
+: in=system:capture_9
+: in=system:capture_10
+: in=system:capture_11
+: in=system:capture_12
 
-* Other JILL modules
+Next, instruct =jstim= to present a set of stimuli 10 times each in random
+order, with 5 seconds between stimuli:
 
-** jill_delay
+: jstim -s -r 10 -g 5 -o alsa_pcm:playback_1 -e jstim:trig_in stimuli/*.wav
 
-Inserts a fixed delay between the input and output.  The volume of the
-output can be manipulated with a separate control line, allowing the
-delay effect to be turned on and off.
+Note that we've connected the sound output of jstim to a playback port on the
+sound card, and the trigger output to the trigger input of jrecord.  You should
+see jrecord create an entry for each stimulus as it's presented.
 
-** jill_play
+* Performance and stability
 
-This module was used in the example to provide input to the
-jill_thresh program, but it's got a lot more functionality than
-that. It can be used to play sound files to any module or a playback
-port, and it can be triggered using keypresses, digital TLL signals (using
-comedi), or an input from another module.
+Tuning a computer for low-latency, reliable operation can be challenging. Modern
+multithreaded operating systems are typically doing a lot in the background, and
+there are often periods when the OS is tied up.  If your application depends on
+receiving or producing a steady stream of samples, these periods of heavy
+activity can lead to glitches and dropouts.
 
-** jill_mixer
+One option for dealing with these problems is to use large memory buffers, which
+can hold samples during periods of heavy load. Large buffers mean long
+latencies. This may not be a problem for many applications, like simply
+recording data. If there are a lot of xruns, and latency doesn't matter, try
+increasing the JACK period size or the buffer size in the application.  Also try
+running jackd in non-realtime mode, or using the =-Z= flag to make the daemon
+more forgiving of misbehaving clients.  Consider using JACK2, which doesn't
+glitch as clients connect and disconnect.
 
-The jill_mixer module simply copies the data from its input to its
-output port. It's not especially useful, except as a demonstration of
-how to write a JILL client.
+In closed-loop applications, however, where the output of the system depends
+tightly on the input, latencies typically need to be much shorter. How short
+depends on the nature of the application. JACK can provide latencies on the
+order of 1-2 ms if properly configured. It's important to recognize, though,
+that Linux and OS X are not designed for realtime performance. Only a dedicated
+hard realtime system can provide guarantees on latency.
+
+The JACK website has a lot of tips for decreasing latency. Some steps that can
+improve performance:
+
+*Keep the system clean:* Install a system with a minimal number of applications,
+and disable any recurring operations.
+
+*Install a low-latency kernel:* CCRMA at Stanford  maintains a repository with
+kernels that have been patched for low latency operation
+(http://ccrma.stanford.edu/planetccrma/software/). You need to be running Centos
+5 or Fedora 16-18 to use these kernels.  You can also try to recompile the
+kernel yourself with the realtime preemption patches enabled.
+
+*Disable CPU frequency scaling:* Run =cpufreq-set -g performance= or
+=cpufreq-selector -g performance= as root.  Disable bus-frequency scaling, C1E
+halt states, and EIST in BIOS.
 
 * Other clients
 
@@ -249,23 +250,18 @@ can be installed through yum from the PlanetCCRMA repository (
 http://ccrma.stanford.edu/planetccrma/software/) using the following
 commands:
 
-#+begin_src sh
-rpm -Uvh http://ccrma.stanford.edu/planetccrma/mirror/centos/linux/planetccrma/5/i386/planetccrma-repo-1.1-1.el5.ccrma.noarch.rpm
-yum install qjackctl
-#+end_src
+: rpm -Uvh http://ccrma.stanford.edu/planetccrma/mirror/centos/linux/planetccrma/5/i386/planetccrma-repo-1.1-1.el5.ccrma.noarch.rpm
+: yum install qjackctl
 
 Note that yum by default will attempt to install JACK as a dependency
-of qjackctl.  If this is not desired, use the following commands
+of =qjackctl=.  If this is not desired, use the following commands
 instead of yum install (yum-utils must be installed, and the version
-of qjackctl downloaded will change as the repository is updated):
+of =qjackctl= downloaded will change as the repository is updated):
 
-#+begin_src sh
-yumdownloader qjackctl
-rpm -Uvh --nodeps qjackctl-0.3.1a-5.el5.ccrma.x86_64.rpm
-#+end_src
+: yumdownloader qjackctl
+: rpm -Uvh --nodeps qjackctl-0.3.1a-5.el5.ccrma.x86_64.rpm
 
-
-http://qjackctl.sourceforge.net/
+See http://qjackctl.sourceforge.net/ for more information.
 
 ** YASS
    :PROPERTIES:
@@ -274,14 +270,14 @@ http://qjackctl.sourceforge.net/
 
 A fairly simple, reliable, highly configurable oscilloscope.  Very
 useful for monitoring activity while recording.  It's available
-through yum (yum install yass), or at the author's site:
+through yum (=yum install yass=), or at the author's site:
 
 http://kokkinizita.linuxaudio.org/linuxaudio/downloads/index.html
 
 ** baudline
 
-A very full-featured visualization client, with scrolling spectrograms
-and all. Not open-source.
+A very full-featured visualization client, with scrolling spectrograms and all.
+Not open-source, and the interface is pretty non-standard, but very useful.
 
 http://www.baudline.com/index.html
 

@@ -1,9 +1,16 @@
 #-*- mode: org -*-
 #+STARTUP:    align fold hidestars oddeven
-#+TITLE:    JILL Real-Time Audio Framework
+#+TITLE:    JILL Real-Time Auditory Neuroscience Framework
 #+AUTHOR:    Dan Meliza
 #+EMAIL:     dan@meliza.org
 #+LANGUAGE:   en
+
+*JILL* is a system for auditory behavioral and neuroscience experiments that
+uses the JACK audio framework (http://jackaudio.org). *JILL* includes several
+independent, interacting modules that handle stimulus presentation, vocalization
+detection, and data recording.
+
+JACK provides a low-latency
 
 JILL is a C++ framework for writing clients for JACK, the real-time
 audio toolkit.  It also comes with a number of useful clients.  This
@@ -12,21 +19,22 @@ dependencies.  Consult doc/user_guide.org for more information on
 using JILL, and doc/programming_guide.org for more information on
 writing new clients using the JILL framework.
 
-* Requirements
+** Requirements
 
-: boost >= 1.50.
++ JACK (http://jackaudio.org; version 1: >= 0.121; or version 2: >= 1.9)
++ boost (http://http://www.boost.org; >= 1.50)
++ libsndfile (http://www.mega-nerd.com/libsndfile; >= 1.0.20)
++ libsamplerate (http://www.mega-nerd.com/SRC/; > 0.1.7)
++ ARF (https://github.com/dmeliza/arf; >= 2.0)
 
-JILL's primary dependency is on JACK (http://jackaudio.org). In
-theory, either JACK 1 or JACK 2 can be used, but so far JILL has only
-been tested on JACK 1.
 
-** Basic dependencies
+*** Basic dependencies
 
 In addition to JACK, JILL depends on a number of other libraries.
 All of these are available through package managers with the exception
 of arf, a library for storing data to ARF containers.
 
-*** Linux
+**** Linux
 
 Install dependencies using yum or another package manager:
 
@@ -55,7 +63,7 @@ SUBSYSTEM=="sound", KERNEL=="controlC*" RUN+="/sbin/salsa", MODE="0666"
 SUBSYSTEM=="sound", KERNEL=="pcm*"      RUN+="/sbin/salsa", MODE="0666"
 #+end_src
 
-*** OS X
+**** OS X
 
 Assuming you've installed MacPorts:
 
@@ -63,7 +71,7 @@ Assuming you've installed MacPorts:
   port install boost jack hdf5-18
 #+end_src
 
-*** ARF library
+**** ARF library
 
 Install ARF as follows:
 
@@ -73,7 +81,7 @@ Install ARF as follows:
   scons -Q install
 #+end_src
 
-** Low-latency operation
+*** Low-latency operation
 
 JACK is a real-time audio server, and provides much better performance
 if the Linux kernel is patched for low-latency operation. This step

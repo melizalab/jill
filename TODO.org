@@ -394,6 +394,9 @@ should happen in arf_writer
 spec says allow user to connect to all ports of another client, and to set up a
 fixed number of ports. either drop from spec or implement
 
+Probably the simplest thing would be, if the user specifies an input port that
+doesn't exist, to just create a port with that name.
+
 * TODO [#C] replace pthread threading code with boost?
 
 Would be more portable. might also deal with an annoying problem where pthreads
@@ -504,3 +507,34 @@ Tried running jrecord with two channels overnight. It simply stopped writing
 about a half hour after it was started. Looks like this is due to an xrun. The
 reason it gets stuck in the xrun state is that data are no longer added to the
 buffer, so the write() method that would clear the xrun flag never gets called.
+
+Run again at the end of the day starting 1536 with jstim, jdetect, and jrecord.
+The first xrun occurred at 20130406T013124.665242, which caused jstim to be
+shutdown at 20130406T013124.686048. There was then a whole series of jack xruns
+that were handled okay, than another round starting 20130406T183049.852681.
+These were handled okay for a while, until 20130406T183050.985612 when the
+program just quit. This coincided with jdetect getting shut down by jackd at
+20130406T183050.915783.  Unfortunately the jackd log doesn't go back that far.
+
+*** [2013-04-07 Sun]
+
+Try running jstim and jdetect without jrecord to see if they stay stable.  I may
+want to consider using -Z or a longer timeout so that clients are not being
+kicked out.
+
+As of Monday morning, no xruns or any other problems.  Not clear what caused
+jstim to die Saturday morning.
+
+*** [2013-04-08 Mon]
+
+Try to get jstim to die by cranking the load.
+
+: stress --cpu 8 --io 4 --vm 2 -d 2
+
+Produces some nice spikes in load.  Everything seems stable.
+
+Try to get jrecord to die by cranking load.  Seems fine.  Should probably
+disable the onboard sound card.
+
+
+
