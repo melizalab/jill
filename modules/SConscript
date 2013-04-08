@@ -23,11 +23,7 @@ for progname,srcs in programs.items():
     prog = menv.Program(progname,srcs+[lib])
     menv.Alias(progname,prog)
     out.append(prog)
-env.Alias('install', env.Install(env['BINDIR'],prog))
+    env.Alias('install', env.Install(env['BINDIR'],prog))
 
 env.Alias('modules',out)
-
-# scripts
-scripts = ['jill_trigger_capture']
-env.Alias('install', env.Install(env['BINDIR'],scripts))
 

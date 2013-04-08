@@ -5,7 +5,6 @@ if hasattr(os,'uname'):
 else:
     system = 'Windows'
 
-version = '1.2.0b1'
 libname = 'jill'
 
 # install location
@@ -44,7 +43,7 @@ else:
 if not GetOption('libdir')==None:
     install_libdir = GetOption('libdir')
 else:
-    install_libdir = os.path.join(install_prefix,'bin')
+    install_libdir = os.path.join(install_prefix,'lib')
 
 
 Help("""
