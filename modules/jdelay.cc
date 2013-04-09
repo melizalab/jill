@@ -49,7 +49,7 @@ protected:
 static jdelay_options options(PROGRAM_NAME, PROGRAM_VERSION);
 static boost::shared_ptr<util::stream_logger> logger;
 static boost::shared_ptr<jack_client> client;
-static boost::shared_ptr<sample_ringbuffer> ringbuf;
+static sample_ringbuffer ringbuf(1024);
 jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
@@ -60,19 +60,26 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 	sample_t *in = client->samples(port_in, nframes);
 	sample_t *out = client->samples(port_out, nframes);
 
-        // trim excess samples - should only happen once
-        if (ringbuf->read_space() > options.delay) {
-                ringbuf->pop(0, ringbuf->read_space() - options.delay);
-        }
-
-        if (ringbuf->read_space() == options.delay) {
-                ringbuf->pop(out, nframes);
-        }
-
-        if (ringbuf->push(in, nframes) != nframes) {
+        if (ringbuf.push(in, nframes) != nframes) {
+#ifndef NDEBUG
                 logger->log() << "error: buffer overrun";
+#endif
+        }
+        if (ringbuf.pop(out, nframes) != nframes) {
+#ifndef NDEBUG
+                logger->log() << "error: buffer underrun";
+#endif
         }
 
+        return 0;
+}
+
+int
+jack_bufsize(jack_client *client, nframes_t nframes)
+{
+        ringbuf.resize(options.delay + nframes);
+        // simple way to set a fixed delay is to advance pointer
+        ringbuf.push(0, options.delay);
         return 0;
 }
 
@@ -107,7 +114,7 @@ main(int argc, char **argv)
 
                 client.reset(new jack_client(options.client_name, logger));
                 options.delay = options.delay_msec * client->sampling_rate() / 1000;
-                ringbuf.reset(new sample_ringbuffer(options.delay));
+                logger->log() << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
 
                 port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
                                                 JackPortIsInput | JackPortIsTerminal, 0);
@@ -120,6 +127,7 @@ main(int argc, char **argv)
 		signal(SIGHUP,  signal_handler);
 
                 client->set_shutdown_callback(jack_shutdown);
+                client->set_buffer_size_callback(jack_bufsize);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
                 client->activate();

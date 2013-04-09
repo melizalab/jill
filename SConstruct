@@ -65,6 +65,8 @@ env = Environment(ENV=os.environ,
                   CPPPATH=['#/arf'],
                   tools=['default'])
 
+if os.environ.has_key('CXX'):
+    env.Replace(CXX=os.environ['CXX'])
 if os.environ.has_key('CFLAGS'):
     env.Append(CCFLAGS=os.environ['CFLAGS'].split())
 if os.environ.has_key('CXXFLAGS'):

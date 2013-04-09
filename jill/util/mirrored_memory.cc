@@ -15,6 +15,7 @@
  */
 #include <sys/mman.h>
 #include <sys/shm.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdexcept>
 #include "mirrored_memory.hh"
@@ -79,6 +80,8 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_p
         if ( 0 > shmctl( shm_id, IPC_RMID, NULL ) )
                 throw std::runtime_error("failed to tag shared memory for deletion");
 
+        // zero out the memory
+        memset(_buf, 0, _size);
 }
 
 mirrored_memory::~mirrored_memory()
