@@ -197,6 +197,12 @@ Note that we've connected the sound output of jstim to a playback port on the
 sound card, and the trigger output to the trigger input of jrecord.  You should
 see jrecord create an entry for each stimulus as it's presented.
 
+* JILL ARF file structure
+
+* Streaming audio over the network
+
+https://github.com/jackaudio/jackaudio.github.com/wiki/WalkThrough_User_NetJack2
+
 * Performance and stability
 
 Tuning a computer for low-latency, reliable operation can be challenging. Modern

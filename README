@@ -22,7 +22,7 @@ writing new clients using the JILL framework.
 ** Requirements
 
 + JACK (http://jackaudio.org; version 1: >= 0.121; or version 2: >= 1.9)
-+ boost (http://http://www.boost.org; >= 1.50)
++ boost (http://http://www.boost.org; >= 1.42)
 + libsndfile (http://www.mega-nerd.com/libsndfile; >= 1.0.20)
 + libsamplerate (http://www.mega-nerd.com/SRC/; > 0.1.7)
 + ARF (https://github.com/dmeliza/arf; >= 2.0)

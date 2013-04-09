@@ -536,5 +536,7 @@ Produces some nice spikes in load.  Everything seems stable.
 Try to get jrecord to die by cranking load.  Seems fine.  Should probably
 disable the onboard sound card.
 
-
+Ran overnight. jdetect and jstim died, but not until about 843 on Tuesday,
+coincidentally when I accessed the terminal. Interestingly, jrecord was still
+functional and could be reconnected to jstim.
 
