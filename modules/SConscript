@@ -12,7 +12,8 @@ menv.Append(CPPPATH=['#'],
             LIBS=['jack','samplerate','hdf5','hdf5_hl','sndfile'] + BOOST_LIBS,
             )
 
-programs = {'jdetect' : ['jdetect.cc'],
+programs = {'jdelay' : ['jdelay.cc'],
+            'jdetect' : ['jdetect.cc'],
             'jstim' : ['jstim.cc'],
             'jrecord' : ['jrecord.cc'],
             }

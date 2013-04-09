@@ -63,9 +63,8 @@ boost::shared_ptr<util::readahead_stimqueue> queue;
 boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_trigout, *port_trigin;
-int ret = EXIT_SUCCESS;
 
-int xruns = 0;
+int xruns = 0;                  // xrun counter
 
 /* the realtime process loop. some complicated logic follows! */
 int
@@ -265,7 +264,7 @@ main(int argc, char **argv)
                 queue->join();
                 client->deactivate();
 
-		return ret;
+		return EXIT_SUCCESS;
 	}
 
 	catch (Exit const &e) {
