@@ -387,6 +387,7 @@ Appears to be fine in jrecord.
 * TODO better handling of corrupted arf files
 
 should happen in arf_writer
+
 * DONE [#A] jstim: handle invalid stimulus files
 * TODO jstim: mlock or otherwise ensure stimulus buffers aren't paged
 * DONE [#A] jrecord won't trigger off jdetect
