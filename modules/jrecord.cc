@@ -23,7 +23,7 @@
 #include "jill/dsp/triggered_data_writer.hh"
 
 #define PROGRAM_NAME "jrecord"
-#define PROGRAM_VERSION "2.0.0-beta1"
+#define PROGRAM_VERSION "2.0.0-beta2"
 
 using namespace jill;
 
@@ -184,8 +184,8 @@ main(int argc, char **argv)
                 for (it = options.input_ports.begin(); it!= options.input_ports.end(); ++it) {
                         jack_port_t *p = client->get_port(*it);
                         if (p==0) {
-                                writer->log() << "error registering port: source port "
-                                              << *it << " does not exist";
+                                client->register_port(it->c_str(), JACK_DEFAULT_AUDIO_TYPE,
+                                                      JackPortIsInput | JackPortIsTerminal, 0);
                         }
                         else if (!(jack_port_flags(p) & JackPortIsOutput)) {
                                 writer->log() << "error registering port: source port "
@@ -258,9 +258,10 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
         jillopts.add_options()
                 ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
-                ("in,i",       po::value<vector<string> >(&input_ports), "connect to input port")
+                ("in,i",       po::value<vector<string> >(&input_ports),
+                 "add an input port: can be the name of an existing port, or a new name")
                 ("trig,t",    po::value<vector<string> >(&trig_ports)->multitoken()->zero_tokens(),
-                 "record in triggered mode (optionally specify input ports)")
+                 "record in triggered mode (optionally specify inputs)")
                 ("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
                  "minimum ringbuffer size (s)");
 

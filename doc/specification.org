@@ -214,7 +214,8 @@ provides the ability to record data prior to the actual epoch onset event.
 
 + in_NNN :: input. NNN is a numerical index. The number of ports and their type
             is determined at startup by specifying a list of ports to connect to
-            the client.
+            the client.  The client may also create custom-named ported as
+            specified by the user.
 + trig_in :: input, events. In epoch mode, controls the start and stop of
              recording epochs. Note on and stim on (onset) events cause epochs
              to start; note off and stim off (offset) events cause epochs to
@@ -272,9 +273,11 @@ maintain a running *jrecord* client, run it in a virtual screen.
    fill completely, and for performance sake only complete periods may be used.
 4. Postbuffer size. Only takes effect in epoch mode. Specifies the amount of
    additional data (in units of time) write after the trigger port signals an offset.
-5. The number of input ports to create, or a list of ports to connect to. It may
-   also be useful to have an option to connect to every output port on a client
-   (for example, to record from all the channels on a sound card or DAQ board)
+5. A list of ports to create and/or connect to. If the specified port name exists in the
+   JACK system, it will be connected to a numerically named port on the client
+   (e.g. pcm_000).  If the port doesn't exist, it's interpreted as a name for
+   a port to create.  These ports aren't connected, so users can connect them up
+   later.
 6. Optional key-value pairs, which will be stored in attributes of created
    entries.
 7. Ringbuffer size. An advanced option most users will not need to set.

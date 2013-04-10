@@ -393,13 +393,13 @@ should happen in arf_writer
 
 some broken logic in triggered_data_writer
 
-* TODO [#B] jrecord: more flexible specification of input ports
+* DONE [#B] jrecord: more flexible specification of input ports
 
 spec says allow user to connect to all ports of another client, and to set up a
 fixed number of ports. either drop from spec or implement
 
 Probably the simplest thing would be, if the user specifies an input port that
-doesn't exist, to just create a port with that name.
+doesn't exist, to just create a port with that name....done
 
 * TODO [#C] replace pthread threading code with boost?
 
