@@ -78,9 +78,12 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 void
 jack_latency (jack_latency_callback_mode_t mode, void *arg)
 {
+        float sr = 0.001 * client->sampling_rate();
 	jack_latency_range_t range;
 	if (mode == JackCaptureLatency) {
 		jack_port_get_latency_range (port_in, mode, &range);
+                logger->log() << "estimated capture latency (ms): ["
+                              << range.min / sr << "," << range.max / sr << "]";
 		range.min += options.delay;
 		range.max += options.delay;
 		jack_port_set_latency_range (port_out, mode, &range);
@@ -90,7 +93,8 @@ jack_latency (jack_latency_callback_mode_t mode, void *arg)
 		range.min += options.delay;
 		range.max += options.delay;
 		jack_port_set_latency_range (port_in, mode, &range);
-                logger->log() << "estimated playback latency (frames): [" << range.min << "," << range.max << "]";
+                logger->log() << "estimated playback latency (ms): ["
+                              << range.min / sr << "," << range.max / sr << "]";
 	}
 }
 
@@ -150,8 +154,7 @@ main(int argc, char **argv)
                 client->set_buffer_size_callback(jack_bufsize);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
-                if (jack_set_latency_callback)
-                        jack_set_latency_callback (client->client(), jack_latency, 0);
+                jack_set_latency_callback (client->client(), jack_latency, 0);
                 client->activate();
 
                 client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
