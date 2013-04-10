@@ -19,7 +19,7 @@
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jdelay"
-#define PROGRAM_VERSION "2.0.0-beta1"
+#define PROGRAM_VERSION "2.0.0-beta2"
 
 using namespace jill;
 typedef dsp::ringbuffer<sample_t> sample_ringbuffer;
@@ -74,6 +74,26 @@ process(jack_client *client, nframes_t nframes, nframes_t)
         return 0;
 }
 
+/** this is called by jack when calculating latency */
+void
+jack_latency (jack_latency_callback_mode_t mode, void *arg)
+{
+	jack_latency_range_t range;
+	if (mode == JackCaptureLatency) {
+		jack_port_get_latency_range (port_in, mode, &range);
+		range.min += options.delay;
+		range.max += options.delay;
+		jack_port_set_latency_range (port_out, mode, &range);
+	}
+        else {
+		jack_port_get_latency_range (port_out, mode, &range);
+		range.min += options.delay;
+		range.max += options.delay;
+		jack_port_set_latency_range (port_in, mode, &range);
+                logger->log() << "estimated playback latency (frames): [" << range.min << "," << range.max << "]";
+	}
+}
+
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
@@ -117,9 +137,9 @@ main(int argc, char **argv)
                 logger->log() << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
 
                 port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
-                                                JackPortIsInput | JackPortIsTerminal, 0);
+                                                JackPortIsInput, 0);
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
-                                                 JackPortIsOutput | JackPortIsTerminal, 0);
+                                                 JackPortIsOutput, 0);
 
                 // register signal handlers
 		signal(SIGINT,  signal_handler);
@@ -130,6 +150,8 @@ main(int argc, char **argv)
                 client->set_buffer_size_callback(jack_bufsize);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
+                if (jack_set_latency_callback)
+                        jack_set_latency_callback (client->client(), jack_latency, 0);
                 client->activate();
 
                 client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
@@ -171,7 +193,7 @@ jdelay_options::jdelay_options(std::string const &program_name, std::string cons
         po::options_description opts("Delay options");
         opts.add_options()
                 ("delay,d",   po::value<float>(&delay_msec)->default_value(10),
-                 "delay between input and output (ms)");
+                 "delay to add between input and output (ms)");
 
         cmd_opts.add(jillopts).add(opts);
         cfg_opts.add(jillopts).add(opts);
