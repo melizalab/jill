@@ -388,7 +388,11 @@ Appears to be fine in jrecord.
 
 should happen in arf_writer
 * TODO [#A] jstim: handle invalid stimulus files
-* TODO [#A] jrecord won't trigger off jdetect
+* TODO jstim: mlock or otherwise ensure stimulus buffers aren't paged
+* DONE [#A] jrecord won't trigger off jdetect
+
+some broken logic in triggered_data_writer
+
 * TODO [#B] jrecord: more flexible specification of input ports
 
 spec says allow user to connect to all ports of another client, and to set up a

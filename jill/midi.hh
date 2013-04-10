@@ -15,6 +15,19 @@
 #include <errno.h>
 #include <jack/midiport.h>
 
+#ifndef NDEBUG
+#include <ostream>
+inline std::ostream &
+operator<< (std::ostream & o, jack_midi_event_t const & e)
+{
+        o << e.time << ':';
+        for (jill::nframes_t i = 0; i < e.size; ++i) {
+                o << ' ' << int(e.buffer[i]);
+        }
+        return o;
+}
+#endif
+
 /**
  * @file midi.hh
  * @brief midi data types
@@ -95,9 +108,11 @@ struct midi {
                 }
                 return -1;
         }
+
 };
 
 }
+
 
 #endif /* _MIDI_HH */
 

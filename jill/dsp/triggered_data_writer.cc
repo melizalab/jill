@@ -59,7 +59,7 @@ triggered_data_writer::start_recording(nframes_t event_time)
         }
 
         /* write additional periods in prebuffer, up to current period */
-        while (ptr->time + ptr->nframes < event_time) {
+        while (ptr->time + ptr->nframes <= event_time) {
                 _writer->write(ptr);
                 _buffer->release();
                 ptr = _buffer->peek();
@@ -97,13 +97,13 @@ triggered_data_writer::write(period_info_t const * period)
                 // scan for onset & offset events
                 if (!_writer->ready()) {
                         int event_time = midi::find_trigger(data, true);
-                        if (event_time > 0) {
+                        if (event_time > -1) {
                                 start_recording(period->time + event_time);
                         }
                 }
                 else {
                         int event_time = midi::find_trigger(data, false);
-                        if (event_time > 0)
+                        if (event_time > -1)
                                 close_entry(period->time + event_time);
                 }
         }
