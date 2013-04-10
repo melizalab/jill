@@ -186,17 +186,21 @@ init_stimset(std::vector<std::string> const & stims, size_t const default_nreps)
         size_t nreps;
         for (size_t i = 0; i < stims.size(); ++i) {
                 path p(stims[i]);
-                if (!(exists(p) || is_regular_file(p))) continue;
                 if ((i+1) < stims.size()) {
                         if (sscanf(stims[i+1].c_str(),"%zd",&nreps) == 0) {
                                 nreps = default_nreps;
                         }
                 }
                 else nreps = default_nreps;
-                jill::stimulus_t *stim = new file::stimfile(p.string());
-                _stimuli.push_back(stim);
-                for (size_t j = 0; j < nreps; ++j)
-                        _stimlist.push_back(stim);
+                try {
+                        jill::stimulus_t *stim = new file::stimfile(p.string());
+                        _stimuli.push_back(stim);
+                        for (size_t j = 0; j < nreps; ++j)
+                                _stimlist.push_back(stim);
+                }
+                catch (jill::FileError const & e) {
+                        logger->log() << "invalid stimulus " << p << ": " << e.what();
+                }
         }
 }
 
