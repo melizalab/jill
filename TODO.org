@@ -437,6 +437,8 @@ arf_thread's performance isn't quite what I'd like it to be, and it seems much
 reduced after adding locking to arf_writer.  the granularity of the locks may be
 too fine.
 
+http://0pointer.de/blog/projects/mutrace.html
+
 ** DONE run jack_interposer
 *** DONE jstim
 *** DONE jdetect
@@ -544,4 +546,14 @@ disable the onboard sound card.
 Ran overnight. jdetect and jstim died, but not until about 843 on Tuesday,
 coincidentally when I accessed the terminal. Interestingly, jrecord was still
 functional and could be reconnected to jstim.
+
+*** [2013-04-10 Wed]
+
+still having problems with xruns bringing the system down. just running a couple
+of jdetect processes overnight, both died due to alsa_pcm xruns (presumably
+these arise from the sound card driver, which is another issue, possibly related
+to this being a centos 6 machine)
+
+seems like the xrun callback isn't returning a valid value.  Tried rewriting the
+return statement, though I don't see what difference it should make.
 

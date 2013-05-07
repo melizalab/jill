@@ -11,16 +11,7 @@
 framework to run auditory behavioral and neuroscience experiments.  This
 document describes how to get started using JILL with some common use cases.
 
-
-* Triggered Recording
-
-Let's say you want to record a bird's song, and you only want to save
-the sound when the bird is singing.  The task, then, is to take data
-from one of the channels on the sound card, run it through some kind
-of detector, and then use that detector to determine when data from
-that same channel gets written to disk.
-
-** Startup
+* Basic operation
 
 The first thing to do is start up the JACK server and connect it to the sound
 card. We'll use =qjackctl= to demonstrate (see [[qjackctl]] for instructions on
@@ -33,8 +24,10 @@ The =qjackctl= interface initially looks like this:
 
 To configure the JACK server, click setup. A window with many configuration
 options will open. As shown in the figure, turn on Realtime, and set the
-Frames/Period to something like 1024. For this application, latency is not an
-issue, so increase the period size if you're getting xruns.
+Frames/Period to something like 1024. Larger values will provide more buffering,
+but increase the latency between input, processing, and playback.  For many
+applications, latency is less of a concern than buffer overruns and underruns
+(called xruns in JACK parlance)
 
 [[file:qjackctl-config.png]]
 
@@ -44,16 +37,19 @@ correct choice is usually 'alsa'; on OS X machines the correct choice is usually
 interface. The display should show the the server is running along with some
 useful statistics.
 
-** Making connections
+** Adjusting input and output gain
+
+alsamixer tutorial...
+
+** Making connections and visualizing data
 
 JILL/JACK modules communicate with each other through ports. There are input
 ports and output ports, and you can make connections from outputs to inputs to
 move data around. In this section we'll demonstrate making connections with
-=qjackctl= and a third-party visualization program (see [[id:4440DFC4-C760-42EF-BEC3-4DC1DB234541][YASS]] for installation
-instructions).
+=qjackctl= and a third-party visualization program, yass.
 
-Start yass at the command line (e.g. 'yass &'). By default, yass will create two
-graphs, which can be connected to one or more output channels. Initially the
+Start =yass= at the command line (e.g. =yass &=). By default, =yass= will create
+two graphs, which can be connected to one or more output channels. Initially the
 plots will be gray, indicating that there isn't any signal. Click 'Connect' in
 =qjackctl= to open up an interface for making connections:
 
@@ -70,6 +66,14 @@ Note that you can connect multiple output ports to the same input port, in which
 case the inputs will be /mixed/: the data from the output ports will be added
 together, and this sum will appear in the input port. The same output port can
 be connected to multiple input ports.
+
+* Triggered recording
+
+Let's say you want to record a bird's song, and you only want to save
+the sound when the bird is singing.  The task, then, is to take data
+from one of the channels on the sound card, run it through some kind
+of detector, and then use that detector to determine when data from
+that same channel gets written to disk.
 
 ** Detecting the signal
 
@@ -94,9 +98,7 @@ more convenient to connect the modules on startup using commandline options. To
 start up the =jdetect= module and connect its input to the first capture
 channel, and its status output to the oscilloscope:
 
-#+begin_src sh
-jdetect -i alsa_pcm:capture_1 --count-port
-#+end_src
+: jdetect -i alsa_pcm:capture_1 --count-port
 
 Now connect yass to the status port of =jdetect= using qjackctl or the following
 shell command: =jack_connect jdetect:count yass:in_2=. The second channel of yass
@@ -137,6 +139,23 @@ the frequency and power of the signal.
 The integration time is determined by =period-size * X-period=. Longer
 integration times make the gates less sensitive to temporary dips or spikes in
 power, at some cost in sensitivity and temporal resolution.
+
+All *jill* modules can have their parameters specified on the command line or in
+configuration files.  These files are in "ini" format, which consists of a
+series of key-value pairs.  The keys in the file correspond to the long versions
+of the commandline options for the module.  A configuration file for a =jdetect=
+process might look like this:
+
+: name=bu38t
+: in=alsa_pcm:capture_1
+: open-thresh=0.015
+: open-rate=25
+: close-thresh=0.015
+: close-rate=10
+
+When =jdetect= is started with the command =jdetect -C jdetect.ini=, it will
+register with JACK as =bu38t=, connect to the port =alsa_pcm:capture_1=, and set
+the detection parameters as specified.
 
 ** Triggered recordings
 
@@ -197,9 +216,28 @@ Note that we've connected the sound output of jstim to a playback port on the
 sound card, and the trigger output to the trigger input of jrecord.  You should
 see jrecord create an entry for each stimulus as it's presented.
 
+*IMPORTANT NOTE:* Do not attempt to write to the same ARF file with more than
+ one =jrecord= process. The two processes have no way of coordinating their
+ access to the file and the data will become corrupted. Multiple processes can
+ read the same ARF file (for instance, you can open an ARF file to visualize
+ already recorded data while =jrecord= is still recording), but only one can
+ write.
+
 * JILL ARF file structure
 
+* Manipulating data streams with latency
+
+file:jack-latency.png
+
+JACK modules can introduce latency into the processing stream. act as data sources, sinks, or filters. =yass= and =jrecord=
+are examples of data sinks: they have input ports but no output ports. A filter
+has both input and output ports, and does something to the input data before
+passing it on to the output. =jdetect= is a sort of filter, that transforms a
+continuous audio stream into a series of events.
+
 * Streaming audio over the network
+
+This section is a placeholder.
 
 https://github.com/jackaudio/jackaudio.github.com/wiki/WalkThrough_User_NetJack2
 
@@ -214,77 +252,78 @@ activity can lead to glitches and dropouts.
 One option for dealing with these problems is to use large memory buffers, which
 can hold samples during periods of heavy load. Large buffers mean long
 latencies. This may not be a problem for many applications, like simply
-recording data. If there are a lot of xruns, and latency doesn't matter, try
-increasing the JACK period size or the buffer size in the application.  Also try
-running jackd in non-realtime mode, or using the =-Z= flag to make the daemon
-more forgiving of misbehaving clients.  Consider using JACK2, which doesn't
-glitch as clients connect and disconnect.
+recording data.
 
-In closed-loop applications, however, where the output of the system depends
-tightly on the input, latencies typically need to be much shorter. How short
-depends on the nature of the application. JACK can provide latencies on the
-order of 1-2 ms if properly configured. It's important to recognize, though,
-that Linux and OS X are not designed for realtime performance. Only a dedicated
-hard realtime system can provide guarantees on latency.
+In closed-loop applications, the output of the system depends tightly on the
+input, and latencies typically need to be short. How short depends on the nature
+of the application. JACK can provide latencies on the order of 1-2 ms if
+properly configured. It's important to recognize, though, that Linux and OS X
+are not designed for realtime performance. Only a dedicated hard realtime system
+can provide guarantees on latency. Below are some measures for improving
+performance.
 
-The JACK website has a lot of tips for decreasing latency. Some steps that can
-improve performance:
+** Increase buffer size or decrease sampling rate
 
-*Keep the system clean:* Install a system with a minimal number of applications,
-and disable any recurring operations.
+Larger periods give JACK clients more time to process the data and make the
+whole system less vulnerable to xruns.  Period sizes need to be a power of two.
+For example, to run JACK with a period size of 2048 samples:
 
-*Install a low-latency kernel:* CCRMA at Stanford  maintains a repository with
-kernels that have been patched for low latency operation
-(http://ccrma.stanford.edu/planetccrma/software/). You need to be running Centos
-5 or Fedora 16-18 to use these kernels.  You can also try to recompile the
-kernel yourself with the realtime preemption patches enabled.
+: jackd -p 2048
 
-*Disable CPU frequency scaling:* Run =cpufreq-set -g performance= or
-=cpufreq-selector -g performance= as root.  Disable bus-frequency scaling, C1E
-halt states, and EIST in BIOS.
+Increasing the number of periods for playback latency may also help. In
+=qjackctl= you can adjust these parameters in the setup window and it will
+report the expected latency.
+
+** Adjust other JACK parameters
+
+Other things to try include:
+
+1. Make the JACK daemon more forgiving of xruns. =jackd -Z ...=
+2. Turn off playback ports. =jackd -d alsa -C ...=
+3. Decrease the number of channel to what you need. To enable only 4 capture and
+   playback ports: =jackd -d alsa -i 4 -o 4 ...=
+
+Also try running JACK 2 instead of JACK 1; it's more fault tolerant and handles
+port connections without glitching.
+
+** Keep the system clean
+
+Install a system with a minimal number of applications, and disable any
+recurring operations.
+
+** Install a low-latency kernel:
+
+ CCRMA at Stanford maintains a repository with kernels that have been patched
+for low latency operation (http://ccrma.stanford.edu/planetccrma/software/). You
+need to be running CentOS 5 or Fedora 16-18 to use these kernels. You can also
+try to recompile the kernel yourself with the realtime preemption patches
+enabled.
+
+** Disable CPU frequency scaling:
+
+ Run =cpufreq-set -g performance= or =cpufreq-selector -g performance= as root.
+Disable bus-frequency scaling, C1E halt states, and EIST in BIOS.
+
+* Event framework
+
+http://www.srm.com/qtma/davidsmidispec.html
 
 * Other clients
 
 There are many third-party JACK clients that can be used with the JILL
 clients.  Some that might be useful:
 
-** qjackctl
-
-This is an extremely useful program for configuring the JACK daemon
-and making connections between clients.  On CentOS systems the program
-can be installed through yum from the PlanetCCRMA repository (
-http://ccrma.stanford.edu/planetccrma/software/) using the following
-commands:
-
-: rpm -Uvh http://ccrma.stanford.edu/planetccrma/mirror/centos/linux/planetccrma/5/i386/planetccrma-repo-1.1-1.el5.ccrma.noarch.rpm
-: yum install qjackctl
-
-Note that yum by default will attempt to install JACK as a dependency
-of =qjackctl=.  If this is not desired, use the following commands
-instead of yum install (yum-utils must be installed, and the version
-of =qjackctl= downloaded will change as the repository is updated):
-
-: yumdownloader qjackctl
-: rpm -Uvh --nodeps qjackctl-0.3.1a-5.el5.ccrma.x86_64.rpm
-
-See http://qjackctl.sourceforge.net/ for more information.
-
-** YASS
-   :PROPERTIES:
-   :ID:       4440DFC4-C760-42EF-BEC3-4DC1DB234541
-   :END:
-
-A fairly simple, reliable, highly configurable oscilloscope.  Very
-useful for monitoring activity while recording.  It's available
-through yum (=yum install yass=), or at the author's site:
-
-http://kokkinizita.linuxaudio.org/linuxaudio/downloads/index.html
-
 ** baudline
 
 A very full-featured visualization client, with scrolling spectrograms and all.
 Not open-source, and the interface is pretty non-standard, but very useful.
+Doesn't work with JACK 2 as of this writing.
 
 http://www.baudline.com/index.html
 
+** faust
 
+Faust is a system for specifying signal processors that can be compiled into
+JACK modules with graphical user interfaces.
+
+http://faust.grame.fr

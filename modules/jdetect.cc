@@ -186,12 +186,12 @@ main(int argc, char **argv)
                 client.reset(new jack_client(options.client_name, logger));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
-                                               JackPortIsInput | JackPortIsTerminal, 0);
+                                               JackPortIsInput, 0);
                 port_trig = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
-                                                JackPortIsOutput | JackPortIsTerminal, 0);
+                                                JackPortIsOutput, 0);
                 if (options.count("count-port")) {
                         port_count = client->register_port("count",JACK_DEFAULT_AUDIO_TYPE,
-                                                          JackPortIsOutput | JackPortIsTerminal, 0);
+                                                          JackPortIsOutput, 0);
                 }
 
                 // register signal handlers
