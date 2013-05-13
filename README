@@ -6,122 +6,34 @@
 #+LANGUAGE:   en
 
 *JILL* is a system for auditory behavioral and neuroscience experiments that
-uses the JACK audio framework (http://jackaudio.org). *JILL* includes several
-independent, interacting modules that handle stimulus presentation, vocalization
-detection, and data recording.
-
-JACK provides a low-latency
-
-JILL is a C++ framework for writing clients for JACK, the real-time
-audio toolkit.  It also comes with a number of useful clients.  This
-document contains instructions on how to install JILL and its
-dependencies.  Consult doc/user_guide.org for more information on
-using JILL, and doc/programming_guide.org for more information on
-writing new clients using the JILL framework.
+uses the JACK realtime audio framework (http://jackaudio.org). *JILL* comprises
+several independent, interacting modules that handle stimulus presentation,
+vocalization detection, and data recording.
 
 ** Requirements
 
++ a modern C++ compiler (e.g. g++ 4.4 or later)
++ scons (https://www.scons.org)
 + JACK (http://jackaudio.org; version 1: >= 0.121; or version 2: >= 1.9)
 + boost (http://http://www.boost.org; >= 1.42)
 + libsndfile (http://www.mega-nerd.com/libsndfile; >= 1.0.20)
 + libsamplerate (http://www.mega-nerd.com/SRC/; > 0.1.7)
 + ARF (https://github.com/dmeliza/arf; >= 2.0)
 
-
-*** Basic dependencies
-
-In addition to JACK, JILL depends on a number of other libraries.
-All of these are available through package managers with the exception
-of arf, a library for storing data to ARF containers.
-
-**** Linux
-
-Install dependencies using yum or another package manager:
-
-#+begin_src sh
-  yum install boost-devel jack-audio-connection-kit-devel \
-    libsndfile-devel libsamplerate-devel alsa-lib-devel hdf5-devel scons
-#+end_src
-
-On CentOS machines it's necessary to first point yum to the Fedora
-epel repository. In the following command, replace <arch> with x86_64
-(64-bit) or i386 (32-bit); replace <version> with 5-3, 5-4, etc,
-depending on the version of CentOS you are running.
-
-#+begin_src sh
-rpm -Uvh http://download.fedora.redhat.com/pub/epel/5/<arch>/epel-release-<version>.noarch.rpm
-#+end_src
-
-In order to run the jack daemon as a user process, the permissions on
-the device files under /dev/snd need to be changed. Alternatively,
-users needed access to the devices can be granted access to the audio
-group. To set the sound devices as world-writable, edit
-/etc/udev/rules.d/90-alsa.rules:
-
-#+begin_src sh
-SUBSYSTEM=="sound", KERNEL=="controlC*" RUN+="/sbin/salsa", MODE="0666"
-SUBSYSTEM=="sound", KERNEL=="pcm*"      RUN+="/sbin/salsa", MODE="0666"
-#+end_src
-
-**** OS X
-
-Assuming you've installed MacPorts:
-
-#+begin_src sh
-  port install boost jack hdf5-18
-#+end_src
-
-**** ARF library
-
-Install ARF as follows:
-
-#+begin_src sh
-  curl http://wail/distfiles/arf-1.1.0.tar.gz -O
-  tar zxvf arf-1.1.0.tar.gz && cd arf-1.1.0
-  scons -Q install
-#+end_src
-
-*** Low-latency operation
-
-JACK is a real-time audio server, and provides much better performance
-if the Linux kernel is patched for low-latency operation. This step
-can be skipped on machines that are only used to record audio data,
-but if you plan to record from many channels at the same time, or to
-do any amount of real-time processing, this is highly reccomended.
-
-
-#+begin_src sh
-  rpm -Uvh http://people.centos.org/hughesjr/kernel-rt/<arch1>/kernel-rt-2.6.24.7-65.el5rt.centos.<arch2>.rpm
-  rpm -Uvh http://people.centos.org/hughesjr/kernel-rt/<arch1>/kernel-rt-devel-2.6.24.7-65.el5rt.centos.<arch2>.rpm
-#+end_src
-
-Replace <arch1> with x86_64 for 64-bit machines, and i386 for 32-bit
-machines. <arch2> is x86_64 for 64-bit and i686 for 32-bit.
-
-The RT kernel will not boot by default. To change this, edit
-/boot/grub/grub.conf and change the line "default=1" so that the
-number corresponds to the 2.6.24.7-65.el5rt.centos kernel.
-
-* Installation
+** Installation
 
 JILL comprises a library, a set of headers, and a number of modules.
 To compile both library and modules:
 
-#+begin_src sh
-scons -Q library modules
-#+end_src
+: scons -Q library modules
 
 To install the headers, library, and modules in a system location, use
 the following command:
 
-#+begin_src sh
-scons -Q install --prefix <prefix>
-#+end_src
+: scons -Q install --prefix <prefix>
 
 The default prefix is /usr/local, but this can be changed with the
 prefix argument.
-
-
 
 
 ## Copyright 2010 Daniel Meliza
