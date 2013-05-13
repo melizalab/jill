@@ -20,7 +20,7 @@
 #include "jill/util/stream_logger.hh"
 
 #define PROGRAM_NAME "jdetect"
-#define PROGRAM_VERSION "2.0.0-beta1"
+#define PROGRAM_VERSION "2.0.0"
 
 using namespace jill;
 using std::string;

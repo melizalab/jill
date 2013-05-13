@@ -23,7 +23,7 @@
 #include "jill/dsp/triggered_data_writer.hh"
 
 #define PROGRAM_NAME "jrecord"
-#define PROGRAM_VERSION "2.0.0-beta2"
+#define PROGRAM_VERSION "2.0.0"
 
 using namespace jill;
 using std::string;
