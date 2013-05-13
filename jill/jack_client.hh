@@ -100,8 +100,12 @@ public:
 	 * @param name   the name of the client as represented to the server.
 	 *               May be changed by the server if not unique.
          * @param logger reference to object used for logging messages
+         *
+         * @param server_name  optional, specify which server to connect to
 	 */
 	jack_client(std::string const & name, boost::shared_ptr<event_logger> logger);
+	jack_client(std::string const & name, boost::shared_ptr<event_logger> logger,
+                    std::string const & server_name);
 	~jack_client();
 
         /**
@@ -233,6 +237,8 @@ private:
         XrunCallback _xrun_cb;
         ShutdownCallback _shutdown_cb;
 
+        void start_client(char const * name, char const * server_name=0);
+        void set_callbacks();
 
 	/*
 	 * These are the callback functions that are actually

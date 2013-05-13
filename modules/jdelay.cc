@@ -22,19 +22,22 @@
 #define PROGRAM_VERSION "2.0.0-beta2"
 
 using namespace jill;
+using std::string;
 typedef dsp::ringbuffer<sample_t> sample_ringbuffer;
 
 class jdelay_options : public program_options {
 
 public:
-	jdelay_options(std::string const &program_name, std::string const &program_version);
+	jdelay_options(string const &program_name, string const &program_version);
 
+	/** The server name */
+	string server_name;
 	/** The client name (used in internal JACK representations) */
-	std::string client_name;
+	string client_name;
 
 	/** Ports to connect to */
-        std::vector<std::string> input_ports;
-	std::vector<std::string> output_ports;
+        std::vector<string> input_ports;
+	std::vector<string> output_ports;
 
         float delay_msec;
         nframes_t delay;
@@ -136,7 +139,7 @@ main(int argc, char **argv)
                 logger.reset(new util::stream_logger(options.client_name, cout));
                 logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
 
-                client.reset(new jack_client(options.client_name, logger));
+                client.reset(new jack_client(options.client_name, logger, options.server_name));
                 options.delay = options.delay_msec * client->sampling_rate() / 1000;
                 logger->log() << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
 
@@ -179,14 +182,14 @@ main(int argc, char **argv)
 }
 
 
-jdelay_options::jdelay_options(std::string const &program_name, std::string const &program_version)
+jdelay_options::jdelay_options(string const &program_name, string const &program_version)
         : program_options(program_name, program_version)
 {
-        using std::string;
         using std::vector;
 
         po::options_description jillopts("JILL options");
         jillopts.add_options()
+                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")

@@ -26,24 +26,25 @@
 #define PROGRAM_VERSION "2.0.0-beta2"
 
 using namespace jill;
+using std::string;
 
 /* declare options parsing class */
 class jrecord_options : public program_options {
 
 public:
-	jrecord_options(std::string const &program_name, std::string const &program_version);
+	jrecord_options(string const &program_name, string const &program_version);
 
-	/** The client name (used in internal JACK representations) */
-        std::string client_name;
+        string server_name;
+        string client_name;
 
 	/** Vectors of inputs to connect to the client */
-        std::vector<std::string> input_ports;
-        std::vector<std::string> trig_ports;
+        std::vector<string> input_ports;
+        std::vector<string> trig_ports;
 
         /** key-value pairs to store as attributes in created entries */
-        std::map<std::string, std::string> additional_options;
+        std::map<string, string> additional_options;
 
-        std::string output_file;
+        string output_file;
 	float pretrigger_size_s;
 	float posttrigger_size_s;
 	float buffer_size_s;
@@ -162,7 +163,7 @@ main(int argc, char **argv)
                                                   options.compression));
                 writer->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
 
-                client.reset(new jack_client(options.client_name, writer));
+                client.reset(new jack_client(options.client_name, writer, options.server_name));
                 writer->set_data_source(client);
 
                 /* create ports: one for trigger, and one for each input */
@@ -247,15 +248,14 @@ main(int argc, char **argv)
 
 
 /** implementation of jrecord_options */
-jrecord_options::jrecord_options(std::string const &program_name, std::string const &program_version)
+jrecord_options::jrecord_options(string const &program_name, string const &program_version)
         : program_options(program_name, program_version)
 {
-
-        using std::string;
         using std::vector;
 
         po::options_description jillopts("JILL options");
         jillopts.add_options()
+                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
                 ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("in,i",       po::value<vector<string> >(&input_ports),
@@ -279,7 +279,7 @@ jrecord_options::jrecord_options(std::string const &program_name, std::string co
         // command-line options
         cmd_opts.add(jillopts).add(tropts);
         cmd_opts.add_options()
-                ("output-file,f", po::value<std::string>(), "output filename");
+                ("output-file,f", po::value<string>(), "output filename");
         pos_opts.add("output-file", -1);
 
         cfg_opts.add(jillopts).add(tropts);

@@ -23,19 +23,20 @@
 #define PROGRAM_VERSION "2.0.0-beta1"
 
 using namespace jill;
+using std::string;
 
 class jdetect_options : public program_options {
 
 public:
-	jdetect_options(std::string const &program_name, std::string const &program_version);
+	jdetect_options(string const &program_name, string const &program_version);
 
-	/** The client name (used in internal JACK representations) */
-	std::string client_name;
+        string server_name;
+	string client_name;
 
 	/** A vector of inputs to connect to the client */
-	std::vector<std::string> input_ports;
+	std::vector<string> input_ports;
 	/** A vector of outputs to connect to the client */
-	std::vector<std::string> output_ports;
+	std::vector<string> output_ports;
         /** The MIDI output channel */
         midi::data_type output_chan;
 
@@ -94,7 +95,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 	int offset = trigger->push(in, nframes, out);
         if (offset < 0) return 0;
 
-        buf[0] += (trigger->open()) ? midi::note_on : midi::note_off;
+        if (trigger->open()) buf[0] += midi::note_on;
+        else buf[0] += midi::note_off;
+
         event_t event = { time + offset, buf[0] & midi::type_nib }; // data sent to logger
         if (jack_midi_event_write(trig_buffer, offset, buf, 3) != 0) {
                 // indicate error to logger function
@@ -183,7 +186,7 @@ main(int argc, char **argv)
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(options.client_name, cout));
                 logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
-                client.reset(new jack_client(options.client_name, logger));
+                client.reset(new jack_client(options.client_name, logger, options.server_name));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput, 0);
@@ -233,14 +236,14 @@ main(int argc, char **argv)
 }
 
 
-jdetect_options::jdetect_options(std::string const &program_name, std::string const &program_version)
+jdetect_options::jdetect_options(string const &program_name, string const &program_version)
         : program_options(program_name, program_version)
 {
-        using std::string;
         using std::vector;
 
         po::options_description jillopts("JILL options");
         jillopts.add_options()
+                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("in,i",      po::value<vector<string> >(&input_ports), "add connection to input port")

@@ -26,22 +26,23 @@
 #define PROGRAM_VERSION "2.0.0-beta2"
 
 using namespace jill;
+using std::string;
 
 class jstim_options : public program_options {
 
 public:
-	jstim_options(std::string const &program_name, std::string const &program_version);
+	jstim_options(string const &program_name, string const &program_version);
 
-	/** The client name (used in internal JACK representations) */
-	std::string client_name;
+        string server_name;
+	string client_name;
 
 	/** Ports to connect to */
-	std::vector<std::string> output_ports;
-        std::vector<std::string> trigout_ports;
+	std::vector<string> output_ports;
+        std::vector<string> trigout_ports;
         midi::data_type trigout_chan;
-	std::vector<std::string> trigin_ports;
+	std::vector<string> trigin_ports;
 
-        std::vector<std::string> stimuli; // this is postprocessed
+        std::vector<string> stimuli; // this is postprocessed
 
         size_t nreps;           // default set by reps flag
         float min_gap_sec;      // min gap btw sound, in sec
@@ -179,7 +180,7 @@ signal_handler(int sig)
 
 /* parse the list of stimuli */
 static void
-init_stimset(std::vector<std::string> const & stims, size_t const default_nreps)
+init_stimset(std::vector<string> const & stims, size_t const default_nreps)
 {
         using namespace boost::filesystem;
 
@@ -214,7 +215,7 @@ main(int argc, char **argv)
                 logger.reset(new util::stream_logger(options.client_name, cout));
                 logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
 
-                client.reset(new jack_client(options.client_name, logger));
+                client.reset(new jack_client(options.client_name, logger, options.server_name));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
                 options.trigout_chan &= midi::chan_nib;
@@ -282,14 +283,14 @@ main(int argc, char **argv)
 }
 
 
-jstim_options::jstim_options(std::string const &program_name, std::string const &program_version)
+jstim_options::jstim_options(string const &program_name, string const &program_version)
         : program_options(program_name, program_version)
 {
-        using std::string;
         using std::vector;
 
         po::options_description jillopts("JILL options");
         jillopts.add_options()
+                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output audio port")
@@ -302,7 +303,7 @@ jstim_options::jstim_options(std::string const &program_name, std::string const 
         // tropts is a group of options
         po::options_description opts("Stimulus options");
         opts.add_options()
-                ("shuffle,s", "shuffle order of presentation")
+                ("shuffle,S", "shuffle order of presentation")
                 ("loop,l",    "loop endlessly")
                 ("repeats,r", po::value<size_t>(&nreps)->default_value(1), "default number of repetitions")
                 ("gap,g",     po::value<float>(&min_gap_sec)->default_value(1.0),

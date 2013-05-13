@@ -17,29 +17,24 @@
 #include <algorithm>
 
 using namespace jill;
+using std::string;
 
-
-jack_client::jack_client(std::string const & name, boost::shared_ptr<event_logger> logger)
+jack_client::jack_client(string const & name, boost::shared_ptr<event_logger> logger)
         : _nports(0), _log(logger)
 {
-	jack_status_t status;
-	_client = jack_client_open(name.c_str(), JackNoStartServer, &status);
-        if (_client == NULL) {
-                util::make_string err;
-                err << "unable to start client (status=" << int(status);
-                if (status & JackServerFailed) err << "; couldn't connect to server";
-                err << ")";
-                throw JackError(err);
-        }
-        _log->log() << "created client: " << jack_get_client_name(_client)
-              << " (load=" << jack_cpu_load(_client) << "%)" ;
-        jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
-        jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
-        jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
-        jack_set_sample_rate_callback(_client, &sampling_rate_callback_, static_cast<void*>(this));
-        jack_set_buffer_size_callback(_client, &buffer_size_callback_, static_cast<void*>(this));
-        jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
-        jack_on_info_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
+        start_client(name.c_str(), 0);
+        set_callbacks();
+}
+
+jack_client::jack_client(string const & name, boost::shared_ptr<event_logger> logger, string const & server)
+        : _nports(0), _log(logger)
+{
+        if (!server.empty())
+                start_client(name.c_str(), server.c_str());
+        else
+                start_client(name.c_str(), 0);
+        set_callbacks();
+
 }
 
 jack_client::~jack_client()
@@ -49,8 +44,41 @@ jack_client::~jack_client()
         }
 }
 
+void
+jack_client::start_client(char const * name, char const * server_name)
+{
+	jack_status_t status;
+        if (server_name == 0)
+                _client = jack_client_open(name, JackNoStartServer, &status);
+        else
+                _client = jack_client_open(name, jack_options_t(JackNoStartServer|JackServerName),
+                                           &status, server_name);
+
+        if (_client == NULL) {
+                util::make_string err;
+                err << "unable to start client (status=" << int(status);
+                if (status & JackServerFailed) err << "; couldn't connect to server";
+                err << ")";
+                throw JackError(err);
+        }
+        _log->log() << "created client: " << jack_get_client_name(_client)
+              << " (load=" << jack_cpu_load(_client) << "%)" ;
+}
+
+void
+jack_client::set_callbacks()
+{
+        jack_set_process_callback(_client, &process_callback_, static_cast<void*>(this));
+        jack_set_port_registration_callback(_client, &portreg_callback_, static_cast<void*>(this));
+        jack_set_port_connect_callback(_client, &portconn_callback_, static_cast<void*>(this));
+        jack_set_sample_rate_callback(_client, &sampling_rate_callback_, static_cast<void*>(this));
+        jack_set_buffer_size_callback(_client, &buffer_size_callback_, static_cast<void*>(this));
+        jack_set_xrun_callback(_client, &xrun_callback_, static_cast<void*>(this));
+        jack_on_info_shutdown(_client, &shutdown_callback_, static_cast<void*>(this));
+}
+
 jack_port_t*
-jack_client::register_port(std::string const & name, std::string const & type,
+jack_client::register_port(string const & name, string const & type,
                            unsigned long flags, unsigned long buffer_size)
 {
         jack_port_t *port = jack_port_register(_client, name.c_str(), type.c_str(), flags, buffer_size);
@@ -65,7 +93,7 @@ jack_client::register_port(std::string const & name, std::string const & type,
 }
 
 void
-jack_client::unregister_port(std::string const & name)
+jack_client::unregister_port(string const & name)
 {
         unregister_port(jack_port_by_name(_client, name.c_str()));
 }
@@ -100,13 +128,13 @@ jack_client::deactivate()
 }
 
 void
-jack_client::connect_port(std::string const & src, std::string const & dest)
+jack_client::connect_port(string const & src, string const & dest)
 {
 	// simple name-based lookup
 	jack_port_t *p1, *p2;
 	p1 = jack_port_by_name(_client, src.c_str());
 	if (p1==0) {
-		std::string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
+		string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
 		p1 = jack_port_by_name(_client, n.c_str());
 		if (p1==0)
 			throw JackError(util::make_string() << "the port " << n << " does not exist");
@@ -114,7 +142,7 @@ jack_client::connect_port(std::string const & src, std::string const & dest)
 
 	p2 = jack_port_by_name(_client, dest.c_str());
 	if (p2==0) {
-		std::string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
+		string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
 		p2 = jack_port_by_name(_client, n.c_str());
 		if (p2==0)
 			throw JackError(util::make_string() << "the port " << n << " does not exist");
@@ -145,7 +173,7 @@ jack_client::disconnect_all()
 }
 
 sample_t*
-jack_client::samples(std::string const & name, nframes_t nframes)
+jack_client::samples(string const & name, nframes_t nframes)
 {
         return samples(jack_port_by_name(_client, name.c_str()), nframes);
 }
@@ -173,7 +201,7 @@ jack_client::events(jack_port_t *port, nframes_t nframes)
 }
 
 jack_port_t*
-jack_client::get_port(std::string const & name) const
+jack_client::get_port(string const & name) const
 {
         return jack_port_by_name(_client, name.c_str());
 }
