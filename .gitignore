@@ -5,6 +5,10 @@ core*
 /arf
 /attic
 /resources
-/modules
 /test
 /test_wav
+/modules/jchirp
+/modules/jdelay
+/modules/jdetect
+/modules/jrecord
+/modules/jstim
