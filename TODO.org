@@ -1,5 +1,4 @@
 
-
 * DONE fix storage of uuids
 
 storing uuids as 16-byte strings is problematic because of nulls. change
@@ -409,7 +408,17 @@ can reuse thread ids, so joining in the destructor of buffered_data_writer can
 be problematic, if another thread has been started and takes the released id.
 No problems as long as running only one thread, so maybe put this off for now.
 
-* TODO testing and profiling
+
+* DONE more useful errors with bad commandline options
+  CLOCK: [2013-05-15 Wed 14:28]--[2013-05-15 Wed 14:45] =>  0:17
+
+in particular, failure to load an ini file
+
+* TODO write zmq ipc routines
+
+I think the place to implement this is in the arf_writer class
+
+* testing and profiling
 
 ** DONE check for memory leaks
 
@@ -557,3 +566,6 @@ to this being a centos 6 machine)
 seems like the xrun callback isn't returning a valid value.  Tried rewriting the
 return statement, though I don't see what difference it should make.
 
+*** [2013-05-15 Wed]
+
+Try another run on debian 7. Non-RT kernel.  Simple triggered capture.

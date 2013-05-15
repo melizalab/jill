@@ -37,15 +37,15 @@ program_options::program_options(std::string const &program_name, std::string co
 void
 program_options::print_version()
 {
-	std::cout << _program_name << " " << _program_version << std::endl;
+	std::cerr << _program_name << " " << _program_version << std::endl;
 }
 
 
 void
 program_options::print_usage()
 {
-	std::cout << "Usage: " << _program_name << " [options] " << std::endl;
-	std::cout << visible_opts;
+	std::cerr << "Usage: " << _program_name << " [options] "
+                  << visible_opts;
 }
 
 
@@ -55,7 +55,7 @@ program_options::parse(int argc, char **argv)
 
 	// need two passes, one to find out if we need to read a config file
 	po::store(po::command_line_parser(argc, argv).options(cmd_opts).
-		  positional(pos_opts).allow_unregistered().run(), vmap);
+		  positional(pos_opts).run(), vmap);
 	if (vmap.count("help")) {
 		print_usage();
 		throw Exit(EXIT_SUCCESS);
@@ -72,6 +72,10 @@ program_options::parse(int argc, char **argv)
 		po::parsed_options parsed = po::parse_config_file(ff, cfg_opts, true);
 		po::store(parsed, vmap);
 	}
+        else if (!configfile.empty()) {
+                std::cerr << "ERROR: configuration file " << configfile << " doesn't exist" << std::endl;
+                throw Exit(EXIT_FAILURE);
+        }
 
 	po::notify(vmap);
 	process_options();

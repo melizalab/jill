@@ -23,7 +23,7 @@
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jstim"
-#define PROGRAM_VERSION "2.0.0"
+#define PROGRAM_VERSION "2.0.1"
 
 using namespace jill;
 using std::string;
@@ -276,7 +276,8 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-                if (logger) logger->log() << "FATAL ERROR: " << e.what();
+                if (logger) logger->log() << "ERROR: " << e.what();
+                else cerr << "ERROR: " << e.what() << endl;
 		return EXIT_FAILURE;
 	}
 

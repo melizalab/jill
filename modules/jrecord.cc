@@ -23,7 +23,7 @@
 #include "jill/dsp/triggered_data_writer.hh"
 
 #define PROGRAM_NAME "jrecord"
-#define PROGRAM_VERSION "2.0.0"
+#define PROGRAM_VERSION "2.0.1"
 
 using namespace jill;
 using std::string;
@@ -241,7 +241,8 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (exception const &e) {
-                if (writer) writer->log() << "FATAL ERROR: " << e.what();
+                if (writer) writer->log() << "ERROR: " << e.what();
+                else cerr << "ERROR: " << e.what() << endl;
 		return EXIT_FAILURE;
 	}
 }
