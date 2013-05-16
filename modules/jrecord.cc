@@ -272,7 +272,7 @@ jrecord_options::jrecord_options(string const &program_name, string const &progr
                  "set additional attributes for recorded entries (key=value)")
                 ("pretrigger", po::value<float>(&pretrigger_size_s)->default_value(1.0),
                  "duration to record before onset trigger (s)")
-                ("posttrigger", po::value<float>(&posttrigger_size_s)->default_value(0.0),
+                ("posttrigger", po::value<float>(&posttrigger_size_s)->default_value(0.5),
                  "duration to record after offset trigger (s)")
                 ("compression", po::value<int>(&compression)->default_value(0),
                  "set compression in output file (0-9)");
