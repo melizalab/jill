@@ -19,7 +19,6 @@
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jdelay"
-#define PROGRAM_VERSION "2.0.1"
 
 using namespace jill;
 using std::string;
@@ -28,7 +27,7 @@ typedef dsp::ringbuffer<sample_t> sample_ringbuffer;
 class jdelay_options : public program_options {
 
 public:
-	jdelay_options(string const &program_name, string const &program_version);
+	jdelay_options(string const &program_name);
 
 	/** The server name */
 	string server_name;
@@ -49,7 +48,7 @@ protected:
 }; // jstim_options
 
 
-static jdelay_options options(PROGRAM_NAME, PROGRAM_VERSION);
+static jdelay_options options(PROGRAM_NAME);
 static boost::shared_ptr<util::stream_logger> logger;
 static boost::shared_ptr<jack_client> client;
 static sample_ringbuffer ringbuf(1024);
@@ -137,7 +136,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
+                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
 
                 client.reset(new jack_client(options.client_name, logger, options.server_name));
                 options.delay = options.delay_msec * client->sampling_rate() / 1000;
@@ -183,8 +182,8 @@ main(int argc, char **argv)
 }
 
 
-jdelay_options::jdelay_options(string const &program_name, string const &program_version)
-        : program_options(program_name, program_version)
+jdelay_options::jdelay_options(string const &program_name)
+        : program_options(program_name)
 {
         using std::vector;
 

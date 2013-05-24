@@ -17,6 +17,8 @@
 #include <vector>
 #include <boost/program_options.hpp>
 
+#define JILL_VERSION "2.0.2-SNAPSHOT"
+
 /**
  * @defgroup optionsgroup Parse command-line options
  *
@@ -59,13 +61,11 @@ namespace po = boost::program_options;
 class program_options {
 public:
 	/**
-	 * Initialize the options parser with the program's name and
-	 * version.
+	 * Initialize the options parser with the program's name.
 	 *
 	 * @param program_name     the name of the program
-	 * @param program_version  the version of the program
 	 */
-	program_options(std::string const &program_name, std::string const &program_version);
+	program_options(std::string const &program_name);
 	virtual ~program_options() {}
 
 	/** Description of the options for commandline usage */
@@ -137,7 +137,6 @@ public:
 
 protected:
 	std::string _program_name;
-	std::string _program_version;
 
 	/**
 	 * This function is called once the options are parsed; its

@@ -18,7 +18,6 @@
 #include "jill/util/stream_logger.hh"
 
 #define PROGRAM_NAME "jchirp"
-#define PROGRAM_VERSION "2.0.1"
 
 using namespace jill;
 using std::string;
@@ -26,7 +25,7 @@ using std::string;
 class jchirp_options : public program_options {
 
 public:
-	jchirp_options(string const &program_name, string const &program_version);
+	jchirp_options(string const &program_name);
 
 	/** The server name */
 	string server_name;
@@ -46,7 +45,7 @@ protected:
 
 }; // jstim_options
 
-static jchirp_options options(PROGRAM_NAME, PROGRAM_VERSION);
+static jchirp_options options(PROGRAM_NAME);
 static boost::shared_ptr<util::stream_logger> logger;
 static boost::shared_ptr<jack_client> client;
 jack_port_t *port_out;
@@ -68,7 +67,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 logf =  sin(2 * m_pi * frate * t);
                 out[i] = sin(2 * m_pi * options.min_freq * t);
         }
-        // logger->log() << "t=" << t << ", f=" << logf;
 
         return 0;
 }
@@ -87,7 +85,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
+                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
                 logger->log() << "frequency [" << options.min_freq << "," << options.max_freq
                               << "] Hz; rate " << options.freq_rate << "oct/s";
 
@@ -126,8 +124,8 @@ main(int argc, char **argv)
 	}
 }
 
-jchirp_options::jchirp_options(string const &program_name, string const &program_version)
-        : program_options(program_name, program_version)
+jchirp_options::jchirp_options(string const &program_name)
+        : program_options(program_name)
 {
         using std::vector;
 

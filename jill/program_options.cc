@@ -22,8 +22,8 @@ using std::string;
 using std::vector;
 using std::map;
 
-program_options::program_options(std::string const &program_name, std::string const &program_version)
-	:  _program_name(program_name), _program_version(program_version)
+program_options::program_options(std::string const &program_name)
+	:  _program_name(program_name)
 {
 	po::options_description generic("General options");
 	generic.add_options()
@@ -37,7 +37,7 @@ program_options::program_options(std::string const &program_name, std::string co
 void
 program_options::print_version()
 {
-	std::cerr << _program_name << " " << _program_version << std::endl;
+	std::cerr << _program_name << " " JILL_VERSION << std::endl;
 }
 
 

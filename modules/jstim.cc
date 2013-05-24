@@ -23,7 +23,6 @@
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jstim"
-#define PROGRAM_VERSION "2.0.1"
 
 using namespace jill;
 using std::string;
@@ -31,7 +30,7 @@ using std::string;
 class jstim_options : public program_options {
 
 public:
-	jstim_options(string const &program_name, string const &program_version);
+	jstim_options(string const &program_name);
 
         string server_name;
 	string client_name;
@@ -57,7 +56,7 @@ protected:
 }; // jstim_options
 
 
-jstim_options options(PROGRAM_NAME, PROGRAM_VERSION);
+jstim_options options(PROGRAM_NAME);
 boost::shared_ptr<util::stream_logger> logger;
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<util::readahead_stimqueue> queue;
@@ -213,7 +212,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
+                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
 
                 client.reset(new jack_client(options.client_name, logger, options.server_name));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
@@ -284,8 +283,8 @@ main(int argc, char **argv)
 }
 
 
-jstim_options::jstim_options(string const &program_name, string const &program_version)
-        : program_options(program_name, program_version)
+jstim_options::jstim_options(string const &program_name)
+        : program_options(program_name)
 {
         using std::vector;
 

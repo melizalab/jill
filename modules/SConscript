@@ -16,7 +16,6 @@ programs = {'jdelay' : ['jdelay.cc'],
             'jdetect' : ['jdetect.cc'],
             'jstim' : ['jstim.cc'],
             'jrecord' : ['jrecord.cc'],
-            'jchirp' : ['jchirp.cc'],
             }
 
 out = []

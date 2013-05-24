@@ -23,7 +23,6 @@
 #include "jill/dsp/triggered_data_writer.hh"
 
 #define PROGRAM_NAME "jrecord"
-#define PROGRAM_VERSION "2.0.1"
 
 using namespace jill;
 using std::string;
@@ -32,7 +31,7 @@ using std::string;
 class jrecord_options : public program_options {
 
 public:
-	jrecord_options(string const &program_name, string const &program_version);
+	jrecord_options(string const &program_name);
 
         string server_name;
         string client_name;
@@ -58,7 +57,7 @@ protected:
 
 };
 
-jrecord_options options(PROGRAM_NAME, PROGRAM_VERSION);
+jrecord_options options(PROGRAM_NAME);
 boost::shared_ptr<file::arf_writer> writer;
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<dsp::buffered_data_writer> arf_thread;
@@ -161,7 +160,7 @@ main(int argc, char **argv)
                                                   options.output_file,
                                                   options.additional_options,
                                                   options.compression));
-                writer->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
+                writer->log() << PROGRAM_NAME ", version " JILL_VERSION;
 
                 client.reset(new jack_client(options.client_name, writer, options.server_name));
                 writer->set_data_source(client);
@@ -249,8 +248,8 @@ main(int argc, char **argv)
 
 
 /** implementation of jrecord_options */
-jrecord_options::jrecord_options(string const &program_name, string const &program_version)
-        : program_options(program_name, program_version)
+jrecord_options::jrecord_options(string const &program_name)
+        : program_options(program_name)
 {
         using std::vector;
 

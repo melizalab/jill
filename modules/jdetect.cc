@@ -20,7 +20,6 @@
 #include "jill/util/stream_logger.hh"
 
 #define PROGRAM_NAME "jdetect"
-#define PROGRAM_VERSION "2.0.1"
 
 using namespace jill;
 using std::string;
@@ -28,7 +27,7 @@ using std::string;
 class jdetect_options : public program_options {
 
 public:
-	jdetect_options(string const &program_name, string const &program_version);
+	jdetect_options(string const &program_name);
 
         string server_name;
 	string client_name;
@@ -57,7 +56,7 @@ protected:
 }; // jdetect_options
 
 
-jdetect_options options(PROGRAM_NAME, PROGRAM_VERSION);
+jdetect_options options(PROGRAM_NAME);
 boost::shared_ptr<util::stream_logger> logger;
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<dsp::crossing_trigger<sample_t> > trigger;
@@ -185,7 +184,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " PROGRAM_VERSION;
+                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
                 client.reset(new jack_client(options.client_name, logger, options.server_name));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
@@ -237,8 +236,8 @@ main(int argc, char **argv)
 }
 
 
-jdetect_options::jdetect_options(string const &program_name, string const &program_version)
-        : program_options(program_name, program_version)
+jdetect_options::jdetect_options(string const &program_name)
+        : program_options(program_name)
 {
         using std::vector;
 
