@@ -12,8 +12,8 @@
  */
 #include <iostream>
 #include <signal.h>
-#include <boost/scoped_ptr.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/range/iterator_range.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -26,6 +26,8 @@
 
 using namespace jill;
 using std::string;
+typedef std::vector<string> svec;
+
 
 /* declare options parsing class */
 class jrecord_options : public program_options {
@@ -35,10 +37,6 @@ public:
 
         string server_name;
         string client_name;
-
-	/** Vectors of inputs to connect to the client */
-        std::vector<string> input_ports;
-        std::vector<string> trig_ports;
 
         /** key-value pairs to store as attributes in created entries */
         std::map<string, string> additional_options;
@@ -150,8 +148,10 @@ int
 main(int argc, char **argv)
 {
 	using namespace std;
-
-        vector<string>::const_iterator it;
+        typedef svec::const_iterator svec_iterator;
+        typedef boost::iterator_range< svec_iterator> svec_range;
+        svec_range plist;
+        int ret = 0;
         map<string,string> port_connections;
 	try {
 		options.parse(argc,argv);
@@ -180,29 +180,51 @@ main(int argc, char **argv)
                 }
 
                 /* register input ports */
-                int name_index = 0;
-                for (it = options.input_ports.begin(); it!= options.input_ports.end(); ++it) {
-                        jack_port_t *p = client->get_port(*it);
-                        if (p==0) {
+                if (options.count("in")) {
+                        int name_index = 0;
+                        plist = boost::make_iterator_range(options.vmap["in"].as<svec>());
+                        for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
+                                jack_port_t *p = client->get_port(*it);
+                                if (p==0) {
+                                        writer->log() << "error registering port: source port \""
+                                                      << *it << "\" does not exist";
+                                        throw Exit(-1);
+                                }
+                                else if (!(jack_port_flags(p) & JackPortIsOutput)) {
+                                        writer->log() << "error registering port: source port \""
+                                                      << *it << "\" is not an output port";
+                                        throw Exit(-1);
+                                }
+                                else {
+                                        char buf[16];
+                                        if (strcmp(jack_port_type(p),JACK_DEFAULT_AUDIO_TYPE)==0)
+                                                sprintf(buf,"pcm_%03d",name_index);
+                                        else
+                                                sprintf(buf,"evt_%03d",name_index);
+                                        name_index++;
+                                        client->register_port(buf, jack_port_type(p),
+                                                              JackPortIsInput | JackPortIsTerminal, 0);
+                                        port_connections[buf] = *it;
+                                }
+                        }
+                }
+
+                if (options.count("in-pcm")) {
+                        plist = boost::make_iterator_range(options.vmap["in-pcm"].as<svec>());
+                        for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
                                 client->register_port(it->c_str(), JACK_DEFAULT_AUDIO_TYPE,
                                                       JackPortIsInput | JackPortIsTerminal, 0);
                         }
-                        else if (!(jack_port_flags(p) & JackPortIsOutput)) {
-                                writer->log() << "error registering port: source port "
-                                              << *it << " is not an output port";
-                        }
-                        else {
-                                char buf[16];
-                                if (strcmp(jack_port_type(p),JACK_DEFAULT_AUDIO_TYPE)==0)
-                                        sprintf(buf,"pcm_%03d",name_index);
-                                else
-                                        sprintf(buf,"evt_%03d",name_index);
-                                name_index++;
-                                client->register_port(buf, jack_port_type(p),
+                }
+
+                if (options.count("in-evt")) {
+                        plist = boost::make_iterator_range(options.vmap["in-evt"].as<svec>());
+                        for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
+                                client->register_port(it->c_str(), JACK_DEFAULT_MIDI_TYPE,
                                                       JackPortIsInput | JackPortIsTerminal, 0);
-                                port_connections[buf] = *it;
                         }
                 }
+
 
                 // register signal handlers
 		signal(SIGINT,  signal_handler);
@@ -221,9 +243,12 @@ main(int argc, char **argv)
                 client->activate();
 
 		/* connect ports */
-		for (it = options.trig_ports.begin(); it != options.trig_ports.end(); ++it) {
-			client->connect_port(*it, "trig_in");
-		}
+                if (options.count("trig")) {
+                        plist = boost::make_iterator_range(options.vmap["trig"].as<svec>());
+                        for (svec_iterator it = plist.begin(); it != plist.end(); ++it) {
+                                client->connect_port(*it, "trig_in");
+                        }
+                }
                 for (map<string,string>::const_iterator it = port_connections.begin();
                      it != port_connections.end(); ++it) {
                         if (!it->second.empty()) client->connect_port(it->second, it->first);
@@ -231,19 +256,19 @@ main(int argc, char **argv)
 
                 arf_thread->join();
 
-                // manually deactivating the client ensures shutdown events get logged
-                client->deactivate();
-
-                return 0;
 	}
 	catch (Exit const &e) {
-		return e.status();
+		ret = e.status();
 	}
 	catch (exception const &e) {
                 if (writer) writer->log() << "ERROR: " << e.what();
                 else cerr << "ERROR: " << e.what() << endl;
-		return EXIT_FAILURE;
+		ret = EXIT_FAILURE;
 	}
+
+        // manually deactivating the client ensures shutdown events get logged
+        if (client) client->deactivate();
+        return ret;
 }
 
 
@@ -256,18 +281,20 @@ jrecord_options::jrecord_options(string const &program_name)
         po::options_description jillopts("JILL options");
         jillopts.add_options()
                 ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
-                ("name,n",     po::value<string>(&client_name)->default_value(_program_name),
+                ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
-                ("in,i",       po::value<vector<string> >(&input_ports),
-                 "add an input port: can be the name of an existing port, or a new name")
-                ("trig,t",    po::value<vector<string> >(&trig_ports)->multitoken()->zero_tokens(),
+                ("in,i",      po::value<svec>(),
+                 "connect to an input port: must be the name of an existing port")
+                ("in-pcm,I",  po::value<svec>(), "create an input port for sampled data")
+                ("in-evt,E",  po::value<svec>(), "create an input port for event data")
+                ("trig,t",    po::value<svec>()->multitoken()->zero_tokens(),
                  "record in triggered mode (optionally specify inputs)")
                 ("buffer",     po::value<float>(&buffer_size_s)->default_value(2.0),
                  "minimum ringbuffer size (s)");
 
         po::options_description tropts("Capture options");
         tropts.add_options()
-                ("attr,a",     po::value<vector<string> >(),
+                ("attr,a",     po::value<svec>(),
                  "set additional attributes for recorded entries (key=value)")
                 ("pretrigger", po::value<float>(&pretrigger_size_s)->default_value(1.0),
                  "duration to record before onset trigger (s)")
@@ -292,8 +319,9 @@ jrecord_options::print_usage()
 {
         std::cout << "Usage: " << _program_name << " [options] [output-file]\n"
                   << visible_opts << std::endl
-                  << "Ports:\n"
-                  << " * in_NNN:     for input of the signal(s) to be recorded\n"
+                  << "Ports (all are recorded):\n"
+                  << " * pcm_NNN:    sampled input ports\n"
+                  << " * evt_NNN:    event input ports\n"
                   << " * trig_in:    MIDI port to receive events triggering recording"
                   << std::endl;
 }

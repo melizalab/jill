@@ -168,6 +168,7 @@ bool program_options::assign<bool>(bool &ref, std::string const &name)
 	return ref;
 }
 
+
 /**
  * @ingroup miscgroup
  * @brief an exception intended to trigger program termination
