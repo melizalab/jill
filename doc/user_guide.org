@@ -1,24 +1,80 @@
 #-*- mode: org -*-
 #+STARTUP:    align fold hidestars oddeven
-#+TITLE:    JILL Real-Time Audio Framework - User Guide
+#+TITLE:    JILL Real-Time Audio Neuroscience Framework: User Guide
 #+AUTHOR:    Dan Meliza
-#+EMAIL:     dan@meliza.org
+#+EMAIL:     dan||meliza.org
+#+DATE: [2013-05-24 Fri]
+#+TEXT: Version 2.0
 #+LANGUAGE:   en
-#+OPTIONS: ^:nil H:2
-#+STYLE:    <link rel="stylesheet" href="org.css" type="text/css" />
+#+OPTIONS: ^:{} H:2
+#+HTML_HEAD:  <link rel="stylesheet" href="org.css" type="text/css" />
+#+INFJS_OPT path:org-info.js view:overview toc:nil
 
-*JILL* consists of a set of modules (programs) that use the JACK realtime audio
-framework to run auditory behavioral and neuroscience experiments.  This
-document describes how to get started using JILL with some common use cases.
+*JILL* is a system for auditory behavioral and neuroscience experiments. It
+consists of several independent modules that handle stimulus presentation,
+vocalization detection, and data recording. Modules can be connected to send and
+receive sampled (e.g. audio or neural) data and event time (e.g. action
+potentials, stimulus onsets and offsets) data in a low-latency, real-time
+framework.  This modular design provides great flexibility in running closed-
+and open-loop experiments.
 
-* Basic operation
+This document describes how to get started using *JILL*, and how to run some
+basic experiments. These tutorials assume you're running Linux, but should work
+on OS X or Windows without too many changes.
 
-The first thing to do is start up the JACK server and connect it to the sound
-card. We'll use =qjackctl= to demonstrate (see [[qjackctl]] for instructions on
-installing this program), but it's also possible to do all of these actions from
-the command line.
+* Basic concepts
 
-The =qjackctl= interface initially looks like this:
+This section introduces some basic concepts in digital signal processing. It
+can be skipped and referenced later.
+
+1. Physical quantities like voltage, sound pressure, and time are continuous (or
+   analog), but most modern computers are digital, operating on discrete quantities.
+2. Analog values can be converted to digital values by /sampling/. Sampling
+   occurs at discrete time points and is limited in precision.  For example, a
+   16-bit integer can represent up to 65536 distinct values.
+3. Analog signals are usually sampled over time at fixed intervals. The
+   reciprocal of the interval duration is the /sampling rate/. The maximum
+   frequency that can be carried by a digitized signal is half the sampling rate
+   (Nyquist theorem).
+4. Sampling rates are regulated by clocks. It's important to remember that no
+   two clocks are alike.
+5. Digital values can be converted to analog signals, also at a fixed sampling
+   rate.
+6. A digital system is /real-time/ if it processes data at the same rate it's
+   sampled and/or output. If it fails to keep up with this rate, data will be
+   lost (from inputs) or distorted (on outputs).
+7. Most desktop computers and operating systems implement real-time behavior
+   through /interrupts/ and /buffering/. On the input side, data is sampled and
+   stored in a buffer. When the buffer is full, an interrupt notifies the
+   computer to stop what it's doing and handle the data. Buffers introduce
+   latency equal to the number of samples in the buffer times the sampling rate.
+8. The data in the buffer need to be processed before the next interrupt occurs,
+   or data will be lost. Most desktop computers are doing many things at once,
+   and may not be able to handle interrupts in a timely fashion. Larger buffers
+   protect against this problem, but at the cost of more latency.
+9. JACK operates on a similar principle, though at a much higher level of
+   abstraction.  JACK clients can receive and send data through /ports/. Data
+   are processed in blocks of samples called /periods/.  When a period has
+   elapsed, each client receives a block of data for each of its input ports,
+   and has the opportunity to write data to its output ports.  All of the
+   clients have to finish processing their data before the period ends.
+10. JACK input ports can be connected to output ports, and the data written to
+    an output will be passed to the inputs of all the connected clients.  JACK
+    provides input and/or output ports that correspond to the hardware inputs
+    and outputs.
+
+* Setting up JACK
+
+This tutorial will show you how to start up the JACK server (or daemon) and plot
+input signals from a microphone or other source on a scrolling oscilloscope.
+Almost every computer comes with a sound card, which means you have a way of
+converting analog signals to digital bits that can be modified, visualized, or
+stored on disk.
+
+You should have installed =qjackctl=, a graphical interface for controlling the
+JACK server and making connections between clients. It's also possible to
+execute all of these actions from the command line. The =qjackctl= interface
+initially looks like this:
 
 [[file:qjackctl.png]]
 
@@ -39,14 +95,20 @@ useful statistics.
 
 ** Adjusting input and output gain
 
-alsamixer tutorial...
+The gain of sound card inputs and outputs is set outside of JACK using a mixer.
+On Linux, the mixer can be accessed using the =alsamixer= command or one of the
+many graphical utilities that come with various desktop systems. If you don't
+see signals on inputs or hear sound on outputs, check that the gain for those
+channels is high enough.
 
 ** Making connections and visualizing data
 
 JILL/JACK modules communicate with each other through ports. There are input
 ports and output ports, and you can make connections from outputs to inputs to
-move data around. In this section we'll demonstrate making connections with
-=qjackctl= and a third-party visualization program, yass.
+move data around. JACK will create input and output ports corresponding to the
+outputs and inputs of the sound card. This section demonstrates making a
+connection between a sound card input (or capture port) and a third-party
+visualization program, =yass=.
 
 Start =yass= at the command line (e.g. =yass &=). By default, =yass= will create
 two graphs, which can be connected to one or more output channels. Initially the
@@ -67,24 +129,131 @@ case the inputs will be /mixed/: the data from the output ports will be added
 together, and this sum will appear in the input port. The same output port can
 be connected to multiple input ports.
 
+* Stimulus presentation
+
+This tutorial demonstrates how to play audio stimuli through playback ports of a
+sound card. There are a plethora of programs that can play sound files with
+JACK. *JILL* includes a module called =jstim= that's specialized for presented a
+fixed list of stimuli multiple times in random order. It uses libsndfile
+(http://www.mega-nerd.com/libsndfile) and can read a lot of different formats.
+To play a single sound file repeatedly , run jstim as follows:
+
+: jstim -l <filename>
+
+You'll notice that nothing seems to happen. That's because jstim hasn't been
+connected to any of the sound card playback ports. Swith to the Connection window in
+=qjackctl= and connect jstim:out to one of the system playback ports:
+
+file:jstim-connect.png
+
+Of course, you can connect the output to as many ports as you like, and they
+will all receive the same input. Try connecting jstim:out to a yass input
+port.  Stop =jstim= with =Ctrl-C=.
+
+=jstim= has lots of options for controlling the order and timing of stimulus
+playback. For example, to present all the wave files in the current directory,
+each 5 times, in random order, with gaps of 5 s:
+
+: jstim -l -S -r 5 -g 5 *.wav
+
+Finally, jstim can be instructed to connect to one or more output ports on
+startup, before it starts playing any stimuli.  This command will play a
+stimulus one time on the first two playback ports:
+
+: jstim -o system:playback_1 -o system:playback_2 stimulus.wav
+
+* Recording
+
+This tutorial demonstrates how to save data from a sound card input to disk.
+Conceptually, this is the reverse of the playback configuration. Instead of
+moving data from a file to a playback port, you'll move data from one or more
+capture ports to a file. There are many JACK modules that will record one
+channel to a WAVE file or some other simple format, which we won't cover here.
+Instead, we'll use the =jrecord= module, which is specialized for recording many
+channels of data to an HDF5 file. HDF5 (http://www.hdfgroup.org/HDF5) is a
+structured file format that can store data hierarchically and with metadata.
+It's critical to store experimental data in an open, extensible, and
+well-documented format, so that it remains accessible and interpretable far into
+the future. =jrecord= uses the ARF specification
+(https://github.com/dmeliza/arf/blob/master/specification.org) for how it organizes data in the HDF5 files.
+
+Try recording continuously from one of the sound card's capture ports:
+
+: jrecord -i system:capture_1 <filename>
+
+Let this process run for a few seconds, quit it with =Ctrl-C=, and then examine
+the contents of the file with =h5ls <filename>=.  You should see something like
+this:
+
+: jill_log                 Dataset {14/Inf}
+: jrecord_0000             Group
+
+You can print a log of all the events that occurred during the recording
+session, including port connections and disconnections, with =h5ls -d
+<filename>/jill_log=.  The =jrecord_0000= group will contain datasets, one for
+each channel that was recorded.  See the [[https://github.com/dmeliza/arf/blob/master/specification.org][ARF specification]] for more information
+on how data is organized.
+
+You can (and should) record metadata about the experiment when making recordings
+by specifying attributes as commandline arguments. For example:
+
+: jrecord -i system:capture_1 -a experimenter=cdmeliza -a animal=bu38 -a mic=ME66 <filename>
+
+You can list the attributes stored in an entry with the command.
+
+: h5dump -A -g /jrecord_0000 <filename>
+
+*IMPORTANT NOTE:* You can use the same file to store multiple recording
+sessions, but don't let more than one jrecord process write to the same file.
+The HDF5 library has no way to coordinate access by multiple programs and the
+file will be corrupted.
+
+** Configuration files
+
+It can quickly become tedious to specify long lists of attributes or input
+channels on the command line. One solution is to write shell scripts for common
+tasks. Another, complementary solution is to put commonly used options in
+configuration files. All *JILL* modules have a common configuration file format,
+with a simple syntax consisting of a list of option=value pairs.  The options a
+program supports are listed in the commandline help (e.g. =jrecord -h=).  Use
+the long form of any option.  A configuration file for the =jrecord= command
+above would look like:
+
+: in=system:capture_1
+: attr=experimenter=cdmeliza
+: attr=animal=bu38
+: attr=mic=M66
+
+To run jrecord with these options: =jrecord -C <configfile> <data-file>=
+
 * Triggered recording
 
-Let's say you want to record a bird's song, and you only want to save
-the sound when the bird is singing.  The task, then, is to take data
-from one of the channels on the sound card, run it through some kind
-of detector, and then use that detector to determine when data from
-that same channel gets written to disk.
+This tutorial will describe how to use =jrecord= to record in /triggered/ mode,
+only saving data when an input signal rises above a certain level, or some
+other event of interest occurs.
+
+Data sampled at relatively high rates can take up a lot of space. In JACK, data
+are stored as 32-bit floating point values, so an hour of data from a single
+channel at 48 kHz requires about 660 MiB of uncompressed disk space. For many
+experimental designs you only want to record when something interesting is
+happening.
+
+The example we'll work with is recording songs over the course of a juvenile
+songbird's development. We'd like to start recording the bird when it starts
+singing, and stop when it's done. We'll detect the bird is singing using the
+=jdetect= module, and use trigger events from =jdetect= to start and stop
+=jrecord=.
 
 ** Detecting the signal
 
-The =jdetect= module uses a simple window discriminator to detect when a signal
-is occurring on a channel. It works by counting the number of times the signal
-crosses a threshold, maintaining a running count that's compared against another
-threshold. When the number of crossings in the analysis window (defined by the
-user) exceeds a threshold, the discriminator's 'gate' opens. Once the gate is
-open, the signal continues to be compared against a threshold (which can be
-different), and a separate running count is kept. Once the number of crossings
-drops below a certain number, the gate is closed.
+The =jdetect= module uses a simple window discriminator to detect when an
+input's power rises above a certain level. It works by counting the number of
+times the signal crosses a threshold, maintaining a running count that's
+compared against another threshold. When the number of crossings in the analysis
+window (defined by the user) exceeds a threshold, the discriminator's 'gate'
+opens. Once the gate is open, the signal continues to be compared against a
+threshold (which can be different), and a separate running count is kept. Once
+the number of crossings drops below a certain number, the gate is closed.
 
 There are a number of options for =jdetect= that are described in the program's
 help (=jdetect -h=). For now, we'll use the default settings. The =jdetect=
@@ -93,16 +262,16 @@ port. The input port receives the auditory signal; the output port emits events
 when the gate opens and closes. The status port is a readout of the running
 threshold crossing count and is useful for setting thresholds.
 
-JILL modules can be connected using =qjackctl= or =jack_connect=, but it's often
-more convenient to connect the modules on startup using commandline options. To
-start up the =jdetect= module and connect its input to the first capture
-channel, and its status output to the oscilloscope:
+To start up the =jdetect= module and connect its input to the first capture
+channel, run the following command:
 
-: jdetect -i alsa_pcm:capture_1 --count-port
+: jdetect -i system:capture_1 --count-port
 
-Now connect yass to the status port of =jdetect= using qjackctl or the following
-shell command: =jack_connect jdetect:count yass:in_2=. The second channel of yass
-will now show the output of the integrator, as below:
+The =--count-port= option will cause =jdetect= to create a status port where we
+can monitor the state of the detector. Now start =yass= and connect it to the
+status port of =jdetect= using qjackctl or the following shell command:
+=jack_connect jdetect:count yass:in_2=. The second channel of yass will now show
+the output of the integrator, as below:
 
 [[file:yass-integrate.png]]
 
@@ -113,13 +282,23 @@ increase. When the integrator crosses its threshold, the output port of
 : 20130408T105856.109825 [jdetect] signal on:  frames=79373312, us=518609266225
 : 20130408T105910.111175 [jdetect] signal off: frames=80038848, us=518623130887
 
-The first set of numbers is a timestamp for the event, and jdetect also reports
-the frame count (a number internal to the JACK system) and a
-microsecond-resolution timestamp.
+The first set of numbers is a timestamp for the event. =jdetect= also reports
+the frame count (a 32-bit unsigned integer internal to the JACK system) and a
+64-bit microsecond-resolution timestamp (=us=).
+
+You can test jdetect even if you don't have a bird, by generating a signal with
+=jstim= or any other JACK-aware application, and connecting the output to the
+jdetect input.  For example:
+
+: jstim -o jdetect:in myfile.wav
+
+This example demonstrates why the modular architcture of JACK can be so
+powerful.
 
 *** jdetect parameters
 
-Choosing the parameters for =jdetect= can be a bit tricky, so a few pointers:
+Choosing the optimal parameters for =jdetect= can be a bit tricky, so a few
+pointers:
 
 The open and close gates operate independently. If the open gate is too
 sensitive, it will trigger on transient noises. If it's not sensitive enough, it
@@ -140,41 +319,91 @@ The integration time is determined by =period-size * X-period=. Longer
 integration times make the gates less sensitive to temporary dips or spikes in
 power, at some cost in sensitivity and temporal resolution.
 
-All *jill* modules can have their parameters specified on the command line or in
-configuration files.  These files are in "ini" format, which consists of a
-series of key-value pairs.  The keys in the file correspond to the long versions
-of the commandline options for the module.  A configuration file for a =jdetect=
-process might look like this:
+Another parameter to adjust is the gain of the sound card input, or the
+preamplifier for the microphone. Again, if you don't want to wait around for
+your bird to sing, you can make a continous recording, clip out a song, and play
+it to =jdetect= until you've got the parameters right.
+
+Oonce you've got a working set of parameters, it' a good idea to save them in a
+configuration file.  For example:
 
 : name=bu38t
-: in=alsa_pcm:capture_1
+: in=system:capture_1
 : open-thresh=0.015
 : open-rate=25
 : close-thresh=0.015
 : close-rate=10
 
-When =jdetect= is started with the command =jdetect -C jdetect.ini=, it will
-register with JACK as =bu38t=, connect to the port =alsa_pcm:capture_1=, and set
-the detection parameters as specified.
+A word on client names. Each client that's connected to the JACK daemon has to
+have a unique name. By default, *JILL* modules will use the name of the program
+when connecting to JACK. If you have multiple =jdetect= modules running at the
+same time, JACK will rename the clients using a sequential numbering scheme.
+You can also manually specify the client name using the =-n= command-line
+option, or in a configuration file, as above.  Naming clients after the sound
+isolation box or animal in the box can help in making sense of complex
+connection graphs.
 
-** Triggered recordings
+** Triggered recordings and JACK events
 
-The =jdetect= module doesn't record data, but it can trigger other modules, like
-=jrecord=. The =jrecord= module can record multiple channels, either
-continuously or in response to a trigger event.
+First, let's talk about the concept of event-time data. If you look at the JACK
+port list by running =jack_lsp=, you'll see that =jdetect= has an output port
+called =trig_out=. To see it in the =qjackctl= Connection window, you'll have to
+switch to the "MIDI" tab, which should look something like this:
 
-The =jrecord= module saves data in ARF format (https://github.com/dmeliza/arf),
-a hierarchical storage format based on HDF5. Each recording episode is saved as
-a separate entry (or group) in the ARF/HDF5 file. The input and trigger port can
-be connected in =qjackctl=, or they can be specified on the command line:
+file:jdetect-connect.png
 
-: jrecord -t jdetect:trig_out -i alsa_pcm:capture_1 test.arf
+MIDI is a well-established protocol for musical devices to communicate about
+event times.  If you push the key for middle C on a MIDI keyboard, the keyboard
+doesn't generate the sound. Instead, it sends a signal on the MIDI bus that
+indicates what key was pressed and when.  A synthesizer that receives the
+signal translates the event into an actual sound.
 
-The /pretrigger/ and /posttrigger/ options to =jrecord= tell it how much data to
-record before the onset trigger and after the offset trigger. The default is a 1
-second pretrigger.
+JACK can route MIDI events between clients, and *JILL* modules use this
+mechanism to exchange information about event times.  These signals aren't
+intended for use with real MIDI devices, and the internals of how the signals
+are passed aren't important.  What's important is that audio ports carry sampled
+data, and can only be connected to other audio ports, whereas MIDI ports carry
+event data, and can only be connected to other MIDI ports.
+
+If =jrecord= is run in triggered mode, it creates an event input port that can
+be connected to any event output port.  For example:
+
+: jrecord -t jdetect:trig_out -I pcm <filename>
+
+=jrecord= will output messages indicating that it's started up and connected to
+the ports we specified, but it won't start recording until =jdetect= sends it a
+signal to start.  The =-I= flag tells =jrecord= to create an input port called
+=pcm=, but not to connect it to anything.  Now play a stimulus with =jstim=:
+
+: jstim -l -g 5 -o jdetect:in -o jrecord:pcm <filename>
+
+The =-g= flag tells =jstim= to wait 5 s between stimuli.  You should start to
+see a series of log messages like this:
+
+: 20130524T145926.060274 [jdetect] signal on:  frames=682333184, us=785038875072
+: 20130524T145933.626545 [jrecord] created entry: /jrecord_0006 (frame=682671232)
+: 20130524T145933.630329 [jrecord] created dataset: /jrecord_0006/trig_in
+: 20130524T145933.634015 [jrecord] created dataset: /jrecord_0006/pcm
+: 20130524T145934.060868 [jdetect] signal off: frames=682695680, us=785046426702
+: 20130524T145934.060960 [jdetect] signal on:  frames=682719232, us=785046917338
+: 20130524T145936.375178 [jstim] next stim: bu49_ref_3x (3.04983 s)
+: 20130524T145941.687170 [jrecord] closed entry: /jrecord_0006 (frame=683105280)
+
+Notice how =jrecord= creates new entries each time there's a trigger. Each entry
+corresponds to an HDF5 group. An important set of options in triggered mode are
+=--pretrigger= and =--posttrigger=. They tell =jrecord= how much data to record
+before the onset trigger and after the offset trigger. The default is to record
+1 second before the trigger and 0.5 s after. Having a pretrigger means that the
+detector doesn't have to detect the very onset of the signal. The pretrigger
+function uses a buffer that starts filling once recording stops, so if
+=pretrigger + posttrigger= is greater than the gap between stimuli, the first
+sample in each epoch will be immediately after the last sample in the previous
+epoch.
 
 * Recording stimulus-evoked activity
+
+In this tutorial, we'll see how to do a classic "open-loop" neurophysiology
+experiment, where we present auditory stimuli and record neural responses.
 
 This section introduces a third module, =jstim=, which plays data from sound
 files.  The output of =jstim= can be wired to an analog output of the sound
@@ -222,8 +451,6 @@ see jrecord create an entry for each stimulus as it's presented.
  read the same ARF file (for instance, you can open an ARF file to visualize
  already recorded data while =jrecord= is still recording), but only one can
  write.
-
-* JILL ARF file structure
 
 * Manipulating data streams with latency
 
@@ -280,7 +507,7 @@ Other things to try include:
 
 1. Make the JACK daemon more forgiving of xruns. =jackd -Z ...=
 2. Turn off playback ports. =jackd -d alsa -C ...=
-3. Decrease the number of channel to what you need. To enable only 4 capture and
+3. Decrease the number of channels to what you need. To enable only 4 capture and
    playback ports: =jackd -d alsa -i 4 -o 4 ...=
 
 Also try running JACK 2 instead of JACK 1; it's more fault tolerant and handles
@@ -293,7 +520,7 @@ recurring operations.
 
 ** Install a low-latency kernel:
 
- CCRMA at Stanford maintains a repository with kernels that have been patched
+CCRMA at Stanford maintains a repository with kernels that have been patched
 for low latency operation (http://ccrma.stanford.edu/planetccrma/software/). You
 need to be running CentOS 5 or Fedora 16-18 to use these kernels. You can also
 try to recompile the kernel yourself with the realtime preemption patches
@@ -303,10 +530,6 @@ enabled.
 
  Run =cpufreq-set -g performance= or =cpufreq-selector -g performance= as root.
 Disable bus-frequency scaling, C1E halt states, and EIST in BIOS.
-
-* Event framework
-
-http://www.srm.com/qtma/davidsmidispec.html
 
 * Other clients
 

@@ -5,12 +5,28 @@
 #+EMAIL:     dan@meliza.org
 #+LANGUAGE:   en
 
-*JILL* is a system for auditory behavioral and neuroscience experiments that
-uses the JACK realtime audio framework (http://jackaudio.org). *JILL* comprises
-several independent, interacting modules that handle stimulus presentation,
-vocalization detection, and data recording.
+*JILL* is a system for auditory behavioral and neuroscience experiments. It
+consists of several independent modules that handle stimulus presentation,
+vocalization detection, and data recording. Modules can be connected to send and
+receive sampled (e.g. audio or neural) data and event time (e.g. action
+potentials, stimulus onsets and offsets) data in a low-latency, real-time
+framework.  This modular design provides great flexibility in running closed-
+and open-loop experiments.
+
+*JILL* modules use the JACK audio framework (http://jackaudio.org) to route data
+between modules and to and from data acquisition (DAQ) hardware. JACK runs on
+Linux, OS X, and Windows, and supports a wide range of sound cards out of the
+box. There is an ongoing effort to develop third-party drivers for general
+purpose DAQ cards, including the Intan RHD2000 eval board
+(https://github.com/dmeliza/jack_rhd2000). *JILL* modules can interoperate with
+any existing JACK modules (e.g. for filtering, synthesis, and visualization).
+JACK is well-tested and has a large user community.
 
 ** Requirements
+
+*JILL* andJACK do not require any specialized hardware. If you have a sound card
+in your computer, you can record audio or neural data. You do need some
+software to build *JILL*:
 
 + a modern C++ compiler (e.g. g++ 4.4 or later)
 + scons (https://www.scons.org)
@@ -20,26 +36,19 @@ vocalization detection, and data recording.
 + libsamplerate (http://www.mega-nerd.com/SRC/; > 0.1.7)
 + ARF (https://github.com/dmeliza/arf; >= 2.0)
 
-** Installation
+** Building and Installation
 
-JILL comprises a library, a set of headers, and a number of modules.
-To compile both library and modules:
+To build the *JILL* modules, run the following command:
 
-: scons -Q library modules
+: scons -Q modules
 
-To install the headers, library, and modules in a system location, use
-the following command:
+You can run the modules from their build directory (e.g. =modules/jstim=). To
+install modules in a system location, use the following command:
 
 : scons -Q install --prefix <prefix>
 
 The default prefix is /usr/local, but this can be changed with the
 prefix argument.
-
-
-## Copyright 2010 Daniel Meliza
-##
-## Author: dmeliza@dylan.uchicago.edu
-## Keywords:
 
 
 
