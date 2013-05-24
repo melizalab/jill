@@ -87,8 +87,6 @@ jack_client::register_port(string const & name, string const & type,
         }
         _ports.push_back(port);
         _nports += 1;
-        _log->log() << "port registered: " << jack_port_name(port)
-              << " (" << jack_port_type(port) << ")" ;
         return port;
 }
 
@@ -263,6 +261,8 @@ jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
 	jack_client *self = static_cast<jack_client*>(arg);
         jack_port_t *port = jack_port_by_id(self->_client, id);
         if (!jack_port_is_mine(self->_client, port)) return;
+        self->_log->log() << "port registered: " << jack_port_name(port)
+              << " (" << jack_port_type(port) << ")" ;
         if (self->_portreg_cb)
                 self->_portreg_cb(self, port, registered);
 }

@@ -414,9 +414,10 @@ No problems as long as running only one thread, so maybe put this off for now.
 
 in particular, failure to load an ini file
 
-* TODO write zmq ipc routines
+* TODO write zmq ipc protocol
 
-I think the place to implement this is in the arf_writer class
+
+* TODO replace complicated logging mechanism with simple zmq-based one
 
 * testing and profiling
 

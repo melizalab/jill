@@ -230,9 +230,11 @@ main(int argc, char **argv)
                 // register callbacks
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
                 client->set_port_connect_callback(jack_portcon);
+                client->set_process_callback(process);
                 client->set_buffer_size_callback(jack_bufsize);
+
+
 
                 // start disk thread and activate process callback
                 arf_thread->start();
