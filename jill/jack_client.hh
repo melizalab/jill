@@ -120,6 +120,14 @@ public:
         jack_port_t* register_port(std::string const & name, std::string const & type,
                                    unsigned long flags, unsigned long buffer_size=0);
 
+        /** Register a sequence of ports */
+        template <typename It>
+        void register_ports(It const & begin, It const & end, std::string const & type,
+                           unsigned long flags, unsigned long buffer_size=0) {
+                for (It it = begin; it != end; ++it)
+                        register_port(*it, type, flags, buffer_size);
+        }
+
         void unregister_port(std::string const & name);
         void unregister_port(jack_port_t *port);
 

@@ -211,18 +211,14 @@ main(int argc, char **argv)
 
                 if (options.count("in-pcm")) {
                         plist = boost::make_iterator_range(options.vmap["in-pcm"].as<svec>());
-                        for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
-                                client->register_port(it->c_str(), JACK_DEFAULT_AUDIO_TYPE,
-                                                      JackPortIsInput | JackPortIsTerminal, 0);
-                        }
+                        client->register_ports(plist.begin(), plist.end(), JACK_DEFAULT_AUDIO_TYPE,
+                                               JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
                 if (options.count("in-evt")) {
                         plist = boost::make_iterator_range(options.vmap["in-evt"].as<svec>());
-                        for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
-                                client->register_port(it->c_str(), JACK_DEFAULT_MIDI_TYPE,
-                                                      JackPortIsInput | JackPortIsTerminal, 0);
-                        }
+                        client->register_ports(plist.begin(), plist.end(), JACK_DEFAULT_MIDI_TYPE,
+                                               JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
 
@@ -245,9 +241,7 @@ main(int argc, char **argv)
 		/* connect ports */
                 if (options.count("trig")) {
                         plist = boost::make_iterator_range(options.vmap["trig"].as<svec>());
-                        for (svec_iterator it = plist.begin(); it != plist.end(); ++it) {
-                                client->connect_port(*it, "trig_in");
-                        }
+                        client->connect_ports(plist.begin(), plist.end(), "trig_in");
                 }
                 for (map<string,string>::const_iterator it = port_connections.begin();
                      it != port_connections.end(); ++it) {
