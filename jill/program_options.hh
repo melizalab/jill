@@ -17,7 +17,7 @@
 #include <vector>
 #include <boost/program_options.hpp>
 
-#define JILL_VERSION "2.0.2-SNAPSHOT"
+#define JILL_VERSION "2.0.2"
 
 /**
  * @defgroup optionsgroup Parse command-line options
