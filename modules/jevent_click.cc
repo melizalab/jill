@@ -41,6 +41,9 @@ public:
 	/** The client name (used in internal JACK representations) */
 	string client_name;
 
+        bool click_onset;
+        bool click_offset;
+
 protected:
 
 	virtual void print_usage();
@@ -71,9 +74,11 @@ process(jack_client *client, nframes_t nframes, nframes_t)
                 switch(t) {
                 case midi::stim_on:
                 case midi::note_on:
+                        out[event.time] = options.click_onset * 1.0f;
+                        break;
                 case midi::stim_off:
                 case midi::note_off:
-                        out[event.time] = 1.0f;
+                        out[event.time] = options.click_offset * 1.0f;
                 default:
                         break;
                 }
@@ -181,14 +186,16 @@ jevent_click_options::jevent_click_options(string const &program_name)
 
 
         // add section(s) for module-specific options
-        // po::options_description opts("Delay options");
-        // opts.add_options()
-        //         ("delay,d",   po::value<float>(&delay_msec)->default_value(10),
-        //          "delay to add between input and output (ms)");
+        po::options_description opts("Delay options");
+        opts.add_options()
+                ("onset",   po::value<bool>(&click_onset)->default_value(true),
+                 "generate clicks for onset events")
+                ("offset",   po::value<bool>(&click_offset)->default_value(false),
+                 "generate clicks for offset events");
 
-        // cmd_opts..add(opts);
-        // cfg_opts.add(opts);
-        // visible_opts.add(opts);
+        cmd_opts.add(opts);
+        cfg_opts.add(opts);
+        visible_opts.add(opts);
 }
 
 /** provide the user with some information about the ports */
