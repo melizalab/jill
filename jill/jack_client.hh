@@ -122,7 +122,7 @@ public:
 
         /** Register a sequence of ports */
         template <typename It>
-        void register_ports(It const & begin, It const & end, std::string const & type,
+        void register_ports(It begin, It end, std::string const & type,
                            unsigned long flags, unsigned long buffer_size=0) {
                 for (It it = begin; it != end; ++it)
                         register_port(*it, type, flags, buffer_size);
@@ -176,14 +176,14 @@ public:
 
         /** Connect a sequence of ports to a destination */
         template <typename It>
-        void connect_ports(It const & begin, It const & end, std::string const & dest) {
+        void connect_ports(It begin, It end, std::string const & dest) {
                 for (It it = begin; it != end; ++it)
                         connect_port(*it, dest);
         }
 
         /** Connect a sequence of ports to a source */
         template <typename It>
-        void connect_ports(std::string const & src, It const & begin, It const & end) {
+        void connect_ports(std::string const & src, It begin, It end) {
                 for (It it = begin; it != end; ++it)
                         connect_port(src, *it);
         }

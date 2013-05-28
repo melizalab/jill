@@ -13,7 +13,6 @@
 #include <iostream>
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
-#include <boost/range/iterator_range.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -27,7 +26,6 @@
 using namespace jill;
 using std::string;
 typedef std::vector<string> svec;
-
 
 /* declare options parsing class */
 class jrecord_options : public program_options {
@@ -149,8 +147,6 @@ main(int argc, char **argv)
 {
 	using namespace std;
         typedef svec::const_iterator svec_iterator;
-        typedef boost::iterator_range< svec_iterator> svec_range;
-        svec_range plist;
         int ret = 0;
         map<string,string> port_connections;
 	try {
@@ -182,7 +178,7 @@ main(int argc, char **argv)
                 /* register input ports */
                 if (options.count("in")) {
                         int name_index = 0;
-                        plist = boost::make_iterator_range(options.vmap["in"].as<svec>());
+                        svec const & plist = options.vmap["in"].as<svec>();
                         for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
                                 jack_port_t *p = client->get_port(*it);
                                 if (p==0) {
@@ -210,13 +206,13 @@ main(int argc, char **argv)
                 }
 
                 if (options.count("in-pcm")) {
-                        plist = boost::make_iterator_range(options.vmap["in-pcm"].as<svec>());
+                        svec const & plist = options.vmap["in-pcm"].as<svec>();
                         client->register_ports(plist.begin(), plist.end(), JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
                 if (options.count("in-evt")) {
-                        plist = boost::make_iterator_range(options.vmap["in-evt"].as<svec>());
+                        svec const & plist = options.vmap["in-evt"].as<svec>();
                         client->register_ports(plist.begin(), plist.end(), JACK_DEFAULT_MIDI_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
                 }
