@@ -1,0 +1,205 @@
+/*
+ * A skeleton for jill modules (jack clients using the jill framework). Creates
+ * an input and output port, but doesn't do anything. To customize:
+ *
+ * 1. Replace "modname" with the name of your module.
+ * 2. Add variables for configurable options in modname_options class
+ * 3. Edit modname_options constructor to define commandline options
+ * 4. Edit process() for the realtime logic.
+ * 5. Edit main() for startup and shutdown.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * Copyright (C) 2010-2013 C Daniel Meliza <dmeliza@uchicago.edu>
+ */
+#include <iostream>
+#include <signal.h>
+#include <boost/shared_ptr.hpp>
+
+#include "jill/jack_client.hh"
+#include "jill/midi.hh"
+#include "jill/program_options.hh"
+#include "jill/util/stream_logger.hh"
+
+
+#define PROGRAM_NAME "jevent_click"
+
+using namespace jill;
+using std::string;
+typedef std::vector<string> stringvec;
+
+class jevent_click_options : public program_options {
+
+public:
+	jevent_click_options(string const &program_name);
+
+	/** The server name */
+	string server_name;
+	/** The client name (used in internal JACK representations) */
+	string client_name;
+
+protected:
+
+	virtual void print_usage();
+
+}; // jevent_click_options
+
+static jevent_click_options options(PROGRAM_NAME);
+static boost::shared_ptr<util::stream_logger> logger;
+static boost::shared_ptr<jack_client> client;
+jack_port_t *port_in, *port_out;
+static int ret = EXIT_SUCCESS;
+static int running = 1;
+
+int
+process(jack_client *client, nframes_t nframes, nframes_t)
+{
+	void *in = client->events(port_in, nframes);
+	sample_t *out = client->samples(port_out, nframes);
+
+        memset(out, 0, nframes * sizeof(sample_t));
+
+        jack_midi_event_t event;
+        nframes_t nevents = jack_midi_get_event_count(in);
+        for (nframes_t i = 0; i < nevents; ++i) {
+                jack_midi_event_get(&event, in, i);
+                if (event.size < 1) continue;
+                midi::data_type t = event.buffer[0] & midi::type_nib;
+                switch(t) {
+                case midi::stim_on:
+                case midi::note_on:
+                case midi::stim_off:
+                case midi::note_off:
+                        out[event.time] = 1.0f;
+                default:
+                        break;
+                }
+        }
+
+        // this just copies data from input to output - replace with something
+        // more interesting
+
+        return 0;
+}
+
+/** handle server shutdowns */
+void
+jack_shutdown(jack_status_t code, char const *)
+{
+        ret = -1;
+        running = 0;
+}
+
+/** handle POSIX signals */
+void
+signal_handler(int sig)
+{
+        ret = sig;
+        running = 0;
+}
+
+int
+main(int argc, char **argv)
+{
+	using namespace std;
+	try {
+                // parse options
+		options.parse(argc,argv);
+                logger.reset(new util::stream_logger(options.client_name, cout));
+                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
+
+                // start client
+                client.reset(new jack_client(options.client_name, logger, options.server_name));
+
+                // register ports
+                port_in = client->register_port("in",JACK_DEFAULT_MIDI_TYPE,
+                                                JackPortIsInput, 0);
+                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                                                 JackPortIsOutput, 0);
+
+                // register signal handlers
+		signal(SIGINT,  signal_handler);
+		signal(SIGTERM, signal_handler);
+		signal(SIGHUP,  signal_handler);
+
+                // register jack callbacks
+                client->set_shutdown_callback(jack_shutdown);
+                client->set_process_callback(process);
+
+                // activate client
+                client->activate();
+
+                // connect ports
+                if (options.count("in")) {
+                        stringvec const & portlist = options.vmap["in"].as<stringvec>();
+                        client->connect_ports(portlist.begin(), portlist.end(), "in");
+                }
+                if (options.count("out")) {
+                        stringvec const & portlist = options.vmap["out"].as<stringvec>();
+                        client->connect_ports("out", portlist.begin(), portlist.end());
+                }
+
+                while (running) {
+                        usleep(100000);
+                }
+
+                client->deactivate();
+		return ret;
+	}
+
+	catch (Exit const &e) {
+		return e.status();
+	}
+	catch (std::exception const &e) {
+                if (logger) logger->log() << "ERROR: " << e.what();
+                else cerr << "ERROR: " << e.what() << endl;
+		return EXIT_FAILURE;
+	}
+
+}
+
+/** configure commandline options */
+jevent_click_options::jevent_click_options(string const &program_name)
+        : program_options(program_name)
+{
+
+        // this section is for general JILL options. try to maintain consistency
+        // with other modules
+        po::options_description jillopts("JILL options");
+        jillopts.add_options()
+                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
+                ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
+                 "set client name")
+                ("in,i",      po::value<stringvec>(), "add connection to input port")
+                ("out,o",     po::value<stringvec>(), "add connection to output port");
+        cmd_opts.add(jillopts);
+        cfg_opts.add(jillopts);
+        visible_opts.add(jillopts);
+
+
+        // add section(s) for module-specific options
+        // po::options_description opts("Delay options");
+        // opts.add_options()
+        //         ("delay,d",   po::value<float>(&delay_msec)->default_value(10),
+        //          "delay to add between input and output (ms)");
+
+        // cmd_opts..add(opts);
+        // cfg_opts.add(opts);
+        // visible_opts.add(opts);
+}
+
+/** provide the user with some information about the ports */
+void
+jevent_click_options::print_usage()
+{
+        std::cout << "Usage: " << _program_name << " [options]\n"
+                  << visible_opts << std::endl
+                  << "Ports:\n"
+                  << " * in:        input port\n"
+                  << " * out:       output port\n"
+                  << std::endl;
+}
+

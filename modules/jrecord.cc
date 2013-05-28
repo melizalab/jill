@@ -238,7 +238,7 @@ main(int argc, char **argv)
 
 		/* connect ports */
                 if (options.count("trig")) {
-                        plist = boost::make_iterator_range(options.vmap["trig"].as<svec>());
+                        svec const & plist = options.vmap["trig"].as<svec>();
                         client->connect_ports(plist.begin(), plist.end(), "trig_in");
                 }
                 for (map<string,string>::const_iterator it = port_connections.begin();
