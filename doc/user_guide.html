@@ -1,0 +1,1148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<title>JILL Real-Time Auditory Neuroscience Framework: User Guide</title>
+<!-- 2013-07-01 Mon 11:20 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+<meta name="generator" content="Org-mode"/>
+<meta name="author" content="Dan Meliza"/>
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  .title  { text-align: center; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { color: green; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #ccc;
+    box-shadow: 3px 3px 3px #eee;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: visible;
+    padding-top: 1.2em;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    background-color: white;
+    top: -10px;
+    right: 10px;
+    padding: 3px;
+    border: 1px solid black;
+  }
+  pre.src:hover:before { display: inline;}
+  pre.src-sh:before    { content: 'sh'; }
+  pre.src-bash:before  { content: 'sh'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-R:before     { content: 'R'; }
+  pre.src-perl:before  { content: 'Perl'; }
+  pre.src-java:before  { content: 'Java'; }
+  pre.src-sql:before   { content: 'SQL'; }
+
+  table { border-collapse:collapse; }
+  td, th { vertical-align:top;  }
+  th.right  { text-align: center;  }
+  th.left   { text-align: center;   }
+  th.center { text-align: center; }
+  td.right  { text-align: right;  }
+  td.left   { text-align: left;   }
+  td.center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara:nth-child(2) { display: inline; }
+  .footpara { display: block; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  /*]]>*/-->
+</style>
+<link rel="stylesheet" type="text/css" href="org.css" />
+<script type="text/javascript">
+/*
+@licstart  The following is the entire license notice for the
+JavaScript code in this tag.
+
+Copyright (C) 2012  Free Software Foundation, Inc.
+
+The JavaScript code in this tag is free software: you can
+redistribute it and/or modify it under the terms of the GNU
+General Public License (GNU GPL) as published by the Free Software
+Foundation, either version 3 of the License, or (at your option)
+any later version.  The code is distributed WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+
+As additional permission under GNU GPL version 3 section 7, you
+may distribute non-source (e.g., minimized or compacted) forms of
+that code without the copy of the GNU GPL normally required by
+section 4, provided you include this license notice and a URL
+through which recipients can access the Corresponding Source.
+
+
+@licend  The above is the entire license notice
+for the JavaScript code in this tag.
+*/
+<!--/*--><![CDATA[/*><!--*/
+ function CodeHighlightOn(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(null != target) {
+     elem.cacheClassElem = elem.className;
+     elem.cacheClassTarget = target.className;
+     target.className = "code-highlighted";
+     elem.className   = "code-highlighted";
+   }
+ }
+ function CodeHighlightOff(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(elem.cacheClassElem)
+     elem.className = elem.cacheClassElem;
+   if(elem.cacheClassTarget)
+     target.className = elem.cacheClassTarget;
+ }
+/*]]>*///-->
+</script>
+</head>
+<body>
+<div id="content">
+<h1 class="title">JILL Real-Time Auditory Neuroscience Framework: User Guide</h1>
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#sec-1">1. Installing JACK and JILL</a></li>
+<li><a href="#sec-2">2. Setting up JACK</a></li>
+<li><a href="#sec-3">3. Stimulus presentation</a></li>
+<li><a href="#sec-4">4. Recording</a></li>
+<li><a href="#sec-5">5. Triggered recording</a></li>
+<li><a href="#sec-6">6. Recording stimulus-evoked activity</a></li>
+<li><a href="#sec-7">7. Other JACK clients</a></li>
+<li><a href="#sec-8">8. Basic concepts</a></li>
+<li><a href="#sec-9">9. Performance and stability</a></li>
+</ul>
+</div>
+</div>
+<p>
+<b>JILL</b> is a system for auditory behavioral and neuroscience experiments. It
+consists of several independent modules that can present stimuli, detect
+vocalizations, and record data. Modules can be connected to send and receive
+sampled data (e.g., audio or neural waveforms) and event-time data (e.g. action
+potentials, stimulus onsets and offsets) in a low-latency, real-time framework.
+This modular design provides great flexibility in running closed- and open-loop
+experiments.
+</p>
+
+<p>
+This document describes how to get started using <b>JILL</b>, and how to run some
+basic experiments. These tutorials assume you're running Linux, but they should
+work on OS X or Windows without too many changes.
+</p>
+
+<p>
+If you're new to signal processing, you might want to check out the
+<a href="#sec-8">Basic concepts</a> section first.
+</p>
+
+<div id="outline-container-sec-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Installing JACK and JILL</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+This section describes how to install the requirements for the tutorials in this
+guide. The instructions should work on Debian 7 or any other Debian-based Linux
+system without modification. They should also work on Red Hat based systems or
+on an OS X system using MacPorts, but you'll have to find the equivalent
+packages in your package manager.
+</p>
+
+<p>
+Some compiling from source is required, so you will need a reasonbly modern
+C/C++ compiler.
+</p>
+</div>
+
+<div id="outline-container-sec-1-1" class="outline-3">
+<h3 id="sec-1-1"><span class="section-number-3">1.1</span> JACK and qjackctl</h3>
+<div class="outline-text-3" id="text-1-1">
+<pre class="example">
+sudo apt-get install jackd1 libjack-dev qjackctl
+</pre>
+
+<p>
+If you wish, you can substitute JACK 2 for JACK 1.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-1-2" class="outline-3">
+<h3 id="sec-1-2"><span class="section-number-3">1.2</span> YASS</h3>
+<div class="outline-text-3" id="text-1-2">
+<p>
+YASS is a simple scrolling oscillosope that we'll use to visualize signals in
+JACK.
+</p>
+
+<pre class="example">
+git clone https://github.com/dmeliza/yass.git
+cd yass
+make
+sudo make install
+</pre>
+
+<p>
+At this point you're ready to go through the first tutorial.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-1-3" class="outline-3">
+<h3 id="sec-1-3"><span class="section-number-3">1.3</span> JILL prerequisites</h3>
+<div class="outline-text-3" id="text-1-3">
+<p>
+Most of the prerequisites are availble through package managers:
+</p>
+
+<pre class="example">
+sudo apt-get install scons libboost-all-dev libsndfile1-dev libsamplerate0-dev \
+ libhdf5-helpers libhdf5-tools libhdf5-dev
+</pre>
+
+<p>
+You also need to install ARF:
+</p>
+
+<pre class="example">
+git clone https://github.com/dmeliza/arf.git
+cd arf
+sudo make install
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-1-4" class="outline-3">
+<h3 id="sec-1-4"><span class="section-number-3">1.4</span> JILL modules</h3>
+<div class="outline-text-3" id="text-1-4">
+<pre class="example">
+git clone https://github.com/dmeliza/jill.git
+cd jill
+scons -Q modules
+</pre>
+
+<p>
+You can run the modules from their build directory. (e.g. <code>modules/jstim</code>). To
+install modules in a system location, use the following command:
+</p>
+
+<pre class="example">
+scons -Q install
+</pre>
+
+<p>
+The default install location is /usr/local/bin, but this can be changed with the
+<code>prefix</code> argument.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-sec-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Setting up JACK</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+This tutorial will show you how to start up the JACK server (or daemon) and plot
+input signals from a microphone or other source on a scrolling oscilloscope.
+Almost every computer comes with a sound card, which means you have a way of
+converting analog signals to digital bits that can be modified, visualized, or
+stored on disk.
+</p>
+
+<p>
+You should have installed <code>qjackctl</code>, a graphical interface for controlling the
+JACK server and making connections between clients. Later we'll discuss how to
+do these tasks on the command line. The <code>qjackctl</code> interface initially looks
+like this:
+</p>
+
+
+<div class="figure">
+<p><img src="qjackctl.png"  alt="qjackctl.png"/></p>
+</div>
+
+<p>
+To configure the JACK server, click <code>Setup</code>. A window with many configuration
+options will open. As shown in the figure, turn on Realtime, which should give
+the JACK daemon a high priority in the operating system's scheduler. Set the
+Frames/Period to something like 1024. Larger values will provide more buffering,
+but increase the latency between input, processing, and playback. For many
+applications, latency is less of a concern than buffer overruns and underruns
+(called <i>xruns</i> in JACK parlance) because those mean lost data.
+</p>
+
+
+<div class="figure">
+<p><img src="qjackctl-config.png"  alt="qjackctl-config.png"/></p>
+</div>
+
+<p>
+The correct driver to select will depend on the machine. On linux machines, the
+correct choice is usually <code>alsa</code>; on OS X machines the correct choice is usually
+<code>coreaudio</code>. Close the setup window (with OK) and then click <code>Start</code> in the main
+interface. The display should show that the server is running along with some
+useful statistics.
+</p>
+</div>
+
+<div id="outline-container-sec-2-1" class="outline-3">
+<h3 id="sec-2-1"><span class="section-number-3">2.1</span> Adjusting input and output gain</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+The gain of your sound card's inputs and outputs can be set outside of JACK
+using a mixer. On Linux, the mixer can be accessed using the <code>alsamixer</code> command
+or one of the many graphical utilities that come with various desktop systems.
+If you don't see signals on inputs or hear sound on outputs, check that the gain
+for those channels is high enough.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-2-2" class="outline-3">
+<h3 id="sec-2-2"><span class="section-number-3">2.2</span> Making connections and visualizing data</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+JILL/JACK modules communicate with each other through ports. There are input
+ports and output ports, and you can make connections from outputs to inputs to
+move data around. When it starts up, the JACK daemon will create input and
+output ports corresponding to the outputs and inputs of the sound card. This
+section demonstrates making a connection between a sound card input (or capture
+port) and a third-party visualization program, <code>yass</code>.
+</p>
+
+<p>
+Start <code>yass</code> at the command line (e.g. <code>yass &amp;</code>). By default, <code>yass</code> will create
+two graphs, which can be connected to one or more output channels. Initially the
+plots will be gray, indicating that there isn't any signal. Click 'Connect' in
+<code>qjackctl</code> to open up an interface for making connections:
+</p>
+
+
+<div class="figure">
+<p><img src="qjackctl-connect.png"  alt="qjackctl-connect.png"/></p>
+</div>
+
+<p>
+To make a connection, select an output and an input port and click 'Connect'. In
+the figure above I've connected the first capture channel of the soundcard to
+the first channel of yass. If the channel is hooked up to a microphone or other
+sound source, the yass plot will show its activity, as below.
+</p>
+
+
+<div class="figure">
+<p><img src="yass.png"  alt="yass.png"/></p>
+</div>
+
+<p>
+Note that you can connect multiple output ports to the same input port, in which
+case the inputs will be <i>mixed</i>: the data from the output ports will be added
+together, and this sum will appear in the input port. The same output port can
+be connected to multiple input ports.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-sec-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Stimulus presentation</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+This tutorial demonstrates how to play audio stimuli through playback ports of a
+sound card. There are a plethora of programs that can play sound files with
+JACK. <b>JILL</b> includes a module called <code>jstim</code> that's specialized for presenting a
+fixed list of stimuli multiple times in random order. It uses libsndfile
+(<a href="http://www.mega-nerd.com/libsndfile">http://www.mega-nerd.com/libsndfile</a>) and can read a lot of different formats.
+To play a single sound file repeatedly, run jstim as follows:
+</p>
+
+<pre class="example">
+jstim -l &lt;filename&gt;
+</pre>
+
+<p>
+You'll see some messages on the console, but you shouldn't hear anything yet.
+That's because jstim hasn't been connected to any of the sound card playback
+ports. Swith to the Connection window in <code>qjackctl</code> and connect jstim:out to one
+of the system playback ports:
+</p>
+
+
+<div class="figure">
+<p><img src="jstim-connect.png"  alt="jstim-connect.png"/></p>
+</div>
+
+<p>
+Of course, you can connect the output to as many ports as you like, and they
+will all receive the same input. Try connecting jstim:out to a yass input
+port.  Stop <code>jstim</code> with <code>Ctrl-C</code>.
+</p>
+
+<p>
+<code>jstim</code> has lots of options for controlling the order and timing of stimulus
+playback, which you can see by running <code>jstim &#x2013;help</code> (all of the <b>JILL</b> modules
+give help on how to run them this way). For example, to present all the wave
+files in the current directory, each 5 times, in random order, with gaps of 5 s:
+</p>
+
+<pre class="example">
+jstim -l -S -r 5 -g 5 *.wav
+</pre>
+
+<p>
+Finally, <code>jstim</code> can be instructed to connect to one or more output ports on
+startup, before it starts playing any stimuli.  This command will play a
+stimulus one time on the first two playback ports:
+</p>
+
+<pre class="example">
+jstim -o system:playback_1 -o system:playback_2 stimulus.wav
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Recording</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+This tutorial demonstrates how to save data from a sound card input to disk.
+Conceptually, this is the reverse of the playback operation. Instead of moving
+data from a file to a playback port, you'll move data from one or more capture
+ports to a file. There are many JACK modules that will record one channel to a
+WAVE file or some other simple format, which we won't cover here. Instead, we'll
+use the <code>jrecord</code> module, which is specialized for recording many channels of
+data to an HDF5 file. HDF5 (<a href="http://www.hdfgroup.org/HDF5">http://www.hdfgroup.org/HDF5</a>) is a structured file
+format that can store data hierarchically, with detailed metadata. It's critical to
+store experimental data in an open, extensible, and well-documented format, so
+that it remains accessible and interpretable far into the future. <code>jrecord</code> uses
+the <a href="https://github.com/dmeliza/arf/blob/master/specification.org">ARF format</a> to organize data in the HDF5 files.
+</p>
+
+<p>
+Try recording continuously from one of the sound card's capture ports:
+</p>
+
+<pre class="example">
+jrecord -i system:capture_1 &lt;filename&gt;
+</pre>
+
+<p>
+Let this process run for a few seconds, quit it with <code>Ctrl-C</code>, and then examine
+the contents of the file with <code>h5ls &lt;filename&gt;</code>.  You should see something like
+this:
+</p>
+
+<pre class="example">
+jill_log                 Dataset {14/Inf}
+jrecord_0000             Group
+</pre>
+
+<p>
+You can print a log of all the events that occurred during the recording
+session, including port connections and disconnections, with <code>h5ls -d
+&lt;filename&gt;/jill_log</code>.  The <code>jrecord_0000</code> group will contain datasets, one for
+each channel that was recorded.  See the <a href="https://github.com/dmeliza/arf/blob/master/specification.org">ARF specification</a> for more information
+on how data is organized.
+</p>
+
+<p>
+You can (and should) record metadata about the experiment when making recordings
+by specifying attributes as commandline arguments. For example:
+</p>
+
+<pre class="example">
+jrecord -i system:capture_1 -a experimenter=cdmeliza -a animal=bu38 -a mic=ME66 &lt;filename&gt;
+</pre>
+
+<p>
+You can list the attributes stored in an entry with the command.
+</p>
+
+<pre class="example">
+h5dump -A -g /jrecord_0000 &lt;filename&gt;
+</pre>
+
+<p>
+All the entries created by jrecord have a <code>timestamp</code> attribute, which is the
+number of seconds since January 1, 1970 UTC, and a <code>jack_frame</code> attribute,
+which corresponds to the number of samples since the JACK daemon started.
+</p>
+
+<p>
+<b>IMPORTANT NOTE:</b> You can use the same file to store multiple recording sessions
+in the same file sequentially, but not in parallel. Don't let more than one
+<code>jrecord</code> process write to the same file. The HDF5 library has no way to
+coordinate access by multiple programs and the file will be corrupted.
+Furthermore, be aware that if the JACK daemon is restarted, the internal frame
+counter will reset, and the <code>jack_frame</code> attribute will be inconsistent in the
+file.  You'll get into even worse problems if you change the sampling rate.
+For these reasons, it's strongly recommended that during data collection you
+use only one ARF file per recording session.
+</p>
+</div>
+
+<div id="outline-container-sec-4-1" class="outline-3">
+<h3 id="sec-4-1"><span class="section-number-3">4.1</span> Configuration files</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+It can quickly become tedious to specify long lists of attributes or input
+channels on the command line. One solution is to write shell scripts for common
+tasks. Another, complementary solution is to put commonly used options in
+configuration files. All <b>JILL</b> modules have a common configuration file format,
+with a simple syntax consisting of a list of option=value pairs.  The options a
+program supports are listed in the commandline help (e.g. <code>jrecord -h</code>).  Use
+the long form of any option.  A configuration file for the <code>jrecord</code> command
+above would look like:
+</p>
+
+<pre class="example">
+in=system:capture_1
+attr=experimenter=cdmeliza
+attr=animal=bu38
+attr=mic=M66
+</pre>
+
+<p>
+To run jrecord with these options: <code>jrecord -C &lt;configfile&gt; &lt;data-file&gt;</code>
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-sec-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> Triggered recording</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+This tutorial will describe how to use <code>jrecord</code> to record in <i>triggered</i> mode,
+only saving data when an input signal rises above a certain level, or some
+other event of interest occurs.
+</p>
+
+<p>
+Data sampled at relatively high rates can take up a lot of space. In JACK, data
+are stored as 32-bit floating point values, so an hour of data from a single
+channel at 48 kHz requires about 660 MB of uncompressed disk space. For many
+experimental designs you only want to record when something interesting is
+happening, so it would be nice to trigger recording on those interesting events.
+</p>
+
+<p>
+The example we'll work with is recording songs over the course of a juvenile
+songbird's development. We'd like to start recording the bird when it starts
+singing, and stop when it's done. We'll detect when the bird is singing using
+the <code>jdetect</code> module, and use trigger events from <code>jdetect</code> to start and stop
+<code>jrecord</code>.
+</p>
+</div>
+
+<div id="outline-container-sec-5-1" class="outline-3">
+<h3 id="sec-5-1"><span class="section-number-3">5.1</span> Detecting the signal</h3>
+<div class="outline-text-3" id="text-5-1">
+<p>
+The <code>jdetect</code> module uses a simple window discriminator to detect when an
+input's power rises above a certain level. It works by counting the number of
+times the signal crosses a threshold, maintaining a running count that's
+compared against another threshold. When the number of crossings in the analysis
+window (defined by the user) exceeds a threshold, the discriminator's 'gate'
+opens. Once the gate is open, the signal continues to be compared against a
+threshold (which can be different), and a separate running count is kept. Once
+the number of crossings drops below a certain number, the gate is closed.
+</p>
+
+<p>
+There are a number of options for <code>jdetect</code> that are described in the program's
+help (<code>jdetect -h</code>). For now, we'll use the default settings. The <code>jdetect</code>
+program has three ports: an input port, an output port, and an optional status
+port. The input port receives the auditory signal; the output port emits events
+when the gate opens and closes. The status port is optional and can be disabled
+in normal operation. It gives a readout of the running threshold crossing count
+and is useful for setting thresholds.
+</p>
+
+<p>
+To start up the <code>jdetect</code> module and connect its input to the first capture
+channel, run the following command:
+</p>
+
+<pre class="example">
+jdetect -i system:capture_1 --count-port
+</pre>
+
+<p>
+The <code>&#x2013;count-port</code> option will cause <code>jdetect</code> to create a status port where we
+can monitor the state of the detector. Now start <code>yass</code> and connect it to the
+status port of <code>jdetect</code> using qjackctl or the following shell command:
+<code>jack_connect jdetect:count yass:in_2</code>. The second channel of yass will now show
+the output of the integrator, as below.  Make some noise and see what you get:
+</p>
+
+
+<div class="figure">
+<p><img src="yass-integrate.png"  alt="yass-integrate.png"/></p>
+</div>
+
+<p>
+Note how the signal in the upper trace is associated with an increased in the
+state of the integrator. When the integrator crosses its threshold, the output
+port of <code>jdetect</code> will go high, and there will be a logged message, for example:
+</p>
+
+<pre class="example">
+20130408T105856.109825 [jdetect] signal on:  frames=79373312, us=518609266225
+20130408T105910.111175 [jdetect] signal off: frames=80038848, us=518623130887
+</pre>
+
+<p>
+The first set of numbers is a timestamp for the event, with microsecond
+precision if your platform supports it. <code>jdetect</code> also reports the frame count
+(a 32-bit unsigned integer internal to the JACK system) and a 64-bit
+microsecond-resolution timestamp (<code>us</code>).
+</p>
+
+<p>
+You can test jdetect even if you don't have a bird or other animal to record, by
+playing a sound with <code>jstim</code> or any other JACK-aware application, and connecting
+the output to the <code>jdetect</code> input. For example:
+</p>
+
+<pre class="example">
+jstim -o jdetect:in myfile.wav
+</pre>
+
+<p>
+This example demonstrates why the modular architcture of JACK can be so
+powerful.
+</p>
+</div>
+
+<div id="outline-container-sec-5-1-1" class="outline-4">
+<h4 id="sec-5-1-1"><span class="section-number-4">5.1.1</span> jdetect parameters</h4>
+<div class="outline-text-4" id="text-5-1-1">
+<p>
+Choosing the optimal parameters for <code>jdetect</code> can be a bit tricky, so a few
+pointers:
+</p>
+
+<ul class="org-ul">
+<li>The open and close gates operate independently. If the open gate is too
+sensitive, it will trigger on transient noises. If it's not sensitive enough,
+it won't trigger even then when the animal is vocalizing. If the close gate is
+too sensitive, recording may stop during brief gaps in the vocalization. If
+it's not sensitive enough the recordings may not stop.
+</li>
+
+<li>The analysis granularity of both gates is controlled by the <i>period-size</i>
+option. Longer periods are more efficient; smaller periods carry more
+fine-grained temporal information.
+</li>
+
+<li>Each gate is controlled by three parameters: <i>X-thresh</i>, <i>X-rate</i>, and
+<i>X-period</i>. The average crossing rate must exceed (for opening) or drop below
+(for closing) <code>X-rate / (period-size * X-period)</code>. Crossing rate is related to
+the frequency and power of the signal.
+</li>
+
+<li>The integration time is determined by <code>period-size * X-period</code>. Longer
+integration times make the gates less sensitive to temporary dips or spikes in
+power, at some cost in sensitivity and temporal resolution.
+</li>
+
+<li>Another parameter to adjust is the gain of the sound card input, or the
+preamplifier for the microphone. Again, if you don't want to wait around for
+your bird to sing, you can make a continous recording, clip out a song, and play
+it to <code>jdetect</code> until you've got the parameters right.
+</li>
+</ul>
+
+<p>
+Once you've got a working set of parameters, it' a good idea to save them in a
+configuration file.  For example:
+</p>
+
+<pre class="example">
+name=bu38t
+in=system:capture_1
+open-thresh=0.015
+open-rate=25
+close-thresh=0.015
+close-rate=10
+</pre>
+
+<p>
+A word on client names. Each client that's connected to the JACK daemon has to
+have a unique name. By default, <b>JILL</b> modules will use the name of the program
+when connecting to JACK. If you have multiple <code>jdetect</code> modules running at the
+same time, JACK will rename the clients using a sequential numbering scheme.
+You can also manually specify the client name using the <code>-n</code> command-line
+option, or in a configuration file, as above.  Naming clients after the sound
+isolation box or animal in the box can help in making sense of complex
+connection graphs.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-sec-5-2" class="outline-3">
+<h3 id="sec-5-2"><span class="section-number-3">5.2</span> Triggered recordings and JACK events</h3>
+<div class="outline-text-3" id="text-5-2">
+<p>
+First, let's talk about the concept of event-time data. If you look at the JACK
+port list by running <code>jack_lsp</code>, you'll see that <code>jdetect</code> has an output port
+called <code>trig_out</code>. To see it in the <code>qjackctl</code> Connection window, you'll have to
+switch to the "MIDI" tab, which should look something like this:
+</p>
+
+
+<div class="figure">
+<p><img src="jdetect-connect.png"  alt="jdetect-connect.png"/></p>
+</div>
+
+<p>
+MIDI is a well-established protocol for musical devices to communicate about
+event times. If you push the key for middle C on a MIDI keyboard, the keyboard
+doesn't generate the sound. Instead, it sends a short message on the MIDI bus
+that indicates what key was pressed and when. A synthesizer that receives the
+signal translates the event into an actual sound.
+</p>
+
+<p>
+JACK can route MIDI events between clients in its real-time framework, and
+<b>JILL</b> modules use this mechanism to exchange information about event times.
+These signals aren't intended for use with real MIDI devices, and the internals
+of how the signals are passed aren't important. What's important is that audio
+ports carry sampled data, and can only be connected to other audio ports,
+whereas MIDI ports carry event data, and can only be connected to other MIDI
+ports.
+</p>
+
+<p>
+If <code>jrecord</code> is run in triggered mode, it creates an event input port that can
+be connected to any event output port.  For example:
+</p>
+
+<pre class="example">
+jrecord -t jdetect:trig_out -I pcm &lt;filename&gt;
+</pre>
+
+<p>
+<code>jrecord</code> will output messages indicating that it's started up and connected to
+the ports we specified, but it won't start recording until <code>jdetect</code> sends it a
+signal to start.  The <code>-I</code> flag tells <code>jrecord</code> to create an input port called
+<code>pcm</code>, but not to connect it to anything.  Now play a stimulus with <code>jstim</code>:
+</p>
+
+<pre class="example">
+jstim -l -g 5 -o jdetect:in -o jrecord:pcm &lt;filename&gt;
+</pre>
+
+<p>
+The <code>-g</code> flag tells <code>jstim</code> to wait 5 s between stimuli.  You should start to
+see a series of log messages like this:
+</p>
+
+<pre class="example">
+20130524T145926.060274 [jdetect] signal on:  frames=682333184, us=785038875072
+20130524T145933.626545 [jrecord] created entry: /jrecord_0006 (frame=682671232)
+20130524T145933.630329 [jrecord] created dataset: /jrecord_0006/trig_in
+20130524T145933.634015 [jrecord] created dataset: /jrecord_0006/pcm
+20130524T145934.060868 [jdetect] signal off: frames=682695680, us=785046426702
+20130524T145934.060960 [jdetect] signal on:  frames=682719232, us=785046917338
+20130524T145936.375178 [jstim] next stim: bu49_ref_3x (3.04983 s)
+20130524T145941.687170 [jrecord] closed entry: /jrecord_0006 (frame=683105280)
+</pre>
+
+<p>
+Notice how <code>jrecord</code> creates new entries each time there's a trigger. Each entry
+corresponds to an HDF5 group. You may notice that the frame counter for the
+beginning of the entry is <i>before</i> the frame count when <code>jdetect</code> reports
+detecting the start of the signal. How is this possible? Through the magic of
+prebuffering.
+</p>
+
+<p>
+In triggered mode, when <code>jrecord</code> isn't writing samples to disk, it stores them
+in a buffer.  The size of the buffer is controlled by the <code>&#x2013;pretrigger</code>
+option.  When the program receives an event indicating the start of a signal,
+it writes the data in the buffer to disk and then starts writing new data, so
+it can effectively look back in time and see what happened before the event.
+Why is this important?  For one, the signal detection algorithm has some delay
+while it determines whether a sound is something interesting or a just a
+transient sound, but once you know a sound is interesting, you want to record
+the whole thing.  Second, if you're interested in neural events that correlate
+with a behavior, you want to know what was happening in the brain both before
+and after the behavior occurred.
+</p>
+
+<p>
+The <code>&#x2013;posttrigger</code> option serves a similar function, but controls how much data
+is recorded after the offset trigger. The default is to record 1 second before
+an onset trigger until 0.5 s after the offset trigger. Finally, note that the
+pretrigger buffer only starts filling after recording stops, so if an onset
+event occurs before the buffer is filled, only the samples stored up to that
+point are written to disk.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-sec-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> Recording stimulus-evoked activity</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+In this tutorial, we'll see how to do a classic "open-loop" neurophysiology
+experiment, where we present auditory stimuli and record neural responses. We
+won't use any new modules, but we'll wire them up in a different way. This
+exercise should show you how different kinds of experiments can be set up using
+the same basic components.
+</p>
+
+<p>
+By now it should be clear what modules we need to run this experiment. We'll use
+<code>jstim</code> to output sounds from a playback port, and <code>jrecord</code> to record neural
+data from one or more capture ports. One way of setting things up would be to
+let the two processes run independently, with <code>jrecord</code> recording continuously
+and <code>jstim</code> playing stimuli at random. Of course, to know what stimuli were
+presented, you'd want to record the stimulus output on one of the capture ports,
+perhaps by putting a small microphone near the animal. (It's a good idea to do
+this in any circumstance, to have a record of any distortions in the signal from
+the amplifiers, and any delays due to buffering in the sound card.)
+</p>
+
+<p>
+But there's a better way. We can use the event output from <code>jstim</code> to trigger
+<code>jrecord</code>.  What's more, the events that <code>jstim</code> emits include the filename of
+the stimulus that was presented, which will be stored in the ARF file by <code>jrecord</code>.
+</p>
+
+<p>
+First, start <code>jrecord</code> in triggered acquisition mode. If you're recording from
+many channels you can list them all on the command line:
+</p>
+
+<pre class="example">
+jrecord -t -f bu70_1.arf -i system:capture_1 -i system:capture_2 -i system:capture_3 ...
+</pre>
+
+<p>
+or use a configuration file to specify the input ports:
+</p>
+
+<pre class="example">
+jrecord -C multichannel.ini -a animal=bu70 -a site=1 -f bu70_1.arf
+</pre>
+
+<p>
+Note the use of the <code>-a</code> flags to set attributes on the recorded entries.
+<code>multichannel.ini</code> might look something like:
+</p>
+
+<pre class="example">
+trig
+pretrigger=1.0
+posttrigger=1.0
+in=system:capture_1
+in=system:capture_2
+in=system:capture_3
+in=system:capture_4
+in=system:capture_5
+in=system:capture_6
+in=system:capture_7
+in=system:capture_8
+in=system:capture_9
+in=system:capture_10
+in=system:capture_11
+in=system:capture_12
+</pre>
+
+<p>
+Next, instruct <code>jstim</code> to present a set of stimuli 10 times each in random
+order, with 5 seconds between stimuli:
+</p>
+
+<pre class="example">
+jstim -s -r 10 -g 5 -o system:playback_1 -e jstim:trig_in stimuli/*.wav
+</pre>
+
+<p>
+Note that we've connected the sound output of jstim to a playback port on the
+sound card, and the event output to the event input of <code>jrecord</code>.  You should
+see <code>jrecord</code> create an entry for each stimulus as it's presented, and store
+data between 1 second before each stimulus starts to 1 second after the
+stimulus ends.
+</p>
+
+<p>
+What if you don't want gaps in your recordings?  One option is to run <code>jrecord</code>
+in continuous mode:
+</p>
+
+<pre class="example">
+jrecord -f bu70_1.arf -E stimuli -i system:capture_1 ...
+jstim -s -r 10 -g 5 -o system:playback_1 -e jstim:stimuli
+</pre>
+
+<p>
+Note that we used the <code>-E</code> flag to instruct <code>jrecord</code> to create an event port,
+which we then connected to <code>jstim</code>. This port is not used to trigger, but any
+incoming events will be stored in temporal register to the ARF file.
+</p>
+
+<p>
+Alternatively, you can configure <code>jrecord</code> in triggered mode so that
+<code>pretrigger + posttrigger</code> is greater than the gap between stimuli. When this is
+the case, the first sample in each epoch will be immediately after the last
+sample in the previous epoch. This gives you a continuous recording, but
+conveniently divided into epochs associated with specific stimuli. You can
+stitch the data back together later if you need to process it as a continuous
+stream.
+</p>
+
+<p>
+<b>IMPORTANT NOTE:</b> There is a delay between when <code>jstim</code> sends a signal to the
+sound card and when the sound is output from the speaker. Almost all of this
+delay is due to buffering. <b>DO NOT</b> use the times of the events stored by
+<code>jrecord</code> in analysis, until you've determined what the delay is. It's strongly
+recommended that you run the signal from the sound card output to one of your
+recording system's inputs so that you know exactly what was being presented (or
+better yet, use a microphone to record what the animal actually heard).
+</p>
+</div>
+</div>
+<div id="outline-container-sec-7" class="outline-2">
+<h2 id="sec-7"><span class="section-number-2">7</span> Other JACK clients</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+There are many third-party JACK clients that can be used with the JILL
+clients.  Some that might be useful:
+</p>
+</div>
+
+<div id="outline-container-sec-7-1" class="outline-3">
+<h3 id="sec-7-1"><span class="section-number-3">7.1</span> baudline</h3>
+<div class="outline-text-3" id="text-7-1">
+<p>
+A very full-featured visualization client, with scrolling spectrograms and all.
+Not open-source, and the interface is pretty non-standard, but very useful.
+Doesn't work with JACK 2 as of this writing.
+</p>
+
+<p>
+<a href="http://www.baudline.com/index.html">http://www.baudline.com/index.html</a>
+</p>
+</div>
+</div>
+<div id="outline-container-sec-7-2" class="outline-3">
+<h3 id="sec-7-2"><span class="section-number-3">7.2</span> faust</h3>
+<div class="outline-text-3" id="text-7-2">
+<p>
+Faust is a system for specifying signal processors (e.g., filters, delay loops)
+that can be compiled into JACK modules with convenient graphical user interfaces.
+</p>
+
+<p>
+<a href="http://faust.grame.fr">http://faust.grame.fr</a>
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-sec-8" class="outline-2">
+<h2 id="sec-8"><span class="section-number-2">8</span> Basic concepts</h2>
+<div class="outline-text-2" id="text-8">
+<p>
+This section introduces some basic concepts in digital signal processing. It
+can be skipped and referenced later.
+</p>
+
+<ol class="org-ol">
+<li>Physical quantities like voltage, sound pressure, and time are continuous (or
+analog), but most modern computers are digital, operating on discrete quantities.
+</li>
+<li>Analog values can be converted to digital values by <i>sampling</i>. Sampling
+occurs at discrete time points, and sampled values are limited in range and
+precision. For example, a 16-bit integer can represent only 65536 distinct
+values.
+</li>
+<li>Analog, time-varying signals are usually sampled at fixed intervals. The
+reciprocal of the interval duration is the <i>sampling rate</i>. The maximum
+frequency that can be carried by a digitized signal is half the sampling rate
+(also called the Nyquist frequency).
+</li>
+<li>Sampling rates are regulated by clocks. No two clocks are identical.
+</li>
+<li>Digital values can be converted to analog signals. This process is also
+governed by sampling rate and precision.
+</li>
+<li>A digital system is <i>real-time</i> if it processes data at the same rate as it
+occurs in physical reality. If it fails to keep up with this rate, data will
+be lost (from inputs) or distorted (on outputs).
+</li>
+<li>Most desktop computers and operating systems implement real-time behavior
+through <i>interrupts</i> and <i>buffering</i>. On the input side, data is sampled and
+stored in a buffer. When the buffer is full, an interrupt notifies the
+computer to stop what it's doing and handle the data. Buffers introduce
+latency equal to the number of samples in the buffer times the sampling rate.
+</li>
+<li>The data in the buffer need to be processed before the next interrupt occurs,
+or data will be lost. An <i>overrun</i> occurs when the process taking data out of
+the buffer fails to keep up with the process putting data in. An <i>underrun</i>
+occurs when the input process fails to keep up with the output process. Most
+desktop computers are doing many things at once, and may not be able to
+handle interrupts in a timely fashion. Larger buffers protect against this
+problem, but at the cost of more latency.
+</li>
+<li>JACK operates on a similar principle, though at a much higher level of
+abstraction.  JACK clients can receive and send data through <i>ports</i>. Data
+are processed in blocks of samples called <i>periods</i>.  When a period has
+elapsed, each client receives a block of data for each of its input ports,
+and has the opportunity to write data to its output ports.  All of the
+clients have to finish processing their data before the period ends.
+</li>
+<li>JACK input ports can be connected to output ports, and the data written to
+an output will be passed to the inputs of all the connected clients.  JACK
+provides input and/or output ports that correspond to the hardware inputs
+and outputs.
+</li>
+</ol>
+</div>
+</div>
+<div id="outline-container-sec-9" class="outline-2">
+<h2 id="sec-9"><span class="section-number-2">9</span> Performance and stability</h2>
+<div class="outline-text-2" id="text-9">
+<p>
+This section deals with configuring JACK and JILL for low-latency, reliable
+operation. Modern multithreaded operating systems are typically doing a lot in
+the background, and there are often periods when the OS is tied up. If your
+application depends on receiving or producing a steady stream of samples, these
+periods of heavy activity can lead to glitches and dropouts.
+</p>
+
+<p>
+One option for dealing with these problems is to use large memory buffers, which
+can hold samples during periods of heavy load. Large buffers mean long
+latencies. If you're only recording or presenting data, or if all the stimuli
+are defined ahead of time, or you can generate stimuli seconds to minutes before
+they're needed, you should use long periods (2048 samples or more) to ensure
+that data is not lost.
+</p>
+
+<p>
+In closed-loop applications, the output of the system depends tightly on the
+input, and latencies typically need to be short. How short depends on the nature
+of the application. JACK can provide latencies on the order of 1-2 ms if
+properly configured. It's important to recognize, though, that Linux and OS X
+are not designed for realtime performance. Only a dedicated hard realtime system
+can provide guarantees on latency. Below are some measures for improving
+performance.
+</p>
+</div>
+
+<div id="outline-container-sec-9-1" class="outline-3">
+<h3 id="sec-9-1"><span class="section-number-3">9.1</span> Increase buffer size or decrease sampling rate</h3>
+<div class="outline-text-3" id="text-9-1">
+<p>
+Larger periods give JACK clients more time to process the data and make the
+whole system less vulnerable to xruns.  Period sizes need to be a power of two.
+For example, to run JACK with a period size of 2048 samples:
+</p>
+
+<pre class="example">
+jackd -p 2048
+</pre>
+
+<p>
+Increasing the number of periods for playback latency may also help. In
+<code>qjackctl</code> you can adjust these parameters in the setup window and it will
+report the expected latency.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-9-2" class="outline-3">
+<h3 id="sec-9-2"><span class="section-number-3">9.2</span> Adjust other JACK parameters</h3>
+<div class="outline-text-3" id="text-9-2">
+<p>
+Other things to try include:
+</p>
+
+<ol class="org-ol">
+<li>Make the JACK daemon more forgiving of xruns. <code>jackd -Z &#x2026;</code>
+</li>
+<li>Turn off playback ports. <code>jackd -d alsa -C &#x2026;</code>
+</li>
+<li>Decrease the number of channels to what you need. To enable only 4 capture and
+playback ports: <code>jackd -d alsa -i 4 -o 4 &#x2026;</code>
+</li>
+</ol>
+
+<p>
+Also try running JACK 2 instead of JACK 1; it's more fault tolerant and handles
+port connections without glitching.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-9-3" class="outline-3">
+<h3 id="sec-9-3"><span class="section-number-3">9.3</span> Keep the system clean</h3>
+<div class="outline-text-3" id="text-9-3">
+<p>
+Install a system with a minimal number of applications, and disable any
+recurring operations.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-9-4" class="outline-3">
+<h3 id="sec-9-4"><span class="section-number-3">9.4</span> Install a low-latency kernel:</h3>
+<div class="outline-text-3" id="text-9-4">
+<p>
+CCRMA at Stanford maintains a repository with kernels that have been patched
+for low latency operation (<a href="http://ccrma.stanford.edu/planetccrma/software/">http://ccrma.stanford.edu/planetccrma/software/</a>). You
+need to be running CentOS 5 or Fedora 16-18 to use these kernels. You can also
+try to recompile the kernel yourself with the realtime preemption patches
+enabled.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-9-5" class="outline-3">
+<h3 id="sec-9-5"><span class="section-number-3">9.5</span> Disable CPU frequency scaling:</h3>
+<div class="outline-text-3" id="text-9-5">
+<p>
+ Run <code>cpufreq-set -g performance</code> or <code>cpufreq-selector -g performance</code> as root.
+Disable bus-frequency scaling, C1E halt states, and EIST in BIOS.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="postamble" class="status">
+<p class="date">Date: <span class="timestamp-wrapper"><span class="timestamp">[2013-07-01 Mon]</span></span></p>
+<p class="author">Author: Dan Meliza</p>
+<p class="date">Created: 2013-07-01 Mon 11:20</p>
+<p class="creator"><a href="http://www.gnu.org/software/emacs/">Emacs</a> 24.3.1 (<a href="http://orgmode.org">Org</a> mode 8.0.2)</p>
+<p class="xhtml-validation"><a href="http://validator.w3.org/check?uri=referer">Validate XHTML 1.0</a></p>
+</div>
+</body>
+</html>
