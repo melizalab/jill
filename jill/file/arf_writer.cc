@@ -124,13 +124,16 @@ arf_writer::new_entry(nframes_t frame_count)
         close_entry();
         _entry_start = frame_count;
 
-        ptime now(microsec_clock::universal_time());
+        time_duration ts;
         if (source_ptr source = _data_source.lock()) {
-                // adjust time by difference between now and the frame_count
                 frame_usec = source->time(_entry_start);
-                now -= microseconds(frame_usec - source->time());
+                std::cerr << "usec diff: " << frame_usec - _entry0_us << std::endl;
+                abort();
+                ts = *_entry0_t + microseconds(frame_usec - _entry0_us) - epoch;
         }
-        time_duration ts = now - epoch;
+        else {
+                ts = microsec_clock::universal_time() - epoch;
+        }
 
         pthread_mutex_lock(&_lock);
         _entry.reset(new arf::entry(*_file, name,
@@ -141,7 +144,7 @@ arf_writer::new_entry(nframes_t frame_count)
 
         pthread_mutex_lock(&_lock);
         arf::h5a::node::attr_writer a = _entry->write_attribute();
-        a("jack_frame",_entry_start)("jill_process",_sourcename);
+        a("jack_frame", _entry_start)("jill_process", _sourcename);
         for_each(_attrs.begin(), _attrs.end(), a);
         if (frame_usec != 0) {
                 a("jack_usec", frame_usec);
@@ -190,7 +193,17 @@ arf_writer::xrun()
 void
 arf_writer::set_data_source(boost::weak_ptr<data_source> d)
 {
-        _data_source = d;
+        if (source_ptr source = d.lock()) {
+                _data_source = d;
+                // timestamps are calculated from delta of the usec clock, and
+                // referenced against the clock of the first entry we wrote. The
+                // usec clock is more precise because JACK uses a DLL to reduce
+                // jitter. Unfortunately there doesn't seem to be any direct way
+                // to convert usec values to posix times.
+                _entry0_us = source->time();
+                _entry0_t.reset(new ptime(microsec_clock::universal_time()));
+                log() << "registered system clock to usec clock at " << _entry0_us;
+        }
 }
 
 nframes_t

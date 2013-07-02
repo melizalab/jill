@@ -144,6 +144,11 @@ Note that you can connect multiple output ports to the same input port, in which
 case the inputs will be /mixed/: the data from the output ports will be added
 together, and this sum will appear in the input port. The same output port can
 be connected to multiple input ports.
+** OS X notes
+
+The OS X audio driver, Core Audio, appears in JACK as either a capture or
+playback device. If you need to do both capture and playback, you have to create
+an aggregate device. See http://support.apple.com/kb/HT3956.
 
 * Stimulus presentation
 

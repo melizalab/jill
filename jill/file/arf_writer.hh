@@ -7,9 +7,14 @@
 #include <pthread.h>
 #include <boost/iostreams/stream.hpp>
 #include <boost/weak_ptr.hpp>
+#include <boost/shared_ptr.hpp>
 #include <arf/types.hpp>
 
 #include "../data_writer.hh"
+
+namespace boost { namespace posix_time {
+                class ptime;
+}}
 
 namespace jill {
 
@@ -98,6 +103,8 @@ private:
         int _compression;                          // compression level for new datasets
 
         // local state
+        boost::shared_ptr<boost::posix_time::ptime> _entry0_t;      // posix time of first entry
+        utime_t   _entry0_us;                      // microsecond time of first entry
         nframes_t _entry_start;                    // offset sample counts
         nframes_t _period_start;                   // assign chunks to channels
         std::size_t _entry_idx;                    // manage entry numbering
