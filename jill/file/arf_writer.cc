@@ -127,9 +127,7 @@ arf_writer::new_entry(nframes_t frame_count)
         time_duration ts;
         if (source_ptr source = _data_source.lock()) {
                 frame_usec = source->time(_entry_start);
-                std::cerr << "usec diff: " << frame_usec - _entry0_us << std::endl;
-                abort();
-                ts = *_entry0_t + microseconds(frame_usec - _entry0_us) - epoch;
+                ts = (*_base_ptime + microseconds(frame_usec - _base_usec)) - epoch;
         }
         else {
                 ts = microsec_clock::universal_time() - epoch;
@@ -200,9 +198,9 @@ arf_writer::set_data_source(boost::weak_ptr<data_source> d)
                 // usec clock is more precise because JACK uses a DLL to reduce
                 // jitter. Unfortunately there doesn't seem to be any direct way
                 // to convert usec values to posix times.
-                _entry0_us = source->time();
-                _entry0_t.reset(new ptime(microsec_clock::universal_time()));
-                log() << "registered system clock to usec clock at " << _entry0_us;
+                _base_usec = source->time();
+                _base_ptime.reset(new ptime(microsec_clock::universal_time()));
+                log() << "registered system clock to usec clock at " << _base_usec;
         }
 }
 

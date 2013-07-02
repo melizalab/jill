@@ -102,9 +102,12 @@ private:
         dset_map_type _dsets;                      // pointers to packet tables (owned)
         int _compression;                          // compression level for new datasets
 
+        // these variables allow more precise timestamps; they are registered to
+        // each other when set_data_source is called
+        boost::shared_ptr<boost::posix_time::ptime> _base_ptime;
+        utime_t   _base_usec;
+
         // local state
-        boost::shared_ptr<boost::posix_time::ptime> _entry0_t;      // posix time of first entry
-        utime_t   _entry0_us;                      // microsecond time of first entry
         nframes_t _entry_start;                    // offset sample counts
         nframes_t _period_start;                   // assign chunks to channels
         std::size_t _entry_idx;                    // manage entry numbering
