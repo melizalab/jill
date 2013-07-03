@@ -1,0 +1,49 @@
+jillctl-protocol = C:OHAI ( S:OHAI-OK / error )
+                 / C:IEATED
+                 / C:WHATIZIT ( S:ITIZ / error )
+                 / C:PLZTO ( S:PLZTO-OK / error )
+
+error            = S:RTFM / S:WTF
+
+; the client verifies the protocol
+OHAI             = signature %x01 protocol version
+signature        = %xCD %xC0
+protocol         = string       ; must be "JILLCTL"
+string           = *OCTET %x00  ; UTF-8 null terminated string
+version          = %x02
+
+; the server responds to the client's open peering request
+OHAI-OK          = signature %x02
+
+; server error: badly formed request (including invalid property or function name)
+RTFM             = signature %x03
+
+; server error: error executing action
+WTF              = signature %x04 reason
+reason           = string
+
+; client sends a status message
+IEATED           = signature %x05 client-name timestamp message
+client-name      = string
+timestamp        = sec usec
+sec              = 8OCTET   ; seconds since epoch, network order
+usec             = 8OCTET   ; additional microseconds, network order
+message          = string
+
+; client requests information about a property
+WHATIZIT         = signature %x06 client-name property-name
+property-name    = string
+
+; server replies with property value
+ITIZ             = signature %x07 property-value
+property-value   = ( %x01 8OCTET )    ; signed 64-bit integer, network order
+                 / ( %x02 8OCTET )    ; unsigned 64-bit integer, network
+                 / ( %x03 8OCTET )    ; double precision IEEE float, network order
+                 / ( %x04 string )    ; string
+
+; client requests an action (including setting a value)
+PLZTO            = signature %x08 client-name function-name *property-value
+function-name    = string
+
+; server acknowledges completion of action
+PLZTO-OK         = signature %x09
