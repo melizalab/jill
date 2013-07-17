@@ -6,6 +6,7 @@
 #include <jack/jack.h>
 
 #include "arf_writer.hh"
+#include "../version.hh"
 #include "../data_source.hh"
 #include "../midi.hh"
 #include "../util/string.hh"
@@ -120,6 +121,7 @@ arf_writer::new_entry(nframes_t frame_count)
 
         util::make_string name;
         name << _sourcename << '_' << setw(4) << setfill('0') << _entry_idx++;
+        string creator = _sourcename + " " JILL_VERSION;
 
         close_entry();
         _entry_start = frame_count;
@@ -142,7 +144,8 @@ arf_writer::new_entry(nframes_t frame_count)
 
         pthread_mutex_lock(&_lock);
         arf::h5a::node::attr_writer a = _entry->write_attribute();
-        a("jack_frame", _entry_start)("jill_process", _sourcename);
+        a("jack_frame", _entry_start);
+        a("entry_creator", creator);
         for_each(_attrs.begin(), _attrs.end(), a);
         if (frame_usec != 0) {
                 a("jack_usec", frame_usec);

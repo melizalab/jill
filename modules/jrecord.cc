@@ -217,7 +217,6 @@ main(int argc, char **argv)
                                                JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
-
                 // register signal handlers
 		signal(SIGINT,  signal_handler);
 		signal(SIGTERM, signal_handler);
@@ -229,8 +228,6 @@ main(int argc, char **argv)
                 client->set_port_connect_callback(jack_portcon);
                 client->set_process_callback(process);
                 client->set_buffer_size_callback(jack_bufsize);
-
-
 
                 // start disk thread and activate process callback
                 arf_thread->start();
