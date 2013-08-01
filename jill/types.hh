@@ -13,7 +13,6 @@
 
 #include <jack/types.h>
 #include <jack/transport.h>
-#include <arf/types.hpp>
 #include <stdexcept>
 
 /**
@@ -34,19 +33,11 @@ typedef jack_time_t utime_t;
 /** A data type holding extended position information. Inherited from JACK */
 typedef jack_position_t position_t;
 
-/**
- * A data structure storing information about a period. Contains information
- * about timestamp, and frame count, as well as a void pointer that can be used
- * to reference additional data.
- */
-struct period_info_t {
-        nframes_t time;    // time of the current period
-        nframes_t nframes; // number of frames in period
-        // NB: requiring const is somewhat restrictive; may change
-        void const * arg;  // pointer to external data
-
-        /** The size of the period in bytes */
-        std::size_t bytes() const { return nframes * sizeof(sample_t); }
+/** Define the types of data moved through JILL. Corresponds to jack port types */
+enum dtype_t {
+        sampled = 0,
+        event = 1,
+        video = 2
 };
 
 /** Type for jack errors */

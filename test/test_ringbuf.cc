@@ -6,7 +6,7 @@
 
 #include "jill/util/mirrored_memory.hh"
 #include "jill/dsp/ringbuffer.hh"
-#include "jill/dsp/period_ringbuffer.hh"
+#include "jill/dsp/block_ringbuffer.hh"
 
 #define BUFSIZE 4096
 unsigned short seed[3] = { 0 };
@@ -62,13 +62,16 @@ test_ringbuffer(std::size_t chunksize, std::size_t reps)
 void
 test_period_ringbuf(std::size_t nchannels)
 {
+        using namespace jill::dsp;
+        jill::sample_t buf[BUFSIZE];
+        char chan_name[32];
+        std::size_t idx, chan, write_space, data_bytes;
+        data_bytes = BUFSIZE * sizeof(jill::sample_t);
+
         printf("Testing period ringbuffer nchannels=%zu\n", nchannels);
-        jill::dsp::period_ringbuffer rb(BUFSIZE*nchannels*5);
+        block_ringbuffer rb(data_bytes * nchannels * 5);
         printf("created ringbuffer; size=%zu bytes\n", rb.size());
 
-        jill::sample_t buf[BUFSIZE];
-        std::size_t channels[nchannels];
-        std::size_t idx, chan, write_space;
 
         for (idx = 0; idx < BUFSIZE; ++idx) {
                 buf[idx] = nrand48(seed);
@@ -77,51 +80,45 @@ test_period_ringbuf(std::size_t nchannels)
         // test initialized state
         assert(rb.peek() == 0);
         assert(rb.peek_ahead() == 0);
-        write_space = rb.write_space(BUFSIZE);
+        write_space = rb.write_space();
 
         for (chan = 0; chan < nchannels; ++chan) {
-                jill::period_info_t info;
-                info.time = 0;
-                info.nframes = BUFSIZE;
-                channels[chan] = chan; // has to be stable
-                info.arg = channels+chan;
-
-                assert (rb.write_space(BUFSIZE) == write_space - chan);
-                std::size_t stored = rb.push(buf, info);
-                assert (stored == BUFSIZE);
+                sprintf(chan_name, "chan_%03d", chan);
+                std::size_t bytes = rb.push(0, jill::sampled, chan_name, data_bytes, buf);
+                write_space -= bytes;
+                assert (rb.write_space() == write_space);
         }
 
         // test read-ahead
         for (chan = 0; chan < nchannels; ++chan) {
-                jill::period_info_t const *info;
+                sprintf(chan_name, "chan_%03d", chan);
+                header_t const *info;
                 info = rb.peek_ahead();
 
                 assert(info != 0);
                 assert(info->time == 0);
-                assert(info->nframes == BUFSIZE);
-                assert(*(std::size_t*)(info->arg) == chan);
-
-                assert(memcmp(buf, info+1, info->bytes()) == 0);
+                assert(info->sz_data == data_bytes);
+                assert(strncmp(chan_name, info->id(), info->sz_id) == 0);
+                assert(memcmp(buf, info->data(), info->sz_data) == 0);
         }
-
         assert(rb.peek_ahead() == 0);
 
         for (chan = 0; chan < nchannels; ++chan) {
-                jill::period_info_t const *info;
+                sprintf(chan_name, "chan_%03d", chan);
+                header_t const *info;
                 info = rb.peek();
 
                 assert(info != 0);
                 assert(info->time == 0);
-                assert(info->nframes == BUFSIZE);
-                assert(*(std::size_t*)(info->arg) == chan);
+                assert(info->sz_data == data_bytes);
+                assert(strncmp(chan_name, info->id(), info->sz_id) == 0);
+                assert(memcmp(buf, info->data(), info->sz_data) == 0);
                 assert(rb.peek_ahead() == 0);
-
-                assert(memcmp(buf, info+1, info->bytes()) == 0);
 
                 // check that repeated calls to peek return same data
                 info = rb.peek();
                 assert(info != 0);
-                assert(*(std::size_t*)(info->arg) == chan);
+                assert(strncmp(chan_name, info->id(), info->sz_id) == 0);
 
                 rb.release();
         }
