@@ -297,8 +297,6 @@ jrecord_options::jrecord_options(string const &program_name)
         cmd_opts.add_options()
                 ("output-file,f", po::value<string>(), "output filename");
         pos_opts.add("output-file", -1);
-
-        cfg_opts.add(jillopts).add(tropts);
         visible_opts.add(jillopts).add(tropts);
 }
 

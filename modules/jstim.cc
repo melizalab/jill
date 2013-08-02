@@ -225,6 +225,10 @@ main(int argc, char **argv)
                         logger->log() << "minimum interval: " << options.min_interval_sec << "s ("
                                       << options.min_interval << " samples)";
                 }
+		if (options.stimuli.size() == 0) {
+		        logger->log() << "no stimuli; quitting";
+			throw Exit(0);
+		}
 
                 /* stimulus queue */
                 init_stimset(options.stimuli, options.nreps);
@@ -315,14 +319,13 @@ jstim_options::jstim_options(string const &program_name)
         cmd_opts.add_options()
                 ("stim", po::value<vector<string> >(&stimuli)->multitoken(), "stimulus file");
         pos_opts.add("stim", -1);
-        cfg_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 }
 
 void
 jstim_options::print_usage()
 {
-        std::cout << "Usage: " << _program_name << " [options] [stimfile [nreps]] [stimfile [nreps]] ...\n"
+        std::cout << "Usage: " << _program_name << " [options] [stimfile [nreps]] [stim [nreps]] ...\n"
                   << visible_opts << std::endl
                   << "Ports:\n"
                   << " * out:       sampled output of the presented stimulus\n"

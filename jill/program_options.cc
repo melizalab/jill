@@ -69,7 +69,7 @@ program_options::parse(int argc, char **argv)
 	if (boost::filesystem::is_regular_file(configfile)) {
 		boost::filesystem::ifstream ff(configfile);
 		std::cout << "[Parsing " << configfile.string() << ']' << std::endl;
-		po::parsed_options parsed = po::parse_config_file(ff, cfg_opts, true);
+		po::parsed_options parsed = po::parse_config_file(ff, cmd_opts, true);
 		po::store(parsed, vmap);
 	}
         else if (!configfile.empty()) {

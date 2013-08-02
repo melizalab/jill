@@ -202,7 +202,6 @@ jdelay_options::jdelay_options(string const &program_name)
                  "delay to add between input and output (ms)");
 
         cmd_opts.add(jillopts).add(opts);
-        cfg_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 }
 

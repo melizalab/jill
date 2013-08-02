@@ -144,7 +144,6 @@ jchirp_options::jchirp_options(string const &program_name)
                 ("freq-rate,r", po::value<double>(&freq_rate)->default_value(1), "modulation rate (octaves/s)");
 
         cmd_opts.add(jillopts).add(opts);
-        cfg_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 }
 

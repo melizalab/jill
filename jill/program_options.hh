@@ -67,12 +67,10 @@ public:
 	program_options(std::string const &program_name);
 	virtual ~program_options() {}
 
-	/** Description of the options for commandline usage */
+	/** Description of the options for commandline/configfile usage */
 	po::options_description cmd_opts;
 	/** Description of options visible in the help (a subset of cmd_opts) */
 	po::options_description visible_opts;
-	/** Description of options parsed from a config file */
-	po::options_description cfg_opts;
 	/** Options which are processed positionally */
 	po::positional_options_description pos_opts;
 	/** Values for options are stored here after parsing */

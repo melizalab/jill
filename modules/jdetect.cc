@@ -271,7 +271,6 @@ jdetect_options::jdetect_options(string const &program_name)
                  "set integration time for close gate (ms)");
 
         cmd_opts.add(jillopts).add(tropts);
-        cfg_opts.add(jillopts).add(tropts);
         visible_opts.add(jillopts).add(tropts);
 }
 

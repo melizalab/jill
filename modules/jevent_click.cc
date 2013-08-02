@@ -181,7 +181,6 @@ jevent_click_options::jevent_click_options(string const &program_name)
                 ("in,i",      po::value<stringvec>(), "add connection to input port")
                 ("out,o",     po::value<stringvec>(), "add connection to output port");
         cmd_opts.add(jillopts);
-        cfg_opts.add(jillopts);
         visible_opts.add(jillopts);
 
 
@@ -194,7 +193,6 @@ jevent_click_options::jevent_click_options(string const &program_name)
                  "generate clicks for offset events");
 
         cmd_opts.add(opts);
-        cfg_opts.add(opts);
         visible_opts.add(opts);
 }
 
