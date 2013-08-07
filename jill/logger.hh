@@ -51,6 +51,8 @@ private:
  */
 class logger : boost::noncopyable {
 public:
+        logger();
+        ~logger();
         static logger & instance() {
                 // threadsafe in gcc to initialize static locals
                 static logger _instance;
@@ -58,8 +60,11 @@ public:
         }
         void log(timestamp const & utc, std::string const & msg) const;
         void set_sourcename(std::string const & name);
+        void connect(std::string const & server_name);
 private:
         std::string _source;
+        void * _context;
+        void * _socket;
 };
 
 }

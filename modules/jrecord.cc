@@ -316,7 +316,7 @@ jrecord_options::process_options()
 {
         program_options::process_options();
         if (!assign(output_file, "output-file")) {
-                std::cerr << "Error: missing required output file name " << std::endl;
+                LOG << "ERROR: missing required output file name " << std::endl;
                 throw Exit(EXIT_FAILURE);
         }
         parse_keyvals(additional_options, "attr");

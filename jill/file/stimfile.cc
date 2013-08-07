@@ -10,6 +10,7 @@
  */
 
 #include "stimfile.hh"
+#include "../logger.hh"
 
 #if MLOCK_STIMFILES
 #include <sys/mman.h>
@@ -59,18 +60,15 @@ stimfile::load_samples(nframes_t samplerate)
         // read file, ignoring any discrepancies in # of samples
         _nframes = rs.input_frames = sf_read_float(_sndfile, buf, rs.input_frames);
         _samplerate = _sfinfo.samplerate;
-#ifndef NDEBUG
-        std::cout << "read " << _nframes << " frames from " << _name << " at " << _samplerate << std::endl;
-#endif
+        LOG << "read " << _nframes << " frames from " << _name << " at " << _samplerate << std::endl;
 
         if ((samplerate > 0) && (samplerate != _samplerate)) {
                 rs.src_ratio = float(samplerate) / float(_samplerate);
                 rs.output_frames = (int)(rs.input_frames * rs.src_ratio);
 		rs.data_out = new sample_t[rs.output_frames];
-#ifndef NDEBUG
-                std::cout << "resampling to " << samplerate << " (" << rs.src_ratio << ") -> "
-                          << rs.output_frames << " frames" << std::endl;
-#endif
+                LOG << "resampling " << _name << " to " << samplerate << " (" << rs.src_ratio << ") -> "
+                    << rs.output_frames << " frames" << std::endl;
+
                 int ec = src_simple(&rs, SRC_SINC_BEST_QUALITY, 1);
                 delete[] rs.data_in;
 		if (ec != 0) {

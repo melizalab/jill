@@ -67,7 +67,10 @@ program_options::parse(int argc, char **argv)
 	}
         // set source for logging
         logger::instance().set_sourcename(get<string>("client_name", _program_name));
+        string server_name = get<string>("server_name","default");
+        logger::instance().connect(server_name);
         LOG << _program_name << ", version " JILL_VERSION;
+        LOG << "jackd server: " << server_name;
 
 	boost::filesystem::path configfile = get<string>("config","");
 	if (boost::filesystem::is_regular_file(configfile)) {
