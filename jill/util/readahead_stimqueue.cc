@@ -1,14 +1,13 @@
-#include "../event_logger.hh"
+#include "../logger.hh"
 #include "readahead_stimqueue.hh"
 
 using namespace jill::util;
 
 readahead_stimqueue::readahead_stimqueue(iterator first, iterator last,
                                          nframes_t samplerate,
-                                         boost::shared_ptr<jill::event_logger> logger,
                                          bool loop)
         :  _first(first), _last(last), _it(first), _head(0),
-          _log(logger),_samplerate(samplerate), _loop(loop)
+           _samplerate(samplerate), _loop(loop)
 {
         pthread_mutex_init(&_lock, 0);
         pthread_cond_init(&_ready, 0);
@@ -62,7 +61,7 @@ readahead_stimqueue::loop()
                         ptr = *_it;
                         ptr->load_samples(_samplerate);
                         _head = ptr;
-                        if (_log) _log->log() << "next stim: " << ptr->name() << " (" << ptr->duration() << " s)";
+                        LOG << "next stim: " << ptr->name() << " (" << ptr->duration() << " s)";
                         _it += 1;
                 }
 
@@ -75,7 +74,7 @@ readahead_stimqueue::loop()
                 // wait for iterator to change
                 pthread_cond_wait (&_ready, &_lock);
         }
-        if (_log) _log->log() << "end of stimulus list";
+        LOG << "end of stimulus list";
         pthread_mutex_unlock (&_lock);
 }
 

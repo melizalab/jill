@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 
+#include "jill/logger.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
@@ -107,7 +108,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 {
         // blocks until old data is flushed
         nframes = arf_thread->resize_buffer(client->sampling_rate() * options.buffer_size_s, client->nports());
-        writer->log() << "ringbuffer size (samples): " << nframes;
+        LOG << "ringbuffer size (samples): " << nframes;
         writer->close_entry();
         return 0;
 }
@@ -151,14 +152,12 @@ main(int argc, char **argv)
         map<string,string> port_connections;
 	try {
 		options.parse(argc,argv);
-
                 writer.reset(new file::arf_writer(PROGRAM_NAME,
                                                   options.output_file,
                                                   options.additional_options,
                                                   options.compression));
-                writer->log() << PROGRAM_NAME ", version " JILL_VERSION;
 
-                client.reset(new jack_client(options.client_name, writer, options.server_name));
+                client.reset(new jack_client(options.client_name, options.server_name));
                 writer->set_data_source(client);
 
                 /* create ports: one for trigger, and one for each input */
@@ -182,12 +181,12 @@ main(int argc, char **argv)
                         for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
                                 jack_port_t *p = client->get_port(*it);
                                 if (p==0) {
-                                        writer->log() << "error registering port: source port \""
+                                        LOG << "error registering port: source port \""
                                                       << *it << "\" does not exist";
                                         throw Exit(-1);
                                 }
                                 else if (!(jack_port_flags(p) & JackPortIsOutput)) {
-                                        writer->log() << "error registering port: source port \""
+                                        LOG << "error registering port: source port \""
                                                       << *it << "\" is not an output port";
                                         throw Exit(-1);
                                 }
@@ -250,8 +249,7 @@ main(int argc, char **argv)
 		ret = e.status();
 	}
 	catch (exception const &e) {
-                if (writer) writer->log() << "ERROR: " << e.what();
-                else cerr << "ERROR: " << e.what() << endl;
+                LOG << "ERROR: " << e.what();
 		ret = EXIT_FAILURE;
 	}
 

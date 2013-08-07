@@ -84,8 +84,6 @@ protected:
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
 
 private:
-        /* implement event_logger::write_log */
-        void write_log(timestamp const &, std::string const &);
         /* find last entry index */
         void _get_last_entry_index();
 

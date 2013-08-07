@@ -14,11 +14,11 @@
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 
+#include "jill/logger.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
 #include "jill/file/stimfile.hh"
-#include "jill/util/stream_logger.hh"
 #include "jill/util/readahead_stimqueue.hh"
 #include "jill/dsp/ringbuffer.hh"
 
@@ -57,7 +57,6 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-boost::shared_ptr<util::stream_logger> logger;
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<util::readahead_stimqueue> queue;
 boost::ptr_vector<stimulus_t> _stimuli;
@@ -199,7 +198,7 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
                                 _stimlist.push_back(stim);
                 }
                 catch (jill::FileError const & e) {
-                        logger->log() << "invalid stimulus " << p << ": " << e.what();
+                        LOG << "invalid stimulus " << p << ": " << e.what();
                 }
         }
 }
@@ -211,34 +210,30 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-                logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
-
-                client.reset(new jack_client(options.client_name, logger, options.server_name));
+                client.reset(new jack_client(options.client_name, options.server_name));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
                 options.trigout_chan &= midi::chan_nib;
 
                 if (!options.count("trig")) {
-                        logger->log() << "minimum gap: " << options.min_gap_sec << "s ("
+                        LOG << "minimum gap: " << options.min_gap_sec << "s ("
                                       << options.min_gap << " samples)";
-                        logger->log() << "minimum interval: " << options.min_interval_sec << "s ("
+                        LOG << "minimum interval: " << options.min_interval_sec << "s ("
                                       << options.min_interval << " samples)";
                 }
 		if (options.stimuli.size() == 0) {
-		        logger->log() << "no stimuli; quitting";
+		        LOG << "no stimuli; quitting";
 			throw Exit(0);
 		}
 
                 /* stimulus queue */
                 init_stimset(options.stimuli, options.nreps);
                 if (options.count("shuffle")) {
-                        logger->log() << "shuffled stimuli";
+                        LOG << "shuffled stimuli";
                         random_shuffle(_stimlist.begin(), _stimlist.end());
                 }
                 queue.reset(new util::readahead_stimqueue(_stimlist.begin(), _stimlist.end(),
                                                           client->sampling_rate(),
-                                                          logger,
                                                           options.count("loop")));
 
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
@@ -246,7 +241,7 @@ main(int argc, char **argv)
                 port_trigout = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
-                        logger->log() << "triggering playback from trig_in";
+                        LOG << "triggering playback from trig_in";
                         port_trigin = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                             JackPortIsInput | JackPortIsTerminal, 0);
                 }
@@ -279,8 +274,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-                if (logger) logger->log() << "ERROR: " << e.what();
-                else cerr << "ERROR: " << e.what() << endl;
+                LOG << "ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}
 

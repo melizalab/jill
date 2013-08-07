@@ -15,7 +15,7 @@
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
-#include "jill/util/stream_logger.hh"
+#include "jill/logger.hh"
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jdelay"
@@ -49,7 +49,6 @@ protected:
 
 
 static jdelay_options options(PROGRAM_NAME);
-static boost::shared_ptr<util::stream_logger> logger;
 static boost::shared_ptr<jack_client> client;
 static sample_ringbuffer ringbuf(1024);
 jack_port_t *port_in, *port_out;
@@ -64,12 +63,12 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 
         if (ringbuf.push(in, nframes) != nframes) {
 #ifndef NDEBUG
-                logger->log() << "error: buffer overrun";
+                LOG << "error: buffer overrun";
 #endif
         }
         if (ringbuf.pop(out, nframes) != nframes) {
 #ifndef NDEBUG
-                logger->log() << "error: buffer underrun";
+                LOG << "error: buffer underrun";
 #endif
         }
 
@@ -84,7 +83,7 @@ jack_latency (jack_latency_callback_mode_t mode, void *arg)
 	jack_latency_range_t range;
 	if (mode == JackCaptureLatency) {
 		jack_port_get_latency_range (port_in, mode, &range);
-                logger->log() << "estimated capture latency (ms): ["
+                LOG << "estimated capture latency (ms): ["
                               << range.min / sr << "," << range.max / sr << "]";
 		range.min += options.delay;
 		range.max += options.delay;
@@ -95,7 +94,7 @@ jack_latency (jack_latency_callback_mode_t mode, void *arg)
 		range.min += options.delay;
 		range.max += options.delay;
 		jack_port_set_latency_range (port_in, mode, &range);
-                logger->log() << "estimated playback latency (ms): ["
+                LOG << "estimated playback latency (ms): ["
                               << range.min / sr << "," << range.max / sr << "]";
 	}
 }
@@ -135,12 +134,9 @@ main(int argc, char **argv)
 	using namespace std;
 	try {
 		options.parse(argc,argv);
-                logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
-
-                client.reset(new jack_client(options.client_name, logger, options.server_name));
+                client.reset(new jack_client(options.client_name, options.server_name));
                 options.delay = options.delay_msec * client->sampling_rate() / 1000;
-                logger->log() << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
+                LOG << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
 
                 port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
                                                 JackPortIsInput, 0);
@@ -174,8 +170,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-                if (logger) logger->log() << "ERROR: " << e.what();
-                else cerr << "ERROR: " << e.what() << endl;
+                LOG << "ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}
 

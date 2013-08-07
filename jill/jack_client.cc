@@ -10,6 +10,7 @@
  * (at your option) any later version.
  */
 #include "jack_client.hh"
+#include "logger.hh"
 #include "util/string.hh"
 #include <jack/statistics.h>
 #include <jack/midiport.h>
@@ -19,15 +20,15 @@
 using namespace jill;
 using std::string;
 
-jack_client::jack_client(string const & name, boost::shared_ptr<event_logger> logger)
-        : _nports(0), _log(logger)
+jack_client::jack_client(string const & name)
+        : _nports(0)
 {
         start_client(name.c_str(), 0);
         set_callbacks();
 }
 
-jack_client::jack_client(string const & name, boost::shared_ptr<event_logger> logger, string const & server)
-        : _nports(0), _log(logger)
+jack_client::jack_client(string const & name, string const & server)
+        : _nports(0)
 {
         if (!server.empty())
                 start_client(name.c_str(), server.c_str());
@@ -61,7 +62,7 @@ jack_client::start_client(char const * name, char const * server_name)
                 err << ")";
                 throw JackError(err);
         }
-        _log->log() << "created client: " << jack_get_client_name(_client)
+        LOG << "created client: " << jack_get_client_name(_client)
               << " (load=" << jack_cpu_load(_client) << "%)" ;
 }
 
@@ -104,7 +105,7 @@ jack_client::unregister_port(jack_port_t *port)
                 throw JackError(util::make_string() << "unable to unregister port (err=" << ret << ")");
         _ports.remove(port);
         _nports += -1;
-        _log->log() << "port unregistered: " << jack_port_name(port) ;
+        LOG << "port unregistered: " << jack_port_name(port) ;
 }
 
 void
@@ -113,7 +114,7 @@ jack_client::activate()
         int ret = jack_activate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to activate client (err=" << ret << ")");
-        _log->log() << "activated client (load=" << jack_cpu_load(_client) << "%)" ;
+        LOG << "activated client (load=" << jack_cpu_load(_client) << "%)" ;
 }
 
 void
@@ -122,7 +123,7 @@ jack_client::deactivate()
         int ret = jack_deactivate(_client);
         if (ret)
                 throw JackError(util::make_string() << "unable to deactivate client (err=" << ret << ")");
-        _log->log() << "deactivated client" ;
+        LOG << "deactivated client" ;
 }
 
 void
@@ -261,7 +262,7 @@ jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
 	jack_client *self = static_cast<jack_client*>(arg);
         jack_port_t *port = jack_port_by_id(self->_client, id);
         if (!jack_port_is_mine(self->_client, port)) return;
-        self->_log->log() << "port registered: " << jack_port_name(port)
+        LOG << "port registered: " << jack_port_name(port)
               << " (" << jack_port_type(port) << ")" ;
         if (self->_portreg_cb)
                 self->_portreg_cb(self, port, registered);
@@ -277,7 +278,7 @@ jack_client::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connecte
                 return;
         if (jack_port_flags(port2) & JackPortIsOutput)
                 std::swap(port1,port2);
-        self->_log->log() << "ports " << ((connected) ? "" : "dis") << "connected: "
+        LOG << "ports " << ((connected) ? "" : "dis") << "connected: "
                     << jack_port_name(port1) << " -> " << jack_port_name(port2) ;
 
         if (self->_portconn_cb) {
@@ -289,7 +290,7 @@ int
 jack_client::sampling_rate_callback_(nframes_t nframes, void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
-        self->_log->log() << "sampling rate (Hz): " << nframes ;
+        LOG << "sampling rate (Hz): " << nframes ;
 	return (self->_sampling_rate_cb) ? self->_sampling_rate_cb(self, nframes) : 0;
 }
 
@@ -297,7 +298,7 @@ int
 jack_client::buffer_size_callback_(nframes_t nframes, void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
-        self->_log->log() << "period size (frames): " << nframes ;
+        LOG << "period size (frames): " << nframes ;
 	return (self->_buffer_size_cb) ? self->_buffer_size_cb(self, nframes) : 0;
 }
 
@@ -306,7 +307,7 @@ jack_client::xrun_callback_(void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
         float delay = jack_get_xrun_delayed_usecs(self->_client);
-        self->_log->log() << "jack xrun (us): " << delay ;
+        LOG << "jack xrun (us): " << delay ;
 	return (self->_xrun_cb) ? self->_xrun_cb(self, delay) : 0;
 }
 
@@ -314,7 +315,7 @@ void
 jack_client::shutdown_callback_(jack_status_t code, char const * reason, void *arg)
 {
 	jack_client *self = static_cast<jack_client*>(arg);
-        self->_log->log() << "the server is shutting us down: " << reason ;
+        LOG << "the server is shutting us down: " << reason ;
 	if (self->_shutdown_cb) self->_shutdown_cb(code, reason);
 }
 

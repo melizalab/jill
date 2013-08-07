@@ -12,12 +12,12 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 
+#include "jill/logger.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
 #include "jill/dsp/ringbuffer.hh"
 #include "jill/dsp/crossing_trigger.hh"
-#include "jill/util/stream_logger.hh"
 
 #define PROGRAM_NAME "jdetect"
 
@@ -57,7 +57,6 @@ protected:
 
 
 jdetect_options options(PROGRAM_NAME);
-boost::shared_ptr<util::stream_logger> logger;
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
@@ -114,14 +113,14 @@ std::size_t log_times(event_t const * events, std::size_t count)
         std::size_t i;
 	for (i = 0; i < count; ++i) {
                 e = events+i;
-                log_msg os = logger->log();
+                log_msg msg;
                 if (e->status==midi::note_on)
-                        os << "signal on: ";
+                        msg << "signal on: ";
                 else if (e->status==midi::note_off)
-                        os << "signal off:";
+                        msg << "signal off:";
                 else
-                        os << "WARNING: detected but couldn't send event: ";
-                os << " frames=" << e->time << ", us=" << client->time(e->time);
+                        msg << "WARNING: detected but couldn't send event: ";
+                msg << " frames=" << e->time << ", us=" << client->time(e->time);
         }
         return i;
 }
@@ -166,13 +165,13 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
                                                          period_size));
 
         // Log parameters
-        logger->log() << "period size: " << options.period_size_ms << " ms, " << period_size << " samples";
-        logger->log() << "open threshold: " << options.open_threshold;
-        logger->log() << "open count thresh: " << open_count_thresh;
-        logger->log() << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods ";
-        logger->log() << "close threshold: " << options.close_threshold;
-        logger->log() << "close count thresh: " << close_count_thresh;
-        logger->log() << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods ";
+        LOG << "period size: " << options.period_size_ms << " ms, " << period_size << " samples";
+        LOG << "open threshold: " << options.open_threshold;
+        LOG << "open count thresh: " << open_count_thresh;
+        LOG << "open integration window: " << options.open_crossing_period_ms << " ms, " << open_crossing_periods << " periods ";
+        LOG << "close threshold: " << options.close_threshold;
+        LOG << "close count thresh: " << close_count_thresh;
+        LOG << "close integration window: " << options.close_crossing_period_ms << " ms, " << close_crossing_periods << " periods ";
         return 0;
 }
 
@@ -182,10 +181,8 @@ main(int argc, char **argv)
 {
 	using namespace std;
 	try {
-		options.parse(argc,argv);
-                logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
-                client.reset(new jack_client(options.client_name, logger, options.server_name));
+		options.parse(argc, argv);
+                client.reset(new jack_client(options.client_name, options.server_name));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput, 0);
@@ -228,8 +225,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-                if (logger) logger->log() << "ERROR: " << e.what();
-                else cerr << "ERROR: " << e.what() << endl;
+                LOG << "ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}
 

@@ -19,11 +19,10 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 
+#include "jill/logger.hh"
 #include "jill/jack_client.hh"
 #include "jill/midi.hh"
 #include "jill/program_options.hh"
-#include "jill/util/stream_logger.hh"
-
 
 #define PROGRAM_NAME "jevent_click"
 
@@ -51,7 +50,6 @@ protected:
 }; // jevent_click_options
 
 static jevent_click_options options(PROGRAM_NAME);
-static boost::shared_ptr<util::stream_logger> logger;
 static boost::shared_ptr<jack_client> client;
 jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
@@ -113,11 +111,9 @@ main(int argc, char **argv)
 	try {
                 // parse options
 		options.parse(argc,argv);
-                logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
 
                 // start client
-                client.reset(new jack_client(options.client_name, logger, options.server_name));
+                client.reset(new jack_client(options.client_name, options.server_name));
 
                 // register ports
                 port_in = client->register_port("in",JACK_DEFAULT_MIDI_TYPE,
@@ -159,8 +155,7 @@ main(int argc, char **argv)
 		return e.status();
 	}
 	catch (std::exception const &e) {
-                if (logger) logger->log() << "ERROR: " << e.what();
-                else cerr << "ERROR: " << e.what() << endl;
+                LOG  << "ERROR: " << e.what();
 		return EXIT_FAILURE;
 	}
 

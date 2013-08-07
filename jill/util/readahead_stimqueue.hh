@@ -24,7 +24,6 @@ public:
 
         readahead_stimqueue(iterator first, iterator last,
                             nframes_t samplerate,
-                            boost::shared_ptr<event_logger> logger,
                             bool loop=false);
         ~readahead_stimqueue();
 
@@ -42,7 +41,6 @@ private:
         iterator _it;                             // current position
         stimulus_t * _head;
 
-        boost::shared_ptr<event_logger> _log;     // logging facility
         nframes_t const _samplerate;
         bool const _loop;
 

@@ -1,12 +1,12 @@
 #include <arf.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/date_time/c_local_time_adjustor.hpp>
 #include <sys/time.h>
 #include <jack/jack.h>
 
 #include "arf_writer.hh"
 #include "../version.hh"
+#include "../logger.hh"
 #include "../data_source.hh"
 #include "../midi.hh"
 #include "../util/string.hh"
@@ -21,6 +21,7 @@ using namespace boost::posix_time;
 using namespace boost::gregorian;
 
 typedef boost::shared_ptr<jill::data_source> source_ptr;
+static const ptime epoch = ptime(date(1970,1,1));
 
 /**
  * convert a midi message to hex
@@ -38,8 +39,6 @@ to_hex(T const * in, std::size_t size)
         }
         return out;
 }
-
-static const ptime epoch = ptime(date(1970,1,1));
 
 // template specializations for compound data types
 namespace arf { namespace h5t { namespace detail {
@@ -103,7 +102,7 @@ arf_writer::arf_writer(string const & sourcename,
         }
         _get_last_entry_index();
 
-        log() << "opened file: " << filename;
+        LOG << "opened file: " << filename;
 }
 
 arf_writer::~arf_writer()
@@ -140,7 +139,7 @@ arf_writer::new_entry(nframes_t frame_count)
                                     ts.total_seconds(), ts.fractional_seconds()));
         pthread_mutex_unlock(&_lock);
 
-        log() << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" ;
+        LOG << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" ;
 
         pthread_mutex_lock(&_lock);
         arf::h5a::node::attr_writer a = _entry->write_attribute();
@@ -159,7 +158,7 @@ arf_writer::close_entry()
         _dsets.clear();         // release any old packet tables
         _channel_idx = 0;
         if (_entry) {
-                log_msg o = log();
+                log_msg o;
                 o << "closed entry: " << _entry->name() << " (frame=" << _period_start << ")";
                 if (!aligned())
                         o << " (warning: unequal dataset length)";
@@ -182,7 +181,7 @@ arf_writer::aligned() const
 void
 arf_writer::xrun()
 {
-        log() << "ERROR: xrun" ;
+        LOG << "ERROR: xrun" ;
         if (_entry) {
                 // tag entry as possibly corrupt
                 pthread_mutex_lock(&_lock);
@@ -203,7 +202,7 @@ arf_writer::set_data_source(boost::weak_ptr<data_source> d)
                 // to convert usec values to posix times.
                 _base_usec = source->time();
                 _base_ptime.reset(new ptime(microsec_clock::universal_time()));
-                log() << "registered system clock to usec clock at " << _base_usec;
+                LOG << "registered system clock to usec clock at " << _base_usec;
         }
 }
 
@@ -286,24 +285,24 @@ arf_writer::flush()
         _file->flush();
 }
 
-void
-arf_writer::write_log(timestamp const &utc, string const &msg)
-{
-        typedef boost::date_time::c_local_adjustor<ptime> local_adj;
+// void
+// arf_writer::write_log(timestamp const &utc, string const &msg)
+// {
+//         typedef boost::date_time::c_local_adjustor<ptime> local_adj;
 
-        // for some reason make_string's output gets corrupted by H5PTwrite
-        char m[msg.length() + _sourcename.length() + 8];
-        sprintf(m, "[%s] %s", _sourcename.c_str(), msg.c_str());
+//         // for some reason make_string's output gets corrupted by H5PTwrite
+//         char m[msg.length() + _sourcename.length() + 8];
+//         sprintf(m, "[%s] %s", _sourcename.c_str(), msg.c_str());
 
-        time_duration t = utc - epoch;
-        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m };
-        pthread_mutex_lock(&_lock);
-        _log->write(&message, 1);
-        pthread_mutex_unlock(&_lock);
+//         time_duration t = utc - epoch;
+//         jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m };
+//         pthread_mutex_lock(&_lock);
+//         _log->write(&message, 1);
+//         pthread_mutex_unlock(&_lock);
 
-        ptime local = local_adj::utc_to_local(utc);
-        std::cout << to_iso_string(local) << ' ' << m << std::endl;
-}
+//         ptime local = local_adj::utc_to_local(utc);
+//         std::cout << to_iso_string(local) << ' ' << m << std::endl;
+// }
 
 void
 arf_writer::_get_last_entry_index()
@@ -339,7 +338,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                         pt->write_attribute("sampling_rate", source->sampling_rate());
                 }
                 pthread_mutex_unlock(&_lock);
-                log() << "created dataset: " << pt->name() ;
+                LOG << "created dataset: " << pt->name() ;
                 dset = _dsets.insert(dset, make_pair(name,pt));
         }
         return dset;

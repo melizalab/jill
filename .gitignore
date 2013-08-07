@@ -5,7 +5,6 @@ core*
 /arf
 /attic
 /resources
-/test
 /test_wav
 /modules/jchirp
 /modules/jdelay

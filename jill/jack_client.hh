@@ -19,7 +19,6 @@
 #include <boost/shared_ptr.hpp>
 #include <jack/jack.h>
 #include "data_source.hh"
-#include "event_logger.hh"
 
 /**
  * @defgroup clientgroup Creating and controlling JACK clients
@@ -99,13 +98,10 @@ public:
 	 *
 	 * @param name   the name of the client as represented to the server.
 	 *               May be changed by the server if not unique.
-         * @param logger reference to object used for logging messages
-         *
          * @param server_name  optional, specify which server to connect to
 	 */
-	jack_client(std::string const & name, boost::shared_ptr<event_logger> logger);
-	jack_client(std::string const & name, boost::shared_ptr<event_logger> logger,
-                    std::string const & server_name);
+	jack_client(std::string const & name);
+	jack_client(std::string const & name, std::string const & server_name);
 	~jack_client();
 
         /**
@@ -237,7 +233,6 @@ protected:
 
 private:
 	jack_client_t * _client; // pointer to jack client
-        boost::shared_ptr<event_logger> _log;     // logging facility
 
 	ProcessCallback _process_cb;
         PortRegisterCallback _portreg_cb;

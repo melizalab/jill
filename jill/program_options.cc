@@ -15,6 +15,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
+#include "logger.hh"
 #include "program_options.hh"
 
 using namespace jill;
@@ -64,16 +65,19 @@ program_options::parse(int argc, char **argv)
 		print_version();
 		throw Exit(EXIT_SUCCESS);
 	}
+        // set source for logging
+        logger::instance().set_sourcename(get<string>("client_name", _program_name));
+        LOG << _program_name << ", version " JILL_VERSION;
 
 	boost::filesystem::path configfile = get<string>("config","");
 	if (boost::filesystem::is_regular_file(configfile)) {
 		boost::filesystem::ifstream ff(configfile);
-		std::cout << "[Parsing " << configfile.string() << ']' << std::endl;
+		LOG << "[Parsing " << configfile.string() << ']';
 		po::parsed_options parsed = po::parse_config_file(ff, cmd_opts, true);
 		po::store(parsed, vmap);
 	}
         else if (!configfile.empty()) {
-                std::cerr << "ERROR: configuration file " << configfile << " doesn't exist" << std::endl;
+                LOG << "ERROR: configuration file " << configfile << " doesn't exist";
                 throw Exit(EXIT_FAILURE);
         }
 
