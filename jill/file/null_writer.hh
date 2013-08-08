@@ -9,18 +9,25 @@ namespace jill { namespace file {
 class null_writer : public data_writer {
 
 public:
-        void new_entry(nframes_t) {}
-        void close_entry() {}
+        null_writer() : _entry(0) {}
+        void new_entry(nframes_t frame) {
+                std::cout << "\nnew entry " << _entry << ", frame=" << frame << std::endl;
+        }
+        void close_entry() {
+                std::cout << "\nclosed entry " <<  _entry << std::endl;
+                _entry += 1;
+        }
+        void xrun() {
+                std::cout << "\ngot xrun" << std::endl;
+        }
         bool ready() const { return true; }
         bool aligned() const { return true; }
-        void xrun() {}
-        nframes_t write(period_info_t const * info, nframes_t start=0, nframes_t stop=0) {
-                std::cout << "\rgot period: time=" << info->time << ", nframes=" << info->nframes << std::flush;
-                return info->nframes;
+        void write(data_block_t const * data, nframes_t start, nframes_t stop) {
+                std::cout << "\rgot period: time=" << data->time << ", id=" << data->id()
+                          << ", type=" << data->dtype << ", bytes=" << data->sz_data << std::flush;
         }
-        void write_log(timestamp const &, std::string const & msg) {
-                std::cout << msg << std::endl;
-        }
+private:
+        int _entry;
 };
 
 }}

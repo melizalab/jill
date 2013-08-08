@@ -84,7 +84,7 @@ test_period_ringbuf(std::size_t nchannels)
 
         for (chan = 0; chan < nchannels; ++chan) {
                 sprintf(chan_name, "chan_%03d", chan);
-                std::size_t bytes = rb.push(0, jill::sampled, chan_name, data_bytes, buf);
+                std::size_t bytes = rb.push(0, jill::SAMPLED, chan_name, data_bytes, buf);
                 write_space -= bytes;
                 assert (rb.write_space() == write_space);
         }
@@ -92,33 +92,33 @@ test_period_ringbuf(std::size_t nchannels)
         // test read-ahead
         for (chan = 0; chan < nchannels; ++chan) {
                 sprintf(chan_name, "chan_%03d", chan);
-                header_t const *info;
+                jill::data_block_t const *info;
                 info = rb.peek_ahead();
 
                 assert(info != 0);
                 assert(info->time == 0);
                 assert(info->sz_data == data_bytes);
-                assert(strncmp(chan_name, info->id(), info->sz_id) == 0);
+                assert(info->id() == chan_name);
                 assert(memcmp(buf, info->data(), info->sz_data) == 0);
         }
         assert(rb.peek_ahead() == 0);
 
         for (chan = 0; chan < nchannels; ++chan) {
                 sprintf(chan_name, "chan_%03d", chan);
-                header_t const *info;
+                jill::data_block_t const *info;
                 info = rb.peek();
 
                 assert(info != 0);
                 assert(info->time == 0);
                 assert(info->sz_data == data_bytes);
-                assert(strncmp(chan_name, info->id(), info->sz_id) == 0);
+                assert(info->id() == chan_name);
                 assert(memcmp(buf, info->data(), info->sz_data) == 0);
                 assert(rb.peek_ahead() == 0);
 
                 // check that repeated calls to peek return same data
                 info = rb.peek();
                 assert(info != 0);
-                assert(strncmp(chan_name, info->id(), info->sz_id) == 0);
+                assert(info->id() == chan_name);
 
                 rb.release();
         }

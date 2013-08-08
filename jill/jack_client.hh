@@ -207,7 +207,7 @@ public:
 
         /**
          * Look up a jack port by name. The port doesn't have to be owned by the
-         * client. May not be RT safe.
+         * client. Not RT safe.
          *
          * Returns 0 if the port doesn't exist
          */

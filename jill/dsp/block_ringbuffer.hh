@@ -15,38 +15,8 @@
 #include "../types.hh"
 #include "ringbuffer.hh"
 
-#ifndef POST_PACKED_STRUCTURE
-#ifdef __GNUC__
-/* POST_PACKED_STRUCTURE needs to be a macro which
-   expands into a compiler directive. The directive must
-   tell the compiler to arrange the preceding structure
-   declaration so that it is packed on byte-boundaries rather
-   than use the natural alignment of the processor and/or
-   compiler.
-*/
-#define POST_PACKED_STRUCTURE __attribute__((__packed__))
-#else
-/* Add other things here for non-gcc platforms */
-#endif
-#endif
-
-
 namespace jill { namespace dsp {
 
-/** The header for a block */
-struct header_t {
-        nframes_t time; // the time of the block
-        dtype_t dtype;  // the type of data in the block
-        std::size_t sz_id;   // the number of bytes in the id
-        std::size_t sz_data; // the number of bytes in the data
-
-        // total size, including header
-        std::size_t size() const { return sizeof(header_t) + sz_id + sz_data; }
-        // pointer to id
-        char const * id() const { return reinterpret_cast<char const *>(this) + sizeof(header_t); }
-        // pointer to data
-        void const * data() const { return id() + sz_id; }
-}; // does this need to be packed?
 
 /**
  * @ingroup buffergroup
@@ -117,21 +87,21 @@ public:
          * pointer to the header. Successive calls will access successive
          * blocks.
          *
-         * @return header_t* for the next block, or 0 if none is
+         * @return data_block_t* for the next block, or 0 if none is
          * available.
          *
          */
-        header_t const * peek_ahead();
+        data_block_t const * peek_ahead();
 
         /**
          * Read access to the buffer. Returns a pointer to the oldest block in
          * the read queue, or NULL if the read queue is empty.  Successive calls
          * will access the oldest block until it is released.
          *
-         * @return header_t* for the oldest block, or 0 if none is
+         * @return data_block_t* for the oldest block, or 0 if none is
          * available.
          */
-        header_t const * peek() const;
+        data_block_t const * peek() const;
 
         /**
          * Release the oldest block in the read queue, making the memory

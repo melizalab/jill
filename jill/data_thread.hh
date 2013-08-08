@@ -42,25 +42,26 @@ public:
          * Process incoming data according to current state. In Stopped and
          * Running, data are stored for further processing. In Xrun and
          * Stopping, data are silently discarded. Must always be wait-free. The
-         * user must call data_ready() after push() to notify the handler that
+         * caller must call data_ready() after push() to notify the handler that
          * there is data to process.
          *
-         * @param data     the buffer from a single channel. must have at least
-         *                 as many elements as info.nframes
-         * @param info     a structure with information about the period
-         *
-         * @return in Stopped and Running, the number of frames stored. This may
-         * be less than the number of frames requested if any underlying buffers
-         * are full. In Stopping and Xrun, always the number of frames
-         * requested.
+         * @param time  the time of the block
+         * @param dtype the type of data in the block
+         * @param id    a string giving the id (channel) of the block
+         * @param size  the number of bytes in the data array
+         * @param data  an array of data to write
          */
-        virtual nframes_t push(void const * arg, period_info_t const & info) = 0;
+        virtual void push(nframes_t time, dtype_t dtype, char const * id,
+                          std::size_t size, void const * data) = 0;
 
         /** Signal the handler that data is ready. Must be wait-free. */
         virtual void data_ready() = 0;
 
         /** Signal an overrun/underrun. Must be wait-free. */
         virtual void xrun() {}
+
+        /** Reset processing of data stream at the end of the next full period. Wait-free. */
+        virtual void reset() {}
 
         /** Tell the thread to finish writing and exit. Must be wait-free. */
         virtual void stop() {}
@@ -75,10 +76,32 @@ public:
         /**
          * Wait for the thread to finish. Deriving classes should call this in
          * the destructor to ensure their resources are available to the disk
-         * thread until it stops.  Users must call this before the object is
-         * destroyed to avoid losing data.
+         * thread until it stops. Users may also call it to check/wait for
+         * thread completion.
          */
         virtual void join() {}
+
+        /**
+         * Hint how much buffering is needed. May block if memory needs to be
+         * acquired.
+         *
+         * Most implementations will use buffers to provide wait-free push()
+         * behavior and thus need to know how much storage is needed between
+         * calls to data_ready. The actual amount needed will also depend on how
+         * the data are consumed.
+
+         * @param bytes   the requested capacity of the buffer
+         * @return the new capacity of the buffer
+         */
+        virtual std::size_t request_buffer_size(std::size_t bytes) { return bytes; }
+
+protected:
+        enum state_t {
+                Stopped,
+                Running,
+                Stopping,
+                Xrun
+        };
 
 };
 

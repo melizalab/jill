@@ -13,6 +13,7 @@
 #include "block_ringbuffer.hh"
 
 using namespace jill::dsp;
+using jill::data_block_t;
 using std::size_t;
 
 block_ringbuffer::block_ringbuffer(std::size_t size)
@@ -26,12 +27,14 @@ size_t
 block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
                        size_t size, void const * data)
 {
-        header_t header = { time, dtype, strlen(id), size};
+        // serialize the data in the buffer such that the header is followed by
+        // the two data arrays
+        data_block_t header = { time, dtype, strlen(id), size};
         if (header.size() > write_space()) return 0;
         char * dst = buffer() + write_offset();
         // store header
-        memcpy(dst, &header, sizeof(header_t));
-        dst += sizeof(header_t);
+        memcpy(dst, &header, sizeof(data_block_t));
+        dst += sizeof(data_block_t);
         // store id
         memcpy(dst, id, header.sz_id);
         dst += header.sz_id;
@@ -41,23 +44,23 @@ block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
         return super::push(0, header.size());
 }
 
-header_t const *
+data_block_t const *
 block_ringbuffer::peek_ahead()
 {
-        header_t const * ptr = 0;
+        data_block_t const * ptr = 0;
         if (read_space() > _read_ahead_ptr) {
-                ptr = reinterpret_cast<header_t const *>(buffer() + read_offset() + _read_ahead_ptr);
+                ptr = reinterpret_cast<data_block_t const *>(buffer() + read_offset() + _read_ahead_ptr);
                 _read_ahead_ptr += ptr->size();
         }
         return ptr;
 }
 
-header_t const *
+data_block_t const *
 block_ringbuffer::peek() const
 {
-        header_t const * ptr = 0;
+        data_block_t const * ptr = 0;
         if (read_space())
-                ptr = reinterpret_cast<header_t const *>(buffer() + read_offset());
+                ptr = reinterpret_cast<data_block_t const *>(buffer() + read_offset());
         return ptr;
 }
 
@@ -65,7 +68,7 @@ block_ringbuffer::peek() const
 void
 block_ringbuffer::release()
 {
-        header_t const * ptr = peek();
+        data_block_t const * ptr = peek();
         if (ptr) {
                 if (_read_ahead_ptr > 0)
                         _read_ahead_ptr -= ptr->size();

@@ -35,10 +35,44 @@ typedef jack_position_t position_t;
 
 /** Define the types of data moved through JILL. Corresponds to jack port types */
 enum dtype_t {
-        sampled = 0,
-        event = 1,
-        video = 2
+        SAMPLED = 0,
+        EVENT = 1,
+        VIDEO = 2
 };
+
+/**
+ * Defines a block of data. This class does not fully encapsulate the data, but
+ * defines a header that precedes the data. The header specifies the time of the
+ * data, its type, and the size of two arrays that follow the header. The first
+ * array gives the id (channel) of the data, and the second gives the data.
+ *
+ * For sampled data, the data is an array of sample_t elements representing a
+ * time series starting at time. For event data, the data is an array of
+ * (unsigned) chars describing the event. See midi.hh for the layout of this
+ * data.
+ *
+ * The id() and data() members are only valid if the header precedes the two
+ * data arrays.
+ */
+struct data_block_t {
+        nframes_t time;         // the time of the block, in frames
+        dtype_t dtype;          // the type of data in the block
+        std::size_t sz_id;      // the number of bytes in the id
+        std::size_t sz_data;    // the number of bytes in the data
+
+        // total size, including header
+        std::size_t size() const { return sizeof(data_block_t) + sz_id + sz_data; }
+        // read id into a new string
+        std::string id() const {
+                return std::string(reinterpret_cast<char const *>(this) + sizeof(data_block_t),
+                                   sz_id);
+        }
+        // pointer to data
+        void const * data() const {
+                return reinterpret_cast<char const *>(this) + sizeof(data_block_t) + sz_id;
+        }
+}; // does this need to be packed?
+
 
 /** Type for jack errors */
 struct JackError : public std::runtime_error {
