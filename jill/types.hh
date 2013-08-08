@@ -13,6 +13,7 @@
 
 #include <jack/types.h>
 #include <jack/transport.h>
+#include <iosfwd>
 #include <stdexcept>
 
 /**
@@ -70,6 +71,11 @@ struct data_block_t {
         // pointer to data
         void const * data() const {
                 return reinterpret_cast<char const *>(this) + sizeof(data_block_t) + sz_id;
+        }
+        // number of frames
+        nframes_t nframes() const {
+                // TODO change if multiple events in a block
+                return (dtype == SAMPLED) ? sz_data / sizeof(sample_t) : 1;
         }
 }; // does this need to be packed?
 

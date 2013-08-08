@@ -1,3 +1,14 @@
+/*
+ * JILL - C++ framework for JACK
+ *
+ * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ */
 #ifndef _LOGGER_HH
 #define _LOGGER_HH
 
@@ -5,7 +16,19 @@
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <iosfwd>
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
 #define LOG log_msg()
+
+#define INFO \
+        if (DEBUG < 1) ; \
+        else log_msg() << "I: "
+
+#define DBG \
+        if (DEBUG < 2) ; \
+        else log_msg() << "D: "
 
 namespace jill {
 

@@ -237,10 +237,9 @@ The client will not make any changes to its port configuration during operation.
    disconnected, and recording is in progress, stops in the next period (TODO).
    Disconnected input ports will still be recorded, but will have zeros in the
    signal.
-4. All xruns are logged to the output file. In continuous mode, xruns cause the
-   current entry to be terminated (all data in ringbuffer is flushed to disk)
-   and a new entry started. In epoch mode, xruns cause the entry to be flagged,
-   but the data are recorded as is (there are likely to be gaps in the data).
+4. All xruns are logged to the output file. An attribute is set on the entry to
+   indicate that there may be gaps in the data, but jrecord must continue to
+   store data as it arrives.
 5. Changes to period size result in a log entry and cause all the data in the
    ringbuffer to be flushed to disk. Because this introduces a gap in the data
    stream, the current entry will be terminated. In continuous mode, a new entry

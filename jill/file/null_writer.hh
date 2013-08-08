@@ -1,6 +1,18 @@
+/*
+ * JILL - C++ framework for JACK
+ *
+ * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ */
 #ifndef _NULL_WRITER_HH
 #define _NULL_WRITER_HH
 
+#include "../logger.hh"
 #include "../data_writer.hh"
 
 namespace jill { namespace file {
@@ -9,25 +21,29 @@ namespace jill { namespace file {
 class null_writer : public data_writer {
 
 public:
-        null_writer() : _entry(0) {}
+        null_writer() : _entry(0), _last_entry(0) {}
         void new_entry(nframes_t frame) {
-                std::cout << "\nnew entry " << _entry << ", frame=" << frame << std::endl;
+                _entry = ++_last_entry;
+                LOG << "new entry " << _entry << ", frame=" << frame;
         }
         void close_entry() {
-                std::cout << "\nclosed entry " <<  _entry << std::endl;
-                _entry += 1;
+                LOG << "closed entry " <<  _entry;
+                _entry = 0;
         }
         void xrun() {
-                std::cout << "\ngot xrun" << std::endl;
+                LOG << "got xrun";
         }
-        bool ready() const { return true; }
+        bool ready() const { return _entry; }
         bool aligned() const { return true; }
         void write(data_block_t const * data, nframes_t start, nframes_t stop) {
+                if (!_entry) new_entry(data->time);
                 std::cout << "\rgot period: time=" << data->time << ", id=" << data->id()
-                          << ", type=" << data->dtype << ", bytes=" << data->sz_data << std::flush;
+                          << ", type=" << data->dtype << ", nframes=" << data->nframes()
+                          << ", start=" << start << ", stop=" << stop << ' ' << std::flush;
         }
 private:
         int _entry;
+        int _last_entry;
 };
 
 }}

@@ -91,7 +91,7 @@ private:
         pthread_cond_t  _ready;                    // indicates data ready
         static void * thread(void * arg);           // the thread entry point
         pthread_t _thread_id;                      // thread id
-
+        bool _xrun;                                // flag to indicate xrun
 };
 
 }} // jill::file

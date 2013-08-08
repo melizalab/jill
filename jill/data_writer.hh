@@ -29,7 +29,6 @@ public:
          */
         virtual bool aligned() const = 0;
 
-
         /**
          * Create a new entry, closing the previous one if necessary.
          *

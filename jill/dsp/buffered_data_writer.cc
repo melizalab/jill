@@ -1,4 +1,5 @@
 #include <iostream>
+#include "../logger.hh"
 #include "buffered_data_writer.hh"
 #include "block_ringbuffer.hh"
 
@@ -8,16 +9,17 @@ using std::size_t;
 
 buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, nframes_t buffer_size)
         : _state(Stopped),
-          _reset(false),
           _writer(writer),
           _buffer(new block_ringbuffer(buffer_size))
 {
+        DBG << "buffered_data_writer initializing";
         pthread_mutex_init(&_lock, 0);
         pthread_cond_init(&_ready, 0);
 }
 
 buffered_data_writer::~buffered_data_writer()
 {
+        DBG << "buffered_data_writer closing";
         // need to make sure synchrons are not in use
         stop();                 // no more new data; exit writer thread
         join();                 // wait for writer thread to exit
@@ -30,20 +32,10 @@ void
 buffered_data_writer::push(nframes_t time, dtype_t dtype, char const * id,
                            size_t size, void const * data)
 {
-        switch (_state) {
-        case Running:
-        case Stopped:
+        if (_state != Stopping) {
                 if (_buffer->push(time, dtype, id, size, data) == 0) {
                         xrun();
                 }
-                break;
-        case Xrun:
-#if DEBUG > 1
-                std::cerr << "in Xrun: frame " << time << " discarded" << std::endl;
-                break;
-#endif
-        case Stopping:
-                break;
         }
 }
 
@@ -60,14 +52,14 @@ buffered_data_writer::data_ready()
 void
 buffered_data_writer::xrun()
 {
-        __sync_bool_compare_and_swap(&_state, Running, Xrun);
+        // don't generate log message here
+        __sync_bool_compare_and_swap(&_xrun, false, true);
 }
 
 void
 buffered_data_writer::stop()
 {
-        (__sync_bool_compare_and_swap(&_state, Running, Stopping) ||
-         __sync_bool_compare_and_swap(&_state, Xrun, Stopping));
+        __sync_bool_compare_and_swap(&_state, Running, Stopping);
         // release condition variable to prevent deadlock
         data_ready();
 }
@@ -89,6 +81,9 @@ buffered_data_writer::start()
                 if (ret != 0)
                         throw std::runtime_error("Failed to start writer thread");
         }
+        else {
+                throw std::runtime_error("Tried to start already running writer thread");
+        }
 }
 
 void
@@ -100,7 +95,7 @@ buffered_data_writer::join()
 size_t
 buffered_data_writer::request_buffer_size(size_t bytes)
 {
-        // the write thread will keep this locked until the buffer is empty
+        // block until the bufferis empty
         pthread_mutex_lock(&_lock);
         if (bytes > _buffer->size()) {
                 _buffer->resize(bytes);
@@ -118,10 +113,14 @@ buffered_data_writer::thread(void * arg)
 	pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	pthread_mutex_lock (&self->_lock);
         self->_state = Running;
+        self->_xrun = self->_reset = false;
+        INFO << "started writer thread";
 
         while (1) {
+                if (__sync_bool_compare_and_swap(&self->_xrun, true, false)) {
+                        self->_writer->xrun();
+                }
                 hdr = self->_buffer->peek_ahead();
-                self->write(hdr);
                 if (hdr == 0) {
                         /* if ringbuffer empty and Stopping, close loop */
                         if (self->_state == Stopping) {
@@ -129,33 +128,28 @@ buffered_data_writer::thread(void * arg)
                         }
                         /* otherwise flush to disk and wait for more data */
                         else {
+                                // TODO write log messages
                                 self->_writer->flush();
                                 pthread_cond_wait (&self->_ready, &self->_lock);
                         }
+                }
+                else {
+                        self->write(hdr);
                 }
         }
         self->_writer->close_entry();
         pthread_mutex_unlock(&self->_lock);
         self->_state = Stopped;
+        INFO << "exited writer thread";
         return 0;
 }
 
 void
 buffered_data_writer::write(data_block_t const * data)
 {
-        if (data == 0) {
-                /* buffer is flushed; close entry and clear xrun state */
-                if (__sync_bool_compare_and_swap(&_state, Xrun, Running)) {
-                        _writer->xrun();
-                        _writer->close_entry();
-
-                }
+        if (__sync_bool_compare_and_swap(&_reset, true, false)) {
+                _writer->close_entry();
         }
-        else {
-                if (__sync_bool_compare_and_swap(&_reset, true, false)) {
-                        _writer->close_entry();
-                }
-                _writer->write(data, 0, 0);
-                _buffer->release();
-        }
+        _writer->write(data, 0, 0);
+        _buffer->release();
 }

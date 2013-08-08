@@ -21,7 +21,7 @@
 // #include "jill/file/arf_writer.hh"
 #include "jill/file/null_writer.hh"
 #include "jill/dsp/buffered_data_writer.hh"
-// #include "jill/dsp/triggered_data_writer.hh"
+#include "jill/dsp/triggered_data_writer.hh"
 
 #define PROGRAM_NAME "jrecord"
 
@@ -103,6 +103,8 @@ int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
         std::size_t bytes = client->sampling_rate() * options.buffer_size_s * client->nports();
+        if (port_trig != 0)
+                bytes += client->sampling_rate() * options.pretrigger_size_s * client->nports();
         // will block until buffer is empty
         bytes = arf_thread->request_buffer_size(bytes);
         arf_thread->reset();
@@ -124,8 +126,8 @@ jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int co
         }
         else {
                 // close current entry
-                // arf_thread->close_entry();
-                std::cerr << "TODO: close entry" << std::endl;
+                INFO << "last input to trigger port disconnected; closing entry";
+                arf_thread->reset();
         }
 }
 
@@ -157,28 +159,29 @@ main(int argc, char **argv)
         boost::shared_ptr<data_writer> writer;
 	try {
 		options.parse(argc,argv);
+                client.reset(new jack_client(options.client_name, options.server_name));
+
                 // writer.reset(new file::arf_writer(PROGRAM_NAME,
                 //                                   options.output_file,
                 //                                   options.additional_options,
                 //                                   options.compression));
                 writer.reset(new file::null_writer());
 
-                client.reset(new jack_client(options.client_name, options.server_name));
                 // writer->set_data_source(client);
 
                 /* create ports: one for trigger, and one for each input */
-                // if (options.count("trig")) {
-                //         port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
-                //                                           JackPortIsInput | JackPortIsTerminal, 0);
-                //         arf_thread.reset(new dsp::triggered_data_writer(
-                //                                  writer,
-                //                                  port_trig,
-                //                                  options.pretrigger_size_s * client->sampling_rate(),
-                //                                  options.posttrigger_size_s * client->sampling_rate()));
-                // }
-                // else {
-                arf_thread.reset(new dsp::buffered_data_writer(writer));
-                // }
+                if (options.count("trig")) {
+                        port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
+                                                          JackPortIsInput | JackPortIsTerminal, 0);
+                        arf_thread.reset(new dsp::triggered_data_writer(
+                                                 writer,
+                                                 jack_port_short_name(port_trig),
+                                                 options.pretrigger_size_s * client->sampling_rate(),
+                                                 options.posttrigger_size_s * client->sampling_rate()));
+                }
+                else {
+                        arf_thread.reset(new dsp::buffered_data_writer(writer));
+                }
 
                 /* register input ports */
                 if (options.count("in")) {

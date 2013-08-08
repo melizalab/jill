@@ -16,7 +16,7 @@ public:
          * Initialize an ARF writer thread.
          *
          * @param filename            the file to write to
-         * @param trigger_port        he source of trigger events
+         * @param trigger_port        the source of trigger events
          * @param pretrigger_frames   the number of frames to record from before
          *                            trigger onset events
          * @param posttrigger_frames  the number of frames to record from after
@@ -26,35 +26,27 @@ public:
          * @param compression  the compression level for new datasets
          */
         triggered_data_writer(boost::shared_ptr<data_writer> writer,
-                              jack_port_t const * trigger_port,
+                              std::string const & trigger_port,
                               nframes_t pretrigger_frames, nframes_t posttrigger_frames);
 
         ~triggered_data_writer();
 
-        /** @see buffered_data_writer::resize_buffer() */
-        nframes_t resize_buffer(nframes_t, nframes_t);
-
-        /**
-         * Close entry at event_time plus the post-trigger frames. It's okay
-         * to call from another thread before the data writer thread has reached
-         * event_time in the data stream.
-         */
-        void close_entry(nframes_t event_time);
-
 protected:
 
         /** @see buffered_data_writer::write() */
-        void write(period_info_t const *);
+        void write(data_block_t const *);
 
 private:
-        /** Place the object in recording mode. */
+        /** start recording at time - pretrigger */
         void start_recording(nframes_t time);
+        /** stop recording at time + posttrigger */
+        void stop_recording(nframes_t time);
 
-        jack_port_t const * const _trigger_port;
+        std::string _trigger_port;
         const nframes_t _pretrigger;
         const nframes_t _posttrigger;
 
-        bool _recording;
+        bool _recording;        // flag to track whether data are being written
         nframes_t _last_offset; // track time since last offset
 };
 

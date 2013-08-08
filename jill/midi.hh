@@ -82,31 +82,16 @@ struct midi {
                         return ENOBUFS;
         }
 
-        /**
-         * Find an onset or offset event in a midi event stream.
-         *
-         * @param midi_buffer  the JACK midi buffer
-         * @param onset        if true, look for onset events; if false, for offsets
-         * @return the time of the first event, or -1 if no event was found.
-         */
-        static int find_trigger(void const * midi_buffer, bool onset=true) {
-                void * buf = const_cast<void *>(midi_buffer);
-                jack_midi_event_t event;
-                nframes_t nevents = jack_midi_get_event_count(buf);
-                for (nframes_t i = 0; i < nevents; ++i) {
-                        jack_midi_event_get(&event, buf, i);
-                        if (event.size < 1) continue;
-                        data_type t = event.buffer[0] & midi::type_nib;
-                        if (onset) {
-                                if (t == midi::stim_on || t == midi::note_on)
-                                        return event.time;
-                        }
-                        else {
-                                if (t ==midi::stim_off || t ==midi::note_off)
-                                        return event.time;
-                        }
-                }
-                return -1;
+        static bool is_onset(void const * buffer, size_t size) {
+                if (size == 0) return false;
+                data_type t = *reinterpret_cast<data_type const *>(buffer) & type_nib;
+                return (t == stim_on || t == note_on);
+        }
+
+        static bool is_offset(void const * buffer, size_t size) {
+                if (size == 0) return false;
+                data_type t = *reinterpret_cast<data_type const *>(buffer) & type_nib;
+                return (t == stim_off || t == note_off);
         }
 
 };

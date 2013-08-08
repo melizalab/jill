@@ -25,8 +25,6 @@ namespace jill {
  * Stopped: [initial state] data is not being written to disk. any background
  *          threads are inactive
  * Running: [Stopped=>start()] push() accepts samples, samples are written
- * Xrun:    [Running=>xrun()] initiate when an overrun occurs. returns to Running
- *          after remaining samples in the buffer are flushed
  * Stopping: [Running=>stop()] remaining samples in the buffer are flushed.
  *          returns to Stopped.
  *
@@ -100,7 +98,6 @@ protected:
                 Stopped,
                 Running,
                 Stopping,
-                Xrun
         };
 
 };
