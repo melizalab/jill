@@ -1,5 +1,7 @@
 #include <iostream>
+#include <boost/filesystem.hpp>
 #include "../logger.hh"
+#include "../zmq.hh"
 #include "buffered_data_writer.hh"
 #include "block_ringbuffer.hh"
 
@@ -10,7 +12,8 @@ using std::size_t;
 buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, nframes_t buffer_size)
         : _state(Stopped),
           _writer(writer),
-          _buffer(new block_ringbuffer(buffer_size))
+          _buffer(new block_ringbuffer(buffer_size)),
+          _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER))
 {
         DBG << "buffered_data_writer initializing";
         pthread_mutex_init(&_lock, 0);
@@ -26,6 +29,8 @@ buffered_data_writer::~buffered_data_writer()
         // pthread_cancel(_thread_id);
         pthread_mutex_destroy(&_lock);
         pthread_cond_destroy(&_ready);
+        zmq_close(_socket);
+        zmq_term(_context);
 }
 
 void

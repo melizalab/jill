@@ -14,6 +14,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <pthread.h>
 #include <iosfwd>
 
 #ifndef DEBUG
@@ -82,13 +83,16 @@ public:
                 static logger _instance;
                 return _instance;
         }
-        void log(timestamp_t const & utc, std::string const & msg) const;
+        void log(timestamp_t const & utc, std::string const & msg);
         void set_sourcename(std::string const & name);
         void connect(std::string const & server_name);
+        void * get_context() { return _context; }
 private:
         std::string _source;
+        pthread_mutex_t _lock;  // mutex for zmq socket access
         void * _context;
         void * _socket;
+
 };
 
 }

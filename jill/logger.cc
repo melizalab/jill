@@ -25,6 +25,7 @@ log_msg::~log_msg()
 logger::logger()
         : _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER))
 {
+        pthread_mutex_init(&_lock, 0);
 }
 
 logger::~logger()
@@ -37,18 +38,22 @@ logger::~logger()
         zmq_setsockopt(_socket, ZMQ_LINGER, &linger, sizeof(linger));
         zmq_close(_socket);
         zmq_term(_context);
+        pthread_mutex_destroy(&_lock);
 }
 
 void
-logger::log(timestamp_t const & utc, std::string const & msg) const
+logger::log(timestamp_t const & utc, std::string const & msg)
 {
         typedef boost::date_time::c_local_adjustor<timestamp_t> local_adj;
         timestamp_t local = local_adj::utc_to_local(utc);
+        // printf calls are generally threadsafe
         printf("%s [%s] %s\n", to_iso_string(local).c_str(), _source.c_str(), msg.c_str());
 
+        pthread_mutex_lock(&_lock);
         zmq::send_msg(_socket, to_iso_string(utc), ZMQ_SNDMORE);
         zmq::send_msg(_socket, _source, ZMQ_SNDMORE);
         zmq::send_msg(_socket, msg);
+        pthread_mutex_unlock(&_lock);
 
 }
 

@@ -71,6 +71,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
                 port = *it;
                 buffer = jack_port_get_buffer(port, nframes);
+                if (buffer == 0) continue;
                 if (strcmp(jack_port_type(port), JACK_DEFAULT_AUDIO_TYPE) == 0) {
                         arf_thread->push(time, SAMPLED, jack_port_short_name(port),
                                          nframes * sizeof(sample_t), buffer);
