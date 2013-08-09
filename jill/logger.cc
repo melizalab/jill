@@ -1,17 +1,16 @@
 
 #include "logger.hh"
+#include "zmq.hh"
 #include <sstream>
-#include <zmq.h>
+#include <cstdio>
 #include <boost/date_time/c_local_time_adjustor.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
+using namespace boost::posix_time;
 using namespace jill;
 
-// TODO shims for zmq 2.2 vs 3.3
-
-
 log_msg::log_msg()
-        : _creation(boost::posix_time::microsec_clock::universal_time())
+        : _creation(microsec_clock::universal_time())
 {}
 
 log_msg::log_msg(timestamp_t const & utc)
@@ -25,10 +24,14 @@ log_msg::~log_msg()
 
 logger::logger()
         : _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER))
-{}
+{
+}
 
 logger::~logger()
 {
+        DBG << "cleaning up logger";
+        int linger = 1000;
+        zmq_setsockopt(_socket, ZMQ_LINGER, &linger, sizeof(linger));
         zmq_close(_socket);
         zmq_term(_context);
 }
@@ -38,14 +41,19 @@ logger::log(timestamp_t const & utc, std::string const & msg) const
 {
         typedef boost::date_time::c_local_adjustor<timestamp_t> local_adj;
         timestamp_t local = local_adj::utc_to_local(utc);
-        std::cout << boost::posix_time::to_iso_string(local) << " [" << _source << "] "
-                  << msg << std::endl;
+        printf("%s [%s] %s\n", to_iso_string(local).c_str(), _source.c_str(), msg.c_str());
+
+        zmq::send_msg(_socket, to_iso_string(utc), ZMQ_SNDMORE);
+        zmq::send_msg(_socket, _source, ZMQ_SNDMORE);
+        zmq::send_msg(_socket, msg);
+
 }
 
 void
 logger::set_sourcename(std::string const & name)
 {
         _source = name;
+        zmq_setsockopt(_socket, ZMQ_IDENTITY, _source.c_str(), _source.length());
 }
 
 void
@@ -53,8 +61,12 @@ logger::connect(std::string const & server_name)
 {
         // this will work even if the server isn't up yet
         std::ostringstream endpoint;
-        // TODO set socket identity?
         endpoint << "ipc:///tmp/org.meliza.jill/" << server_name << "/msg";
-        zmq_connect(_socket, endpoint.str().c_str());
+        if (zmq_connect(_socket, endpoint.str().c_str()) < 0) {
+                LOG << "error connecting to endpoint " << endpoint.str();
+        }
+        else {
+                INFO << "logging to " << endpoint.str();
+        }
 }
 

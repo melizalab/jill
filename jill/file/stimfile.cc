@@ -60,14 +60,14 @@ stimfile::load_samples(nframes_t samplerate)
         // read file, ignoring any discrepancies in # of samples
         _nframes = rs.input_frames = sf_read_float(_sndfile, buf, rs.input_frames);
         _samplerate = _sfinfo.samplerate;
-        LOG << "read " << _nframes << " frames from " << _name << " at " << _samplerate << std::endl;
+        LOG << "read " << _nframes << " frames from " << _name << " at " << _samplerate;
 
         if ((samplerate > 0) && (samplerate != _samplerate)) {
                 rs.src_ratio = float(samplerate) / float(_samplerate);
                 rs.output_frames = (int)(rs.input_frames * rs.src_ratio);
 		rs.data_out = new sample_t[rs.output_frames];
                 LOG << "resampling " << _name << " to " << samplerate << " (" << rs.src_ratio << ") -> "
-                    << rs.output_frames << " frames" << std::endl;
+                    << rs.output_frames << " frames";
 
                 int ec = src_simple(&rs, SRC_SINC_BEST_QUALITY, 1);
                 delete[] rs.data_in;
