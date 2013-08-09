@@ -29,6 +29,9 @@ logger::logger()
 
 logger::~logger()
 {
+        // note: this object may be destroyed before other objects, but
+        // apparently it's still okay if the log function gets called. however,
+        // generally speaking we shouldn't use destructors to log
         DBG << "cleaning up logger";
         int linger = 1000;
         zmq_setsockopt(_socket, ZMQ_LINGER, &linger, sizeof(linger));
