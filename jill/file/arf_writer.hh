@@ -92,7 +92,7 @@ private:
         pthread_mutex_t _lock;                     // mutex for disk operations
         std::string _sourcename;                   // who's doing the writing
         arf::file_ptr _file;                       // output file
-        std::map<std::string,std::string> _attrs;  // attributes for new entries
+        std::map<std::string, std::string> _attrs; // attributes for new entries
         arf::packet_table_ptr _log;                // log dataset
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         dset_map_type _dsets;                      // pointers to packet tables (owned)

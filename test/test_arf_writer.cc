@@ -29,6 +29,7 @@ test_entry()
         period->dtype = SAMPLED;
         period->sz_id = 7;
         period->sz_data = nframes * sizeof(sample_t);
+        *(sample_t *)(buf + sizeof(data_block_t) + period->sz_id) = 134.;
 
         assert(!writer->ready());
         writer->new_entry(start);

@@ -215,8 +215,9 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
         stop_frame = (stop_frame > 0) ? std::min(stop_frame, nframes) : nframes;
 
         // check for overflow of sample counter
-        if (_entry && data->time < _entry_start) {
-                LOG << "sample count overflow (frame=" << data->time << ")";
+        if (_entry && (data->time + start_frame) < _entry_start) {
+                LOG << "sample count overflow (entry=" << _entry_start
+                    << ", data=" << (data->time + start_frame) << ")";
                 close_entry();
         }
         if (!_entry) {

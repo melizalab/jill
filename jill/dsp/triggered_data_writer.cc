@@ -63,6 +63,8 @@ triggered_data_writer::start_recording(nframes_t event_time)
 
         /* write partial period(s) */
         while (ptr->time <= onset) {
+                DBG << "prebuf frame: t=" << ptr->time << ", on=" << onset - ptr->time
+                    << ", id=" << ptr->id() << ", dtype=" << ptr->dtype;
                 _writer->write(ptr, onset - ptr->time, 0);
                 _buffer->release();
                 ptr = _buffer->peek();
