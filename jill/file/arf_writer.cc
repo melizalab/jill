@@ -213,7 +213,6 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
         nframes_t nframes = data->nframes();
         dset_map_type::iterator dset;
         stop_frame = (stop_frame > 0) ? std::min(stop_frame, nframes) : nframes;
-        _last_frame = data->time + stop_frame;
 
         // check for overflow of sample counter
         if (_entry && data->time < _entry_start) {
@@ -240,12 +239,14 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                         // hex-encode standard midi events
                         e.message = message = to_hex(buffer + 1, data->sz_data - 1);
                 }
-                DBG << "event: t=" << data->time << " id=" << id << " message=" << e.message;
+                DBG << "event: t=" << data->time << " id=" << id << " status=" << int(e.status)
+                    << " message=" << e.message;
                 pthread_mutex_lock(&_lock);
                 dset->second->write(&e, 1);
                 pthread_mutex_unlock(&_lock);
                 if (message) delete[] message;
         }
+        _last_frame = data->time + stop_frame;
 }
 
 void

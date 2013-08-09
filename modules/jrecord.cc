@@ -126,7 +126,7 @@ jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int co
         }
         else {
                 // close current entry
-                INFO << "last input to trigger port disconnected; closing entry";
+                INFO << "last input to trigger port disconnected";
                 arf_thread->reset();
         }
 }
