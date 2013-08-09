@@ -4,7 +4,6 @@
 #include <map>
 #include <string>
 #include <iosfwd>
-#include <pthread.h>
 #include <boost/weak_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 #include <arf/types.hpp>
@@ -54,8 +53,8 @@ public:
          * @param data_source  the source of the data. may be null
          * @param compression  the compression level for new datasets
          */
-        arf_writer(std::string const & sourcename,
-                   std::string const & filename,
+        arf_writer(std::string const & filename,
+                   jill::data_source const & source,
                    std::map<std::string,std::string> const & entry_attrs,
                    int compression=0);
         ~arf_writer();
@@ -86,11 +85,9 @@ private:
         void _get_last_entry_index();
 
         // references
-        boost::weak_ptr<jill::data_source> _data_source;
+        jill::data_source const & _data_source;
 
         // owned resources
-        pthread_mutex_t _lock;                     // mutex for disk operations
-        std::string _sourcename;                   // who's doing the writing
         arf::file_ptr _file;                       // output file
         std::map<std::string, std::string> _attrs; // attributes for new entries
         arf::packet_table_ptr _log;                // log dataset
@@ -100,7 +97,7 @@ private:
 
         // these variables allow more precise timestamps; they are registered to
         // each other when set_data_source is called
-        boost::shared_ptr<boost::posix_time::ptime> _base_ptime;
+        boost::posix_time::ptime _base_ptime;
         utime_t   _base_usec;
 
         // local state

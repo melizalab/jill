@@ -161,8 +161,8 @@ main(int argc, char **argv)
 		options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
 
-                writer.reset(new file::arf_writer(PROGRAM_NAME,
-                                                  options.output_file,
+                writer.reset(new file::arf_writer(options.output_file,
+                                                  *client,
                                                   options.additional_options,
                                                   options.compression));
                 // writer.reset(new file::null_writer());

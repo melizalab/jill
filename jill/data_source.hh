@@ -15,6 +15,9 @@ class data_source : boost::noncopyable {
 public:
         virtual ~data_source() {}
 
+        /** An identifier for the data source */
+        virtual char const * name() const = 0;
+
 	/** The sample rate of the data */
 	virtual nframes_t sampling_rate() const = 0;
 

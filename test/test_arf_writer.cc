@@ -4,15 +4,62 @@
 #include <string>
 #include <boost/shared_ptr.hpp>
 #include <boost/assign/list_of.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "jill/data_writer.hh"
+#include "jill/data_source.hh"
 #include "jill/file/arf_writer.hh"
 
 using namespace std;
 using namespace jill;
-
+using namespace boost::posix_time;
 
 boost::shared_ptr<data_writer> writer;
+
+class null_source : public data_source {
+
+public:
+        null_source(std::string const & name, nframes_t sampling_rate)
+                : _name(name), _sampling_rate(sampling_rate), _base_time(microsec_clock::universal_time())
+                {}
+
+        /** the name of the data source. */
+        char const * name() const {
+                return _name.c_str();
+        }
+
+	/** The sample rate of the data */
+	nframes_t sampling_rate() const {
+                return _sampling_rate;
+        }
+
+	/** The current frame in the data stream (since client start) */
+	nframes_t frame() const {
+                return frame(time());
+        }
+
+        /** Convert microsecond time to frame count */
+        nframes_t frame(utime_t t) const {
+                return t / (1000000 / _sampling_rate);
+        }
+
+        /** Convert frame count to microseconds */
+        utime_t time(nframes_t t) const {
+                return t * (1000000 / _sampling_rate);
+        }
+
+        /** Get current time in microseconds */
+        utime_t time() const {
+                time_duration ts = microsec_clock::universal_time() - _base_time;
+                return ts.total_microseconds();
+        }
+
+private:
+        std::string _name;
+        nframes_t _sampling_rate;
+        ptime _base_time;
+
+};
 
 void
 test_entry()
@@ -55,7 +102,8 @@ main(int argc, char** argv)
         map<string,string> attrs = boost::assign::map_list_of("experimenter","Dan Meliza")
                 ("experiment","write stuff");
 
-        writer.reset(new file::arf_writer("test_arf_writer","test.arf", attrs, 0));
+        null_source source("test", 20000);
+        writer.reset(new file::arf_writer("test.arf", source, attrs, 0));
         // writer->log() << "a log message";
         test_entry();
 }

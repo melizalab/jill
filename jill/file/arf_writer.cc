@@ -1,15 +1,12 @@
 #include <arf.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <sys/time.h>
-#include <jack/jack.h>
 
 #include "arf_writer.hh"
 #include "../version.hh"
 #include "../logger.hh"
 #include "../data_source.hh"
 #include "../midi.hh"
-#include "../util/string.hh"
 
 #define JILL_LOGDATASET_NAME "jill_log"
 #define ARF_CHUNK_SIZE 1024
@@ -20,7 +17,6 @@ using namespace jill::file;
 using namespace boost::posix_time;
 using namespace boost::gregorian;
 
-typedef boost::shared_ptr<jill::data_source> source_ptr;
 static const ptime epoch = ptime(date(1970,1,1));
 
 /**
@@ -75,16 +71,19 @@ struct datatype_traits<event_t> {
 
 }}}
 
-arf_writer::arf_writer(string const & sourcename,
-                       string const & filename,
+arf_writer::arf_writer(string const & filename,
+                       data_source const & source,
                        map<string,string> const & entry_attrs,
                        int compression)
-        : _sourcename(sourcename),
+        : _data_source(source),
           _attrs(entry_attrs),
           _compression(compression),
           _entry_start(0), _entry_idx(0)
 {
-        pthread_mutex_init(&_lock, 0);
+        _base_usec = _data_source.time();
+        _base_ptime = microsec_clock::universal_time();
+        LOG << "registered system clock to usec clock at " << _base_usec;
+
         _file.reset(new arf::file(filename, "a"));
         LOG << "opened file: " << filename;
 
@@ -107,49 +106,33 @@ arf_writer::arf_writer(string const & sourcename,
 }
 
 arf_writer::~arf_writer()
-{
-        // NB: assume the HDF5 library will close the file properly
-        // without needed to manually flush.
-        pthread_mutex_destroy(&_lock);
-}
+{}
 
 void
 arf_writer::new_entry(nframes_t frame_count)
 {
         utime_t frame_usec = 0;
 
-        util::make_string name;
-        name << _sourcename << '_' << setw(4) << setfill('0') << _entry_idx++;
-        string creator = _sourcename + " " JILL_VERSION;
+        std::ostringstream name;
+        name << _data_source.name() << '_' << setw(4) << setfill('0') << _entry_idx++;
 
         close_entry();
         _entry_start = frame_count;
 
         time_duration ts;
-        if (source_ptr source = _data_source.lock()) {
-                frame_usec = source->time(_entry_start);
-                ts = (*_base_ptime + microseconds(frame_usec - _base_usec)) - epoch;
-        }
-        else {
-                ts = microsec_clock::universal_time() - epoch;
-        }
+        frame_usec = _data_source.time(_entry_start);
+        ts = (_base_ptime + microseconds(frame_usec - _base_usec)) - epoch;
 
-        pthread_mutex_lock(&_lock);
-        _entry.reset(new arf::entry(*_file, name,
+        _entry.reset(new arf::entry(*_file, name.str(),
                                     ts.total_seconds(), ts.fractional_seconds()));
-        pthread_mutex_unlock(&_lock);
 
         LOG << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" ;
 
-        pthread_mutex_lock(&_lock);
         arf::h5a::node::attr_writer a = _entry->write_attribute();
         a("jack_frame", _entry_start);
-        a("entry_creator", creator);
+        a("jack_usec", frame_usec);
+        a("entry_creator", "jill " JILL_VERSION);
         for_each(_attrs.begin(), _attrs.end(), a);
-        if (frame_usec != 0) {
-                a("jack_usec", frame_usec);
-        }
-        pthread_mutex_unlock(&_lock);
 }
 
 void
@@ -183,9 +166,7 @@ arf_writer::xrun()
         LOG << "ERROR: xrun" ;
         if (_entry) {
                 // tag entry as possibly corrupt
-                pthread_mutex_lock(&_lock);
                 _entry->write_attribute("jill_error","data xrun");
-                pthread_mutex_unlock(&_lock);
         }
 }
 
@@ -227,9 +208,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
         if (data->dtype == SAMPLED) {
                 dset = get_dataset(id, true);
                 sample_t const * samples = reinterpret_cast<sample_t const *>(data->data());
-                pthread_mutex_lock(&_lock);
                 dset->second->write(samples + start_frame, stop_frame - start_frame);
-                pthread_mutex_unlock(&_lock);
         }
         else if (data->dtype == EVENT) {
                 char * message = 0;
@@ -242,9 +221,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                 }
                 DBG << "event: t=" << data->time << " id=" << id << " status=" << int(e.status)
                     << " message=" << e.message;
-                pthread_mutex_lock(&_lock);
                 dset->second->write(&e, 1);
-                pthread_mutex_unlock(&_lock);
                 if (message) delete[] message;
         }
         _last_frame = data->time + stop_frame;
@@ -262,14 +239,12 @@ arf_writer::flush()
 //         typedef boost::date_time::c_local_adjustor<ptime> local_adj;
 
 //         // for some reason make_string's output gets corrupted by H5PTwrite
-//         char m[msg.length() + _sourcename.length() + 8];
-//         sprintf(m, "[%s] %s", _sourcename.c_str(), msg.c_str());
+//         char m[msg.length() + _data_source.name().length() + 8];
+//         sprintf(m, "[%s] %s", _data_source.name().c_str(), msg.c_str());
 
 //         time_duration t = utc - epoch;
 //         jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m };
-//         pthread_mutex_lock(&_lock);
 //         _log->write(&message, 1);
-//         pthread_mutex_unlock(&_lock);
 
 //         ptime local = local_adj::utc_to_local(utc);
 //         std::cout << to_iso_string(local) << ' ' << m << std::endl;
@@ -281,9 +256,9 @@ arf_writer::_get_last_entry_index()
         unsigned int val;
         vector<string> entries = _file->children();  // read-only
         for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
-                char const * match = strstr(it->c_str(), _sourcename.c_str());
+                char const * match = strstr(it->c_str(), _data_source.name());
                 if (match == 0) continue;
-                int rc = sscanf(match + _sourcename.length(), "_%ud", &val);
+                int rc = sscanf(match + strlen(_data_source.name()), "_%ud", &val);
                 val += 1;
                 if (rc == 1 && val > _entry_idx) _entry_idx = val;
         }
@@ -297,7 +272,6 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
         dset_map_type::iterator dset = _dsets.find(name);
         if (dset == _dsets.end()) {
                 arf::packet_table_ptr pt;
-                pthread_mutex_lock(&_lock);
                 if (is_sampled) {
                         pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
                                                                           false, ARF_CHUNK_SIZE, _compression);
@@ -306,10 +280,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                         pt = _entry->create_packet_table<event_t>(name, "samples", arf::EVENT,
                                                                           false, ARF_CHUNK_SIZE, _compression);
                 }
-                if (source_ptr source = _data_source.lock()) {
-                        pt->write_attribute("sampling_rate", source->sampling_rate());
-                }
-                pthread_mutex_unlock(&_lock);
+                pt->write_attribute("sampling_rate", _data_source.sampling_rate());
                 LOG << "created dataset: " << pt->name() ;
                 dset = _dsets.insert(dset, make_pair(name,pt));
         }
