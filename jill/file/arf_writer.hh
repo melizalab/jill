@@ -4,15 +4,9 @@
 #include <map>
 #include <string>
 #include <iosfwd>
-#include <boost/weak_ptr.hpp>
-#include <boost/shared_ptr.hpp>
 #include <arf/types.hpp>
 
 #include "../data_writer.hh"
-
-namespace boost { namespace posix_time {
-                class ptime;
-}}
 
 namespace jill {
 
@@ -66,6 +60,7 @@ public:
         void close_entry();
         void xrun();
         void write(data_block_t const *, nframes_t, nframes_t);
+        void log(timestamp_t const &, std::string const &, std::string const &);
         void flush();
 
 protected:
@@ -97,7 +92,7 @@ private:
 
         // these variables allow more precise timestamps; they are registered to
         // each other when set_data_source is called
-        boost::posix_time::ptime _base_ptime;
+        timestamp_t _base_ptime;
         utime_t   _base_usec;
 
         // local state

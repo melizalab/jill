@@ -13,7 +13,7 @@
 #define _LOGGER_HH
 
 #include <boost/noncopyable.hpp>
-#include <boost/date_time/posix_time/ptime.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <iosfwd>
 
 #ifndef DEBUG
@@ -32,7 +32,8 @@
 
 namespace jill {
 
-typedef boost::posix_time::ptime timestamp;
+/** Define timestamp type */
+typedef boost::posix_time::ptime timestamp_t;
 
 /**
  * Simple atomic logging class with stream support.
@@ -48,7 +49,7 @@ class log_msg : boost::noncopyable {
 
 public:
         log_msg();
-        explicit log_msg(timestamp const & utc);
+        explicit log_msg(timestamp_t const & utc);
         ~log_msg();
 
         template <typename T>
@@ -63,7 +64,7 @@ public:
         }
 
 private:
-        timestamp _creation;    // in utc
+        timestamp_t _creation;    // in utc
         std::ostringstream _stream;
 };
 
@@ -81,7 +82,7 @@ public:
                 static logger _instance;
                 return _instance;
         }
-        void log(timestamp const & utc, std::string const & msg) const;
+        void log(timestamp_t const & utc, std::string const & msg) const;
         void set_sourcename(std::string const & name);
         void connect(std::string const & server_name);
 private:

@@ -16,7 +16,6 @@
 #include <list>
 #include <boost/noncopyable.hpp>
 #include <boost/function.hpp>
-#include <boost/shared_ptr.hpp>
 #include <jack/jack.h>
 #include "data_source.hh"
 

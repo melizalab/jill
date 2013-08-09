@@ -14,7 +14,7 @@ log_msg::log_msg()
         : _creation(boost::posix_time::microsec_clock::universal_time())
 {}
 
-log_msg::log_msg(timestamp const & utc)
+log_msg::log_msg(timestamp_t const & utc)
         : _creation(utc)
 {}
 
@@ -34,10 +34,10 @@ logger::~logger()
 }
 
 void
-logger::log(timestamp const & utc, std::string const & msg) const
+logger::log(timestamp_t const & utc, std::string const & msg) const
 {
-        typedef boost::date_time::c_local_adjustor<timestamp> local_adj;
-        timestamp local = local_adj::utc_to_local(utc);
+        typedef boost::date_time::c_local_adjustor<timestamp_t> local_adj;
+        timestamp_t local = local_adj::utc_to_local(utc);
         std::cout << boost::posix_time::to_iso_string(local) << " [" << _source << "] "
                   << msg << std::endl;
 }

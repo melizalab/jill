@@ -14,6 +14,7 @@
 #include "types.hh"
 #include <errno.h>
 #include <string>
+#include <cstring>
 #include <jack/midiport.h>
 
 /**

@@ -2,13 +2,13 @@
 #define _DATA_WRITER_HH
 
 #include <boost/noncopyable.hpp>
-#include <boost/weak_ptr.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
 #include "types.hh"
 
 
 namespace jill {
 
-//class data_source;
+typedef boost::posix_time::ptime timestamp_t;
 
 /**
  * ABC for classes that write (or otherwise consume) multichannel sampled and
@@ -24,12 +24,6 @@ public:
         virtual bool ready() const = 0;
 
         /**
-         * true iff the same amount of data has been written to all channels
-         * and at least one full period has been written.
-         */
-        // virtual bool aligned() const = 0;
-
-        /**
          * Create a new entry, closing the previous one if necessary.
          *
          * @param frame   the frame index at the start of the entry
@@ -43,12 +37,6 @@ public:
         virtual void xrun() = 0;
 
         /**
-         * Provide the writer with a pointer to an object that can give
-         * samplerate and time information.  This is optional.
-         */
-        //virtual void set_data_source(boost::weak_ptr<data_source> data_source) {}
-
-        /**
          * Write a block of data to disk. Looks up the appropriate channel.
          *
          * @pre ready() is true
@@ -58,6 +46,18 @@ public:
          * @param stop  if nonzero, only write frames < stop. okay if stop > info->nframes
          */
         virtual void write(data_block_t const * data, nframes_t start, nframes_t stop) = 0;
+
+        /**
+         * Write a log message to the file. May be a noop.
+         *
+         * @param time    time of the event
+         * @param source  the source of the event
+         * @param message a descriptive message. should include information
+         *                about the source
+         */
+        virtual void log(timestamp_t const & time,
+                         std::string const & source,
+                         std::string const & message) {}
 
         /**
          * Request data to be flushed to disk. Implementing classes must flush data

@@ -104,6 +104,6 @@ main(int argc, char** argv)
 
         null_source source("test", 20000);
         writer.reset(new file::arf_writer("test.arf", source, attrs, 0));
-        // writer->log() << "a log message";
+        writer->log(microsec_clock::universal_time(), "test", "a log message");
         test_entry();
 }

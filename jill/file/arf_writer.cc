@@ -1,5 +1,4 @@
 #include <arf.hpp>
-#include <boost/shared_ptr.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "arf_writer.hh"
@@ -154,12 +153,6 @@ arf_writer::ready() const
         return _entry;
 }
 
-// bool
-// arf_writer::aligned() const
-// {
-//         return (_period_start != _entry_start) && (_channel_idx == _dsets.size());
-// }
-
 void
 arf_writer::xrun()
 {
@@ -169,22 +162,6 @@ arf_writer::xrun()
                 _entry->write_attribute("jill_error","data xrun");
         }
 }
-
-// void
-// arf_writer::set_data_source(boost::weak_ptr<data_source> d)
-// {
-//         if (source_ptr source = d.lock()) {
-//                 _data_source = d;
-//                 // timestamps are calculated from delta of the usec clock, and
-//                 // referenced against the clock of the first entry we wrote. The
-//                 // usec clock is more precise because JACK uses a DLL to reduce
-//                 // jitter. Unfortunately there doesn't seem to be any direct way
-//                 // to convert usec values to posix times.
-//                 _base_usec = source->time();
-//                 _base_ptime.reset(new ptime(microsec_clock::universal_time()));
-//                 LOG << "registered system clock to usec clock at " << _base_usec;
-//         }
-// }
 
 void
 arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t stop_frame)
@@ -233,22 +210,16 @@ arf_writer::flush()
         _file->flush();
 }
 
-// void
-// arf_writer::write_log(timestamp const &utc, string const &msg)
-// {
-//         typedef boost::date_time::c_local_adjustor<ptime> local_adj;
+void
+arf_writer::log(timestamp_t const &utc, string const & source, string const & msg)
+{
+        char m[msg.length() + source.length() + 4];
+        sprintf(m, "[%s] %s", source.c_str(), msg.c_str());
 
-//         // for some reason make_string's output gets corrupted by H5PTwrite
-//         char m[msg.length() + _data_source.name().length() + 8];
-//         sprintf(m, "[%s] %s", _data_source.name().c_str(), msg.c_str());
-
-//         time_duration t = utc - epoch;
-//         jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m };
-//         _log->write(&message, 1);
-
-//         ptime local = local_adj::utc_to_local(utc);
-//         std::cout << to_iso_string(local) << ' ' << m << std::endl;
-// }
+        time_duration t = utc - epoch;
+        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m };
+        _log->write(&message, 1);
+}
 
 void
 arf_writer::_get_last_entry_index()

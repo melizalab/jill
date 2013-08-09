@@ -15,7 +15,6 @@
 #include <iosfwd>
 #include <pthread.h>
 #include <boost/shared_ptr.hpp>
-#include <boost/iostreams/stream.hpp>
 #include "../data_thread.hh"
 #include "../data_writer.hh"
 
