@@ -13,20 +13,8 @@
 
 #include "types.hh"
 #include <errno.h>
+#include <string>
 #include <jack/midiport.h>
-
-#ifndef NDEBUG
-#include <ostream>
-inline std::ostream &
-operator<< (std::ostream & o, jack_midi_event_t const & e)
-{
-        o << e.time << ':';
-        for (jill::nframes_t i = 0; i < e.size; ++i) {
-                o << ' ' << int(e.buffer[i]);
-        }
-        return o;
-}
-#endif
 
 /**
  * @file midi.hh
@@ -69,7 +57,7 @@ struct midi {
          *
          */
         static int write_message(void * buffer, nframes_t time, data_type status, char const * message=0) {
-                size_t len = 1;
+                std::size_t len = 1;
                 if (message)
                         len += strlen(message) + 1; // add the null byte
                 data_type *buf = jack_midi_event_reserve(buffer, time, len);
@@ -82,13 +70,36 @@ struct midi {
                         return ENOBUFS;
         }
 
-        static bool is_onset(void const * buffer, size_t size) {
+        /**
+         * Find an onset or offset event in a midi event stream.
+         *
+         * @param midi_buffer  the JACK midi buffer
+         * @param onset        if true, look for onset events; if false, for offsets
+         * @return the time of the first event, or -1 if no event was found.
+         */
+        static int find_trigger(void const * midi_buffer, bool onset=true) {
+                void * buf = const_cast<void *>(midi_buffer);
+                jack_midi_event_t event;
+                nframes_t nevents = jack_midi_get_event_count(buf);
+                for (nframes_t i = 0; i < nevents; ++i) {
+                        jack_midi_event_get(&event, buf, i);
+                        if (onset and is_onset(event.buffer, event.size)) {
+                                return event.time;
+                        }
+                        else if (!onset and is_offset(event.buffer, event.size)) {
+                                return event.time;
+                        }
+                }
+                return -1;
+        }
+
+        static bool is_onset(void const * buffer, std::size_t size) {
                 if (size == 0) return false;
                 data_type t = *reinterpret_cast<data_type const *>(buffer) & type_nib;
                 return (t == stim_on || t == note_on);
         }
 
-        static bool is_offset(void const * buffer, size_t size) {
+        static bool is_offset(void const * buffer, std::size_t size) {
                 if (size == 0) return false;
                 data_type t = *reinterpret_cast<data_type const *>(buffer) & type_nib;
                 return (t == stim_off || t == note_off);

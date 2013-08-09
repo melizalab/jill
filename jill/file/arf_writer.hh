@@ -5,7 +5,6 @@
 #include <string>
 #include <iosfwd>
 #include <pthread.h>
-#include <boost/iostreams/stream.hpp>
 #include <boost/weak_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 #include <arf/types.hpp>
@@ -62,13 +61,12 @@ public:
         ~arf_writer();
 
         /* data_writer overrides */
+        bool ready() const;
+        // bool aligned() const;
         void new_entry(nframes_t);
         void close_entry();
-        bool ready() const;
-        bool aligned() const;
         void xrun();
-        void set_data_source(boost::weak_ptr<data_source>);
-        nframes_t write(period_info_t const *, nframes_t start=0, nframes_t stop=0);
+        void write(data_block_t const *, nframes_t, nframes_t);
         void flush();
 
 protected:
@@ -107,9 +105,9 @@ private:
 
         // local state
         nframes_t _entry_start;                    // offset sample counts
-        nframes_t _period_start;                   // assign chunks to channels
+        nframes_t _last_frame;                     // last frame written to the
+                                                   // current entry
         std::size_t _entry_idx;                    // manage entry numbering
-        std::size_t _channel_idx;                  // index channel
 
 };
 

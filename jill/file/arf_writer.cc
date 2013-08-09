@@ -27,15 +27,15 @@ static const ptime epoch = ptime(date(1970,1,1));
  * convert a midi message to hex
  * @param in   the midi message
  * @param size the length of the message
- * @param out  the output buffer
  */
 template <typename T>
-static std::string
+char *
 to_hex(T const * in, std::size_t size)
 {
-        char out[size*2];
+        char * out = new char[size * 2 + 2];
+        sprintf(out, "0x");
         for (std::size_t i = 0; i < size; ++i) {
-                sprintf(out + i*2, "%02x", in[i]);
+                sprintf(out + i*2 + 2, "%02x", in[i]);
         }
         return out;
 }
@@ -82,10 +82,11 @@ arf_writer::arf_writer(string const & sourcename,
         : _sourcename(sourcename),
           _attrs(entry_attrs),
           _compression(compression),
-          _entry_start(0), _period_start(0), _entry_idx(0), _channel_idx(0)
+          _entry_start(0), _entry_idx(0)
 {
         pthread_mutex_init(&_lock, 0);
         _file.reset(new arf::file(filename, "a"));
+        LOG << "opened file: " << filename;
 
         // open/create log
         arf::h5t::wrapper<jill::file::message_t> t;
@@ -95,14 +96,14 @@ arf_writer::arf_writer(string const & sourcename,
                 if (logtype != *(_log->datatype())) {
                         throw arf::Exception(JILL_LOGDATASET_NAME " has wrong datatype");
                 }
+                INFO << "appending log messages to /" << JILL_LOGDATASET_NAME;
         }
         else {
                 _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME,
                                                        logtype, ARF_CHUNK_SIZE, _compression));
+                INFO << "created log dataset /" << JILL_LOGDATASET_NAME;
         }
         _get_last_entry_index();
-
-        LOG << "opened file: " << filename;
 }
 
 arf_writer::~arf_writer()
@@ -115,7 +116,6 @@ arf_writer::~arf_writer()
 void
 arf_writer::new_entry(nframes_t frame_count)
 {
-
         utime_t frame_usec = 0;
 
         util::make_string name;
@@ -156,12 +156,11 @@ void
 arf_writer::close_entry()
 {
         _dsets.clear();         // release any old packet tables
-        _channel_idx = 0;
         if (_entry) {
                 log_msg o;
-                o << "closed entry: " << _entry->name() << " (frame=" << _period_start << ")";
-                if (!aligned())
-                        o << " (warning: unequal dataset length)";
+                o << "closed entry: " << _entry->name() << " (frame=" << _last_frame << ")";
+                // if (!aligned())
+                //         o << " (warning: unequal dataset length)";
         }
         _entry.reset();
 }
@@ -172,11 +171,11 @@ arf_writer::ready() const
         return _entry;
 }
 
-bool
-arf_writer::aligned() const
-{
-        return (_period_start != _entry_start) && (_channel_idx == _dsets.size());
-}
+// bool
+// arf_writer::aligned() const
+// {
+//         return (_period_start != _entry_start) && (_channel_idx == _dsets.size());
+// }
 
 void
 arf_writer::xrun()
@@ -190,93 +189,63 @@ arf_writer::xrun()
         }
 }
 
+// void
+// arf_writer::set_data_source(boost::weak_ptr<data_source> d)
+// {
+//         if (source_ptr source = d.lock()) {
+//                 _data_source = d;
+//                 // timestamps are calculated from delta of the usec clock, and
+//                 // referenced against the clock of the first entry we wrote. The
+//                 // usec clock is more precise because JACK uses a DLL to reduce
+//                 // jitter. Unfortunately there doesn't seem to be any direct way
+//                 // to convert usec values to posix times.
+//                 _base_usec = source->time();
+//                 _base_ptime.reset(new ptime(microsec_clock::universal_time()));
+//                 LOG << "registered system clock to usec clock at " << _base_usec;
+//         }
+// }
+
 void
-arf_writer::set_data_source(boost::weak_ptr<data_source> d)
+arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t stop_frame)
 {
-        if (source_ptr source = d.lock()) {
-                _data_source = d;
-                // timestamps are calculated from delta of the usec clock, and
-                // referenced against the clock of the first entry we wrote. The
-                // usec clock is more precise because JACK uses a DLL to reduce
-                // jitter. Unfortunately there doesn't seem to be any direct way
-                // to convert usec values to posix times.
-                _base_usec = source->time();
-                _base_ptime.reset(new ptime(microsec_clock::universal_time()));
-                LOG << "registered system clock to usec clock at " << _base_usec;
+        if (data->sz_data == 0) return;
+        std::string id = data->id();
+        nframes_t nframes = data->nframes();
+        dset_map_type::iterator dset;
+        stop_frame = (stop_frame > 0) ? std::min(stop_frame, nframes) : nframes;
+        _last_frame = data->time + stop_frame;
+
+        // check for overflow of sample counter
+        if (_entry && data->time < _entry_start) {
+                LOG << "sample count overflow (frame=" << data->time << ")";
+                close_entry();
         }
-}
-
-nframes_t
-arf_writer::write(period_info_t const * info, nframes_t start_frame, nframes_t stop_frame)
-{
-        util::make_string dset_name;
-        bool is_sampled = true;
-        jack_port_t const * port = static_cast<jack_port_t const *>(info->arg);
-
-        if (!_entry) new_entry(info->time);
-        stop_frame = (stop_frame > 0) ? std::min(stop_frame, info->nframes) : info->nframes;
-
-        /* does this start a new period */
-        if (info->time != _period_start) {
-                // new period
-                _channel_idx = 0;
-                _period_start = info->time;
+        if (!_entry) {
+                new_entry(data->time);
         }
-
-        /* get channel information */
-        if (port) {
-                // use name information in port to look up dataset
-                dset_name << jack_port_short_name(port);
-                is_sampled = strcmp(jack_port_type(port),JACK_DEFAULT_AUDIO_TYPE)==0;
-        }
-        else {
-                // no port information (primarily a test case)
-                dset_name << "pcm_" << setw(3) << setfill('0') << _channel_idx;
-                // assume the port type is audio - not really any way to
-                // simulate midi data outside jack framework
-        }
-        _channel_idx += 1;
-        dset_map_type::iterator dset = get_dataset(dset_name, is_sampled);
-
         /* write the data */
-        if (is_sampled) {
-                assert (stop_frame <= info->nframes);
-                sample_t const * data = reinterpret_cast<sample_t const *>(info + 1);
+        if (data->dtype == SAMPLED) {
+                dset = get_dataset(id, true);
+                sample_t const * samples = reinterpret_cast<sample_t const *>(data->data());
                 pthread_mutex_lock(&_lock);
-                dset->second->write(data + start_frame, stop_frame - start_frame);
+                dset->second->write(samples + start_frame, stop_frame - start_frame);
                 pthread_mutex_unlock(&_lock);
         }
-        else {
-                // based on my inspection of jackd source, JACK api should
-                // declare port_buffer argument const, so const_cast should be
-                // safe
-                void * data = const_cast<period_info_t*>(info+1);
-                jack_midi_event_t event;
-                nframes_t nevents = jack_midi_get_event_count(data);
-                string s;
-                for (nframes_t j = 0; j < nevents; ++j) {
-                        jack_midi_event_get(&event, data, j);
-                        if (event.size == 0) continue;
-                        if (event.time < start_frame || event.time >= stop_frame) continue;
-                        event_t e = { info->time + event.time - _entry_start,
-                                      event.buffer[0],
-                                      "" };
-                        // hex encode standard midi events
-                        if (event.size > 1) {
-                                if (e.status < midi::note_off)
-                                        e.message = reinterpret_cast<char*>(event.buffer+1);
-                                else {
-                                        s = to_hex(event.buffer+1,event.size-1);
-                                        e.message = s.c_str();
-                                }
-                        }
-                        pthread_mutex_lock(&_lock);
-                        dset->second->write(&e, 1);
-                        pthread_mutex_unlock(&_lock);
+        else if (data->dtype == EVENT) {
+                char * message = 0;
+                dset = get_dataset(id, false);
+                char const * buffer = reinterpret_cast<char const *>(data->data());
+                event_t e = {data->time - _entry_start, (uint8_t)buffer[0], buffer+1};
+                if (e.status >= midi::note_off) {
+                        // hex-encode standard midi events
+                        e.message = message = to_hex(buffer + 1, data->sz_data - 1);
                 }
+                DBG << "event: t=" << data->time << " id=" << id << " message=" << e.message;
+                pthread_mutex_lock(&_lock);
+                dset->second->write(&e, 1);
+                pthread_mutex_unlock(&_lock);
+                if (message) delete[] message;
         }
-        return stop_frame - start_frame;
-
 }
 
 void
@@ -316,6 +285,7 @@ arf_writer::_get_last_entry_index()
                 val += 1;
                 if (rc == 1 && val > _entry_idx) _entry_idx = val;
         }
+        INFO << "last entry index: " << _entry_idx;
 }
 
 

@@ -19,7 +19,7 @@ std::ostream &
 operator<<(std::ostream & os, data_block_t const & b)
 {
         os << "time=" << b.time << ", id=" << b.id() << ", type=" << b.dtype
-           << "frames=" << b.nframes();
+           << ", frames=" << b.nframes();
         return os;
 }
 
@@ -94,12 +94,16 @@ triggered_data_writer::write(data_block_t const * data)
         /* handle trigger channel */
         if (data->dtype == EVENT && id == _trigger_port) {
                 if (_recording) {
-                        if (midi::is_offset(data->data(), data->sz_data))
+                        if (midi::is_offset(data->data(), data->sz_data)) {
+                                DBG << "trigger off event: time=" << data->time;
                                 stop_recording(data->time);
+                        }
                 }
                 else {
-                        if (midi::is_onset(data->data(), data->sz_data))
+                        if (midi::is_onset(data->data(), data->sz_data)) {
+                                DBG << "trigger on event: time=" << data->time;
                                 start_recording(data->time);
+                        }
                 }
         }
 

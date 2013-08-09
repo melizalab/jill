@@ -27,7 +27,7 @@ public:
          * true iff the same amount of data has been written to all channels
          * and at least one full period has been written.
          */
-        virtual bool aligned() const = 0;
+        // virtual bool aligned() const = 0;
 
         /**
          * Create a new entry, closing the previous one if necessary.

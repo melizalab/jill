@@ -110,6 +110,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 if (period_offset > nframes) return 0; // no trigger
                 last_start = time + period_offset;
                 midi::write_message(trig, period_offset, midi::stim_on, stim->name());
+                DBG << "playback triggered: time=" << last_start << ", stim=" << stim->name();
         }
         // has enough time elapsed since the last stim?
         else {
@@ -123,6 +124,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
                 midi::write_message(trig, period_offset, midi::stim_on, stim->name());
+                DBG << "playback started: time=" << last_start << ", stim=" << stim->name();
         }
         // sanity check - will be optimized out
         assert(period_offset < nframes);
@@ -141,6 +143,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 last_stop = time + period_offset + nsamples;
                 midi::write_message(trig, period_offset + nsamples,
                                     midi::stim_off, stim->name());
+                DBG << "playback ended: time=" << last_stop << ", stim=" << stim->name();
                 stim_offset = 0;
         }
 

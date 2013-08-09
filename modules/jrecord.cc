@@ -18,8 +18,8 @@
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
-// #include "jill/file/arf_writer.hh"
-#include "jill/file/null_writer.hh"
+#include "jill/file/arf_writer.hh"
+// #include "jill/file/null_writer.hh"
 #include "jill/dsp/buffered_data_writer.hh"
 #include "jill/dsp/triggered_data_writer.hh"
 
@@ -161,11 +161,11 @@ main(int argc, char **argv)
 		options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
 
-                // writer.reset(new file::arf_writer(PROGRAM_NAME,
-                //                                   options.output_file,
-                //                                   options.additional_options,
-                //                                   options.compression));
-                writer.reset(new file::null_writer());
+                writer.reset(new file::arf_writer(PROGRAM_NAME,
+                                                  options.output_file,
+                                                  options.additional_options,
+                                                  options.compression));
+                // writer.reset(new file::null_writer());
 
                 // writer->set_data_source(client);
 
