@@ -62,9 +62,9 @@ logger::log(timestamp_t const & utc, std::string const & msg)
                 // string), and the actual log message. Note that the zmq dealer socket
                 // doesn't prepend an address envelope, so this is what the recipient
                 // router socket will see
-                zmq::send_msg(_socket, _source, ZMQ_SNDMORE);
-                zmq::send_msg(_socket, to_iso_string(utc), ZMQ_SNDMORE);
-                zmq::send_msg(_socket, msg);
+                zmq::send(_socket, _source, ZMQ_SNDMORE);
+                zmq::send(_socket, to_iso_string(utc), ZMQ_SNDMORE);
+                zmq::send(_socket, msg);
                 pthread_mutex_unlock(&_lock);
         }
 }

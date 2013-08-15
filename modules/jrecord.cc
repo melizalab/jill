@@ -279,7 +279,8 @@ jrecord_options::jrecord_options(string const &program_name)
 
         po::options_description jillopts("JILL options");
         jillopts.add_options()
-                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
+                ("server,s",  po::value<string>(&server_name)->default_value("default"),
+                 "connect to specific jack server")
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("in,i",      po::value<svec>(),

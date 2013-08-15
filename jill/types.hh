@@ -79,15 +79,19 @@ struct data_block_t {
         }
 }; // does this need to be packed?
 
+/** Base type for all jill errors */
+struct Error : public std::runtime_error {
+        Error(std::string const & w) : std::runtime_error(w) { }
+};
 
 /** Type for jack errors */
-struct JackError : public std::runtime_error {
-        JackError(std::string const & w) : std::runtime_error(w) { }
+struct JackError : public Error {
+        JackError(std::string const & w) : Error(w) { }
 };
 
 /** Thrown for errors related to filesystem access */
-struct FileError : public std::runtime_error {
-	FileError(std::string const & w) : std::runtime_error(w) { }
+struct FileError : public Error {
+	FileError(std::string const & w) : Error(w) { }
 };
 
 }

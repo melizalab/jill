@@ -1,5 +1,9 @@
 #include <iostream>
+#include <vector>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
+
 #include "../logging.hh"
 #include "../zmq.hh"
 #include "buffered_data_writer.hh"
@@ -8,12 +12,14 @@
 using namespace jill;
 using namespace jill::dsp;
 using std::size_t;
+using std::string;
 
 buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, nframes_t buffer_size)
         : _state(Stopped),
           _writer(writer),
           _buffer(new block_ringbuffer(buffer_size)),
-          _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER))
+          _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER)),
+          _logger_bound(false)
 {
         DBG << "buffered_data_writer initializing";
         pthread_mutex_init(&_lock, 0);
@@ -133,7 +139,9 @@ buffered_data_writer::thread(void * arg)
                         }
                         /* otherwise flush to disk and wait for more data */
                         else {
+
                                 // TODO write log messages
+                                self->write_messages();
                                 self->_writer->flush();
                                 pthread_cond_wait (&self->_ready, &self->_lock);
                         }
@@ -160,8 +168,41 @@ buffered_data_writer::write(data_block_t const * data)
 }
 
 void
+buffered_data_writer::write_messages()
+{
+        using namespace boost::posix_time;
+
+        // only record a limited number of messages on any given pass, in case
+        // there's a huge backlog in the queue
+        static const int max_messages = 100;
+        if (!_logger_bound) return;
+        for (int i = 0; i < max_messages; ++i) {
+                // expect a three-part message: source, timestamp, message
+                int64_t more = 1;
+                size_t more_size = sizeof(more);
+                std::vector<zmq::msg_ptr_t> messages;
+                while (more) {
+                        zmq::msg_ptr_t message = zmq::msg_init();
+                        int rc = zmq_recv (_socket, message.get(), ZMQ_NOBLOCK);
+                        if (rc != 0) return;
+                        messages.push_back(message);
+                        zmq_getsockopt (_socket, ZMQ_RCVMORE, &more, &more_size);
+                }
+                if (messages.size() >= 3) {
+                        _writer->log(from_iso_string(zmq::msg_str(messages[1])),
+                                     zmq::msg_str(messages[0]),
+                                     zmq::msg_str(messages[2]));
+                }
+        }
+}
+
+void
 buffered_data_writer::bind_logger(std::string const & server_name)
 {
+        if (_logger_bound) {
+                DBG << "already bound to " << server_name;
+                return;
+        }
         namespace fs = boost::filesystem;
         std::ostringstream endpoint;
         fs::path path("/tmp/org.meliza.jill");
@@ -176,5 +217,6 @@ buffered_data_writer::bind_logger(std::string const & server_name)
         }
         else {
                 INFO << "logger bound to " << endpoint.str();
+                _logger_bound = true;
         }
 }

@@ -19,6 +19,24 @@ using namespace boost::gregorian;
 static const ptime epoch = ptime(date(1970,1,1));
 
 /**
+ * @brief Storage format for log messages
+ */
+struct message_t {
+        boost::int64_t sec;
+        boost::int64_t usec;
+        char const * message;       // descriptive
+};
+
+/**
+ * @brief Storage format for event data
+ */
+struct event_t {
+        boost::uint32_t start;  // relative to entry start
+        boost::uint8_t status;  // see jill::event_t::midi_type
+        char const * message;   // message (hex encoded for standard midi status)
+};
+
+/**
  * convert a midi message to hex
  * @param in   the midi message
  * @param size the length of the message
@@ -87,7 +105,7 @@ arf_writer::arf_writer(string const & filename,
         LOG << "opened file: " << filename;
 
         // open/create log
-        arf::h5t::wrapper<jill::file::message_t> t;
+        arf::h5t::wrapper<message_t> t;
         arf::h5t::datatype logtype(t);
         if (_file->contains(JILL_LOGDATASET_NAME)) {
                 _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME));
@@ -217,7 +235,7 @@ arf_writer::log(timestamp_t const &utc, string const & source, string const & ms
         sprintf(m, "[%s] %s", source.c_str(), msg.c_str());
 
         time_duration t = utc - epoch;
-        jill::file::message_t message = { t.total_seconds(), t.fractional_seconds(), m };
+        message_t message = { t.total_seconds(), t.fractional_seconds(), m };
         _log->write(&message, 1);
 }
 

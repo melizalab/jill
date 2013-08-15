@@ -15,26 +15,7 @@ namespace jill {
 namespace file {
 
 /**
- * @brief Storage format for log messages
- */
-struct message_t {
-        boost::int64_t sec;
-        boost::int64_t usec;
-        char const * message;       // descriptive
-};
-
-/**
- * @brief Storage format for event data
- */
-struct event_t {
-        boost::uint32_t start;  // relative to entry start
-        boost::uint8_t status;  // see jill::event_t::midi_type
-        char const * message;   // message (hex encoded for standard midi status)
-};
-
-/**
- * Class for storing data in an ARF file.  Access is thread-safe, and calls to
- * non-const member functions may block.
+ * Class for storing data in an ARF file. Access is not thread-safe.
  */
 class arf_writer : public data_writer {
 public:
@@ -55,7 +36,6 @@ public:
 
         /* data_writer overrides */
         bool ready() const;
-        // bool aligned() const;
         void new_entry(nframes_t);
         void close_entry();
         void xrun();

@@ -67,7 +67,16 @@ public:
          */
         virtual std::size_t request_buffer_size(std::size_t bytes);
 
-        /** Bind the writer to an endpoint for collecting log messages */
+        /**
+         * Bind the logger to a zeromq socket. Messages may be sent to this
+         * socket by other programs.
+         *
+         * @param server_name  the name of the jack server. All the clients of
+         *                     the server must log to the same socket.
+         *
+         * @note once binding is successful, subsequent calls to this function
+         *       do nothing.
+         */
         void bind_logger(std::string const & server_name);
 
 protected:
@@ -82,6 +91,12 @@ protected:
          */
         virtual void write(data_block_t const * data);
 
+        /**
+         * Collect log messages from the zmq socket and write them. Call this
+         * when load is low.
+         */
+        void write_messages();
+
         state_t _state;                            // thread state
         bool _reset;                               // flag to reset stream
 
@@ -94,9 +109,11 @@ private:
         static void * thread(void * arg);           // the thread entry point
         pthread_t _thread_id;                      // thread id
         bool _xrun;                                // flag to indicate xrun
+        // variables for receiving incoming messages
         void * _context;
-        void * _socket;                            // zmq socket for incoming
-                                                   // log messages
+        void * _socket;
+        bool _logger_bound;
+
 };
 
 }} // jill::file
