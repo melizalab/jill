@@ -26,8 +26,15 @@ msg_ptr_t msg_init();
 msg_ptr_t msg_init(std::size_t size);
 
 std::string msg_str (msg_ptr_t const & message);
-int send(void *socket, std::string const & string, int flags=0);
 
+template<typename T>
+int send(void *socket, T const & data, int flags=0)
+{
+        msg_ptr_t message = msg_init(sizeof(T));
+        memcpy (zmq_msg_data (message.get()), &data, sizeof(T));
+        int rc = zmq_send (socket, message.get(), flags);
+        return rc;
 }
 
+}
 #endif /* _ZMQ_HELPERS_H_ */

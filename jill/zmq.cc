@@ -51,14 +51,13 @@ msg_str(msg_ptr_t const & message)
         return std::string((char *) zmq_msg_data(msg), zmq_msg_size(msg));
 }
 
+template<>
 int
 send(void *socket, std::string const & string, int flags)
 {
-        zmq_msg_t message;
-        zmq_msg_init_size (&message, string.length());
-        memcpy (zmq_msg_data (&message), string.c_str(), string.length());
-        int rc = zmq_send (socket, &message, flags);
-        zmq_msg_close (&message);
+        msg_ptr_t message = msg_init(string.length());
+        memcpy (zmq_msg_data (message.get()), string.c_str(), string.length());
+        int rc = zmq_send (socket, message.get(), flags);
         return rc;
 }
 
