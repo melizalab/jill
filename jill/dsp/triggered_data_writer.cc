@@ -2,7 +2,7 @@
 
 #include "triggered_data_writer.hh"
 #include "../types.hh"
-#include "../logger.hh"
+#include "../logging.hh"
 #include "../midi.hh"
 #include "../dsp/block_ringbuffer.hh"
 

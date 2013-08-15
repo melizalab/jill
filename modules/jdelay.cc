@@ -15,7 +15,7 @@
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
-#include "jill/logger.hh"
+#include "jill/logging.hh"
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jdelay"

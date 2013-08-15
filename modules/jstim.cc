@@ -14,7 +14,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 
-#include "jill/logger.hh"
+#include "jill/logging.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"

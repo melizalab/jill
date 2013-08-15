@@ -3,7 +3,7 @@
 
 #include "arf_writer.hh"
 #include "../version.hh"
-#include "../logger.hh"
+#include "../logging.hh"
 #include "../data_source.hh"
 #include "../midi.hh"
 

@@ -19,7 +19,7 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 
-#include "jill/logger.hh"
+#include "jill/logging.hh"
 #include "jill/jack_client.hh"
 #include "jill/midi.hh"
 #include "jill/program_options.hh"

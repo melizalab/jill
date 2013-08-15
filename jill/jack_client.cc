@@ -10,7 +10,7 @@
  * (at your option) any later version.
  */
 #include "jack_client.hh"
-#include "logger.hh"
+#include "logging.hh"
 #include "util/string.hh"
 #include <jack/statistics.h>
 #include <jack/midiport.h>

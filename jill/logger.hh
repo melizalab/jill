@@ -13,86 +13,60 @@
 #define _LOGGER_HH
 
 #include <boost/noncopyable.hpp>
-#include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <pthread.h>
-#include <iosfwd>
-
-#ifndef DEBUG
-#define DEBUG 0
-#endif
-
-#define LOG log_msg()
-
-#define INFO \
-        if (DEBUG < 1) ; \
-        else log_msg() << "I: "
-
-#define DBG \
-        if (DEBUG < 2) ; \
-        else log_msg() << "D: "
 
 namespace jill {
-
-/** Define timestamp type */
-typedef boost::posix_time::ptime timestamp_t;
-
-/**
- * Simple atomic logging class with stream support.
- *
- * Usage:
- * log_msg() << "this is a message with " << 7 << " words";
- *
- * This example creates a message that can be constructed with stream operators
- * and that will be written on destruction (here, at the end of the statement).
- *
- */
-class log_msg : boost::noncopyable {
-
-public:
-        log_msg();
-        explicit log_msg(timestamp_t const & utc);
-        ~log_msg();
-
-        template <typename T>
-        log_msg & operator<< (T const & t) {
-                _stream << t;
-                return *this;
-        }
-
-        log_msg & operator<< (std::ostream & (*pf)(std::ostream &)) {
-                pf(_stream);
-                return *this;
-        }
-
-private:
-        timestamp_t _creation;    // in utc
-        std::ostringstream _stream;
-};
 
 /**
  * Singleton class for logging. This is used by the log_msg class to actually
  * write the log messages. Users generally don't have to interact with this
- * directly except to set the source name.
+ * directly except to set the source name, which is used in formatting log messages.
+ *
+ * This implementation attempts to connect to an external logger using IPC,
+ * which provides a mechanism for storing a veridical record of events
+ * occurring in multiple modules.
  */
 class logger : boost::noncopyable {
 public:
-        logger();
-        ~logger();
+
+        /** Access the instance of the logger */
         static logger & instance() {
                 // threadsafe in gcc to initialize static locals
                 static logger _instance;
                 return _instance;
         }
+
+        /** Log a timestamped message */
         void log(timestamp_t const & utc, std::string const & msg);
+
+        /**
+         * Set the source name, which is used to label log entries. The name of
+         * the process is a good choice.
+         */
         void set_sourcename(std::string const & name);
+
+        /**
+         * Connect the logger to a zeromq socket. Messages will be sent to this
+         * socket. Usually the program binding to the remote socket will store
+         * the messages in a centralized log file.
+         *
+         * @param server_name  the name of the jack server. All the clients of
+         *                     the server must log to the same socket.
+         *
+         * @note once the logger is connected, subsequent calls to this function
+         *       do nothing.
+         */
         void connect(std::string const & server_name);
-        void * get_context() { return _context; }
+
 private:
+        logger();
+        ~logger();
+
         std::string _source;
         pthread_mutex_t _lock;  // mutex for zmq socket access
         void * _context;
         void * _socket;
-
+        bool _connected;
 };
 
 }

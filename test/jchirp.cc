@@ -15,7 +15,7 @@
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
-#include "jill/util/stream_logger.hh"
+#include "jill/util/stream_logging.hh"
 
 #define PROGRAM_NAME "jchirp"
 

@@ -1,4 +1,4 @@
-#include "../logger.hh"
+#include "../logging.hh"
 #include "readahead_stimqueue.hh"
 
 using namespace jill::util;

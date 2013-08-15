@@ -2,7 +2,7 @@
 #include <iostream>
 #include <boost/shared_ptr.hpp>
 #include "jill/jack_client.hh"
-#include "jill/util/stream_logger.hh"
+#include "jill/util/stream_logging.hh"
 
 using namespace jill;
 

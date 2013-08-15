@@ -67,6 +67,9 @@ public:
          */
         virtual std::size_t request_buffer_size(std::size_t bytes);
 
+        /** Bind the writer to an endpoint for collecting log messages */
+        void bind_logger(std::string const & server_name);
+
 protected:
         /**
          * Entry point for deriving classes to handle data pulled off the

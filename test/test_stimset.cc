@@ -10,9 +10,9 @@
 
 #include <boost/program_options.hpp>
 
-#include "jill/event_logger.hh"
+#include "jill/event_logging.hh"
 #include "jill/util/readahead_stimqueue.hh"
-#include "jill/util/stream_logger.hh"
+#include "jill/util/stream_logging.hh"
 #include "jill/file/stimfile.hh"
 
 size_t srates[] = {10000, 20000, 40000, 80000, 0};

@@ -12,7 +12,7 @@
 #ifndef _NULL_WRITER_HH
 #define _NULL_WRITER_HH
 
-#include "../logger.hh"
+#include "../logging.hh"
 #include "../data_writer.hh"
 
 namespace jill { namespace file {

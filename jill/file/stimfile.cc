@@ -10,7 +10,7 @@
  */
 
 #include "stimfile.hh"
-#include "../logger.hh"
+#include "../logging.hh"
 
 #if MLOCK_STIMFILES
 #include <sys/mman.h>

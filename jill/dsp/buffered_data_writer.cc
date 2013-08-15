@@ -1,6 +1,6 @@
 #include <iostream>
 #include <boost/filesystem.hpp>
-#include "../logger.hh"
+#include "../logging.hh"
 #include "../zmq.hh"
 #include "buffered_data_writer.hh"
 #include "block_ringbuffer.hh"
@@ -157,4 +157,24 @@ buffered_data_writer::write(data_block_t const * data)
         }
         _writer->write(data, 0, 0);
         _buffer->release();
+}
+
+void
+buffered_data_writer::bind_logger(std::string const & server_name)
+{
+        namespace fs = boost::filesystem;
+        std::ostringstream endpoint;
+        fs::path path("/tmp/org.meliza.jill");
+        path /= server_name;
+        if (!fs::exists(path)) {
+                fs::create_directories(path);
+        }
+        path /= "msg";
+        endpoint << "ipc://" << path.string();
+        if (zmq_bind(_socket, endpoint.str().c_str()) < 0) {
+                LOG << "unable to bind to endpoint " << endpoint.str();
+        }
+        else {
+                INFO << "logger bound to " << endpoint.str();
+        }
 }

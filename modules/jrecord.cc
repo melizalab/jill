@@ -14,7 +14,7 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 
-#include "jill/logger.hh"
+#include "jill/logging.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
@@ -57,7 +57,7 @@ protected:
 
 jrecord_options options(PROGRAM_NAME);
 boost::shared_ptr<jack_client> client;
-boost::shared_ptr<data_thread> arf_thread;
+boost::shared_ptr<dsp::buffered_data_writer> arf_thread;
 jack_port_t * port_trig = 0;
 // int _close_entry_flag = 0;
 
@@ -183,6 +183,8 @@ main(int argc, char **argv)
                 else {
                         arf_thread.reset(new dsp::buffered_data_writer(writer));
                 }
+                /* bind socket for storing messages in arf file */
+                arf_thread->bind_logger(options.server_name);
 
                 /* register input ports */
                 if (options.count("in")) {
