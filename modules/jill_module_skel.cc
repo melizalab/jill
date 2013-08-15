@@ -19,7 +19,7 @@
 #include <signal.h>
 #include <boost/shared_ptr.hpp>
 
-#include "jill/util/logging.hh"
+#include "jill/logging.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 
@@ -51,6 +51,7 @@ jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
 
+
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {
@@ -63,6 +64,7 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 
         return 0;
 }
+
 
 /** this is called by jack when calculating latency */
 void
@@ -79,6 +81,7 @@ jack_latency (jack_latency_callback_mode_t mode, void *arg)
         jack_port_set_latency_range (port_out, mode, &range);
 }
 
+
 /** handle changes to buffer size */
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
@@ -86,12 +89,14 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         return 0;
 }
 
+
 /** handle xrun events */
 int
 jack_xrun(jack_client *client, float delay)
 {
         return 0;
 }
+
 
 /** handle server shutdowns */
 void
@@ -101,6 +106,7 @@ jack_shutdown(jack_status_t code, char const *)
         running = 0;
 }
 
+
 /** handle POSIX signals */
 void
 signal_handler(int sig)
@@ -108,6 +114,7 @@ signal_handler(int sig)
         ret = sig;
         running = 0;
 }
+
 
 int
 main(int argc, char **argv)
@@ -171,6 +178,7 @@ main(int argc, char **argv)
 
 }
 
+
 /** configure commandline options */
 modname_options::modname_options(string const &program_name)
         : program_options(program_name)
@@ -200,6 +208,7 @@ modname_options::modname_options(string const &program_name)
         // cfg_opts.add(opts);
         // visible_opts.add(opts);
 }
+
 
 /** provide the user with some information about the ports */
 void

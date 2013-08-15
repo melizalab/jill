@@ -15,7 +15,6 @@
 #include "jill/file/arf_writer.hh"
 #include "jill/dsp/buffered_data_writer.hh"
 #include "jill/dsp/triggered_data_writer.hh"
-#include "jill/dsp/period_ringbuffer.hh"
 
 #define CLIENT_NAME "test_arf_thread"
 #define COMPRESSION 0

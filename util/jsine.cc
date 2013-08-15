@@ -15,17 +15,17 @@
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
-#include "jill/util/stream_logging.hh"
+#include "jill/logging.hh"
 
-#define PROGRAM_NAME "jchirp"
+#define PROGRAM_NAME "jsine"
 
 using namespace jill;
 using std::string;
 
-class jchirp_options : public program_options {
+class jsine_options : public program_options {
 
 public:
-	jchirp_options(string const &program_name);
+	jsine_options(string const &program_name);
 
 	/** The server name */
 	string server_name;
@@ -43,10 +43,9 @@ protected:
 
 	virtual void print_usage();
 
-}; // jstim_options
+};
 
-static jchirp_options options(PROGRAM_NAME);
-static boost::shared_ptr<util::stream_logger> logger;
+static jsine_options options(PROGRAM_NAME);
 static boost::shared_ptr<jack_client> client;
 jack_port_t *port_out;
 static int ret = EXIT_SUCCESS;
@@ -85,8 +84,7 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 logger.reset(new util::stream_logger(options.client_name, cout));
-                logger->log() << PROGRAM_NAME ", version " JILL_VERSION;
-                logger->log() << "frequency [" << options.min_freq << "," << options.max_freq
+                LOG << "frequency [" << options.min_freq << "," << options.max_freq
                               << "] Hz; rate " << options.freq_rate << "oct/s";
 
 
@@ -111,20 +109,19 @@ main(int argc, char **argv)
                 }
 
                 client->deactivate();
-		return ret;
 	}
 
 	catch (Exit const &e) {
-		return e.status();
+		ret = e.status();
 	}
 	catch (std::exception const &e) {
-                if (logger) logger->log() << "ERROR: " << e.what();
-                else cerr << "ERROR: " << e.what() << endl;
-		return EXIT_FAILURE;
+                LOG << "ERROR: " << e.what();
+		ret = EXIT_FAILURE;
 	}
+        return ret;
 }
 
-jchirp_options::jchirp_options(string const &program_name)
+jsine_options::jsine_options(string const &program_name)
         : program_options(program_name)
 {
         using std::vector;
@@ -137,7 +134,7 @@ jchirp_options::jchirp_options(string const &program_name)
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
 
         // tropts is a group of options
-        po::options_description opts("jchirp options");
+        po::options_description opts("jsine options");
         opts.add_options()
                 ("min-freq,m",  po::value<double>(&min_freq)->default_value(100), "minimum frequency (Hz)")
                 ("max-freq,M",  po::value<double>(&max_freq)->default_value(8000), "maximum frequency (Hz)")
@@ -148,7 +145,7 @@ jchirp_options::jchirp_options(string const &program_name)
 }
 
 void
-jchirp_options::print_usage()
+jsine_options::print_usage()
 {
         std::cout << "Usage: " << _program_name << " [options]\n"
                   << visible_opts << std::endl

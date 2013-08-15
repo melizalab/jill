@@ -19,7 +19,6 @@
 #include "jill/program_options.hh"
 #include "jill/midi.hh"
 #include "jill/file/arf_writer.hh"
-// #include "jill/file/null_writer.hh"
 #include "jill/dsp/buffered_data_writer.hh"
 #include "jill/dsp/triggered_data_writer.hh"
 
@@ -59,7 +58,7 @@ jrecord_options options(PROGRAM_NAME);
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<dsp::buffered_data_writer> arf_thread;
 jack_port_t * port_trig = 0;
-// int _close_entry_flag = 0;
+
 
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
@@ -92,6 +91,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         return 0;
 }
 
+
 int
 jack_xrun(jack_client *client, float delay)
 {
@@ -99,6 +99,7 @@ jack_xrun(jack_client *client, float delay)
         arf_thread->xrun();
         return 0;
 }
+
 
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
@@ -132,6 +133,7 @@ jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int co
         }
 }
 
+
 void
 jack_shutdown(jack_status_t code, char const * msg)
 {
@@ -150,6 +152,7 @@ signal_handler(int sig)
         }
 }
 
+
 int
 main(int argc, char **argv)
 {
@@ -161,14 +164,10 @@ main(int argc, char **argv)
 	try {
 		options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
-
                 writer.reset(new file::arf_writer(options.output_file,
                                                   *client,
                                                   options.additional_options,
                                                   options.compression));
-                // writer.reset(new file::null_writer());
-
-                // writer->set_data_source(client);
 
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {
@@ -323,6 +322,7 @@ jrecord_options::print_usage()
                   << " * trig_in:    MIDI port to receive events triggering recording"
                   << std::endl;
 }
+
 
 void
 jrecord_options::process_options()

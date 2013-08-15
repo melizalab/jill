@@ -2,22 +2,18 @@
 #include <unistd.h>
 #include <cstring>
 #include <cassert>
+#include <math.h>
 
 #include <iostream>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <vector>
 #include <string>
 
-#include <boost/program_options.hpp>
-
-#include "jill/event_logging.hh"
 #include "jill/util/readahead_stimqueue.hh"
-#include "jill/util/stream_logging.hh"
 #include "jill/file/stimfile.hh"
 
 size_t srates[] = {10000, 20000, 40000, 80000, 0};
 
-namespace po = boost::program_options;
 using namespace jill;
 using namespace std;
 
@@ -82,11 +78,9 @@ test_stimqueue(util::stimqueue & q, int count)
 
 int main(int argc, char **argv)
 {
-        boost::shared_ptr<event_logger> l(new util::stream_logger("test_stimset",std::cout));
         int count = load_stimset(argc, argv);
         std::random_shuffle(_stimlist.begin(), _stimlist.end());
-
-        util::readahead_stimqueue queue(_stimlist.begin(), _stimlist.end(), 30000, l);
+        util::readahead_stimqueue queue(_stimlist.begin(), _stimlist.end(), 30000);
 
         test_stimqueue(queue, count);
         queue.join();
