@@ -14,7 +14,7 @@ using namespace jill::dsp;
 using std::size_t;
 using std::string;
 
-buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, nframes_t buffer_size)
+buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, size_t buffer_size)
         : _state(Stopped),
           _writer(writer),
           _buffer(new block_ringbuffer(buffer_size)),

@@ -103,6 +103,9 @@ arf_writer::arf_writer(string const & filename,
 
         _file.reset(new arf::file(filename, "a"));
         LOG << "opened file: " << filename;
+        if (!_file->has_attribute("file_creator")) {
+                _file->write_attribute("file_creator", "org.meliza.jill/jrecord " JILL_VERSION);
+        }
 
         // open/create log
         arf::h5t::wrapper<message_t> t;
@@ -148,7 +151,8 @@ arf_writer::new_entry(nframes_t frame_count)
         arf::h5a::node::attr_writer a = _entry->write_attribute();
         a("jack_frame", _entry_start);
         a("jack_usec", frame_usec);
-        a("entry_creator", "jill " JILL_VERSION);
+        a("jack_sampling_rate", _data_source.sampling_rate());
+        a("entry_creator", "org.meliza.jill/jrecord " JILL_VERSION);
         for_each(_attrs.begin(), _attrs.end(), a);
 }
 
