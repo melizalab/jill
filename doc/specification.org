@@ -4,7 +4,7 @@
 #+AUTHOR:    Dan Meliza
 #+EMAIL:     dan||meliza.org
 #+DATE: [2013-02-08 Fri]
-#+TEXT: Version 2.0
+#+TEXT: Version 2.1
 #+LANGUAGE:   en
 #+OPTIONS: ^:nil H:2
 #+HTML_HEAD:    <link rel="stylesheet" href="org.css" type="text/css" />
@@ -103,24 +103,39 @@ some event types.
 
 ** ØMQ Sockets
 
-Modules may bind to interprocess endpoints using ØMQ to provide an interface for
-control and for publishing changes to parameters or internal state. To ensure
-that other programs can access these endpoints unambiguously, modules must
-choose conforming names based on the client name and the socket type. See the
-ØMQ documentation for socket types.
-
-Modules may bind a control socket with type REQ to endpoint
-=ipc:///tmp/jill-USERNAME/CLIENT_NAME/ctrl=.  If so, the socket must implement the
-protocol defined in file:jill_control_protocol.org
-
-Modules may bind a status socket with type PUB to endpoint
-=ipc:///tmp/jill-USERNAME/CLIENT_NAME/status=. If so, the socket must implement
-the protocol defined in file:jill_status_protocol.org
+Modules may use ØMQ interprocess endpoints to provide an interface for control
+and for receiving log messages. To ensure that other programs can access these
+endpoints unambiguously, modules must choose conforming names based on the
+client name and the socket type. See the ØMQ documentation for socket types.
 
 Note that the names of the sockets are not consistent with Windows filenames. At
 present writing, ØMQ does not support interprocess communication under Windows.
 If this changes, an alternative endpoint name will be added to this
 specification.
+
+*** Logging                                                          :rel2_1:
+
+One module in the JACK client graph may serve as a centralized logger. This
+module (i.e., the log server) must bind a DEALER socket to the endpoint
+=ipc:///tmp/org.meliza.jill/SERVER_NAME/msg=. Programs may send log
+messages to this logger by connecting a ROUTER socket to this endpoint.
+
+Log messages are sent asynchronously and are not acknowledged by the log
+server. Messages must consist of the following ØMQ frames:
+
+1. The source of the message, as a UTF-8 encoded string.
+2. The UTC timestamp of the message, as an ISO 8601 string (e.g.,
+   20130827T095937.228602).
+3. The log message, as a UTF-8 encoded string.
+
+Note that with ØMQ, sockets may connect to an endpoint before the server binds.
+The server will receive any messages sent to the endpoint when it binds.
+
+*** Control                                                          :rel2_2:
+
+Modules may bind a control socket with type REQ to endpoint
+=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME=. The control protocol is
+not defined at this time.
 
 ** UNIX Signals
 
@@ -180,12 +195,10 @@ The client shall not make any changes to its ports during operation.
 
 *** ØMQ Sockets                                                      :rel2_1:
 
-The jdetect module binds to a control and status socket. The control socket
-provides a mechanism for changing parameters. The status socket publishes
-information about changes to parameters and onset/offset events.
+*jdetect* connects to the logging endpoint and logs all detection events.
 
-**** TODO specify status message format
-**** TODO implement adjust parameters in running jdetect
+*jdetect* does not bind to a control socket at present. Eventually this mechanism
+will be used to adjust parameters in a running process.
 
 *** UNIX Signals                                                     :rel2_0:
 
@@ -251,9 +264,9 @@ The client will not make any changes to its port configuration during operation.
 
 *** ØMQ Sockets                                                      :rel2_1:
 
-The *jrecord* module does not bind to any IPC sockets at present. It will attempt
-to connect to status and control sockets of upstream modules in order to record
-parameters and events from those modules.
+*jrecord* connects to the logging endpoint and logs all events (see [[*jrecord%20log][jrecord
+log]]). It also attempts to bind to the logging endpoint. If successful, it will
+write any received log messages to the =jill_log= dataset in the open ARF file.
 
 *** UNIX Signals                                                     :rel2_0:
 
@@ -406,8 +419,10 @@ neurons.
 
 *** ØMQ Sockets                                                      :rel2_1:
 
-The jstim module binds to a control socket, which provides a mechanism for
-other programs to initiate stimulus playback.
+*jdetect* connects to the logging endpoint and logs all detection events.
+
+*jdetect* does not bind to a control socket at present. Eventually this mechanism
+may be used to allow other programs to initiate or terminate playback.
 
 *** UNIX Signals                                                     :rel2_0:
 

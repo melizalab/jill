@@ -408,6 +408,66 @@ can reuse thread ids, so joining in the destructor of buffered_data_writer can
 be problematic, if another thread has been started and takes the released id.
 No problems as long as running only one thread, so maybe put this off for now.
 
+* DONE fix jstim sample length issue
+
+This bug was encountered in the process of writing util/adjust_stimtimes.py
+
+Found a mismatch between the recorded trigger times and the duration of the
+stimulus. If I correct for onset delay and plot the actual stimulus over the
+recorded stimulus, the match is almost perfect. But the offset time is short by
+609 samples (stimulus is 'bk196_ref_3x'). Is this a problem with the old data?
+Checked logfile from jrecord 2.1 and the stimulus duration matches the pre/post
+trigger times in the logfile, and the times in the trig_in dataset. Apparently
+an error. Also wrong in next entry. I guess I should check for this but only
+flag it if the file is pre 2.1.
+
+Fourth, file-level QC. Collect delays for all entries, and flag any entries
+that deviate from the mean by more than a couple of samples.
+
+Wow! The file I'm using to test this algorithm has delays that are all over the
+place. My guess is that alsa_out started doing its pathological cycling.  Will
+run a quick dummy experiment with jill 2.1 to see if this is better.
+
+Getting some really weird results. First, a sanity check is whether recorded
+stimuli look the same in different entries. No, not really. Wtf! the offsets
+aren't the same in multiple reps of the same stimulus!
+
+Okay, try to reproduce the problem in a simpler environment. Use audio card
+only. Quick test of loopback delay indicates it's rock-solid. Record both the
+jstim signal, the loopback signal, and the trigger info. Present the same 5
+stimuli 10 times each. First run was with non-debug versions of the jill
+programs.
+
+One thing I notice is that some entries end before the next entry starts. Is
+the sample count of the subsequent entry correct?
+
+Compare reference and loopback signals for first stimulus: cross-correlation
+estimate of delay is 2109 samples, agreeing nicely with jack_delay's estimate of
+2108.67. The end of the signal also agrees perfectly with the offset time in
+trig_in.
+
+Now compare offset times of entries with identical stimuli. Mismatch! Holy eff.
+Looked at reference recording. First ~877 samples are identical, and then they
+aren't. jstim is apparently dropping samples. Well, this is clearly a huge
+problem. And it probably explains why the delay estimates were so all over the
+map.
+
+Other entries with the same stimulus have the same set of initial samples, but
+break off at a different point.  My guess is that the first block of samples
+get played after the stimulus is triggered, and then that the counter gets
+advanced too far in the next period.  Support for this is that the divergent
+samples appear to be identical to stim[1024:2048].
+
+Yep, should be subtracting period_offset from nframes when calculating the
+number of frames to copy. Amazingly this was not causing segfaults, because I
+was running over the buffer.
+
+Rerun test: reference stims align perfectly. Loopback stimuli align perfectly,
+with the addition of some line noise. Repated presentations of the same stimulus
+have the same offset.
+
+Test full rhd/alsa configuration. Max delay jitter is 3 samples between stimuli
+and 2 samples between onset and offset.
 
 * DONE more useful errors with bad commandline options
   CLOCK: [2013-05-15 Wed 14:28]--[2013-05-15 Wed 14:45] =>  0:17
@@ -416,8 +476,271 @@ in particular, failure to load an ini file
 
 * TODO write zmq ipc protocol
 
+The idea is to provide a mechanism for programs to influence the behavior of
+running clients. This is a fairly low priority task. Move to 2_2 milestone.
 
-* TODO replace complicated logging mechanism with simple zmq-based one
+* DONE replace complicated logging mechanism with simple zmq-based one
+
+Constraints:
+
+1. Support multiple backends, including interprocess communication
+2. Reentrant.
+3. Possibly, safe to call from the RT thread (no mallocs, no locks).
+
+The pattern I'm using for logging seems pretty sound (temporary object
+encapsulating a ostringstream). The change would be to have a singleton object
+that manages sinks. One interesting idea would be to use zmq to transmit log
+messages to arf_writer, which could write the messages when it has time and
+would eliminate the need for locking.
+
+[2013-08-07 Wed] okay, implementing the singleton was easy and does clean stuff
+up a lot. It also encapsulates all the zmq ipc code, which currently doesn't do
+anything because there's no sockets to bind to. Deal with that once I refactor
+the buffered data writer bidniss.
+
+[2013-08-09 Fri] Starting work on this again. It's fairly easy to get the logger
+class to create a zmq socket and send messages to it, but one caveat is that
+sockets can't be shared among threads, so that makes the log calls unsafe. Could
+use mutexes. Not RT-safe, but it's not safe anyway to log due to mallocs in
+stringstream. It seems a little hacky, but logging is infrequent, so the chances
+of lock contention are probably pretty low, and it concentrates the locking in
+one well-defined place.
+
+Another issue is related to connections. One nice feature of zmq is that the
+server doesn't have to be bound when the clients connect, so log messages would
+be stored until a server binds. However, I think these just sit in memory, so a
+really long-running process could suck up a lot of memory.  Let some processes
+run for a while and the memory is growing quite modestly, so I think this isn't
+a problem.  However, the buffered_writer thread needs to only process limited
+numbers of messages between cycles to avoid getting swamped if the queue is
+really full.
+
+Finally, the router socket in jrecord should really use the same context as the
+dealer in the same process, but using a singleton to manage access may create
+some problems in cleanup. I suppose one possibility would be for logger to
+expose its context.  No, that doesn't work because the logger destructor goes
+off first and blocks on destroying the context.  Just use a second context if
+no other arguments against.
+
+Next up, write a simple standalone client that pulls messages off the queue and
+prints them.
+
+* DONE write jclick: transforms event input into clicks on an audio output
+  CLOSED: [2013-06-10 Mon 11:31]
+
+* DONE write jill tutorial
+    CLOSED: [2013-07-01 Mon 12:16]
+
+[[file:~/Devel/jill/doc/user_guide.org][jill user guide]]
+
+* DONE fix frame count when entries are closed
+    CLOSED: [2013-08-09 Fri 12:36]
+
+Subtracting the frame count when the entry started from the frame count when it
+ended (in the log) yields a number consistently smaller than the number of
+frames in the datasets. Suspect this is because the value in
+arf_writer::close_entry is associated with the period start, not the period
+end, but there could be a deeper problem.
+
+[[file:~/Devel/jill/jill/file/arf_writer.cc::o%20<<%20"closed%20entry:%20"%20<<%20_entry->name()%20<<%20"%20(frame%3D"%20<<%20_period_start%20<<%20")"%3B][arf_writer::close_entry]]
+
+* DONE contemplate sample clock jitter
+    CLOSED: [2013-07-03 Wed 09:04]
+
+[2013-07-02 Tue] In developing mspikes 3.0, which supports both real and
+sampled time bases, I discovered that the sample clock values and the timestamp
+values in the created ARF files were not consistent.  That is, the system time
+between entries and the number of frames is not exactly the nominal sampling
+rate, and there's some degree of jitter.  This seems to be the case for ARF
+files generated by jill using the intan board or a sound card.
+
+As noted in the link below, this is related to the fact that there's an
+uncontrollable delay between the soundcard interrupt and the time when the
+process callback is called:
+
+http://lists.jackaudio.org/htdig.cgi/jack-devel-jackaudio.org/2008-August/000999.html
+
+For an ARF file created with a sound card, the nominal rate was 48000, the mean
+rate was 48001, and the standard deviation was 57 samples.  The jitter with the
+microsecond clock was less.  Average rate was 48002, SD = 1.06.
+
+For an ARF file created with saber, the nominal rate was 20000, the mean rate
+was 20000.02, with SD = 3.46.
+
+For an ARF file created with the intan driver, the nominal rate was 30000.
+Actual rate was 30000.5, SD = 123.  Using the usec counter, actual rate was
+29999.9, SD = 0.27.
+
+I believe the lower jitter between the sample counter and the usec clock is
+related to the fact that JACK uses a delay locked loop (DLL) for the microsecond
+timer. So the real problem is that the timestamps are a bit imprecise.  It's
+probably exacerbated by the fact that I look up the time at some separate point.
+
+Patched arf_writer.cc to register the jack usec counter against the system
+clock when it's connected to the jack client.  Then, when a new entry is
+created, the frame count is converted to a usec value, and the difference
+between that value and the base is used to set the timestamp.  Greatly reduces
+jitter on all accounts - on a very long run SD was 0.03 frames.
+
+* DONE document stimulus table in arf files
+  CLOSED: [2013-07-03 Wed 13:09]
+  CLOCK: [2013-07-03 Wed 10:50]--[2013-07-03 Wed 10:51] =>  0:01
+* DONE update jill user guide with mac install instructions
+  CLOSED: [2013-07-03 Wed 12:44]
+  CLOCK: [2013-07-03 Wed 10:51]--[2013-07-03 Wed 10:51] =>  0:00
+* DONE post jill user guide to github
+  CLOSED: [2013-07-03 Wed 12:44]
+  CLOCK: [2013-07-03 Wed 10:52]--[2013-07-03 Wed 10:52] =>  0:00
+* DONE figure out why jrecord corrupts event log on OS X Lion
+    CLOSED: [2013-08-01 Thu 15:42]
+
+first, are the midi messages themselves being corrupted? Yes. See next item.
+
+* DONE figure out why jrecord 2.0.2 won't close entries
+    CLOSED: [2013-08-09 Fri 12:36]
+
+[2013-08-01 Thu] looks like it's only getting the start events, and none of the
+data. blerg!. On my mac, I'm getting some kind of stop event, but it's complete
+garbage except for the time. Okay, on modeln it seems to be working fine.
+Differences: jack1 vs jack2; an older jill version (before fix to timestamps).
+Try compiling more recent version. Works fine. Try installing jack1 on birdsong.
+Okay, that works. What's puzzling is that the jack midi monitor works fine under
+jack2, which implies that the messages are traveling fine. Oh, I wonder if I
+need to recompile against the jack2 libraries. Nope! Okay, so jack_midi_dump is
+linked against the old libjack. Recompile against new jack, same result. So
+presumably something in jill.
+
+So what I'm getting is a buffer full of zeros. Possibly the mechanics of how
+jack2 is storing midi data have changed, such that simply copying the buffer to
+the ringbuffer is no longer effective.  I think for some message sizes jack
+uses a different memory area, maybe this has changed.  Ah, it's 4 bytes in
+0.121, but much larger in 0.118. Hah! That's what I get for using a nonstandard
+API.  Clearly this is related to the bug I was seeing on Lion.
+
+Fixing this is going to require a rethink of the ringbuffer, or how I'm using
+it. I think I need to read and serialize the midi data in the RT thread and
+write a chunk to the ringbuffer that just contains the parsed data. Data is
+variable length, which adds some complexity.
+
+For sampled data the serialized period looks like:
+
++ time
++ nframes
++ arg (pointer to port object)
++ data (nframes * sizeof(sample_t) bytes)
+
+The port object is used to look up the channel name and the data type.
+Conceivably this could be used to indicate to arf_writer how to handle the
+data, although perhaps an even better idea is to abstract out the jack
+dependence altogther. Maybe something like:
+
+#+begin_src c++
+  struct period_info_t {
+          enum ctype_t {
+                  sampled = 0,
+                  event = 1
+          };
+          nframes_t time;       // time of the data
+          nframes_t size;       // number of bytes following header
+          ctype_t chan_type;    // type of data
+          char chan_name[some_max];
+          char data[size];
+  };
+#+end_src
+
+If chan_type is sampled, data is an array of floats. If not, it's a series of
+variable-length structures with the following fields:
+
+#+begin_src c++
+  struct event_t {
+          nframes_t time;  // relative to start of period
+          nframes_t size;  // number of bytes in buffer
+          unsigned char data[size]; // message
+  };
+#+end_src
+
+Another possibility would be to just use an entire period chunk for each event,
+which might be even simpler. I'm not sure about sending the channel name in each
+chunk. It does eliminate the dependency on jack which is nice. The max size is
+256 bytes, which is a lot of useless data. Could use a null-terminated string,
+of course...
+
+#+begin_src c++
+  enum dtype_t {
+          sampled = 0,
+          event = 1
+  };
+  nframes_t offset;       // sample count
+  dtype_t dtype;          // sampled or event
+  size_t id_sz;           // size of id string
+  size_t data_sz;         // number of bytes in data
+  char id[id_sz];         // channel name or id
+  // data serialization depends on value of dtype:
+  // sampled: array of data_sz / sizeof(sample_t)
+  // event: array of data_sz bytes
+  char data[data_sz];
+#+end_src
+
+Renamed period_ringbuffer -> block_ringbuffer and added dtype and channel name
+arguments to the push method. The classes that interact with this are
+buffered_data_writer, triggered_data_writer, and jrecord's process function.
+Edit the process function first to see how painful serialization will be.
+
+[2013-08-02 Fri] period_info_t is no more, which means a lot of interfaces will
+change. It would be nice to encapsulate deserialization a bit more so that we're
+not having to pass around pointers to data_source objects, etc. Because
+deserialization takes place in a slow thread, it can use dynamically-allocated
+resources. More copying, but that may be a small price to pay for simplicity.
+
+Another failure of encapsulation is the logging functionality; I wonder if it
+wouldn't be worth tackling that first.
+
+[2013-08-07 Wed] Done fixing logging (at least on one end), back to refactoring
+data flow. The constraint is that the serializing thread (pushing data to the
+ringbuffer) is realtime and shouldn't look up port names or try to convert frame
+counts to useconds. So the deserializer (pulling data from the ringbuffer)
+needs access to the jack_client handle to resolve those questions.  This should
+happen as early as possible so that the consumers (arf_writer, etc) can be
+ignorant of where their data comes from.
+
+Right now the deserializer is effectively the data_thread class
+(buffered_data_writer or triggered_data_writer), which is also responsible
+for managing the ringbuffer as a prebuffer, closing and opening entries in
+arf_writer, handling xruns, etc. It's kind of a mess, especially with
+triggering.
+
+* DONE figure out and document netjack
+    CLOSED: [2013-08-01 Thu 08:35]
+
+The goal is one-way communication from one jack daemon (master, connected to a
+microphone) and to another (slave, connected to speakers).
+
+I think jack2 is probably the best bet here. For one reason, in jack1 you have
+to connect the master to the slave, which is somewhat bass-ackwards.
+
+On debian end: sudo apt-get install jackd2 (will uninstall jackd1)
+
+On mac end: install jackosx (0.90)
+
+jacktrip is a user-space client that seems to be fairly straightforward. The
+buffer size and sampling rate do have to be the same, but this is a pretty
+minor restriction. Added some instructions to the wiki
+
+Resources:
+
+[[http://trac.jackaudio.org/wiki/WalkThrough/User/NetJack][WalkThrough/User/NetJack - Jack Audio Connection Kit - Trac]]
+[[http://www.trac.jackaudio.org/wiki/WalkThrough/User/NetJack2][WalkThrough/User/NetJack2 - Jack Audio Connection Kit - Trac]]
+[[http://code.google.com/p/jacktrip/][jacktrip - A System for High-Quality Audio Network Performance over the Internet. - Google Project Hosting]]
+* DONE jrecord xruns
+
+jrecord is indicating xruns, but they aren't coming from jack AFAICT. Only
+seems to happen with a lot of channels. Happens even when in triggered mode but
+not writing anything.
+
+caused by ringbuffer overruns
+
+looks like I forgot to multiply the number of frames by sizeof(sample_t) when
+setting ringbuffer size.
 
 * testing and profiling
 
