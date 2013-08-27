@@ -9,11 +9,14 @@ import os
 import numpy as nx
 import ewave
 import h5py
+import ctypes
+import ctypes.util
+
+__version__ = '2.1.0-SNAPSHOT'
 
 # this is borrowed from pylibsamplerate, by Timothe Faudot, licensed under GPL.
 # I would add it as an external dependency, but it's not on PyPi.
-import ctypes as ct
-_sr_lib = ct.CDLL(ct.util.find_library('samplerate'))
+_sr_lib = ctypes.CDLL(ctypes.util.find_library('samplerate'))
 
 
 class CONVERTERS():
@@ -24,7 +27,7 @@ class CONVERTERS():
     SRC_LINEAR				= 4
 
 
-class _SRC_DATA(ct.Structure):
+class _SRC_DATA(ctypes.Structure):
     """
     data_in       : A pointer to the input data samples.
     input_frames  : The number of frames of data pointed to by data_in.
@@ -32,30 +35,30 @@ class _SRC_DATA(ct.Structure):
     output_frames : Maximum number of frames pointer to by data_out.
     src_ratio     : Equal to output_sample_rate / input_sample_rate.
     """
-    _fields_ = [("data_in", ct.POINTER(ct.c_float)),
-                ("data_out", ct.POINTER(ct.c_float)),
-                ("input_frames", ct.c_long),
-                ("output_frames", ct.c_long),
-                ("input_frames_used", ct.c_long),
-                ("output_frames_gen", ct.c_long),
-                ("end_of_input", ct.c_int),
-                ("src_ratio", ct.c_double),
+    _fields_ = [("data_in", ctypes.POINTER(ctypes.c_float)),
+                ("data_out", ctypes.POINTER(ctypes.c_float)),
+                ("input_frames", ctypes.c_long),
+                ("output_frames", ctypes.c_long),
+                ("input_frames_used", ctypes.c_long),
+                ("output_frames_gen", ctypes.c_long),
+                ("end_of_input", ctypes.c_int),
+                ("src_ratio", ctypes.c_double),
                ]
 
 
 #dll methods declarations
 def _initLibMethods():
-    _sr_lib.src_get_name.restype = ct.c_char_p
-    _sr_lib.src_get_name.argtypes = [ct.c_int]
-    _sr_lib.src_get_description.restype = ct.c_char_p
-    _sr_lib.src_get_description.argtypes = [ct.c_int]
-    _sr_lib.src_get_version.restype = ct.c_char_p
+    _sr_lib.src_get_name.restype = ctypes.c_char_p
+    _sr_lib.src_get_name.argtypes = [ctypes.c_int]
+    _sr_lib.src_get_description.restype = ctypes.c_char_p
+    _sr_lib.src_get_description.argtypes = [ctypes.c_int]
+    _sr_lib.src_get_version.restype = ctypes.c_char_p
     _sr_lib.src_get_version.argtypes = None
 
     #simple API:
     #int src_simple (SRC_DATA *data, int converter_type, int channels) ;
-    _sr_lib.src_simple.restype = ct.c_int
-    _sr_lib.src_simple.argtypes = [ct.POINTER(_SRC_DATA), ct.c_int, ct.c_int]
+    _sr_lib.src_simple.restype = ctypes.c_int
+    _sr_lib.src_simple.argtypes = [ctypes.POINTER(_SRC_DATA), ctypes.c_int, ctypes.c_int]
 _initLibMethods()
 
 
@@ -83,8 +86,8 @@ def src_simple(data, ratio, out=None, converter=CONVERTERS.SRC_SINC_MEDIUM_QUALI
     data_f = data
     if data.dtype!=np.float32:
         data_f = data.astype(np.float32)
-    src_data = _SRC_DATA(data_in=data_f.ctypes.data_as(ct.POINTER(ct.c_float)),
-                         data_out=out.ctypes.data_as(ct.POINTER(ct.c_float)),
+    src_data = _SRC_DATA(data_in=data_f.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                         data_out=out.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
                          input_frames=len(data),
                          output_frames=len(out),
                          src_ratio=ratio)
@@ -137,6 +140,10 @@ def jrecord_stimulus_times(dset):
 def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0):
     """Estimate onset and offset times of a stimulus in a recording.
 
+    entry - the h5py group with recording and trigger data
+    recording_dset - the name of the dataset with the recording
+    trigger_dset - the name of the dataset with the trigger (and stimulus information)
+    match_dur - the number of seconds on either end of the stimulus to use
 
     """
     from distutils.version import LooseVersion
@@ -164,21 +171,23 @@ def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0
     onset_corr = xcorr[nsamples / 2:].argmax()
 
     if offset is not None:
-        # pre-2.1 jill seems to have consistent errors in the time of the
-        # trigger offset, so for these files we use the length of the stimulus
-        # as a hint
-        try:
-            prog, ver = entry.attrs['entry_creator'].split()
-            assert LooseVersion(ver) >= '2.1'
-        except (AssertionError, IndexError, KeyError):
-            offset = onset + stimulus.size
-
         xcorr = correlate(recording[offset - nsamples:offset + nsamples], stimulus[-nsamples:], 'same')
         offset_corr = xcorr[nsamples / 2:].argmax()
     else:
         offset_corr = None
 
-    return entry.name, stimname, onset_corr, offset_corr
+    return entry.name, stimname, ds, onset_corr, offset_corr
+
+
+def log_msg(dset, msg):
+    """Write a log message to dset"""
+    import time
+    t = time.time()
+    sec = long(t)
+    usec = long((t - sec) * 1000000)
+    dset.resize(dset.shape[0] + 1, axis=0)
+    dset[-1] = (sec, usec, "[adjust_stimtimes] " + msg)
+    print "#", msg
 
 
 if __name__ == "__main__":
@@ -198,41 +207,74 @@ if __name__ == "__main__":
                    required=True)
     p.add_argument("-t", "--trigger", help="name of the dataset containing the trigger times and stimulus names.",
                    default='trig_in')
-    p.add_argument("-m", "--max-jitter", help="""maximum allowable jitter in estimated delay (default=%(default)s
-    samples). If delay estimate exceeds this value, an error will be generated and the entry
-    will not be modified""",
-                   type=int, default=2)
-    p.add_argument("-w", "--stim-window",
-                   help="the amount of time (default %(default).1f s) from the stimulus to use for calculating delays",
-                   default=1.0,
-                   type=float)
+    p.add_argument("-m", "--max-jitter", help="""maximum allowable jitter in
+    estimated delay (default=%(default)d samples). If delay
+    estimate deviates from the mean by more than this value, an
+    error will be generated and the entry will not be
+    modified""", type=int, default=2)
+    p.add_argument("-w", "--stim-window", help="""the amount of time (default
+    %(default).1f s) from the stimulus to use for calculating
+    delays""", default=1.0, type=float)
     p.add_argument("-y", "--update", help="update trigger times", action='store_true')
 
     options = p.parse_args()
-    events = []
+    stimstats = []
     stimcache = stimulus_cache(options.stimdir)
+    fargs = {}
+    if not options.update:
+        fargs.update(driver='core', backing_store=False)
 
-    with h5py.File(options.arffile, 'a') as afp:
+    with h5py.File(options.arffile, 'a', **fargs) as afp:
         # open log dataset
+        log = afp['jill_log']
+        log_msg(log, "version: " + __version__)
+        if not options.update:
+            log_msg(log, "DRY RUN: file will not be altered")
 
         # pass 1: calculate onset and offset delays
-        print "# calculating onset and offset delays"
-        print "entry\tstim\td.offset\td.onset"
+        print "entry\tstim\tsampling_rate\td.offset\td.onset"
         # TODO process entries in parallel
         for entry in afp.itervalues():
             if not isinstance(entry, h5py.Group):
                 continue
+            if 'jill_error' in entry.attrs:
+                log_msg(log, "skipping %s: flagged with error '%s'" % (entry.name, entry.attrs['jill_error']))
+                continue
             stats = estimate_times(entry, options.recording, options.trigger, stimcache)
-            print "{}\t{}\t{}\t{}".format(*stats)
-            events.append(stats)
+            print "{}\t{}\t{}\t{}\t{}".format(*stats)
+            stimstats.append(stats)
 
         # pass 2: calculate statistics of onset delay and flag entries that
         # aren't good
-        events = nx.rec.fromrecords(events, names=('entry', 'stim', 'onset', 'offset'))
-
+        stimstats = nx.rec.fromrecords(stimstats, names=('entry', 'stim', 'ds', 'onset', 'offset'))
+        # average onset and offset delay
+        mean_delay = sum(1000. / r['ds'] * (r['onset'] + r['offset']) / 2 for r in stimstats) / stimstats.size
+        log_msg(log, "average delay = %.3f ms" % mean_delay)
 
         # pass 3: adjust trigger dataset times (or create new datasets?). Delete
         # recordings.
+        for entry, stimname, ds, onset, offset in stimstats:
+            # round down to sample boundary
+            adj = (onset + offset) / 2
+            log_msg(log, "%s: delay = %d samples (%.3f ms)" % (entry, adj, 1000. / ds * adj))
+            if (offset - onset) > options.max_jitter:
+                log_msg(log, "%s: onset and offset delay differ by more than %d samples" %
+                        (entry, options.max_jitter))
+                # flag entry
+                afp[entry].attrs['jill_error'] = 'possible stimulus distortion'
+            elif abs(adj - int(mean_delay * ds / 1000)) > options.max_jitter:
+                log_msg(log, "%s: delay differs from mean by more than %d samples" %
+                        (entry, options.max_jitter))
+                # flag entry
+                afp[entry].attrs['jill_error'] = 'possible stimulus distortion'
+            else:
+                trig = afp[entry][options.trigger]
+                for i,r in enumerate(trig):
+                    if r['message'] == stimname:
+                        log_msg(log, "%s[%d]: adjusted time %d -> %d" %
+                                (trig.name, i, r['start'], r['start'] + adj))
+                        r['start'] += adj
+                        trig[i] = r
 
 # Variables:
 # End:
