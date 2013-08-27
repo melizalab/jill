@@ -130,7 +130,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         assert(period_offset < nframes);
 
         // copy samples, if there are any
-        nframes_t nsamples = std::min(stim->nframes() - stim_offset, nframes);
+        nframes_t nsamples = std::min(stim->nframes() - stim_offset, nframes - period_offset);
+        DBG << "stim_offset=" << stim_offset << ", period_offset=" << period_offset << ", nsamples=" << nsamples;
         if (nsamples > 0) {
                 memcpy(out + period_offset,
                        stim->buffer() + stim_offset,
