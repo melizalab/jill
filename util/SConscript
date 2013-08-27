@@ -1,0 +1,10 @@
+import os
+Import('env')
+
+scripts = ['jrecord_postproc.py']
+
+for script in scripts:
+    env.Alias('install', env.Install(env['BINDIR'], script))
+
+
+

@@ -56,8 +56,6 @@ Options:
       debug=1      to enable debug compliation
 """ % install_prefix)
 
-
-
 env = Environment(ENV=os.environ,
 		  PREFIX=install_prefix,
 		  LIBDIR=install_libdir,
@@ -85,6 +83,7 @@ else:
 lib = SConscript('jill/SConscript', exports='env libname')
 SConscript('modules/SConscript', exports='env lib')
 SConscript('test/SConscript', exports='env lib')
+SConscript('util/SConscript', exports='env')
 
 if hasattr(env,'Doxygen'):
     dox = env.Doxygen('doc/doxy.cfg')

@@ -113,6 +113,7 @@ class stimulus_cache(dict):
 def jrecord_stimulus_times(dset):
     """Get stimulus id, onset, and offset from a trig_in dataset."""
     stim = onset = offset = None
+    dset_offset = dset.attrs.get('offset', 0)
     for row in dset:
         # only the upper 4 bits are used to indicate status; lower 4 are for channel
         status = row['status'] & 0xf0
@@ -134,7 +135,7 @@ def jrecord_stimulus_times(dset):
             offset = row['start']
         if onset is not None and offset is not None:
             break
-    return stim, onset, offset
+    return stim, onset + dset_offset, offset + dset_offset
 
 
 def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0):
@@ -146,9 +147,6 @@ def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0
     match_dur - the number of seconds on either end of the stimulus to use
 
     """
-    from distutils.version import LooseVersion
-    # from numpy import correlate
-
     rec = entry[recording_dset]
     ds = rec.attrs['sampling_rate']
     nsamples = int(ds * match_dur)
@@ -168,12 +166,10 @@ def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0
     # given the stimulus onset we can assume that the first xcorr peak after
     # the onset is the correct one.
     xcorr = correlate(recording[onset:onset + nsamples], stimulus[:nsamples], 'same')
-    #onset_corr = xcorr[nsamples / 2:].argmax()
     onset_corr = xcorr[:nsamples / 2].argmax()
 
     if offset is not None:
         xcorr = correlate(recording[offset - nsamples:offset + nsamples], stimulus[-nsamples:], 'same')
-        #offset_corr = xcorr[nsamples / 2:].argmax()
         offset_corr = xcorr[:nsamples / 2].argmax()
     else:
         offset_corr = None
@@ -251,7 +247,7 @@ def main():
             if not isinstance(entry, h5py.Group):
                 continue
             if 'jill_error' in entry.attrs:
-                log_msg(log, "skipping %s: flagged with error '%s'" % (entry.name, entry.attrs['jill_error']))
+                print "skipping %s: flagged with error '%s'" % (entry.name, entry.attrs['jill_error'])
                 continue
             stats = estimate_times(entry, options.recording, options.trigger, stimcache)
             print "{}\t{}\t{}\t{}\t{}".format(*stats)
@@ -261,11 +257,12 @@ def main():
         # aren't good
         stimstats = nx.rec.fromrecords(stimstats, names=('entry', 'stim', 'ds', 'onset', 'offset'))
         # average onset and offset delay
-        mean_delay = sum(1000. / r['ds'] * (r['onset'] + r['offset']) / 2 for r in stimstats) / stimstats.size
-        print "\nAverage delay = %.3f ms" % mean_delay
+        delays = [1000. / r['ds'] * (r['onset'] + r['offset']) / 2 for r in stimstats]
+        mean_delay = sum(delays) / stimstats.size
+        print "\nDelay statistics: mean=%.3f, min=%.3f, max=%.3f (ms)" % (mean_delay, min(delays), max(delays))
 
         if not options.update:
-            if not ynprompt('Update %s datasets to reflect delay?' % (options.trigger)):
+            if not ynprompt('Update %s dataset offsets to reflect delay?' % (options.trigger)):
                 return
 
         log = afp['jill_log']
@@ -290,12 +287,9 @@ def main():
                 afp[entry].attrs['jill_error'] = 'possible stimulus distortion'
             else:
                 trig = afp[entry][options.trigger]
-                for i,r in enumerate(trig):
-                    if r['message'] == stimname:
-                        log_msg(log, "%s[%d]: adjusted time %d -> %d" %
-                                (trig.name, i, r['start'], r['start'] + adj))
-                        r['start'] += adj
-                        trig[i] = r
+                old = trig.attrs.get('offset', 0)
+                log_msg(log, "%s: offset %d -> %d" % (trig.name, old, old + adj))
+                trig.attrs['offset'] = old + adj
 
 if __name__ == "__main__":
     main()
