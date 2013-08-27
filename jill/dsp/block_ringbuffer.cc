@@ -11,6 +11,7 @@
  */
 
 #include "block_ringbuffer.hh"
+#include "../logging.hh"
 
 using namespace jill::dsp;
 using jill::data_block_t;
@@ -30,7 +31,10 @@ block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
         // serialize the data in the buffer such that the header is followed by
         // the two data arrays
         data_block_t header = { time, dtype, strlen(id), size};
-        if (header.size() > write_space()) return 0;
+        if (header.size() > write_space()) {
+                DBG << "ringbuffer full (req=" << header.size() << "; avail=" << write_space() << ")";
+                return 0;
+        }
         char * dst = buffer() + write_offset();
         // store header
         memcpy(dst, &header, sizeof(data_block_t));

@@ -108,7 +108,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         if (port_trig != 0)
                 bytes += client->sampling_rate() * options.pretrigger_size_s * client->nports();
         // will block until buffer is empty
-        bytes = arf_thread->request_buffer_size(bytes);
+        bytes = arf_thread->request_buffer_size(bytes * sizeof(sample_t));
         arf_thread->reset();
         LOG << "ringbuffer size (bytes): " << bytes;
         return 0;
