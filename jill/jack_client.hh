@@ -158,10 +158,8 @@ public:
 
 
 	/**
-	 * Connect one the client's ports to another port. The long name (e.g.
-	 * client:in) is looked up first, and if this fails then it attempts to
-	 * find it on the local client. Fails silently if the ports are already
-	 * connected.
+	 * Connect one the client's ports to another port. Fails silently if the
+	 * ports are already connected.
 	 *
 	 * @param src   The name of the source port (client:port or port).
 	 * @param dest  The name of the destination port.

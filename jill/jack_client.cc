@@ -131,21 +131,25 @@ jack_client::connect_port(string const & src, string const & dest)
 {
 	// simple name-based lookup
 	jack_port_t *p1, *p2;
-	p1 = jack_port_by_name(_client, src.c_str());
-	if (p1==0) {
+        if (src.find(':') != string::npos) {
+                p1 = jack_port_by_name(_client, src.c_str());
+        }
+        else {
 		string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
 		p1 = jack_port_by_name(_client, n.c_str());
-		if (p1==0)
-			throw JackError(util::make_string() << "the port " << n << " does not exist");
 	}
+        if (p1==0)
+                throw JackError(util::make_string() << "the port " << src << " does not exist");
 
-	p2 = jack_port_by_name(_client, dest.c_str());
-	if (p2==0) {
+        if (dest.find(':') != string::npos) {
+                p2 = jack_port_by_name(_client, dest.c_str());
+        }
+        else {
 		string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
 		p2 = jack_port_by_name(_client, n.c_str());
-		if (p2==0)
-			throw JackError(util::make_string() << "the port " << n << " does not exist");
 	}
+        if (p2==0)
+                throw JackError(util::make_string() << "the port " << dest << " does not exist");
 
         // check that types are the same (FIXME use strcmp if custom types?)
         if (jack_port_type(p1)!=jack_port_type(p2)) {
