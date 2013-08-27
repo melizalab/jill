@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -*- mode: python -*-
 """Calculate time clock jitter statistics
@@ -29,7 +30,7 @@ def clock_jitter(fp):
 
     frames, usecs, secs = (diff(f) for f in zip(*timevals))
 
-    return (1e6 * frames / usecs,
+    return (1. * usecs / frames,
             frames / secs,
             usecs / secs)
 
@@ -39,13 +40,15 @@ if __name__=="__main__":
         print __doc__
         sys.exit(-1)
 
-    print "\t".join(("frame.usec", "fu.sd", "frame.sec", "fs.sd", "sec.usec", "su.sd"))
+    print "# Comparison of jack frame, jack usec, and system clocks (seconds):"
+    print "\t".join(("filename","usec.frame", "uf.sd", "frame.sys", "fs.sd", "sys.usec", "su.sd"))
+    templ = "%s\t" + "\t".join(("%.3f",) * 6)
     for arg in sys.argv[1:]:
         fp = h5py.File(arg, "r")
         diffs = clock_jitter(fp)
-
-        print "\t".join(("%.3f",) * 6) % (diffs[0].mean(), diffs[0].std(), diffs[1].mean(), diffs[1].std(),
-                                          diffs[2].mean(), diffs[2].std())
+        print templ % (arg, diffs[0].mean(), diffs[0].std(), diffs[1].mean(),
+                       diffs[1].std(), diffs[2].mean(),
+                       diffs[2].std())
 
 # Variables:
 # End:

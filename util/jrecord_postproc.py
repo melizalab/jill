@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -*- mode: python -*-
 """Script to adjust stimulus playback times
