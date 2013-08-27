@@ -147,7 +147,7 @@ def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0
 
     """
     from distutils.version import LooseVersion
-    from numpy import correlate
+    # from numpy import correlate
 
     rec = entry[recording_dset]
     ds = rec.attrs['sampling_rate']
@@ -168,11 +168,13 @@ def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0
     # given the stimulus onset we can assume that the first xcorr peak after
     # the onset is the correct one.
     xcorr = correlate(recording[onset:onset + nsamples], stimulus[:nsamples], 'same')
-    onset_corr = xcorr[nsamples / 2:].argmax()
+    #onset_corr = xcorr[nsamples / 2:].argmax()
+    onset_corr = xcorr[:nsamples / 2].argmax()
 
     if offset is not None:
         xcorr = correlate(recording[offset - nsamples:offset + nsamples], stimulus[-nsamples:], 'same')
-        offset_corr = xcorr[nsamples / 2:].argmax()
+        #offset_corr = xcorr[nsamples / 2:].argmax()
+        offset_corr = xcorr[:nsamples / 2].argmax()
     else:
         offset_corr = None
 
@@ -186,14 +188,32 @@ def log_msg(dset, msg):
     sec = long(t)
     usec = long((t - sec) * 1000000)
     dset.resize(dset.shape[0] + 1, axis=0)
-    dset[-1] = (sec, usec, "[adjust_stimtimes] " + msg)
+    dset[-1] = (sec, usec, "[jrecord_postproc] " + msg)
     print "#", msg
 
 
-if __name__ == "__main__":
+def ynprompt(question):
+    while True:
+        res = raw_input(question + " [y/N] ")
+        if res in ('', 'n', 'N'):
+            return False
+        elif res in ('y', 'Y'):
+            return True
+
+
+def correlate(ref, tgt, mode):
+    from numpy import conj
+    from numpy.fft import fft, ifft
+    # could cache some of these ffts
+    X = fft(ref)
+    X *= conj(fft(tgt, X.size))
+    return ifft(X).real
+
+
+def main():
 
     import argparse
-    p = argparse.ArgumentParser(prog="adjust_stimtimes",
+    p = argparse.ArgumentParser(prog="jrecord_postproc",
                                 description=""""Correct stimulus onset times for playback delay. To use this program, you
                                 must record the stimulus as it's being played,
                                 either through a microphone or a cable. This
@@ -215,21 +235,14 @@ if __name__ == "__main__":
     p.add_argument("-w", "--stim-window", help="""the amount of time (default
     %(default).1f s) from the stimulus to use for calculating
     delays""", default=1.0, type=float)
-    p.add_argument("-y", "--update", help="update trigger times", action='store_true')
+    p.add_argument("-y", "--update", help="update trigger times without asking", action='store_true')
 
     options = p.parse_args()
     stimstats = []
     stimcache = stimulus_cache(options.stimdir)
-    fargs = {}
-    if not options.update:
-        fargs.update(driver='core', backing_store=False)
 
-    with h5py.File(options.arffile, 'a', **fargs) as afp:
+    with h5py.File(options.arffile, 'a') as afp:
         # open log dataset
-        log = afp['jill_log']
-        log_msg(log, "version: " + __version__)
-        if not options.update:
-            log_msg(log, "DRY RUN: file will not be altered")
 
         # pass 1: calculate onset and offset delays
         print "entry\tstim\tsampling_rate\td.offset\td.onset"
@@ -249,6 +262,14 @@ if __name__ == "__main__":
         stimstats = nx.rec.fromrecords(stimstats, names=('entry', 'stim', 'ds', 'onset', 'offset'))
         # average onset and offset delay
         mean_delay = sum(1000. / r['ds'] * (r['onset'] + r['offset']) / 2 for r in stimstats) / stimstats.size
+        print "\nAverage delay = %.3f ms" % mean_delay
+
+        if not options.update:
+            if not ynprompt('Update %s datasets to reflect delay?' % (options.trigger)):
+                return
+
+        log = afp['jill_log']
+        log_msg(log, "version: " + __version__)
         log_msg(log, "average delay = %.3f ms" % mean_delay)
 
         # pass 3: adjust trigger dataset times (or create new datasets?). Delete
@@ -275,6 +296,9 @@ if __name__ == "__main__":
                                 (trig.name, i, r['start'], r['start'] + adj))
                         r['start'] += adj
                         trig[i] = r
+
+if __name__ == "__main__":
+    main()
 
 # Variables:
 # End:
