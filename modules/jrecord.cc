@@ -171,6 +171,7 @@ main(int argc, char **argv)
 
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {
+                        LOG << "recordings will be triggered";
                         port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                           JackPortIsInput | JackPortIsTerminal, 0);
                         arf_thread.reset(new dsp::triggered_data_writer(
@@ -180,6 +181,7 @@ main(int argc, char **argv)
                                                  options.posttrigger_size_s * client->sampling_rate()));
                 }
                 else {
+                        LOG << "recording will be continuous";
                         arf_thread.reset(new dsp::buffered_data_writer(writer));
                 }
                 /* bind socket for storing messages in arf file */
@@ -207,6 +209,7 @@ main(int argc, char **argv)
                                                 sprintf(buf,"pcm_%03d",name_index);
                                         else
                                                 sprintf(buf,"evt_%03d",name_index);
+                                        LOG << "startup connection: " << *it << " -> " << buf;
                                         name_index++;
                                         client->register_port(buf, jack_port_type(p),
                                                               JackPortIsInput | JackPortIsTerminal, 0);
