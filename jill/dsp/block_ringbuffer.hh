@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010-2012 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2012 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ namespace jill { namespace dsp {
  * This ringbuffer class operates on data in blocks. Each block comprises a
  * header followed by two arrays of data. The header describes the contents of the
  * data, including its length. The first array gives the id (channel) name of
- * the block, and the second block contains the data. Currently sampled or event
+ * the block, and the second array contains the data. Currently sampled or event
  * data are specified.
  *
  * An additional feature of this interface allows it to be efficiently used as a

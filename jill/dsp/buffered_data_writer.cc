@@ -1,3 +1,14 @@
+/*
+ * JILL - C++ framework for JACK
+ *
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ */
 #include <iostream>
 #include <vector>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -13,6 +24,24 @@ using namespace jill;
 using namespace jill::dsp;
 using std::size_t;
 using std::string;
+
+/*
+ * # Notes on buffered data_thread objects
+ *
+ * Wait-free functions are provided to the producer thread by using a
+ * ringbuffer. The consumer thread pulls data off the ringbuffer and passes it
+ * to the data_writer object. If there's no data in the ringbuffer, the consumer
+ * writes any queued log messages and requests the writer to flush data to disk.
+ * It then waits for a condition variable that's flagged when the consumer calls
+ * push().
+ *
+ * Any thread may signal the consumer thread to start a new entry or to mark the
+ * current entry with an xrun indicator by calling reset() or xrun(). These
+ * functions use gcc atomic primitives to update the _reset and _xrun flags.
+ * Similarly, calls to stop() atomically update the _state variable so that
+ * calls to push() no longer add data to the ringbuffer and so that the consumer
+ * thread exits when the ringbuffer is fully flushed.
+ */
 
 buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, size_t buffer_size)
         : _state(Stopped),
@@ -106,7 +135,7 @@ buffered_data_writer::join()
 size_t
 buffered_data_writer::request_buffer_size(size_t bytes)
 {
-        // block until the bufferis empty
+        // block until the buffer is empty
         pthread_mutex_lock(&_lock);
         if (bytes > _buffer->size()) {
                 _buffer->resize(bytes);
@@ -133,15 +162,13 @@ buffered_data_writer::thread(void * arg)
                 }
                 hdr = self->_buffer->peek_ahead();
                 if (hdr == 0) {
-                        /* if ringbuffer empty and Stopping, close loop */
+                        self->write_messages();
+                        /* if ringbuffer empty and Stopping, exit loop */
                         if (self->_state == Stopping) {
                                 break;
                         }
                         /* otherwise flush to disk and wait for more data */
                         else {
-
-                                // TODO write log messages
-                                self->write_messages();
                                 self->_writer->flush();
                                 pthread_cond_wait (&self->_ready, &self->_lock);
                         }
@@ -160,6 +187,7 @@ buffered_data_writer::thread(void * arg)
 void
 buffered_data_writer::write(data_block_t const * data)
 {
+        // do we need to check that a complete period has been written?
         if (__sync_bool_compare_and_swap(&_reset, true, false)) {
                 _writer->close_entry();
         }

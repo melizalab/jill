@@ -44,6 +44,12 @@ triggered_data_writer::~triggered_data_writer()
         join();
 }
 
+/*
+ * This function handles opening a new entry and writing data in the prebuffer.
+ * The event_time argument indicates the time when the trigger event occurred,
+ * so we start at the tail of the ringbuffer and search for the sample with
+ * index event_time - _pretrigger
+ */
 void
 triggered_data_writer::start_recording(nframes_t event_time)
 {
@@ -80,6 +86,10 @@ triggered_data_writer::start_recording(nframes_t event_time)
         _recording = true;
 }
 
+/*
+ * this function doesn't close the entry immediately, but sets flags so that
+ * write() will do this at the appropriate time
+ */
 void
 triggered_data_writer::stop_recording(nframes_t event_time)
 {
@@ -110,9 +120,12 @@ triggered_data_writer::write(data_block_t const * data)
         }
 
         if (_recording) {
-                // write full block
-                // check if data is flushed. can't compare pointers directly
-                // because the same data may have multiple addresses in the buffer
+                // Executed when an onset trigger has occurred and
+                // stop_recording was not called, so write full block.
+
+                // sanity check if data is flushed. can't compare pointers
+                // directly because the same data may have multiple addresses in
+                // the buffer
                 data_block_t const * tail = _buffer->peek();
                 assert(tail->time == data->time && tail->id() == id);
                 _writer->write(data, 0, 0);
@@ -122,7 +135,9 @@ triggered_data_writer::write(data_block_t const * data)
                 }
         }
         else if (_writer->ready()) {
-                // write post-trigger periods
+                // executed when stop_recording was called, so we're writing
+                // post-trigger periods. If enough data has been written, close
+                // entry.
                 framediff_t compare = _last_offset - data->time;
                 if (compare < 0) {
                         _writer->close_entry();

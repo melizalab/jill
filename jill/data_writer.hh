@@ -1,3 +1,14 @@
+/*
+ * JILL - C++ framework for JACK
+ *
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ */
 #ifndef _DATA_WRITER_HH
 #define _DATA_WRITER_HH
 
@@ -12,8 +23,17 @@ typedef boost::posix_time::ptime timestamp_t;
 
 /**
  * ABC for classes that write (or otherwise consume) multichannel sampled and
- * event data. Data are assumed to be organized in one or more entries, each
- * containing zero or more channels which share a common start time.
+ * event data.
+ *
+ * The basic usage pattern is to call write() for each block of data. There can
+ * be multiple channels (ids), but the blocks within each channel must be
+ * ordered correctly.
+ *
+ * Data can be split into multiple entries by calling new_entry() or
+ * close_entry() at appropriate points in the data stream.
+ *
+ * The log() and xrun() methods are provided for callers to store messages or
+ * indications that the data may have gaps.
  */
 class data_writer : boost::noncopyable {
 
@@ -24,13 +44,19 @@ public:
         virtual bool ready() const = 0;
 
         /**
-         * Create a new entry, closing the previous one if necessary.
+         * Create a new entry, closing the previous one if necessary. The caller
+         * is responsible for ensuring that all the data for a period have been
+         * written so that the same amount of data is present for each channel.
          *
          * @param frame   the frame index at the start of the entry
          */
         virtual void new_entry(nframes_t frame) = 0;
 
-        /** Close the current entry */
+        /**
+         * Close the current entry. The caller is responsible for ensuring that
+         * all the data for a period have been written so that the same amount
+         * of data is present for each channel.
+         */
         virtual void close_entry() = 0;
 
         /** Store a record that an xrun occurred in the file */

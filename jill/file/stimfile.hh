@@ -1,14 +1,13 @@
 /*
  * JILL - C++ framework for JACK
  *
- * additions Copyright (C) 2013 C Daniel Meliza <dmeliza@uchicago.edu>
+ * additions Copyright (C) 2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #ifndef _STIMFILE_HH
 #define _STIMFILE_HH
 
@@ -19,7 +18,11 @@
 
 namespace jill { namespace file {
 
-
+/**
+ * A stimulus stored on disk in a file. This implementation of stimulus_t uses
+ * libsndfile to load the samples from disk, and libsamplerate to resample (if
+ * needed). The loaded samples are stored in an array managed by the object.
+ */
 class stimfile : public jill::stimulus_t {
 
 public:

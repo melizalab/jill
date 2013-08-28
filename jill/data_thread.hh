@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,18 +18,19 @@
 namespace jill {
 
 /**
- * The interface for a data handler. The handler accepts data through the push()
- * member function. The processing of the data depends on the state of the
- * handler:
+ * The interface for a threaded data handler. The handler accepts data through the push()
+ * member function and then processes it in a separate thread in an
+ * implementation-specific manner.
  *
- * Stopped: [initial state] data is not being written to disk. any background
- *          threads are inactive
- * Running: [Stopped=>start()] push() accepts samples, samples are written
- * Stopping: [Running=>stop()] remaining samples in the buffer are flushed.
- *          returns to Stopped.
+ * The handler may be in one of three states:
+ *
+ * Stopped: [initial state] push() accepts samples, but data is not being processed
+ * Running: [Stopped=>start()] push() accepts samples, data are processed
+ * Stopping: [Running=>stop()] push() drops samples while remaining samples in the
+ *           buffer are flushed. Once all samples are flushed, returns to Stopped.
  *
  * data_thread objects are safe to use in realtime applications as long as the
- * methods marked as wait-free are implmented using wait-free algorithms.
+ * methods marked as wait-free are implemented using wait-free algorithms.
  */
 class data_thread : boost::noncopyable {
 
@@ -38,10 +39,10 @@ public:
 
         /**
          * Process incoming data according to current state. In Stopped and
-         * Running, data are stored for further processing. In Xrun and
-         * Stopping, data are silently discarded. Must always be wait-free. The
-         * caller must call data_ready() after push() to notify the handler that
-         * there is data to process.
+         * Running, data are stored for further processing. In Stopping, data
+         * are silently discarded. Must always be wait-free. The caller must
+         * call data_ready() after push() to notify the handler that there is
+         * data to process.
          *
          * @param time  the time of the block
          * @param dtype the type of data in the block

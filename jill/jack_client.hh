@@ -2,7 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * additions Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ namespace jill {
 
 /**
  * @ingroup clientgroup
- * @brief Thin wrapper around JACK client
+ * @brief Manages interactions with JACK system
  *
  * This class handles the most basic aspects of JACK client manipulation,
  * including port creation and connection, and inspecting common attributes.
@@ -107,7 +107,7 @@ public:
          * @brief Register a new port for the client.
          *
          * @param name  the (short) name of the port
-         * @param type  the type of the port. common values include
+         * @param type  the type of the port. Common values include
          *              JACK_DEFAULT_AUDIO_TYPE and JACK_DEFAULT_MIDI_TYPE
          * @param flags flags for the port
          * @param buffer_size  the size of the buffer, or 0 for the default
@@ -156,7 +156,6 @@ public:
         /** Deactivate the client. Disconnects all ports */
         void deactivate();
 
-
 	/**
 	 * Connect one the client's ports to another port. Fails silently if the
 	 * ports are already connected.
@@ -181,9 +180,7 @@ public:
                         connect_port(src, *it);
         }
 
-	/**
-	 * Disconnect the client from all its ports.
-	 */
+	/** Disconnect the client from all its ports. */
 	void disconnect_all();
 
         /** Get sample buffer for port */
@@ -195,7 +192,7 @@ public:
 
 	/* -- Inspect state of the client or server -- */
 
-        /** The JACK client object */
+        /** Return the underlying JACK client object */
         jack_client_t * client() { return _client;}
 
         /** List of ports registered through this object. Realtime safe. */
@@ -213,10 +210,10 @@ public:
         /** The size of the client's buffer */
         nframes_t buffer_size() const;
 
-	/**  JACK client name */
+	/**  JACK client name (long form) */
 	char const * name() const;
 
-        /* implementations of data_source functions */
+        /* Implementations of data_source functions */
 	nframes_t sampling_rate() const;
 	nframes_t frame() const;
         nframes_t frame(utime_t) const;
@@ -242,14 +239,7 @@ private:
         void start_client(char const * name, char const * server_name=0);
         void set_callbacks();
 
-	/*
-	 * These are the callback functions that are actually
-	 * registered with the JACK server. The registration functions
-	 * take function pointers, not member function pointers, so
-	 * these functions have to be static.  A pointer to the object
-	 * is passed as a void pointer, and used to access the
-	 * callback functions registered by the user.
-	 */
+        /* static callback functions actually registered with JACK server */
 	static int process_callback_(nframes_t, void *);
 	static void portreg_callback_(jack_port_id_t, int, void *);
 	static void portconn_callback_(jack_port_id_t, jack_port_id_t, int, void *);

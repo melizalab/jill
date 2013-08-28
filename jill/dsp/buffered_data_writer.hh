@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,24 +28,22 @@ class block_ringbuffer;
  * An implementation of the data thread that uses a ringbuffer to move data
  * between the push() function and a writer thread.  The logic for actually
  * storing the data (and log messages) is provided through an owned data_writer.
- * This implementation records continuously, starting new entries only when the
- * frame counter overflows or an xrun occurs.
+ * This implementation records continuously, though other threads may call
+ * reset() to split data into separate entries.
  */
 class buffered_data_writer : public data_thread {
 
 public:
         /**
-         * Construct new buffered data writer.
+         * Initialize buffered writer
          *
-         * @param writer       a pointer to a heap-allocated data_writer
+         * @param writer       the sink for the data
          * @param buffer_size  the initial size of the ringbuffer (in bytes)
-         *
-         * @note best practice is to only access @a writer through this object
-         * after initialization, e.g:
-         * buffered_data_writer(new concrete_data_writer(...));
          */
         buffered_data_writer(boost::shared_ptr<data_writer> writer, std::size_t buffer_size=4096);
         virtual ~buffered_data_writer();
+
+        /* implementations of data_thread methods */
 
         void push(nframes_t time, dtype_t dtype, char const * id,
                   std::size_t size, void const * data);

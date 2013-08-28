@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,10 @@
 
 namespace jill { namespace file {
 
-/* a no-op implementation of data_writer */
+/**
+ * A no-op implementation of jill::data_writer. This class prints useful log
+ * messages but doesn't write any data. It's used primarily for testing.
+ */
 class null_writer : public data_writer {
 
 public:

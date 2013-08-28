@@ -6,7 +6,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Copyright (C) 2010-2013 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
 #include <signal.h>
@@ -65,7 +65,25 @@ jack_port_t *port_out, *port_trigout, *port_trigin;
 
 int xruns = 0;                  // xrun counter
 
-/* the realtime process loop. some complicated logic follows! */
+/**
+ * The realtime process loop for jstim. The logic is complicated. The process
+ * can be in two states:
+ *
+ * 1. currently playing stimulus. copy data from the stimulus buffer to the
+ * output buffer, and update the static variable that tracks position in the
+ * stimulus buffer. If an xrun was flagged, terminate the stimulus at the
+ * beginning of the period. If the stimulus ends before the end of the period,
+ * save the stop time to another static variable.
+ *
+ * 2. not playing stimulus. check for (a) trigger event, if we're in triggered
+ * mode or (b) satisfaction of one of the minimum time constraints (interval =
+ * time since last start; gap = time since last stop). Checking (b) is
+ * complicated by the fact that the frame counter is unsigned and may overflow.
+ * If either condition is true, copy data from the stimulus buffer (if
+ * available) into the output buffer, starting with the onset time. Advance the
+ * stimulus buffer tracking variable to reflect the number of samples played.
+ *
+ */
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
@@ -114,12 +132,18 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // has enough time elapsed since the last stim?
         else {
-                // deltas with last events - overflow is correct because time >= lastX
+                // Fun with unsigned integer arithmetic. The gotcha is that the
+                // frame count may have overflowed between the
+                // last_start/last_stop and now. So, first we calculate the time
+                // difference between now and the lastX counters, which is
+                // correct even if there was an overflow because time >= lastX.
                 nframes_t dstart = time - last_start;
                 nframes_t dstop = time - last_stop;
-                // now check for overflow
+                // Then, check whether the deltas are longer than the required
+                // intervals, and if not, by how many samples are they short.
                 nframes_t ostart = (dstart > options.min_interval) ? 0 : options.min_interval - dstart;
                 nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
+                // The start time may occur some time during this period
                 period_offset = std::max(ostart, ostop);
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
@@ -138,7 +162,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                        nsamples * sizeof(sample_t));
                 stim_offset += nsamples;
         }
-                // did the stimulus end?
+        // did the stimulus end?
         if (stim_offset >= stim->nframes()) {
                 queue->release();
                 last_stop = time + period_offset + nsamples;

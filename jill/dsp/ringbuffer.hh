@@ -2,7 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * Based on virtual ringbuffer
- * Copyright (C) 2010-2012 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2012 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,7 +35,6 @@
  * are released by the reader thread, and to avoid double freeing memory when
  * the ringbuffer is destroyed.
  */
-
 
 namespace jill { namespace dsp {
 
@@ -112,8 +111,8 @@ public:
 	 * operator semantics matter. Specifically, make sure objects in the
 	 * ringbuffer own their resources.
 	 *
-	 * @param src Pointer to source buffer. If NULL, the write pointer is advanced
-	 *            wihtout writing anything.
+	 * @param src Pointer to source buffer. If NULL, zeros are written to
+	 *            the buffer and the write pointer is advanced.
 	 * @param cnt The number of elements in the source buffer. Only as many
 	 *            elements as there is room will be written.
 	 *
@@ -204,8 +203,13 @@ template <typename T>
 struct copyto {
 	T const * _buf;
 	copyto(T const * buf) : _buf(buf) {}
-        std::size_t operator() (T * src, std::size_t cnt) {
-                if (_buf) std::copy(_buf, _buf + cnt, src);
+        std::size_t operator() (T * dst, std::size_t cnt) {
+                if (_buf) {
+                        std::copy(_buf, _buf + cnt, dst);
+                }
+                else {
+                        memset(dst, 0, cnt * sizeof(T));
+                }
                 return cnt;
 	}
 };

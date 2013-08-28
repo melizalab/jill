@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -107,7 +107,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
         std::size_t bytes = client->sampling_rate() * options.buffer_size_s * client->nports();
         if (port_trig != 0)
                 bytes += client->sampling_rate() * options.pretrigger_size_s * client->nports();
-        // will block until buffer is empty
+        // will block until buffer is empty (with any current implementation, anyway)
         bytes = arf_thread->request_buffer_size(bytes * sizeof(sample_t));
         arf_thread->reset();
         LOG << "ringbuffer size (bytes): " << bytes;
@@ -129,6 +129,8 @@ jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int co
         else {
                 // close current entry
                 INFO << "last input to trigger port disconnected";
+                // may not satisfy condition that a complete period was written
+                // by the consumer thread
                 arf_thread->reset();
         }
 }

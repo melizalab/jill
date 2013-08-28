@@ -1,3 +1,13 @@
+/*
+ * JILL - C++ framework for JACK
+ *
+ * additions Copyright (C) 2013 C Daniel Meliza <dan || meliza.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
 #include "../logging.hh"
 #include "readahead_stimqueue.hh"
 
@@ -45,6 +55,21 @@ readahead_stimqueue::thread(void * arg)
         return 0;
 }
 
+/*
+ * Threading notes: background thread locks mutex while it's working, and waits
+ * on a condition variable when it's not (releasing the mutex).  RT threads call
+ * head() and release(), both of which may need to notify the worker to load the
+ * next stimulus. To keep these calls waitfree, a trylock call is used to obtain
+ * the mutex prior to signaling the condition variable. If the worker is busy,
+ * the trylock will fail.
+ *
+ * I'm not entirely sure if _head is properly protected, because both release()
+ * can modify it even when loop() has the lock. It's probably mostly okay,
+ * because release() doesn't modify the underlying object, and loop() only
+ * performs a simple assignment. The consumer needs to avoid calling release()
+ * when head is null to avoid any weird issues like tearing, but it's unlikely
+ * to do so because it should check this condition.
+ */
 void
 readahead_stimqueue::loop()
 {
@@ -82,6 +107,12 @@ jill::stimulus_t const *
 readahead_stimqueue::head()
 {
         if (_head) return _head;
+        /*
+         * This function has to try to signal the condition variable to avoid a
+         * race condition where the worker is busy resampling the next stimulus
+         * when release is called. In this case, _head will be set to zero but
+         * the worker won't receive the signal to move the next stimulus into _head
+         */
         if (pthread_mutex_trylock (&_lock) == 0) {
                 pthread_cond_signal (&_ready);
                 pthread_mutex_unlock (&_lock);
@@ -93,6 +124,7 @@ readahead_stimqueue::head()
 void
 readahead_stimqueue::release()
 {
+        // FIXME? potential race condition with loop? need CAS?
         _head = 0;
         // signal thread that iterator has advanced
         if (pthread_mutex_trylock (&_lock) == 0) {

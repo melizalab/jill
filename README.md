@@ -7,4 +7,5 @@
 
 There is an ongoing effort to develop third-party drivers for general-purpose DAQ cards, including the Intan RHD2000 eval board (see <https://github.com/dmeliza/jack_rhd2000>). **JILL** modules can interoperate with any existing JACK modules (e.g. for filtering, synthesis, and visualization). JACK is well-tested and has a large user community.
 
-Want to learn more? Check out the [wiki](https://github.com/dmeliza/jill/wiki)
+JILL is under active development and is used in a wide range of experiments. Want to learn more? Check out the [wiki](https://github.com/dmeliza/jill/wiki).
+

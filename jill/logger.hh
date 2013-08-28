@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,13 +18,12 @@
 namespace jill {
 
 /**
- * Singleton class for logging. This is used by the log_msg class to actually
- * write the log messages. Users generally don't have to interact with this
- * directly except to set the source name, which is used in formatting log messages.
+ * Logs messages to console and optionally to an external logger. This is used by
+ * the log_msg class to actually write the log messages. Users generally don't
+ * have to interact with this directly except to set the source name, which is
+ * used in formatting log messages, and to connect to the external logger.
  *
- * This implementation attempts to connect to an external logger using IPC,
- * which provides a mechanism for storing a veridical record of events
- * occurring in multiple modules.
+ * This class is a singleton and can only be accessed through instance()
  */
 class logger : boost::noncopyable {
 public:
@@ -64,9 +63,9 @@ private:
 
         std::string _source;
         pthread_mutex_t _lock;  // mutex for zmq socket access
-        void * _context;
-        void * _socket;
-        bool _connected;
+        void * _context;        // zmq context
+        void * _socket;         // zmq socket
+        bool _connected;        // was connection successful?
 };
 
 }

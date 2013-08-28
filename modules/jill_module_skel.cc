@@ -13,7 +13,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Copyright (C) 2010-2013 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
 #include <signal.h>
@@ -168,6 +168,14 @@ main(int argc, char **argv)
 		return ret;
 	}
 
+	/*
+	 * These catch statements handle two kinds of exceptions.  The
+	 * Exit exception is thrown to terminate the application
+	 * normally (i.e. if the user asked for the app version or
+	 * usage); other exceptions are typically thrown if there's a
+	 * serious error, in which case the user is notified on
+	 * stderr.
+	 */
 	catch (Exit const &e) {
 		return e.status();
 	}

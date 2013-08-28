@@ -1,4 +1,14 @@
-
+/*
+ * JILL - C++ framework for JACK
+ *
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ */
 #include "logging.hh"
 #include "logger.hh"
 #include "zmq.hh"
@@ -26,7 +36,6 @@ log_msg::~log_msg()
 logger::logger()
         // initialize zmq context and socket. Use a dealer socket because log
         // messages are asynchronous (no response from recipient).
-        // will queue up until
         : _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER)),
           _connected(false)
 {
@@ -35,9 +44,9 @@ logger::logger()
 
 logger::~logger()
 {
-        // note: this object may be destroyed before other objects, but
-        // apparently it's still okay if the log function gets called. however,
-        // generally speaking we shouldn't use destructors to log
+        // note: this object may be destroyed before other objects, so it's
+        // generally not a good idea to log in destructors
+        _connected = false;
         DBG << "cleaning up logger";
         // wait 1 s for server to handle any queued messages, then close the
         // socket and context

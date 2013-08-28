@@ -6,24 +6,31 @@
 namespace jill { namespace dsp {
 
 /**
- * This implementation of the disk_thread class stores data in an ARF file, and
- * triggers off events in a MIDI port.
+ * This implementation of the disk_thread class derives from
+ * buffered_data_writer, adding the logic needed to trigger recordings from
+ * events in a MIDI port.
+ *
+ * The consumer thread will monitor the trigger channel for note_on, note_off,
+ * stim_on, and stim_off events.  If not currently recording, an onset event
+ * will cause the consumer to start a new entry; if recording, offset events
+ * cause the consumer to close the current entry.
+ *
+ * "prebuffering" is provided, so that data before an onset event can be written
+ * to disk.  Similarly, the object can be configured to continue writing for
+ * some time after an offset event.
  */
 class triggered_data_writer : public buffered_data_writer {
         friend class triggered_data_writer_test;
 public:
         /**
-         * Initialize an ARF writer thread.
+         * Initialize buffered writer.
          *
-         * @param filename            the file to write to
-         * @param trigger_port        the source of trigger events
+         * @param writer              the sink for the data
+         * @param trigger_port        id of channel carrying of trigger events
          * @param pretrigger_frames   the number of frames to record from before
          *                            trigger onset events
          * @param posttrigger_frames  the number of frames to record from after
          *                            trigger offset events
-         * @param entry_attrs  map of attributes to set on newly-created entries
-         * @param jack_client  optional, client used to look up time and samplerate
-         * @param compression  the compression level for new datasets
          */
         triggered_data_writer(boost::shared_ptr<data_writer> writer,
                               std::string const & trigger_port,

@@ -1,8 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +15,8 @@
 #include <stdexcept>
 #include <vector>
 #include <boost/program_options.hpp>
-
 #include "version.hh"
+
 /**
  * @defgroup optionsgroup Parse command-line options
  *
@@ -32,7 +31,6 @@
  * @see http://www.boost.org/doc/libs/1_43_0/doc/html/program_options.html
  */
 
-
 namespace jill {
 
 namespace po = boost::program_options;
@@ -41,21 +39,22 @@ namespace po = boost::program_options;
  * @ingroup optionsgroup
  * @brief base class for parsing options
  *
- * The program_options class is an ABC for parsing options. It handles the
- * most basic options common to all programs.
+ * The program_options class is an ABC for parsing options. It handles the most
+ * basic options common to all programs.
  *
  * This class is a thin wrapper around boost/program_options. The
- * options_descriptions members and parsed value map are exposed to
- * allow additional options without a need for subclassing.  For
- * example, to add a single option:
+ * options_descriptions members and parsed value map are exposed to allow
+ * additional options without a need for subclassing. For example, to add a
+ * single option:
  *
- * options.cmd_opts.add_options()("user_name", po:value<string>(), "the user's name");
+ * options.cmd_opts.add_options()("user-name", po:value<string>(), "the user's name");
  * options.parse(argc, argv);
- * string uname = options.get("blah","");
+ * string uname = options.get("user_name","");
  *
- * Deriving classes need to override process_options, and optionally,
- * print_version, and print_usage.  It may be necessary to override
- * parse() for especially complicated cases.
+ * Alternatively, a options can be specified in the constructor of a subclass.
+ * Deriving classes may override process_options(), print_version(), and
+ * print_usage(). It may be necessary to may override parse() for especially
+ * complicated cases.
  */
 class program_options {
 public:
@@ -67,9 +66,9 @@ public:
 	program_options(std::string const &program_name);
 	virtual ~program_options() {}
 
-	/** Description of the options for commandline/configfile usage */
+	/** Options parsed from the commandline and configfile */
 	po::options_description cmd_opts;
-	/** Description of options visible in the help (a subset of cmd_opts) */
+	/** Description of options visible in the help (may be a subset of cmd_opts) */
 	po::options_description visible_opts;
 	/** Options which are processed positionally */
 	po::positional_options_description pos_opts;

@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,9 +25,6 @@ namespace jill { namespace dsp {
  * different from the open threshhold) more than a certain number of times in a
  * time window the gate closes.
  *
- * There is no underlying storage for samples. Depending on the application, the
- * storage might need to be re-entrant, or involve prebuffering.
- *
  */
 template <typename T>
 class crossing_trigger : boost::noncopyable {
@@ -36,7 +33,7 @@ public:
 	typedef typename crossing_counter<T>::size_type size_type;
 
 	/**
-	 * Instantiate a window discriminator.
+	 * Instantiate a signal detector.
 	 *
 	 * @param othresh          The opening threshold (in sample units)
 	 * @param ocount_thresh    The mininum number of crossings to open the gate
@@ -56,12 +53,11 @@ public:
 		  _close_count_thresh(-ccount_thresh) {} // note sign reversal
 
 	/**
-	 *  Analyze a block of samples. Depending on the state of the
-	 *  discriminator, they are either pushed to the
-	 *  open-threshold counter or the close-threshold counter. If
-	 *  the active counter changes state, the gate is opened or
-	 *  closed, and the offset in the supplied data where this
-	 *  occurred (to the nearest period) is returned.  If no state
+	 *  Analyze a block of samples. Depending on the state of the detector,
+	 *  they are either pushed to the open-threshold counter or the
+	 *  close-threshold counter. If the active counter changes state, the
+	 *  gate is opened or closed, and the offset in the supplied data where
+	 *  this occurred (to the nearest period) is returned. If no state
 	 *  changed, -1 is returned.
 	 *
 	 *  @param samples    The input samples
@@ -100,17 +96,18 @@ public:
 		return -1;
 	}
 
+        /** The state of the detector */
 	bool open() const { return _open; }
+
+        /** The threshold for going to an open state */
 	sample_type &open_thresh() { return _open_counter.thresh(); }
+
+        /** The threshold for going to a closed state */
 	sample_type &close_thresh() { return _close_counter.thresh(); }
-        /** Return the current state of the counter. Minus values indicate the close counter  */
-        int count() const {
-                return (_open) ? _open_counter.count() : -_close_counter.count();
-        }
 
 private:
 
-	volatile bool _open;
+	bool _open;
 	crossing_counter<sample_type> _open_counter;
 	crossing_counter<sample_type> _close_counter;
 	int _open_count_thresh;

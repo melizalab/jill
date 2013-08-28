@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,8 +18,11 @@
 namespace jill { namespace dsp {
 
 /**
- * The CrossingCounter counts the number of times a signal crosses a threshold
- * within a time window.
+ * Counts the number of times a signal crosses a threshold within a time window.
+ *
+ * Data are passed to the counter in blocks. The counter adds the number of
+ * crossings in the block to a queue (@see jill::dsp::running_counter) to obtain
+ * a moving sum of the counts in previous blocks.
  */
 template<typename T>
 class crossing_counter : boost::noncopyable {
@@ -36,12 +39,11 @@ public:
 	}
 
 	/**
-	 * Analyze a block of samples. The samples are blocked into
-	 * smaller analysis periods and the number of counts in each
-	 * period pushed on to a queue.  Each time the queue is
-	 * updated, the total crossing count in the analysis window is
-	 * compared against a count threshold.  The return value of
-	 * the function indicates the block in which the count crossed
+	 * Analyze a block of samples. The samples are divided into smaller
+	 * analysis periods and the number of counts in each period pushed on to
+	 * a queue. Each time the queue is updated, the total crossing count in
+	 * the analysis window is compared against a count threshold. The return
+	 * value of the function indicates the block in which the count crossed
 	 * this threshold.
 	 *
 	 * @param samples      A buffer of samples to analyze
@@ -89,13 +91,10 @@ public:
 		return ret;
 	}
 
-	/**
-	 * Access the counts from the last block of samples. Can be
-	 * upsampled to match the current sampling rate. Not implemented yet
-	 */
+	/** The state of the counter */
 	int count() const { return _counter.running_count(); }
 
-	/// reset the queue
+	/** reset the queue */
 	void reset() {
 		_counter.reset();
 		_period_crossings = 0;

@@ -6,7 +6,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Copyright (C) 2010-2013 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
 #include <signal.h>
@@ -55,6 +55,11 @@ jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
 
+/*
+ * The process callback introduces a delay by writing and then reading data from
+ * a ringbuffer that was padded with zeros equal in length to the delay (see
+ * jack_bufsize())
+ */
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {
@@ -62,20 +67,19 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 	sample_t *out = client->samples(port_out, nframes);
 
         if (ringbuf.push(in, nframes) != nframes) {
-#ifndef NDEBUG
-                LOG << "error: buffer overrun";
-#endif
+                DBG << "error: buffer overrun";
         }
         if (ringbuf.pop(out, nframes) != nframes) {
-#ifndef NDEBUG
-                LOG << "error: buffer underrun";
-#endif
+                DBG << "error: buffer underrun";
         }
 
         return 0;
 }
 
-/** this is called by jack when calculating latency */
+/**
+ * This function is called by jack when calculating latency. Its job is to
+ * indicate how much latency this client introduces to the processing stream.
+ */
 void
 jack_latency (jack_latency_callback_mode_t mode, void *arg)
 {
@@ -99,6 +103,12 @@ jack_latency (jack_latency_callback_mode_t mode, void *arg)
 	}
 }
 
+/**
+ * This function is called whenever JACK's period size changes. We have to
+ * reallocate the ringbuffer to accomodate the number of samples in subsequent
+ * process() calls. This is where the delay is introduced by adding zeros to the
+ * buffer.
+ */
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {

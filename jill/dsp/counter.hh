@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,7 +39,6 @@ public:
 	typedef T data_type;
 	/** the data type for size information */
         typedef typename storage_type::size_type size_type;
-	// typedef typename std::deque<data_type>::size_type size_type;
 
 	/** Initialize the counter. @param size  the size of the running sum window */
 	explicit running_counter(size_type size)
@@ -59,11 +58,7 @@ public:
 		_running_count += count;
 	}
 
-	/**
-	 * Return whether the queue is full or not
-	 *
-	 * @return true iff the queue is at capacity
-	 */
+	/** Whether the queue is full or not */
 	bool full() const { return _counts.full(); }
 
 	/** @return the running total */
@@ -75,6 +70,7 @@ public:
 		_running_count = 0;
 	}
 
+        /** output the state of the queue to a stream */
 	friend std::ostream& operator<< (std::ostream &os, const running_counter<T> &o) {
                 std::ostream_iterator<data_type> out(os," ");
 		os << o._running_count << " [" << o._counts.size() << '/' << o._counts.capacity() << "] (";

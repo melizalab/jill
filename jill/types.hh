@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * additions Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ typedef jack_time_t utime_t;
 /** A data type holding extended position information. Inherited from JACK */
 typedef jack_position_t position_t;
 
-/** Define the types of data moved through JILL. Corresponds to jack port types */
+/** The kinds of data moved through JILL. Corresponds to jack port types */
 enum dtype_t {
         SAMPLED = 0,
         EVENT = 1,
@@ -42,10 +42,13 @@ enum dtype_t {
 };
 
 /**
- * Defines a block of data. This class does not fully encapsulate the data, but
- * defines a header that precedes the data. The header specifies the time of the
- * data, its type, and the size of two arrays that follow the header. The first
- * array gives the id (channel) of the data, and the second gives the data.
+ * Represents a block of data and provides some help serializing it for use in
+ * ringbuffers.
+ *
+ * This class does not fully encapsulate the data, but instead should be used as
+ * a header that precedes the data. The header specifies the time of the data,
+ * its type, and the size of two arrays that follow the header. The first array
+ * gives the id (channel) of the data, and the second gives the data.
  *
  * For sampled data, the data is an array of sample_t elements representing a
  * time series starting at time. For event data, the data is an array of
@@ -61,18 +64,21 @@ struct data_block_t {
         std::size_t sz_id;      // the number of bytes in the id
         std::size_t sz_data;    // the number of bytes in the data
 
-        // total size, including header
+        /** total size of the data, including header */
         std::size_t size() const { return sizeof(data_block_t) + sz_id + sz_data; }
-        // read id into a new string
+
+        /** the id of the block, copied into a new string */
         std::string id() const {
                 return std::string(reinterpret_cast<char const *>(this) + sizeof(data_block_t),
                                    sz_id);
         }
-        // pointer to data
+
+        /** pointer to the block's data */
         void const * data() const {
                 return reinterpret_cast<char const *>(this) + sizeof(data_block_t) + sz_id;
         }
-        // number of frames
+
+        /** number of frames in the block; always 1 for event data */
         nframes_t nframes() const {
                 // TODO change if multiple events in a block
                 return (dtype == SAMPLED) ? sz_data / sizeof(sample_t) : 1;

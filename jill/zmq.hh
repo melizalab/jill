@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ msg_ptr_t msg_init();
 /** Create a zmq message of a specified size */
 msg_ptr_t msg_init(std::size_t size);
 
-/** Extract the contents of a message as a string */
+/** Extract the contents of a message as a string, copying to a new string */
 std::string msg_str (msg_ptr_t const & message);
 
 /** Send an object as a message */

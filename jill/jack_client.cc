@@ -2,7 +2,7 @@
  * JILL - C++ framework for JACK
  *
  * includes code from klick, Copyright (C) 2007-2009  Dominic Sacre  <dominic.sacre@gmx.de>
- * additions Copyright (C) 2010 C Daniel Meliza <dmeliza@uchicago.edu>
+ * additions Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -251,6 +251,13 @@ jack_client::time() const
         return jack_get_time();
 }
 
+/*
+ * These are the callback functions that are actually registered with the JACK
+ * server. The registration functions take function pointers, not member
+ * function pointers, so these functions have to be static. A pointer to the
+ * object is passed as a void pointer, and used to access the callback functions
+ * registered by the user.
+ */
 
 int
 jack_client::process_callback_(nframes_t nframes, void *arg)
