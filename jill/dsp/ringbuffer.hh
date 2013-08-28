@@ -207,9 +207,9 @@ struct copyto {
                 if (_buf) {
                         std::copy(_buf, _buf + cnt, dst);
                 }
-                else {
-                        memset(dst, 0, cnt * sizeof(T));
-                }
+                // else {
+                //         memset(dst, 0, cnt * sizeof(T));
+                // }
                 return cnt;
 	}
 };
