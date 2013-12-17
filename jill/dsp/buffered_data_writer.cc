@@ -65,7 +65,7 @@ buffered_data_writer::~buffered_data_writer()
         pthread_mutex_destroy(&_lock);
         pthread_cond_destroy(&_ready);
         zmq_close(_socket);
-        zmq_term(_context);
+        zmq_ctx_destroy(_context);
 }
 
 void
@@ -206,13 +206,13 @@ buffered_data_writer::write_messages()
         if (!_logger_bound) return;
         for (int i = 0; i < max_messages; ++i) {
                 // expect a three-part message: source, timestamp, message
-                int64_t more = 1;
+                more_t more = 1;
                 size_t more_size = sizeof(more);
                 std::vector<zmq::msg_ptr_t> messages;
                 while (more) {
                         zmq::msg_ptr_t message = zmq::msg_init();
-                        int rc = zmq_recv (_socket, message.get(), ZMQ_NOBLOCK);
-                        if (rc != 0) return;
+                        int rc = zmq_msg_recv (message.get(), _socket, ZMQ_DONTWAIT);
+                        if (rc == -1) return;
                         messages.push_back(message);
                         zmq_getsockopt (_socket, ZMQ_RCVMORE, &more, &more_size);
                 }

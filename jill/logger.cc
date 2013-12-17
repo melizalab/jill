@@ -53,7 +53,7 @@ logger::~logger()
         int linger = 1000;
         zmq_setsockopt(_socket, ZMQ_LINGER, &linger, sizeof(linger));
         zmq_close(_socket);
-        zmq_term(_context);
+        zmq_ctx_destroy(_context);
         pthread_mutex_destroy(&_lock);
 }
 

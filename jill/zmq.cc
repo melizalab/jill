@@ -57,7 +57,7 @@ send(void *socket, std::string const & string, int flags)
 {
         msg_ptr_t message = msg_init(string.length());
         memcpy (zmq_msg_data (message.get()), string.c_str(), string.length());
-        int rc = zmq_send (socket, message.get(), flags);
+        int rc = zmq_msg_send (message.get(), socket, flags);
         return rc;
 }
 
