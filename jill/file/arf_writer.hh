@@ -68,6 +68,7 @@ private:
         arf::packet_table_ptr _log;                // log dataset
         arf::entry_ptr _entry;                     // current entry (owned by thread)
         dset_map_type _dsets;                      // pointers to packet tables (owned)
+        std::map<std::string, std::string> _dset_uuids; // session/channel uuid
         int _compression;                          // compression level for new datasets
 
         // these variables allow more precise timestamps; they are registered to

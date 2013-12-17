@@ -1,5 +1,8 @@
 #include <arf.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#define BOOST_UUID_NO_TYPE_TRAITS
+#include <boost/uuid/random_generator.hpp>
+#include <boost/uuid/uuid_io.hpp>
 
 #include "arf_writer.hh"
 #include "../version.hh"
@@ -262,21 +265,34 @@ arf_writer::_get_last_entry_index()
 arf_writer::dset_map_type::iterator
 arf_writer::get_dataset(string const & name, bool is_sampled)
 {
+        map<string, string>::iterator uuid = _dset_uuids.find(name);
+        if (uuid == _dset_uuids.end()) {
+                // generate new uuid for dataset name if it doesn't exist
+                string _uuid = boost::uuids::to_string(boost::uuids::random_generator()());
+                uuid = _dset_uuids.insert(uuid, make_pair(name, _uuid));
+                INFO << "uuid for " << name << ": " << uuid->second;
+        }
+
         dset_map_type::iterator dset = _dsets.find(name);
         if (dset == _dsets.end()) {
                 arf::packet_table_ptr pt;
                 if (is_sampled) {
                         pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
-                                                                          false, ARF_CHUNK_SIZE, _compression);
+                                                                   false, ARF_CHUNK_SIZE,
+                                                                   _compression);
                 }
                 else {
                         pt = _entry->create_packet_table<event_t>(name, "samples", arf::EVENT,
-                                                                          false, ARF_CHUNK_SIZE, _compression);
+                                                                  false, ARF_CHUNK_SIZE,
+                                                                  _compression);
                 }
                 pt->write_attribute("sampling_rate", _data_source.sampling_rate());
-                LOG << "created dataset: " << pt->name() ;
+                pt->write_attribute("uuid", uuid->second);
+                LOG << "created dataset: " << pt->name();
                 dset = _dsets.insert(dset, make_pair(name,pt));
         }
+
         return dset;
+
 }
 
