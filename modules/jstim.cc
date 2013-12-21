@@ -293,6 +293,8 @@ main(int argc, char **argv)
 
                 // wait for stimuli to finish playing
                 queue->join();
+                // wait for midi buffers to clear
+                sleep(1);
                 client->deactivate();
 
 		return EXIT_SUCCESS;
