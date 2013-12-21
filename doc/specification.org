@@ -13,7 +13,7 @@
 framework to run auditory behavioral and neuroscience experiments.
 
 - Editor: Dan Meliza <dan at meliza.org>
-- State:  draft
+- State:  released
 
 * Licence                                                               :rel2_0:
 
@@ -129,7 +129,7 @@ server. Messages must consist of the following ØMQ frames:
 3. The log message, as a UTF-8 encoded string.
 
 Note that with ØMQ, sockets may connect to an endpoint before the server binds.
-The server will receive any messages sent to the endpoint when it binds.
+Messages sent to the endpoint will be queued and sent when the server binds.
 
 *** Control                                                          :rel2_2:
 
@@ -195,7 +195,8 @@ The client shall not make any changes to its ports during operation.
 
 *** ØMQ Sockets                                                      :rel2_1:
 
-*jdetect* connects to the logging endpoint and logs all detection events.
+*jdetect* connects to the logging endpoint and logs its parameters on startup
+and all detection events during normal operation.
 
 *jdetect* does not bind to a control socket at present. Eventually this mechanism
 will be used to adjust parameters in a running process.
@@ -343,7 +344,7 @@ field.
 
 : start       - the time of the event (sample count)
 : status      - the MIDI status byte (char)
-: message     - the MIDI message (vlen string or char array)
+: message     - the MIDI message (vlen string)
 
 At present, h5py cannot read vlen types that are not strings, so *jrecord* will
 store messages as strings. Standard MIDI messages (see [[MIDI messages]]) must be
@@ -362,7 +363,7 @@ The log is an extensible dataset with the name =jill_log= stored under the root
 group of the ARF file. The fields in the log are:
 
 : sec      - the time of the event, in seconds since the epoch
-: usec     - the time of the event, in microseconds
+: usec     - the number of microseconds to add to sec to yield a more precise time of event
 : message  - the event message, vlen string with the format "source: event description"
 :            where source is the client or process giving rise to the message
 
@@ -374,8 +375,8 @@ group of the ARF file. The fields in the log are:
 4. creating a new dataset in an entry
 5. xruns and other exceptions
 6. channel connection and disconnection
-7. initial operating parameters of upstream clients
-8. status events from upstream clients
+7. initial operating parameters of other clients
+8. status events from other clients
 
 ** jstim
 
@@ -419,15 +420,17 @@ neurons.
 
 *** ØMQ Sockets                                                      :rel2_1:
 
-*jdetect* connects to the logging endpoint and logs all detection events.
+*jstim* connects to the logging endpoint and logs its initial parameters and all
+stimulus onset and offset events.
 
-*jdetect* does not bind to a control socket at present. Eventually this mechanism
+*jstim* does not bind to a control socket at present. Eventually this mechanism
 may be used to allow other programs to initiate or terminate playback.
 
 *** UNIX Signals                                                     :rel2_0:
 
 SIGINT, SIGTERM, and SIGHUP events cause termination of the client.  The client
-should try to send a stim_off event.
+should try to send a stim_off event. The client must ensure that the buffer
+associated with the trig_out port is properly cleared before terminating.
 
 *** Options and behavior
 
@@ -447,13 +450,13 @@ should try to send a stim_off event.
    when the process thread indicates it has played all the stimuli, shut down
    the client and terminate program.
 
-** jplot                                                             :rel2_1:
+** jplot                                                             :rel2_2:
 
 Replaces splot, providing scrolling oscillogram and periplots for rasters.  It
 may be possible to upgrade splot to a more recent version of gtk and replace its
 signal acquisition routines with JACK callbacks.
 
-** jspikes                                                           :rel2_1:
+** jspikes                                                           :rel2_2:
 
 Replaces aspikes for online spike detection.
 

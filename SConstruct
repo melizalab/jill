@@ -30,7 +30,7 @@ AddOption('--libdir',
           metavar='DIR',
           help='library installation')
 # debug flags for compliation
-debug = ARGUMENTS.get('debug',1)
+debug = ARGUMENTS.get('debug', 0)
 
 if not GetOption('prefix')==None:
     install_prefix = GetOption('prefix')

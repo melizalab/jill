@@ -81,7 +81,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                         for (nframes_t j = 0; j < nevents; ++j) {
                                 jack_midi_event_get(&event, buffer, j);
                                 if (event.size == 0) continue;
-                                arf_thread->push(time + event.time, EVENT, jack_port_short_name(port),
+                                arf_thread->push(time + event.time,
+                                                 EVENT, jack_port_short_name(port),
                                                  event.size, event.buffer);
                         }
                 }

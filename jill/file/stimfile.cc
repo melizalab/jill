@@ -27,7 +27,9 @@ stimfile::stimfile(std::string const & path)
 {
         _sndfile = sf_open(path.c_str(), SFM_READ, &_sfinfo);
         if (_sndfile == 0) throw jill::FileError(sf_strerror(_sndfile));
-        if (_sfinfo.channels != 1) throw jill::FileError("input file contains more than one channel");
+        if (_sfinfo.channels != 1) {
+                throw jill::FileError("input file contains more than one channel");
+        }
         _nframes = _sfinfo.frames;
         _samplerate = _sfinfo.samplerate;
 }

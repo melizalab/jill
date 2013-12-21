@@ -63,7 +63,7 @@ boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_trigout, *port_trigin;
 
-int xruns = 0;                  // xrun counter
+static int xruns = 0;                  // xrun counter
 
 /**
  * The realtime process loop for jstim. The logic is complicated. The process
@@ -141,7 +141,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 nframes_t dstop = time - last_stop;
                 // Then, check whether the deltas are longer than the required
                 // intervals, and if not, by how many samples are they short.
-                nframes_t ostart = (dstart > options.min_interval) ? 0 : options.min_interval - dstart;
+                nframes_t ostart = (dstart > options.min_interval) ?
+                        0 : options.min_interval - dstart;
                 nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
                 // The start time may occur some time during this period
                 period_offset = std::max(ostart, ostop);
@@ -155,7 +156,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // copy samples, if there are any
         nframes_t nsamples = std::min(stim->nframes() - stim_offset, nframes - period_offset);
-        DBG << "stim_offset=" << stim_offset << ", period_offset=" << period_offset << ", nsamples=" << nsamples;
+        DBG << "stim_offset=" << stim_offset << ", period_offset="
+            << period_offset << ", nsamples=" << nsamples;
         if (nsamples > 0) {
                 memcpy(out + period_offset,
                        stim->buffer() + stim_offset,
@@ -185,6 +187,8 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
+        // we use the xruns counter to notify the process thread that an
+        // interruption in the audio stream has occurred
         __sync_add_and_fetch(&xruns, 1); // gcc specific
         return 0;
 }
@@ -266,12 +270,13 @@ main(int argc, char **argv)
 
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput | JackPortIsTerminal, 0);
-                port_trigout = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
+                port_trigout = client->register_port("trig_out", JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
                         LOG << "triggering playback from trig_in";
-                        port_trigin = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
-                                                            JackPortIsInput | JackPortIsTerminal, 0);
+                        port_trigin = client->register_port("trig_in", JACK_DEFAULT_MIDI_TYPE,
+                                                            JackPortIsInput | JackPortIsTerminal,
+                                                            0);
                 }
 
                 // register signal handlers
@@ -287,9 +292,12 @@ main(int argc, char **argv)
                 // when the buffer size *changes*
                 client->set_buffer_size_callback(jack_bufsize);
 
-                client->connect_ports("out", options.output_ports.begin(), options.output_ports.end());
-                client->connect_ports("trig_out", options.trigout_ports.begin(), options.trigout_ports.end());
-                client->connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(), "trig_in");
+                client->connect_ports("out",
+                                      options.output_ports.begin(), options.output_ports.end());
+                client->connect_ports("trig_out",
+                                      options.trigout_ports.begin(), options.trigout_ports.end());
+                client->connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
+                                      "trig_in");
 
                 // wait for stimuli to finish playing
                 queue->join();
@@ -321,11 +329,14 @@ jstim_options::jstim_options(string const &program_name)
                 ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
-                ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output audio port")
-                ("event,e",   po::value<vector<string> >(&trigout_ports), "add connection to output event port")
+                ("out,o",     po::value<vector<string> >(&output_ports),
+                 "add connection to output audio port")
+                ("event,e",   po::value<vector<string> >(&trigout_ports),
+                 "add connection to output event port")
                 ("chan,c",    po::value<midi::data_type>(&trigout_chan)->default_value(0),
                  "set MIDI channel for output messages (0-16)")
-                ("trig,t",    po::value<vector<string> >(&trigin_ports)->multitoken()->zero_tokens(),
+                ("trig,t",
+                 po::value<vector<string> >(&trigin_ports)->multitoken()->zero_tokens(),
                  "add connection to input trigger port");
 
         // tropts is a group of options
@@ -333,7 +344,8 @@ jstim_options::jstim_options(string const &program_name)
         opts.add_options()
                 ("shuffle,S", "shuffle order of presentation")
                 ("loop,l",    "loop endlessly")
-                ("repeats,r", po::value<size_t>(&nreps)->default_value(1), "default number of repetitions")
+                ("repeats,r", po::value<size_t>(&nreps)->default_value(1),
+                 "default number of repetitions")
                 ("gap,g",     po::value<float>(&min_gap_sec)->default_value(2.0),
                  "minimum gap between sound (s)")
                 ("interval,i",po::value<float>(&min_interval_sec)->default_value(0.0),

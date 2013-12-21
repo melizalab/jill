@@ -82,7 +82,8 @@ jack_port_t*
 jack_client::register_port(string const & name, string const & type,
                            unsigned long flags, unsigned long buffer_size)
 {
-        jack_port_t *port = jack_port_register(_client, name.c_str(), type.c_str(), flags, buffer_size);
+        jack_port_t *port = jack_port_register(_client, name.c_str(), type.c_str(),
+                                               flags, buffer_size);
         if (port == NULL) {
                 throw JackError(util::make_string() << "unable to allocate port " << name);
         }
@@ -101,8 +102,10 @@ void
 jack_client::unregister_port(jack_port_t *port)
 {
         int ret = jack_port_unregister(_client, port);
-        if (ret)
-                throw JackError(util::make_string() << "unable to unregister port (err=" << ret << ")");
+        if (ret) {
+                throw JackError(util::make_string() << "unable to unregister port (err="
+                                << ret << ")");
+        }
         _ports.remove(port);
         _nports += -1;
         LOG << "port unregistered: " << jack_port_name(port) ;
@@ -112,8 +115,10 @@ void
 jack_client::activate()
 {
         int ret = jack_activate(_client);
-        if (ret)
-                throw JackError(util::make_string() << "unable to activate client (err=" << ret << ")");
+        if (ret) {
+                throw JackError(util::make_string() << "unable to activate client (err="
+                                << ret << ")");
+        }
         LOG << "activated client (load=" << jack_cpu_load(_client) << "%)" ;
 }
 
@@ -121,8 +126,10 @@ void
 jack_client::deactivate()
 {
         int ret = jack_deactivate(_client);
-        if (ret)
-                throw JackError(util::make_string() << "unable to deactivate client (err=" << ret << ")");
+        if (ret) {
+                throw JackError(util::make_string() << "unable to deactivate client (err="
+                                << ret << ")");
+        }
         LOG << "deactivated client" ;
 }
 
@@ -196,7 +203,8 @@ jack_client::events(jack_port_t *port, nframes_t nframes)
 {
         if (port) {
                 void *buf = jack_port_get_buffer(port, nframes);
-                if (jack_port_flags(port) & JackPortIsOutput) jack_midi_clear_buffer(buf);
+                if (jack_port_flags(port) & JackPortIsOutput)
+                        jack_midi_clear_buffer(buf);
                 return buf;
         }
         else
