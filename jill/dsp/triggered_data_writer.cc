@@ -154,5 +154,8 @@ triggered_data_writer::write(data_block_t const * data)
                         _buffer->release();
                         tail = _buffer->peek();
                 }
+                // clear reset flag; otherwise it won't happen until the next
+                // recording starts
+                __sync_bool_compare_and_swap(&_reset, true, false);
         }
 }
