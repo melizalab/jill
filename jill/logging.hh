@@ -21,10 +21,7 @@
 #endif
 
 #define LOG log_msg()
-
-#define INFO \
-        if (DEBUG < 1) ; \
-        else log_msg() << "I: "
+#define INFO log_msg()
 
 #define DBG \
         if (DEBUG < 2) ; \
