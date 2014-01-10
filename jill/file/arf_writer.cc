@@ -164,8 +164,8 @@ arf_writer::close_entry()
 {
         _dsets.clear();         // release any old packet tables
         if (_entry) {
-                log_msg o;
-                o << "closed entry: " << _entry->name() << " (frame=" << _last_frame << ")";
+                LOG << "closed entry: " << _entry->name() << " (frame=" << _last_frame << ")";
+                _entry->write_attribute("trial_off", _last_frame - _entry_start);
                 // if (!aligned())
                 //         o << " (warning: unequal dataset length)";
         }
