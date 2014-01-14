@@ -1,18 +1,5 @@
 /*
- * A skeleton for jill modules (jack clients using the jill framework). Creates
- * an input and output port, but doesn't do anything. To customize:
- *
- * 1. Replace "modname" with the name of your module.
- * 2. Add variables for configurable options in modname_options class
- * 3. Edit modname_options constructor to define commandline options
- * 4. Edit process() for the realtime logic.
- * 5. Edit main() for startup and shutdown.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
+ * A simple module that transforms events into clicks.
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
@@ -24,16 +11,16 @@
 #include "jill/midi.hh"
 #include "jill/program_options.hh"
 
-#define PROGRAM_NAME "jevent_click"
+#define PROGRAM_NAME "jclicker"
 
 using namespace jill;
 using std::string;
 typedef std::vector<string> stringvec;
 
-class jevent_click_options : public program_options {
+class jclicker_options : public program_options {
 
 public:
-	jevent_click_options(string const &program_name);
+	jclicker_options(string const &program_name);
 
 	/** The server name */
 	string server_name;
@@ -47,9 +34,9 @@ protected:
 
 	virtual void print_usage();
 
-}; // jevent_click_options
+}; // jclicker_options
 
-static jevent_click_options options(PROGRAM_NAME);
+static jclicker_options options(PROGRAM_NAME);
 static boost::shared_ptr<jack_client> client;
 jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
@@ -72,11 +59,15 @@ process(jack_client *client, nframes_t nframes, nframes_t)
                 switch(t) {
                 case midi::stim_on:
                 case midi::note_on:
-                        out[event.time] = options.click_onset * 1.0f;
+                        if (options.count("no-onset")==0) {
+                                out[event.time] = options.click_onset * 1.0f;
+                        }
                         break;
                 case midi::stim_off:
                 case midi::note_off:
-                        out[event.time] = options.click_offset * 1.0f;
+                        if (options.count("no-offset")==0) {
+                                out[event.time] = options.click_offset * 1.0f;
+                        }
                 default:
                         break;
                 }
@@ -162,7 +153,7 @@ main(int argc, char **argv)
 }
 
 /** configure commandline options */
-jevent_click_options::jevent_click_options(string const &program_name)
+jclicker_options::jclicker_options(string const &program_name)
         : program_options(program_name)
 {
 
@@ -180,12 +171,10 @@ jevent_click_options::jevent_click_options(string const &program_name)
 
 
         // add section(s) for module-specific options
-        po::options_description opts("Delay options");
+        po::options_description opts("jclicker options");
         opts.add_options()
-                ("onset",   po::value<bool>(&click_onset)->default_value(true),
-                 "generate clicks for onset events")
-                ("offset",   po::value<bool>(&click_offset)->default_value(false),
-                 "generate clicks for offset events");
+                ("no-onset", "don't generate clicks for onset events")
+                ("no-offset", "don't generate clicks for offset events");
 
         cmd_opts.add(opts);
         visible_opts.add(opts);
@@ -193,13 +182,14 @@ jevent_click_options::jevent_click_options(string const &program_name)
 
 /** provide the user with some information about the ports */
 void
-jevent_click_options::print_usage()
+jclicker_options::print_usage()
 {
-        std::cout << "Usage: " << _program_name << " [options]\n"
+        std::cout << _program_name << ": generate audible clicks for events\n\n"
+                  << "Usage: " << _program_name << " [options]\n"
                   << visible_opts << std::endl
                   << "Ports:\n"
-                  << " * in:        input port\n"
-                  << " * out:       output port\n"
+                  << " * in:        input event port\n"
+                  << " * out:       output audio port\n"
                   << std::endl;
 }
 

@@ -16,7 +16,7 @@ programs = {'jdelay' : ['jdelay.cc'],
             'jdetect' : ['jdetect.cc'],
             'jstim' : ['jstim.cc'],
             'jrecord' : ['jrecord.cc'],
-            'jevent_click' : ['jevent_click.cc'],
+            'jclicker' : ['jclicker.cc'],
             'jmonitor' : ['monitor_client.c'],
             }
 
