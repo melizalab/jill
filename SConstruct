@@ -57,9 +57,9 @@ Options:
 """ % install_prefix)
 
 env = Environment(ENV=os.environ,
-		  PREFIX=install_prefix,
-		  LIBDIR=install_libdir,
-		  BINDIR=install_bindir,
+                  PREFIX=install_prefix,
+                  LIBDIR=install_libdir,
+                  BINDIR=install_bindir,
                   CPPPATH=['#/arf'],
                   tools=['default'])
 
@@ -71,6 +71,8 @@ if os.environ.has_key('CXXFLAGS'):
     env.Append(CXXFLAGS=os.environ['CXXFLAGS'].split())
 if os.environ.has_key('LDFLAGS'):
     env.Append(LINKFLAGS=os.environ['LDFLAGS'].split())
+
+env.ParseConfig("pkg-config --cflags --libs hdf5")
 
 if system=='Darwin':
     env.Append(CPPPATH=['/opt/local/include'],
