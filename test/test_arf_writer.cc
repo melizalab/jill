@@ -28,13 +28,13 @@ public:
                 return _name.c_str();
         }
 
-	/** The sample rate of the data */
-	nframes_t sampling_rate() const {
+        /** The sample rate of the data */
+        nframes_t sampling_rate() const {
                 return _sampling_rate;
         }
 
-	/** The current frame in the data stream (since client start) */
-	nframes_t frame() const {
+        /** The current frame in the data stream (since client start) */
+        nframes_t frame() const {
                 return frame(time());
         }
 

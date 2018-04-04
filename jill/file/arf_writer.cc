@@ -61,7 +61,7 @@ namespace arf { namespace h5t { namespace detail {
 
 template<>
 struct datatype_traits<message_t> {
-	static hid_t value() {
+        static hid_t value() {
                 hid_t str = H5Tcopy(H5T_C_S1);
                 H5Tset_size(str, H5T_VARIABLE);
                 H5Tset_cset(str, H5T_CSET_UTF8);
@@ -76,7 +76,7 @@ struct datatype_traits<message_t> {
 
 template<>
 struct datatype_traits<event_t> {
-	static hid_t value() {
+        static hid_t value() {
                 hid_t str = H5Tcopy(H5T_C_S1);
                 H5Tset_size(str, H5T_VARIABLE);
                 H5Tset_cset(str, H5T_CSET_UTF8);
@@ -175,7 +175,7 @@ arf_writer::close_entry()
 bool
 arf_writer::ready() const
 {
-        return _entry;
+        return static_cast<bool>(_entry);
 }
 
 void
@@ -295,4 +295,3 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
         return dset;
 
 }
-
