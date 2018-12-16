@@ -15,6 +15,7 @@ menv.Append(CPPPATH=['#'],
 programs = {'jdelay' : ['jdelay.cc'],
             'jdetect' : ['jdetect.cc'],
             'jstim' : ['jstim.cc'],
+            'jstimserver' : ['jstimserver.cc'],
             'jclicker' : ['jclicker.cc'],
             'jmonitor' : ['monitor_client.c'],
             }
