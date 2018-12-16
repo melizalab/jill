@@ -15,6 +15,7 @@
 #include <jack/transport.h>
 #include <iosfwd>
 #include <stdexcept>
+#include <string>
 
 /**
  * @file types.hh
@@ -97,7 +98,7 @@ struct JackError : public Error {
 
 /** Thrown for errors related to filesystem access */
 struct FileError : public Error {
-	FileError(std::string const & w) : Error(w) { }
+        FileError(std::string const & w) : Error(w) { }
 };
 
 }
