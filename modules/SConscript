@@ -9,16 +9,20 @@ if hasattr(os,'uname') and os.uname()[0] == 'Darwin':
 # clone environment and add libraries for modules
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],
-            LIBS=['jack','samplerate','hdf5','hdf5_hl','sndfile','zmq','pthread'] + BOOST_LIBS,
+            LIBS=['jack','samplerate','sndfile','zmq','pthread'] + BOOST_LIBS,
             )
 
 programs = {'jdelay' : ['jdelay.cc'],
             'jdetect' : ['jdetect.cc'],
             'jstim' : ['jstim.cc'],
-            'jrecord' : ['jrecord.cc'],
             'jclicker' : ['jclicker.cc'],
             'jmonitor' : ['monitor_client.c'],
             }
+
+if GetOption('compile_arf'):
+    menv.Append(LIBS=['hdf5', 'hdf5_hl'])
+    programs['jrecord'] = ['jrecord.cc'],
+
 
 out = []
 
@@ -29,4 +33,3 @@ for progname,srcs in programs.items():
     env.Alias('install', env.Install(env['BINDIR'],prog))
 
 env.Alias('modules',out)
-

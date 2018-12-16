@@ -3,7 +3,12 @@ Import('env libname')
 
 subdirs = ['.','util','dsp','file']
 
-lib = env.Library(libname, [env.Glob(os.path.join(d,'*.cc')) for d in subdirs])
+if GetOption('compile_arf'):
+    files = [env.Glob(os.path.join(d,'*.cc')) for d in subdirs]
+else:
+    files = [filter(lambda f: 'arf' not in f.path, env.Glob(os.path.join(d,'*.cc'))) for d in subdirs]
+
+lib = env.Library(libname, files)
 env.Alias('library',lib)
 
 Return('lib')

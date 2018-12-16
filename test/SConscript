@@ -9,12 +9,17 @@ if hasattr(os,'uname') and os.uname()[0] == 'Darwin':
 # clone environment and add libraries for modules
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],
-            LIBS=['jack','samplerate','hdf5','hdf5_hl','sndfile','zmq','pthread'] + BOOST_LIBS,
+            LIBS=['jack','samplerate','sndfile','zmq','pthread'] + BOOST_LIBS,
             )
 
-out = [menv.Program(os.path.splitext(str(f))[0],[f,lib]) for f in env.Glob("*.cc")] + \
-    [menv.Program(os.path.splitext(str(f))[0],[f]) for f in env.Glob("*.c")]
+
+out = [menv.Program(os.path.splitext(str(f))[0], [f,lib]) for f in env.Glob("*.cc") if 'arf' not in f.path]
+out += [menv.Program(os.path.splitext(str(f))[0],[f]) for f in env.Glob("*.c")]
+
+if GetOption('compile_arf'):
+    menv.Append(LIBS=['hdf5', 'hdf5_hl'])
+    programs['jrecord'] = ['jrecord.cc'],
+    out.append(menv.Program("test_arf_writer", ["test_arf_writer.cc", lib]))
+
 
 env.Alias('test',out)
-
-

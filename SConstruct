@@ -29,6 +29,10 @@ AddOption('--libdir',
           action='store',
           metavar='DIR',
           help='library installation')
+AddOption('--no-arf',
+          dest='compile_arf',
+          action='store_false',
+          help='skip compilation of ARF/HDF5-dependent code')
 # debug flags for compliation
 debug = ARGUMENTS.get('debug', 0)
 
@@ -60,7 +64,6 @@ env = Environment(ENV=os.environ,
                   PREFIX=install_prefix,
                   LIBDIR=install_libdir,
                   BINDIR=install_bindir,
-                  CPPPATH=['#/arf'],
                   tools=['default'])
 
 if os.environ.has_key('CXX'):
@@ -72,7 +75,9 @@ if os.environ.has_key('CXXFLAGS'):
 if os.environ.has_key('LDFLAGS'):
     env.Append(LINKFLAGS=os.environ['LDFLAGS'].split())
 
-env.ParseConfig("pkg-config --cflags --libs hdf5")
+if GetOption('compile_arf'):
+    env.ParseConfig("pkg-config --cflags --libs hdf5")
+    env.Append(CPPPATH=['#/arf'])
 
 if system=='Darwin':
     env.Append(CPPPATH=['/opt/local/include'],
