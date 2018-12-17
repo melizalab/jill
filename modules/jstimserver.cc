@@ -14,6 +14,8 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_map.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <czmq.h>
 //#include "jill/zmq.hh"
@@ -25,6 +27,10 @@
 #include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jstimserver"
+#define REQ_STIMLIST "STIMLIST"
+#define REQ_PLAYSTIM "PLAY"
+#define REP_BADCMD "ERROR: INVALID COMMAND"
+#define REP_BADSTIM "ERROR: INVALID STIMULUS"
 
 using namespace jill;
 namespace fs = boost::filesystem;
@@ -175,25 +181,38 @@ signal_handler(int sig)
 
 
 /* parse the list of stimuli */
-static void
+static std::string
 init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
 {
-        using namespace boost::filesystem;
+        // serialize the stimulus list here as well. It's sort of a shitty JSON
+        // serializer (floats get cast to strings, etc)
+        namespace pt = boost::property_tree;
+        namespace fs = boost::filesystem;
+        pt::ptree root;
+        pt::ptree stim_list;
 
         for (size_t i = 0; i < stims.size(); ++i) {
-                path p(stims[i]);
+                fs::path p(stims[i]);
                 try {
                         jill::stimulus_t * stim = new file::stimfile(p.string());
                         std::string name(stim->name());
                         stim->load_samples(sampling_rate);
                         _stimuli.insert(name, stim);
+
+                        pt::ptree stim_node;
+                        stim_node.put("name", name);
+                        //stim_node.put("duration", stim->duration());
+                        stim_list.push_back(std::make_pair("", stim_node));
                 }
                 catch (jill::FileError const & e) {
                         LOG << "invalid stimulus " << p << ": " << e.what();
                 }
         }
+        root.add_child("stimuli", stim_list);
+        std::stringstream ss;
+        pt::write_json(ss, root, false);
+        return ss.str();
 }
-
 
 int
 main(int argc, char **argv)
@@ -209,13 +228,14 @@ main(int argc, char **argv)
                         throw Exit(0);
                 }
                 /* load the stimuli */
-                init_stimset(options.stimuli, client->sampling_rate());
+                std::string stimlist = init_stimset(options.stimuli, client->sampling_rate());
+                DBG << "stimlist: " << stimlist;
 
                 // initialize mutex/cond for signals from process
                 pthread_mutex_init(&_lock, 0);
                 pthread_cond_init(&_ready, 0);
 
-                // set up zeromq socket
+                // set up zeromq socketn
                 fs::path path("/tmp/org.meliza.jill");
                 path /= options.server_name;
                 path /= options.client_name;
@@ -263,9 +283,36 @@ main(int argc, char **argv)
                         zmsg_t * msg = zmsg_recv(req_socket);
                         if (!msg)
                                 break; // interrupted
-                        zframe_print(zmsg_first(msg), "Client: ");
-                        zframe_print(zmsg_last(msg), "Req: ");
-                        zmsg_destroy(&msg);
+                        // zframe_t * identity = zmsg_pop(msg);
+                        // zframe_t * delimiter = zmsg_pop(msg);
+                        zframe_t * command = zmsg_last(msg);
+                        char * data = zframe_strdup(command);
+                        if (memcmp(data, REQ_STIMLIST, strlen(REQ_STIMLIST)) == 0) {
+                                LOG << "client requested playlist";
+                                zframe_reset(command, stimlist.c_str(), stimlist.size());
+                        }
+                        else if (memcmp(data, REQ_PLAYSTIM, strlen(REQ_PLAYSTIM)) == 0) {
+                                std::string stim(data + strlen(REQ_PLAYSTIM) + 1);
+                                boost::ptr_map<std::string, stimulus_t>::iterator it = _stimuli.find(stim);
+                                if (it == _stimuli.end()) {
+                                        LOG << "client requested invalid stimulus: " << stim;
+                                        zframe_reset(command, REP_BADSTIM, strlen(REP_BADSTIM));
+                                }
+                                else if (__sync_bool_compare_and_swap(&_stim, 0, it->second)) {
+                                        LOG << "playing stimulus: " << stim;
+                                        zframe_reset(command, "OK", 2);
+                                }
+                                else {
+                                        LOG << "client requested stimulus while busy";
+                                        zframe_reset(command, "BUSY", 4);
+                                }
+                        }
+                        else {
+                                LOG << "invalid client request";
+                                zframe_reset(command, REP_BADCMD, strlen(REP_BADCMD));
+                        }
+                        zstr_free(&data);
+                        zmsg_send(&msg, req_socket);
                 }
                 // pthread_mutex_lock(&_lock);
                 // LOG << "starting stimulus";

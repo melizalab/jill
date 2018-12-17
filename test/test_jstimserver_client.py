@@ -25,3 +25,5 @@ if __name__ == "__main__":
     sock.connect(opts.endpoint)
 
     sock.send(opts.request.encode())
+    reply = sock.recv()
+    print(reply.decode('ascii'));
