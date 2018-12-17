@@ -122,6 +122,11 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // copy samples, if there are any
         nframes_t nsamples = std::min(_stim->nframes() - stim_offset, nframes);
+        // notify monitor
+        if (stim_offset == 0 && pthread_mutex_trylock (&_lock) == 0) {
+                pthread_cond_signal (&_ready);
+                pthread_mutex_unlock (&_lock);
+        }
         DBG << "stim_offset=" << stim_offset << ", nsamples=" << nsamples;
         if (nsamples > 0) {
                 memcpy(out,
@@ -170,6 +175,10 @@ jack_shutdown(jack_status_t code, char const *)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
         _running = 0;
+        if (pthread_mutex_trylock (&_lock) == 0) {
+                pthread_cond_signal (&_ready);
+                pthread_mutex_unlock (&_lock);
+        }
 }
 
 void
@@ -177,6 +186,10 @@ signal_handler(int sig)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
         _running = 0;
+        if (pthread_mutex_trylock (&_lock) == 0) {
+                pthread_cond_signal (&_ready);
+                pthread_mutex_unlock (&_lock);
+        }
 }
 
 
@@ -214,6 +227,40 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
         return ss.str();
 }
 
+// This thread looks for start and stop events and publishes them
+static void *
+stim_monitor(void * arg)
+{
+        // set up zeromq socket
+        fs::path path("/tmp/org.meliza.jill");
+        path /= options.server_name;
+        path /= options.client_name;
+        path /= "pub";
+        std::ostringstream endpoint;
+        endpoint << "ipc://" << path.string();
+        zsock_t * pub_socket = zsock_new_pub(endpoint.str().c_str());
+        if (pub_socket == 0) {
+                LOG << "unable to bind to endpoint " << endpoint.str();
+                return 0;
+        }
+        else {
+                INFO << "publishing start/stop events at " << endpoint.str();
+        }
+        pthread_mutex_lock(&_lock);
+        while (_running) {
+                pthread_cond_wait(&_ready, &_lock);
+                if (_stim)
+                        zstr_sendf(pub_socket, "PLAYING %s", _stim->name());
+                else
+                        zstr_send(pub_socket, "DONE");
+        }
+        zstr_send(pub_socket, "STOPPING");
+        pthread_mutex_unlock(&_lock);
+        zsock_destroy(&pub_socket);
+        return 0;
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -235,7 +282,7 @@ main(int argc, char **argv)
                 pthread_mutex_init(&_lock, 0);
                 pthread_cond_init(&_ready, 0);
 
-                // set up zeromq socketn
+                // set up zeromq socket
                 fs::path path("/tmp/org.meliza.jill");
                 path /= options.server_name;
                 path /= options.client_name;
@@ -278,6 +325,9 @@ main(int argc, char **argv)
                 client->connect_ports("trig_out",
                                       options.trigout_ports.begin(), options.trigout_ports.end());
 
+                pthread_t monitor_thread_id;
+                pthread_create(&monitor_thread_id, NULL, stim_monitor, NULL);
+
                 LOG << "waiting for requests";
                 while (_running) {
                         zmsg_t * msg = zmsg_recv(req_socket);
@@ -314,21 +364,10 @@ main(int argc, char **argv)
                         zstr_free(&data);
                         zmsg_send(&msg, req_socket);
                 }
-                // pthread_mutex_lock(&_lock);
-                // LOG << "starting stimulus";
-                // if (__sync_bool_compare_and_swap(&_stim, 0, &_stimuli[0])) {
-                //         LOG << "waiting for stimulus: " << _stim->name();
-                //         pthread_cond_wait(&_ready, &_lock);
-                //         LOG << "stimulus done";
-                //         sleep(1)
-                // }
-                // pthread_mutex_unlock(&_lock);
-                // LOG << "unlocked mutex";
-
-                // }
                 LOG << "stopping";
 
                 client->deactivate();
+                pthread_join(monitor_thread_id, NULL);
                 pthread_mutex_destroy(&_lock);
                 pthread_cond_destroy(&_ready);
                 zsock_destroy(&req_socket);
