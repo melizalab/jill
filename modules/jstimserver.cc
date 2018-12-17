@@ -15,6 +15,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_map.hpp>
 
+#include <czmq.h>
+//#include "jill/zmq.hh"
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -25,6 +27,7 @@
 #define PROGRAM_NAME "jstimserver"
 
 using namespace jill;
+namespace fs = boost::filesystem;
 using std::string;
 
 class jstim_options : public program_options {
@@ -57,6 +60,8 @@ stimulus_t const * _stim = 0;
 // mutex/cond to signal main thread that stimulus is done
 pthread_mutex_t _lock;
 pthread_cond_t  _ready;
+// zmq variables
+static int _running = 1;
 
 jack_port_t *port_out, *port_trigout;
 
@@ -133,7 +138,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                         pthread_cond_signal (&_ready);
                         pthread_mutex_unlock (&_lock);
                 }
-
         }
 
         return 0;
@@ -159,16 +163,14 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
-        pthread_mutex_destroy(&_lock);
-        pthread_cond_destroy(&_ready);
+        _running = 0;
 }
 
 void
 signal_handler(int sig)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
-        pthread_mutex_destroy(&_lock);
-        pthread_cond_destroy(&_ready);
+        _running = 0;
 }
 
 
@@ -213,6 +215,26 @@ main(int argc, char **argv)
                 pthread_mutex_init(&_lock, 0);
                 pthread_cond_init(&_ready, 0);
 
+                // set up zeromq socket
+                fs::path path("/tmp/org.meliza.jill");
+                path /= options.server_name;
+                path /= options.client_name;
+                if (!fs::exists(path)) {
+                        fs::create_directories(path);
+                }
+                path /= "req";
+                std::ostringstream endpoint;
+                endpoint << "ipc://" << path.string();
+
+                zsock_t * req_socket = zsock_new_router(endpoint.str().c_str());
+                if (req_socket == 0) {
+                        LOG << "unable to bind to endpoint " << endpoint.str();
+                        throw Exit(-1);
+                }
+                else {
+                        INFO << "listening for requests at " << endpoint.str();
+                }
+
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput | JackPortIsTerminal, 0);
                 port_trigout = client->register_port("trig_out", JACK_DEFAULT_MIDI_TYPE,
@@ -236,10 +258,16 @@ main(int argc, char **argv)
                 client->connect_ports("trig_out",
                                       options.trigout_ports.begin(), options.trigout_ports.end());
 
-                // test:
-                LOG << "locking mutex";
-                pthread_mutex_lock(&_lock);
-                sleep(5);
+                LOG << "waiting for requests";
+                while (_running) {
+                        zmsg_t * msg = zmsg_recv(req_socket);
+                        if (!msg)
+                                break; // interrupted
+                        zframe_print(zmsg_first(msg), "Client: ");
+                        zframe_print(zmsg_last(msg), "Req: ");
+                        zmsg_destroy(&msg);
+                }
+                // pthread_mutex_lock(&_lock);
                 // LOG << "starting stimulus";
                 // if (__sync_bool_compare_and_swap(&_stim, 0, &_stimuli[0])) {
                 //         LOG << "waiting for stimulus: " << _stim->name();
@@ -247,10 +275,16 @@ main(int argc, char **argv)
                 //         LOG << "stimulus done";
                 //         sleep(1)
                 // }
-                pthread_mutex_unlock(&_lock);
-                LOG << "unlocked mutex";
+                // pthread_mutex_unlock(&_lock);
+                // LOG << "unlocked mutex";
+
+                // }
+                LOG << "stopping";
 
                 client->deactivate();
+                pthread_mutex_destroy(&_lock);
+                pthread_cond_destroy(&_ready);
+                zsock_destroy(&req_socket);
 
                 return EXIT_SUCCESS;
         }
@@ -273,7 +307,8 @@ jstim_options::jstim_options(string const &program_name)
 
         po::options_description jillopts("JILL options");
         jillopts.add_options()
-                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
+                ("server,s",  po::value<string>(&server_name)->default_value("default"),
+                 "connect to specific jack server")
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("out,o",     po::value<vector<string> >(&output_ports),
