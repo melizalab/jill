@@ -27,12 +27,12 @@ if __name__ == "__main__":
     subsock.connect(os.path.join(opts.endpoint, "pub"))
     subsock.setsockopt(zmq.SUBSCRIBE, b"")
 
-    reqsock = ctx.socket(zmq.DEALER)
+    reqsock = ctx.socket(zmq.REQ)
     reqsock.connect(os.path.join(opts.endpoint, "req"))
 
     reqsock.send(opts.request.encode())
     reply = reqsock.recv()
-    print(reply.decode('ascii'));
+    print(reply.decode('ascii'))
 
     while 1:
         msg = subsock.recv()

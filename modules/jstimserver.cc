@@ -29,8 +29,9 @@
 #define PROGRAM_NAME "jstimserver"
 #define REQ_STIMLIST "STIMLIST"
 #define REQ_PLAYSTIM "PLAY"
-#define REP_BADCMD "ERROR: INVALID COMMAND"
-#define REP_BADSTIM "ERROR: INVALID STIMULUS"
+#define REP_BADCMD "BADCMD"
+#define REP_BADSTIM "BADSTIM"
+#define REP_OK "OK"
 
 using namespace jill;
 namespace fs = boost::filesystem;
@@ -246,15 +247,19 @@ stim_monitor(void * arg)
         else {
                 INFO << "publishing start/stop events at " << endpoint.str();
         }
+        // notify any waiting clients that we are alive. This is a pretty
+        // fragile system for doing heartbeats.
+        zstr_send(pub_socket, "STARTING");
         pthread_mutex_lock(&_lock);
         while (_running) {
                 pthread_cond_wait(&_ready, &_lock);
                 if (_stim)
                         zstr_sendf(pub_socket, "PLAYING %s", _stim->name());
+                else if (!_running)
+                        zstr_send(pub_socket, "STOPPING");
                 else
                         zstr_send(pub_socket, "DONE");
         }
-        zstr_send(pub_socket, "STOPPING");
         pthread_mutex_unlock(&_lock);
         zsock_destroy(&pub_socket);
         return 0;
@@ -350,7 +355,7 @@ main(int argc, char **argv)
                                 }
                                 else if (__sync_bool_compare_and_swap(&_stim, 0, it->second)) {
                                         LOG << "playing stimulus: " << stim;
-                                        zframe_reset(command, "OK", 2);
+                                        zframe_reset(command, REP_OK, strlen(REP_OK));
                                 }
                                 else {
                                         LOG << "client requested stimulus while busy";
