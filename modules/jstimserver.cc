@@ -338,8 +338,6 @@ main(int argc, char **argv)
                         zmsg_t * msg = zmsg_recv(req_socket);
                         if (!msg)
                                 break; // interrupted
-                        // zframe_t * identity = zmsg_pop(msg);
-                        // zframe_t * delimiter = zmsg_pop(msg);
                         zframe_t * command = zmsg_last(msg);
                         char * data = zframe_strdup(command);
                         if (memcmp(data, REQ_STIMLIST, strlen(REQ_STIMLIST)) == 0) {
