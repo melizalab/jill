@@ -23,7 +23,7 @@ using std::string;
 jack_client::jack_client(string const & name)
         : _nports(0)
 {
-        start_client(name.c_str(), 0);
+        start_client(name.c_str(), nullptr);
         set_callbacks();
 }
 
@@ -33,14 +33,14 @@ jack_client::jack_client(string const & name, string const & server)
         if (!server.empty())
                 start_client(name.c_str(), server.c_str());
         else
-                start_client(name.c_str(), 0);
+                start_client(name.c_str(), nullptr);
         set_callbacks();
 
 }
 
 jack_client::~jack_client()
 {
-	if (_client) {
+        if (_client) {
                 jack_client_close(_client);
         }
 }
@@ -48,14 +48,14 @@ jack_client::~jack_client()
 void
 jack_client::start_client(char const * name, char const * server_name)
 {
-	jack_status_t status;
-        if (server_name == 0)
+        jack_status_t status;
+        if (!server_name)
                 _client = jack_client_open(name, JackNoStartServer, &status);
         else
                 _client = jack_client_open(name, jack_options_t(JackNoStartServer|JackServerName),
                                            &status, server_name);
 
-        if (_client == NULL) {
+        if (!_client) {
                 util::make_string err;
                 err << "unable to start client (status=" << int(status);
                 if (status & JackServerFailed) err << "; couldn't connect to server";
@@ -84,7 +84,7 @@ jack_client::register_port(string const & name, string const & type,
 {
         jack_port_t *port = jack_port_register(_client, name.c_str(), type.c_str(),
                                                flags, buffer_size);
-        if (port == NULL) {
+        if (!port) {
                 throw JackError(util::make_string() << "unable to allocate port " << name);
         }
         _ports.push_back(port);
@@ -136,26 +136,26 @@ jack_client::deactivate()
 void
 jack_client::connect_port(string const & src, string const & dest)
 {
-	// simple name-based lookup
-	jack_port_t *p1, *p2;
+        // simple name-based lookup
+        jack_port_t *p1, *p2;
         if (src.find(':') != string::npos) {
                 p1 = jack_port_by_name(_client, src.c_str());
         }
         else {
-		string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
-		p1 = jack_port_by_name(_client, n.c_str());
-	}
-        if (p1==0)
+                string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
+                p1 = jack_port_by_name(_client, n.c_str());
+        }
+        if (!p1)
                 throw JackError(util::make_string() << "the port " << src << " does not exist");
 
         if (dest.find(':') != string::npos) {
                 p2 = jack_port_by_name(_client, dest.c_str());
         }
         else {
-		string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
-		p2 = jack_port_by_name(_client, n.c_str());
-	}
-        if (p2==0)
+                string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
+                p2 = jack_port_by_name(_client, n.c_str());
+        }
+        if (!p2)
                 throw JackError(util::make_string() << "the port " << dest << " does not exist");
 
         // check that types are the same (FIXME use strcmp if custom types?)
@@ -163,11 +163,11 @@ jack_client::connect_port(string const & src, string const & dest)
                 throw JackError(util::make_string() << jack_port_name(p1) << " (" << jack_port_type(p1) << ")"
                                 << " doesn't match " << jack_port_name(p2) << " (" << jack_port_type(p2) << ")");
         }
-	int error = jack_connect(_client, jack_port_name(p1), jack_port_name(p2));
-	if (error && error != EEXIST) {
-		// no easy way to trap error message; it gets printed to stdout
-		throw JackError(util::make_string() << "can't connect "
-				 << src << " to " << dest);
+        int error = jack_connect(_client, jack_port_name(p1), jack_port_name(p2));
+        if (error && error != EEXIST) {
+                // no easy way to trap error message; it gets printed to stdout
+                throw JackError(util::make_string() << "can't connect "
+                                 << src << " to " << dest);
         }
 }
 
@@ -195,7 +195,7 @@ jack_client::samples(jack_port_t *port, nframes_t nframes)
         if (port)
                 return static_cast<sample_t*>(jack_port_get_buffer(port, nframes));
         else
-                return 0;
+                return nullptr;
 }
 
 void*
@@ -208,7 +208,7 @@ jack_client::events(jack_port_t *port, nframes_t nframes)
                 return buf;
         }
         else
-                return 0;
+                return nullptr;
 }
 
 jack_port_t*
@@ -220,25 +220,25 @@ jack_client::get_port(string const & name) const
 nframes_t
 jack_client::sampling_rate() const
 {
-	return jack_get_sample_rate(_client);
+        return jack_get_sample_rate(_client);
 }
 
 nframes_t
 jack_client::buffer_size() const
 {
-	return jack_get_buffer_size(_client);
+        return jack_get_buffer_size(_client);
 }
 
 char const *
 jack_client::name() const
 {
-	return jack_get_client_name(_client);
+        return jack_get_client_name(_client);
 }
 
 nframes_t
 jack_client::frame() const
 {
-	return jack_frame_time(_client);
+        return jack_frame_time(_client);
 }
 
 nframes_t
@@ -270,15 +270,15 @@ jack_client::time() const
 int
 jack_client::process_callback_(nframes_t nframes, void *arg)
 {
-	jack_client *self = static_cast<jack_client*>(arg);
+        auto * self = static_cast<jack_client*>(arg);
         nframes_t time = jack_last_frame_time(self->_client);
-	return (self->_process_cb) ? self->_process_cb(self, nframes, time) : 0;
+        return (self->_process_cb) ? self->_process_cb(self, nframes, time) : 0;
 }
 
 void
 jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
 {
-	jack_client *self = static_cast<jack_client*>(arg);
+        auto * self = static_cast<jack_client*>(arg);
         jack_port_t *port = jack_port_by_id(self->_client, id);
         if (!jack_port_is_mine(self->_client, port)) return;
         LOG << "port registered: " << jack_port_name(port)
@@ -290,7 +290,7 @@ jack_client::portreg_callback_(jack_port_id_t id, int registered, void *arg)
 void
 jack_client::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connected, void *arg)
 {
-	jack_client *self = static_cast<jack_client*>(arg);
+        auto * self = static_cast<jack_client*>(arg);
         jack_port_t *port1 = jack_port_by_id(self->_client, a);
         jack_port_t *port2 = jack_port_by_id(self->_client, b);
         if (!(jack_port_is_mine(self->_client, port1) || jack_port_is_mine(self->_client, port2)))
@@ -308,34 +308,34 @@ jack_client::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connecte
 int
 jack_client::sampling_rate_callback_(nframes_t nframes, void *arg)
 {
-	jack_client *self = static_cast<jack_client*>(arg);
+        auto * self = static_cast<jack_client*>(arg);
         LOG << "sampling rate (Hz): " << nframes ;
-	return (self->_sampling_rate_cb) ? self->_sampling_rate_cb(self, nframes) : 0;
+        return (self->_sampling_rate_cb) ? self->_sampling_rate_cb(self, nframes) : 0;
 }
 
 int
 jack_client::buffer_size_callback_(nframes_t nframes, void *arg)
 {
-	jack_client *self = static_cast<jack_client*>(arg);
+        auto * self = static_cast<jack_client*>(arg);
         LOG << "period size (frames): " << nframes ;
-	return (self->_buffer_size_cb) ? self->_buffer_size_cb(self, nframes) : 0;
+        return (self->_buffer_size_cb) ? self->_buffer_size_cb(self, nframes) : 0;
 }
 
 int
 jack_client::xrun_callback_(void *arg)
 {
-	jack_client *self = static_cast<jack_client*>(arg);
+        auto * self = static_cast<jack_client*>(arg);
         float delay = jack_get_xrun_delayed_usecs(self->_client);
         LOG << "jack xrun (us): " << delay ;
-	return (self->_xrun_cb) ? self->_xrun_cb(self, delay) : 0;
+        return (self->_xrun_cb) ? self->_xrun_cb(self, delay) : 0;
 }
 
 void
 jack_client::shutdown_callback_(jack_status_t code, char const * reason, void *arg)
 {
-	jack_client *self = static_cast<jack_client*>(arg);
+        auto * self = static_cast<jack_client*>(arg);
         LOG << "the server is shutting us down: " << reason ;
-	if (self->_shutdown_cb) self->_shutdown_cb(code, reason);
+        if (self->_shutdown_cb) self->_shutdown_cb(code, reason);
 }
 
 void

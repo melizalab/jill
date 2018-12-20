@@ -50,7 +50,7 @@ public:
          *  sampled data. A good minimum is nframes*nchannels*12
          */
         explicit block_ringbuffer(std::size_t size);
-        ~block_ringbuffer();
+        ~block_ringbuffer() = default;
 
         /// @return the number of samples ahead of the read pointer the read-ahead pointer is
         std::size_t read_ahead_space() const {
@@ -79,7 +79,7 @@ public:
          * @returns the number of bytes written, or 0 if there wasn't enough
          *          room for all of them. Will not write partial blocks.
          */
-	std::size_t push(nframes_t time, dtype_t dtype, char const * id,
+        std::size_t push(nframes_t time, dtype_t dtype, char const * id,
                          std::size_t size, void const * data);
 
         /**

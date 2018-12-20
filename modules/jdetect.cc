@@ -9,7 +9,7 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
-#include <signal.h>
+#include <csignal>
 #include <boost/shared_ptr.hpp>
 
 #include "jill/logging.hh"
@@ -27,31 +27,31 @@ using std::string;
 class jdetect_options : public program_options {
 
 public:
-	jdetect_options(string const &program_name);
+        jdetect_options(string const &program_name);
 
         string server_name;
-	string client_name;
+        string client_name;
 
-	/** A vector of inputs to connect to the client */
-	std::vector<string> input_ports;
-	/** A vector of outputs to connect to the client */
-	std::vector<string> output_ports;
+        /** A vector of inputs to connect to the client */
+        std::vector<string> input_ports;
+        /** A vector of outputs to connect to the client */
+        std::vector<string> output_ports;
         /** The MIDI output channel */
         midi::data_type output_chan;
 
-	float open_threshold;
-	float close_threshold;
+        float open_threshold;
+        float close_threshold;
 
-	float open_crossing_rate;  // s^-1
-	float close_crossing_rate;
+        float open_crossing_rate;  // s^-1
+        float close_crossing_rate;
 
-	float period_size_ms; // in ms
-	float open_crossing_period_ms;
-	float close_crossing_period_ms;
+        float period_size_ms; // in ms
+        float open_crossing_period_ms;
+        float close_crossing_period_ms;
 
 protected:
 
-	virtual void print_usage();
+        void print_usage() override;
 
 }; // jdetect_options
 
@@ -72,8 +72,8 @@ dsp::ringbuffer<event_t> trig_times(128);
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
-	sample_t *in = client->samples(port_in, nframes);
-        sample_t *out = (port_count) ? client->samples(port_count, nframes) : 0;
+        sample_t *in = client->samples(port_in, nframes);
+        sample_t *out = (port_count) ? client->samples(port_count, nframes) : nullptr;
         void *trig_buffer = client->events(port_trig, nframes);
         jack_midi_data_t buf[] = { jack_midi_data_t(options.output_chan & midi::chan_nib),
                                    midi::default_pitch, midi::default_velocity };
@@ -85,12 +85,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 return 0;
         }
 
-	// Step 1: Pass samples to window discriminator; its state may
-	// change, in which case the return value will be > -1 and
-	// indicate the frame in which the gate opened or closed. It
-	// also takes care of copying the current state of the buffer
-	// to the count monitor port (if not NULL)
-	int offset = trigger->push(in, nframes, out);
+        // Step 1: Pass samples to window discriminator; its state may
+        // change, in which case the return value will be > -1 and
+        // indicate the frame in which the gate opened or closed. It
+        // also takes care of copying the current state of the buffer
+        // to the count monitor port (if not NULL)
+        int offset = trigger->push(in, nframes, out);
         if (offset < 0) return 0;
 
         if (trigger->open()) buf[0] += midi::note_on;
@@ -103,7 +103,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         trig_times.push(event);
 
-	return 0;
+        return 0;
 }
 
 /** visitor function for gate time ringbuffer */
@@ -111,7 +111,7 @@ std::size_t log_times(event_t const * events, std::size_t count)
 {
         event_t const *e;
         std::size_t i;
-	for (i = 0; i < count; ++i) {
+        for (i = 0; i < count; ++i) {
                 e = events+i;
                 log_msg msg;
                 if (e->status==midi::note_on)
@@ -150,11 +150,11 @@ int
 samplerate_callback(jack_client *client, nframes_t samplerate)
 {
         using std::endl;
-	nframes_t period_size = options.period_size_ms * samplerate / 1000;
-	int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
-	int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
-	int open_count_thresh = options.open_crossing_rate * period_size / 1000 * open_crossing_periods;
-	int close_count_thresh = options.close_crossing_rate * period_size / 1000 * close_crossing_periods;
+        nframes_t period_size = options.period_size_ms * samplerate / 1000;
+        int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
+        int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
+        int open_count_thresh = options.open_crossing_rate * period_size / 1000 * open_crossing_periods;
+        int close_count_thresh = options.close_crossing_rate * period_size / 1000 * close_crossing_periods;
 
         trigger.reset(new dsp::crossing_trigger<sample_t>(options.open_threshold,
                                                          open_count_thresh,
@@ -179,9 +179,9 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
 int
 main(int argc, char **argv)
 {
-	using namespace std;
-	try {
-		options.parse(argc, argv);
+        using namespace std;
+        try {
+                options.parse(argc, argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
@@ -194,9 +194,9 @@ main(int argc, char **argv)
                 }
 
                 // register signal handlers
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
+                signal(SIGINT,  signal_handler);
+                signal(SIGTERM, signal_handler);
+                signal(SIGHUP,  signal_handler);
 
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_sample_rate_callback(samplerate_callback);
@@ -206,20 +206,20 @@ main(int argc, char **argv)
                 client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
                 client->connect_ports("trig_out", options.output_ports.begin(), options.output_ports.end());
 
-                while(1) {
+                while(true) {
                         sleep(1);
                         trig_times.pop(log_times); // calls visitor function on ringbuffer
                 }
 
-		return EXIT_SUCCESS;
-	}
-	catch (Exit const &e) {
-		return e.status();
-	}
-	catch (std::exception const &e) {
+                return EXIT_SUCCESS;
+        }
+        catch (Exit const &e) {
+                return e.status();
+        }
+        catch (std::exception const &e) {
                 LOG << "ERROR: " << e.what();
-		return EXIT_FAILURE;
-	}
+                return EXIT_FAILURE;
+        }
 
 }
 
@@ -273,4 +273,3 @@ jdetect_options::print_usage()
                   << " * count:    (optional) the current estimate of signal power"
                   << std::endl;
 }
-

@@ -58,68 +58,68 @@ namespace po = boost::program_options;
  */
 class program_options {
 public:
-	/**
-	 * Initialize the options parser with the program's name.
-	 *
-	 * @param program_name     the name of the program
-	 */
-	program_options(std::string const &program_name);
-	virtual ~program_options() {}
+        /**
+         * Initialize the options parser with the program's name.
+         *
+         * @param program_name     the name of the program
+         */
+        program_options(std::string program_name);
+        virtual ~program_options() {}
 
-	/** Options parsed from the commandline and configfile */
-	po::options_description cmd_opts;
-	/** Description of options visible in the help (may be a subset of cmd_opts) */
-	po::options_description visible_opts;
-	/** Options which are processed positionally */
-	po::positional_options_description pos_opts;
-	/** Values for options are stored here after parsing */
-	po::variables_map vmap;
+        /** Options parsed from the commandline and configfile */
+        po::options_description cmd_opts;
+        /** Description of options visible in the help (may be a subset of cmd_opts) */
+        po::options_description visible_opts;
+        /** Options which are processed positionally */
+        po::positional_options_description pos_opts;
+        /** Values for options are stored here after parsing */
+        po::variables_map vmap;
 
-	/**
-	 * Parse the command line arguments and store options.
-	 *
-	 * @param argc Number of arguments
-	 * @param argv Array of command-line arguments
-	 */
-	virtual void parse(int argc, char **argv);
+        /**
+         * Parse the command line arguments and store options.
+         *
+         * @param argc Number of arguments
+         * @param argv Array of command-line arguments
+         */
+        virtual void parse(int argc, char **argv);
 
-	/**
-	 * Retrieve the value of an option from storage. It's
-	 * recommended to explicitly specify the type, e.g. get<float>("blah")
-	 *
-	 * @param name  The name of the option
-	 */
-	template <typename T>
-	T get(std::string const &name) { return vmap[name].as<T>();}
+        /**
+         * Retrieve the value of an option from storage. It's
+         * recommended to explicitly specify the type, e.g. get<float>("blah")
+         *
+         * @param name  The name of the option
+         */
+        template <typename T>
+        T get(std::string const &name) { return vmap[name].as<T>();}
 
-	template <typename T>
-	T get(std::string const &name, T const & default_value) {
-		if (vmap.count(name) == 0)
-			return default_value;
-		else
-			return vmap[name].as<T>();
-	}
+        template <typename T>
+        T get(std::string const &name, T const & default_value) {
+                if (vmap.count(name) == 0)
+                        return default_value;
+                else
+                        return vmap[name].as<T>();
+        }
 
         int count(std::string const & name) {
                 return vmap.count(name);
         }
 
-	/**
-	 * Assign a parsed value to a variable, if the value is defined.
-	 *
-	 * @param ref      reference to variable to recieve new value
-	 * @param name     the name of the option
-	 * @return         true if the value was defined
-	 * @throws boost::bad_any_cast if the value could not be cast appropriately
-	 */
-	template <typename T>
-	bool assign(T &ref, std::string const &name) {
-		if (vmap.count(name)) {
-			ref = vmap[name].as<T>();
-			return true;
-		}
-		return false;
-	}
+        /**
+         * Assign a parsed value to a variable, if the value is defined.
+         *
+         * @param ref      reference to variable to recieve new value
+         * @param name     the name of the option
+         * @return         true if the value was defined
+         * @throws boost::bad_any_cast if the value could not be cast appropriately
+         */
+        template <typename T>
+        bool assign(T &ref, std::string const &name) {
+                if (vmap.count(name)) {
+                        ref = vmap[name].as<T>();
+                        return true;
+                }
+                return false;
+        }
 
         /**
          * Assign key-value pairs to a map. Use a vector of strings, e.g.
@@ -132,27 +132,27 @@ public:
         int parse_keyvals(std::map<std::string, std::string> & dict, std::string const & name);
 
 protected:
-	std::string _program_name;
+        std::string _program_name;
 
-	/**
-	 * This function is called once the options are parsed; its
-	 * job is to load data into the data members of the
-	 * object. Typically this consists of a series of calls to
-	 * @ref assign.
-	 */
+        /**
+         * This function is called once the options are parsed; its
+         * job is to load data into the data members of the
+         * object. Typically this consists of a series of calls to
+         * @ref assign.
+         */
         virtual void process_options() {};
 
-	/**
-	 * Print the name and version of the program. Called by
-	 * parse() when the user specifies the '-v' flag
-	 */
-	virtual void print_version();
+        /**
+         * Print the name and version of the program. Called by
+         * parse() when the user specifies the '-v' flag
+         */
+        virtual void print_version();
 
-	/**
-	 * Print the usage information. Called by parse() when the
-	 * user specifies the '-h' flag
-	 */
-	virtual void print_usage();
+        /**
+         * Print the usage information. Called by parse() when the
+         * user specifies the '-h' flag
+         */
+        virtual void print_usage();
 
 };
 
@@ -160,8 +160,8 @@ protected:
 template <> inline
 bool program_options::assign<bool>(bool &ref, std::string const &name)
 {
-	ref = (vmap.count(name) > 0);
-	return ref;
+        ref = (vmap.count(name) > 0);
+        return ref;
 }
 
 
@@ -171,18 +171,18 @@ bool program_options::assign<bool>(bool &ref, std::string const &name)
  */
 class Exit : public std::exception {
 public:
-	/**
-	 * Trigger program termination with a specific exit value.
-	 *
-	 * @param status    the value to return to the OS
-	 */
-	Exit(int status) : _status(status) { }
-	virtual ~Exit() throw () { }
+        /**
+         * Trigger program termination with a specific exit value.
+         *
+         * @param status    the value to return to the OS
+         */
+        Exit(int status) : _status(status) { }
+        virtual ~Exit() throw () { }
 
-	int status() const throw() { return _status; }
+        int status() const throw() { return _status; }
 
 protected:
-	int _status;
+        int _status;
 };
 
 

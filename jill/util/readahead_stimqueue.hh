@@ -11,7 +11,9 @@
 #ifndef _READAHEAD_STIMQUEUE_HH
 #define _READAHEAD_STIMQUEUE_HH
 
-#include <pthread.h>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include <vector>
 #include <boost/shared_ptr.hpp>
 #include "stimqueue.hh"
@@ -43,15 +45,14 @@ public:
         readahead_stimqueue(iterator first, iterator last,
                             nframes_t samplerate,
                             bool loop=false);
-        ~readahead_stimqueue();
+        ~readahead_stimqueue() = default;
 
-        stimulus_t const * head();
-        void release();
-        void stop();
-        void join();
+        stimulus_t const * head() override;
+        void release() override;
+        void stop() override;
+        void join() override;
 
 private:
-        static void * thread(void * arg); // thread entry point
         void loop();                      // called by thread
 
         iterator const _first;
@@ -61,11 +62,11 @@ private:
 
         nframes_t const _samplerate;
         bool const _loop;
+        bool _running;
 
-        pthread_t _thread_id;
-        pthread_mutex_t _lock;
-        pthread_cond_t  _ready;
-
+        std::thread _thread;
+        std::mutex _lock;
+        std::condition_variable  _ready;
 };
 
 }} // namespace jill::util

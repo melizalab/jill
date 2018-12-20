@@ -15,7 +15,7 @@
  */
 #include <sys/mman.h>
 #include <sys/shm.h>
-#include <string.h>
+#include <cstring>
 #include <unistd.h>
 #include <stdexcept>
 #include "mirrored_memory.hh"
@@ -43,7 +43,7 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_p
 
         // The mmap call ensures that there are two contiguous pages in virtual
         // address space.
-        mem_ptr = (char*) mmap (NULL,
+        mem_ptr = (char*) mmap (nullptr,
                         _size + _size,
                         PROT_NONE,
                         MAP_ANONYMOUS | MAP_PRIVATE,
@@ -69,15 +69,15 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_p
                 throw std::runtime_error("shared memory allocation failed");
 
         if ( _buf != shmat( shm_id, _buf, 0 ) ) {
-                shmctl( shm_id, IPC_RMID, NULL );
+                shmctl( shm_id, IPC_RMID, nullptr );
                 throw std::runtime_error("failed to attach lower pointer to shared memory");
         }
         if ( upper_ptr != shmat( shm_id, upper_ptr, 0 ) ) {
-                shmctl( shm_id, IPC_RMID, NULL );
+                shmctl( shm_id, IPC_RMID, nullptr );
                 throw std::runtime_error("failed to attach upper pointer to shared memory");
         }
 
-        if ( 0 > shmctl( shm_id, IPC_RMID, NULL ) )
+        if ( 0 > shmctl( shm_id, IPC_RMID, nullptr ) )
                 throw std::runtime_error("failed to tag shared memory for deletion");
 
         // zero out the memory

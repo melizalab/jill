@@ -30,9 +30,9 @@ public:
          */
         arf_writer(std::string const & filename,
                    jill::data_source const & source,
-                   std::map<std::string,std::string> const & entry_attrs,
+                   std::map<std::string,std::string> entry_attrs,
                    int compression=0);
-        ~arf_writer();
+        ~arf_writer() = default;
 
         /* data_writer overrides */
         bool ready() const;

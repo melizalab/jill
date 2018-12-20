@@ -21,9 +21,6 @@ block_ringbuffer::block_ringbuffer(std::size_t size)
         : super(size), _read_ahead_ptr(0)
 {}
 
-block_ringbuffer::~block_ringbuffer()
-{}
-
 size_t
 block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
                        size_t size, void const * data)
@@ -45,13 +42,13 @@ block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
         // store data
         memcpy(dst, data, header.sz_data);
         // advance write pointer
-        return super::push(0, header.size());
+        return super::push(nullptr, header.size());
 }
 
 data_block_t const *
 block_ringbuffer::peek_ahead()
 {
-        data_block_t const * ptr = 0;
+        data_block_t const * ptr = nullptr;
         if (read_space() > _read_ahead_ptr) {
                 ptr = reinterpret_cast<data_block_t const *>(buffer() + read_offset() + _read_ahead_ptr);
                 _read_ahead_ptr += ptr->size();
@@ -62,7 +59,7 @@ block_ringbuffer::peek_ahead()
 data_block_t const *
 block_ringbuffer::peek() const
 {
-        data_block_t const * ptr = 0;
+        data_block_t const * ptr = nullptr;
         if (read_space())
                 ptr = reinterpret_cast<data_block_t const *>(buffer() + read_offset());
         return ptr;
@@ -76,13 +73,13 @@ block_ringbuffer::release()
         if (ptr) {
                 if (_read_ahead_ptr > 0)
                         _read_ahead_ptr -= ptr->size();
-                super::pop(0, ptr->size());
+                super::pop(nullptr, ptr->size());
         }
 }
 
 void
 block_ringbuffer::release_all()
 {
-        super::pop(0,0);
+        super::pop(nullptr, 0);
         _read_ahead_ptr = 0;
 }

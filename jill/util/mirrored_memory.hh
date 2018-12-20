@@ -12,7 +12,6 @@
 #ifndef _MIRRORED_MEMORY_HH
 #define _MIRRORED_MEMORY_HH
 
-#include <boost/noncopyable.hpp>
 
 namespace jill { namespace util {
 
@@ -23,7 +22,7 @@ namespace jill { namespace util {
  * write functions can access their space as a single unbroken array. Based on
  * virtual ringbuffer by Philip Howard (http://vrb.slashusr.org/)
  */
-class mirrored_memory : boost::noncopyable
+class mirrored_memory
 {
 public:
         /** Request mirrored memory of at least size req_size bytes
@@ -37,6 +36,8 @@ public:
          * @param lock_pages  try to lock the buffer in memory
          */
         mirrored_memory(std::size_t req_size=0, std::size_t guard_size=0, bool lock_pages=true);
+        mirrored_memory(const mirrored_memory &) = delete;
+        mirrored_memory& operator=(const mirrored_memory &) = delete;
         ~mirrored_memory();
 
         /** Pointer to the allocated buffer */

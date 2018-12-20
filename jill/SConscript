@@ -9,6 +9,6 @@ else:
     files = [filter(lambda f: 'arf' not in f.path, env.Glob(os.path.join(d,'*.cc'))) for d in subdirs]
 
 lib = env.Library(libname, files)
-env.Alias('library',lib)
+env.Alias('library', lib)
 
 Return('lib')

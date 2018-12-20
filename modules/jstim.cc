@@ -9,7 +9,8 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
-#include <signal.h>
+#include <csignal>
+#include <random>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
@@ -30,16 +31,16 @@ using std::string;
 class jstim_options : public program_options {
 
 public:
-	jstim_options(string const &program_name);
+        jstim_options(string const &program_name);
 
         string server_name;
-	string client_name;
+        string client_name;
 
-	/** Ports to connect to */
-	std::vector<string> output_ports;
+        /** Ports to connect to */
+        std::vector<string> output_ports;
         std::vector<string> trigout_ports;
         midi::data_type trigout_chan;
-	std::vector<string> trigin_ports;
+        std::vector<string> trigin_ports;
 
         std::vector<string> stimuli; // this is postprocessed
 
@@ -51,7 +52,7 @@ public:
 
 protected:
 
-	virtual void print_usage();
+        void print_usage() override;
 
 }; // jstim_options
 
@@ -115,7 +116,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
 
         // if no stimulus queued do nothing
-        if (stim == 0) return 0;
+        if (!stim) return 0;
 
         // am I playing a stimulus?
         if (stim_offset > 0) {
@@ -156,8 +157,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // copy samples, if there are any
         nframes_t nsamples = std::min(stim->nframes() - stim_offset, nframes - period_offset);
-        DBG << "stim_offset=" << stim_offset << ", period_offset="
-            << period_offset << ", nsamples=" << nsamples;
+        // DBG << "stim_offset=" << stim_offset << ", period_offset="
+        //     << period_offset << ", nsamples=" << nsamples;
         if (nsamples > 0) {
                 memcpy(out + period_offset,
                        stim->buffer() + stim_offset,
@@ -239,9 +240,9 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
 int
 main(int argc, char **argv)
 {
-	using namespace std;
-	try {
-		options.parse(argc,argv);
+        using namespace std;
+        try {
+                options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
@@ -253,16 +254,16 @@ main(int argc, char **argv)
                         LOG << "minimum interval: " << options.min_interval_sec << "s ("
                                       << options.min_interval << " samples)";
                 }
-		if (options.stimuli.size() == 0) {
-		        LOG << "no stimuli; quitting";
-			throw Exit(0);
-		}
+                if (options.stimuli.size() == 0) {
+                        LOG << "no stimuli; quitting";
+                        throw Exit(0);
+                }
 
                 /* stimulus queue */
                 init_stimset(options.stimuli, options.nreps);
                 if (options.count("shuffle")) {
                         LOG << "shuffled stimuli";
-                        random_shuffle(_stimlist.begin(), _stimlist.end());
+                        shuffle(_stimlist.begin(), _stimlist.end(), std::mt19937(std::random_device()()));
                 }
                 queue.reset(new util::readahead_stimqueue(_stimlist.begin(), _stimlist.end(),
                                                           client->sampling_rate(),
@@ -280,9 +281,9 @@ main(int argc, char **argv)
                 }
 
                 // register signal handlers
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
+                signal(SIGINT,  signal_handler);
+                signal(SIGTERM, signal_handler);
+                signal(SIGHUP,  signal_handler);
 
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
@@ -305,16 +306,16 @@ main(int argc, char **argv)
                 sleep(1);
                 client->deactivate();
 
-		return EXIT_SUCCESS;
-	}
+                return EXIT_SUCCESS;
+        }
 
-	catch (Exit const &e) {
-		return e.status();
-	}
-	catch (std::exception const &e) {
+        catch (Exit const &e) {
+                return e.status();
+        }
+        catch (std::exception const &e) {
                 LOG << "ERROR: " << e.what();
-		return EXIT_FAILURE;
-	}
+                return EXIT_FAILURE;
+        }
 
 }
 
@@ -369,4 +370,3 @@ jstim_options::print_usage()
                   << " * trig_in:   (optional) event port for triggering playback"
                   << std::endl;
 }
-

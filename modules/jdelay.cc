@@ -9,7 +9,7 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
-#include <signal.h>
+#include <csignal>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 
@@ -22,28 +22,28 @@
 
 using namespace jill;
 using std::string;
-typedef dsp::ringbuffer<sample_t> sample_ringbuffer;
+using sample_ringbuffer = dsp::ringbuffer<sample_t>;
 
 class jdelay_options : public program_options {
 
 public:
-	jdelay_options(string const &program_name);
+        jdelay_options(string const &program_name);
 
-	/** The server name */
-	string server_name;
-	/** The client name (used in internal JACK representations) */
-	string client_name;
+        /** The server name */
+        string server_name;
+        /** The client name (used in internal JACK representations) */
+        string client_name;
 
-	/** Ports to connect to */
+        /** Ports to connect to */
         std::vector<string> input_ports;
-	std::vector<string> output_ports;
+        std::vector<string> output_ports;
 
         float delay_msec;
         nframes_t delay;
 
 protected:
 
-	virtual void print_usage();
+        void print_usage() override;
 
 }; // jstim_options
 
@@ -63,8 +63,8 @@ static int running = 1;
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {
-	sample_t *in = client->samples(port_in, nframes);
-	sample_t *out = client->samples(port_out, nframes);
+        sample_t *in = client->samples(port_in, nframes);
+        sample_t *out = client->samples(port_out, nframes);
 
         if (ringbuf.push(in, nframes) != nframes) {
                 DBG << "error: buffer overrun";
@@ -84,23 +84,23 @@ void
 jack_latency (jack_latency_callback_mode_t mode, void *arg)
 {
         float sr = 0.001 * client->sampling_rate();
-	jack_latency_range_t range;
-	if (mode == JackCaptureLatency) {
-		jack_port_get_latency_range (port_in, mode, &range);
+        jack_latency_range_t range;
+        if (mode == JackCaptureLatency) {
+                jack_port_get_latency_range (port_in, mode, &range);
                 LOG << "estimated capture latency (ms): ["
                               << range.min / sr << "," << range.max / sr << "]";
-		range.min += options.delay;
-		range.max += options.delay;
-		jack_port_set_latency_range (port_out, mode, &range);
-	}
+                range.min += options.delay;
+                range.max += options.delay;
+                jack_port_set_latency_range (port_out, mode, &range);
+        }
         else {
-		jack_port_get_latency_range (port_out, mode, &range);
-		range.min += options.delay;
-		range.max += options.delay;
-		jack_port_set_latency_range (port_in, mode, &range);
+                jack_port_get_latency_range (port_out, mode, &range);
+                range.min += options.delay;
+                range.max += options.delay;
+                jack_port_set_latency_range (port_in, mode, &range);
                 LOG << "estimated playback latency (ms): ["
                               << range.min / sr << "," << range.max / sr << "]";
-	}
+        }
 }
 
 /**
@@ -114,7 +114,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 {
         ringbuf.resize(options.delay + nframes);
         // simple way to set a fixed delay is to advance pointer
-        ringbuf.push(0, options.delay);
+        ringbuf.push(nullptr, options.delay);
         return 0;
 }
 
@@ -141,9 +141,9 @@ signal_handler(int sig)
 int
 main(int argc, char **argv)
 {
-	using namespace std;
-	try {
-		options.parse(argc,argv);
+        using namespace std;
+        try {
+                options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
                 options.delay = options.delay_msec * client->sampling_rate() / 1000;
                 LOG << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
@@ -154,15 +154,15 @@ main(int argc, char **argv)
                                                  JackPortIsOutput, 0);
 
                 // register signal handlers
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
+                signal(SIGINT,  signal_handler);
+                signal(SIGTERM, signal_handler);
+                signal(SIGHUP,  signal_handler);
 
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_buffer_size_callback(jack_bufsize);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
-                jack_set_latency_callback (client->client(), jack_latency, 0);
+                jack_set_latency_callback (client->client(), jack_latency, nullptr);
                 client->activate();
 
                 client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
@@ -173,16 +173,16 @@ main(int argc, char **argv)
                 }
 
                 client->deactivate();
-		return ret;
-	}
+                return ret;
+        }
 
-	catch (Exit const &e) {
-		return e.status();
-	}
-	catch (std::exception const &e) {
+        catch (Exit const &e) {
+                return e.status();
+        }
+        catch (std::exception const &e) {
                 LOG << "ERROR: " << e.what();
-		return EXIT_FAILURE;
-	}
+                return EXIT_FAILURE;
+        }
 
 }
 
@@ -220,4 +220,3 @@ jdelay_options::print_usage()
                   << " * out:       output port with delayed signal\n"
                   << std::endl;
 }
-

@@ -39,7 +39,7 @@ logger::logger()
         : _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER)),
           _connected(false)
 {
-        pthread_mutex_init(&_lock, 0);
+        pthread_mutex_init(&_lock, nullptr);
 }
 
 logger::~logger()
@@ -60,7 +60,7 @@ logger::~logger()
 void
 logger::log(timestamp_t const & utc, std::string const & msg)
 {
-        typedef boost::date_time::c_local_adjustor<timestamp_t> local_adj;
+        using local_adj = boost::date_time::c_local_adjustor<timestamp_t>;
         timestamp_t local = local_adj::utc_to_local(utc);
         // printf calls are generally threadsafe
         printf("%s [%s] %s\n", to_iso_string(local).c_str(), _source.c_str(), msg.c_str());
@@ -103,4 +103,3 @@ logger::connect(std::string const & server_name)
                 _connected = true;
         }
 }
-

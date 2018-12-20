@@ -18,7 +18,6 @@ out += [menv.Program(os.path.splitext(str(f))[0],[f]) for f in env.Glob("*.c")]
 
 if GetOption('compile_arf'):
     menv.Append(LIBS=['hdf5', 'hdf5_hl'])
-    programs['jrecord'] = ['jrecord.cc'],
     out.append(menv.Program("test_arf_writer", ["test_arf_writer.cc", lib]))
 
 

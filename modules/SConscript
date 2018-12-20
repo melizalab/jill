@@ -12,13 +12,14 @@ menv.Append(CPPPATH=['#'],
             LIBS=['jack','samplerate','sndfile','zmq','czmq','pthread'] + BOOST_LIBS,
             )
 
-programs = {'jdelay' : ['jdelay.cc'],
-            'jdetect' : ['jdetect.cc'],
-            'jstim' : ['jstim.cc'],
-            'jstimserver' : ['jstimserver.cc'],
-            'jclicker' : ['jclicker.cc'],
-            'jmonitor' : ['monitor_client.c'],
-            }
+programs = {
+    'jdelay' : 'jdelay.cc',
+    'jdetect' : 'jdetect.cc',
+    'jstim' : 'jstim.cc',
+    'jstimserver' : 'jstimserver.cc',
+    'jclicker' : 'jclicker.cc',
+    'jmonitor' : 'monitor_client.c',
+}
 
 if GetOption('compile_arf'):
     menv.Append(LIBS=['hdf5', 'hdf5_hl'])
@@ -27,8 +28,8 @@ if GetOption('compile_arf'):
 
 out = []
 
-for progname,srcs in programs.items():
-    prog = menv.Program(progname,srcs+[lib])
+for progname, src in programs.items():
+    prog = menv.Program(progname, [src, lib])
     menv.Alias(progname,prog)
     out.append(prog)
     env.Alias('install', env.Install(env['BINDIR'],prog))

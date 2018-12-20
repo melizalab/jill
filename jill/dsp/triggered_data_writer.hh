@@ -33,7 +33,7 @@ public:
          *                            trigger offset events
          */
         triggered_data_writer(boost::shared_ptr<data_writer> writer,
-                              std::string const & trigger_port,
+                              std::string trigger_port,
                               nframes_t pretrigger_frames, nframes_t posttrigger_frames);
 
         ~triggered_data_writer();

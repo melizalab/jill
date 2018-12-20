@@ -11,7 +11,7 @@ using namespace jill;
 using namespace jill::dsp;
 
 /** A data type for comparing differences between frame counts */
-typedef boost::make_signed<nframes_t>::type framediff_t;
+using framediff_t = boost::make_signed<nframes_t>::type;
 
 namespace jill {
 
@@ -26,10 +26,10 @@ operator<<(std::ostream & os, data_block_t const & b)
 }
 
 triggered_data_writer::triggered_data_writer(boost::shared_ptr<data_writer> writer,
-                                             string const & trigger_port,
+                                             string trigger_port,
                                              nframes_t pretrigger_frames, nframes_t posttrigger_frames)
         : buffered_data_writer(writer),
-          _trigger_port(trigger_port),
+          _trigger_port(std::move(trigger_port)),
           _pretrigger(pretrigger_frames),
           _posttrigger(std::max(posttrigger_frames, 1U)),
           _recording(false)

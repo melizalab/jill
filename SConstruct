@@ -32,6 +32,7 @@ AddOption('--libdir',
 AddOption('--no-arf',
           dest='compile_arf',
           action='store_false',
+          default=True,
           help='skip compilation of ARF/HDF5-dependent code')
 # debug flags for compliation
 debug = ARGUMENTS.get('debug', 0)
@@ -64,7 +65,15 @@ env = Environment(ENV=os.environ,
                   PREFIX=install_prefix,
                   LIBDIR=install_libdir,
                   BINDIR=install_bindir,
+                  CXXFLAGS = ["-std=c++14", "-stdlib=libc++"],
+                  LINKFLAGS = "-stdlib=libc++",
                   tools=['default'])
+
+if system=='Darwin':
+    env.Replace(CXX = "clang++")
+    env.Append(CPPPATH=['/opt/local/include'],
+               LIBPATH=['/opt/local/lib'])
+
 
 if os.environ.has_key('CXX'):
     env.Replace(CXX=os.environ['CXX'])
@@ -76,12 +85,10 @@ if os.environ.has_key('LDFLAGS'):
     env.Append(LINKFLAGS=os.environ['LDFLAGS'].split())
 
 if GetOption('compile_arf'):
-    env.ParseConfig("pkg-config --cflags --libs hdf5")
+    if system!='Darwin':
+        env.ParseConfig("pkg-config --cflags --libs hdf5")
     env.Append(CPPPATH=['#/arf'])
 
-if system=='Darwin':
-    env.Append(CPPPATH=['/opt/local/include'],
-               LIBPATH=['/opt/local/lib'])
 if int(debug):
     env.Append(CCFLAGS=['-g2', '-Wall','-DDEBUG=%s' % debug])
 else:

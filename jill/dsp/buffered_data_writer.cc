@@ -51,8 +51,8 @@ buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer
           _logger_bound(false)
 {
         DBG << "buffered_data_writer initializing";
-        pthread_mutex_init(&_lock, 0);
-        pthread_cond_init(&_ready, 0);
+        pthread_mutex_init(&_lock, nullptr);
+        pthread_cond_init(&_ready, nullptr);
 }
 
 buffered_data_writer::~buffered_data_writer()
@@ -150,8 +150,8 @@ buffered_data_writer::thread(void * arg)
         buffered_data_writer * self = static_cast<buffered_data_writer *>(arg);
         data_block_t const * hdr;
 
-	pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-	pthread_mutex_lock (&self->_lock);
+        pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+        pthread_mutex_lock (&self->_lock);
         self->_state = Running;
         self->_xrun = self->_reset = false;
         INFO << "started writer thread";

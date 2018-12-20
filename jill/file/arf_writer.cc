@@ -93,10 +93,10 @@ struct datatype_traits<event_t> {
 
 arf_writer::arf_writer(string const & filename,
                        data_source const & source,
-                       map<string,string> const & entry_attrs,
+                       map<string,string> entry_attrs,
                        int compression)
         : _data_source(source),
-          _attrs(entry_attrs),
+          _attrs(std::move(entry_attrs)),
           _compression(compression),
           _entry_start(0), _entry_idx(0)
 {
@@ -127,9 +127,6 @@ arf_writer::arf_writer(string const & filename,
         }
         _get_last_entry_index();
 }
-
-arf_writer::~arf_writer()
-{}
 
 void
 arf_writer::new_entry(nframes_t frame_count)
@@ -209,13 +206,13 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
         /* write the data */
         if (data->dtype == SAMPLED) {
                 dset = get_dataset(id, true);
-                sample_t const * samples = reinterpret_cast<sample_t const *>(data->data());
+                auto * samples = reinterpret_cast<sample_t const *>(data->data());
                 dset->second->write(samples + start_frame, stop_frame - start_frame);
         }
         else if (data->dtype == EVENT) {
-                char * message = 0;
+                char * message = nullptr;
                 dset = get_dataset(id, false);
-                char const * buffer = reinterpret_cast<char const *>(data->data());
+                auto * buffer = reinterpret_cast<char const *>(data->data());
                 event_t e = {data->time - _entry_start, (uint8_t)buffer[0], buffer+1};
                 if (e.status >= midi::note_off) {
                         // hex-encode standard midi events
@@ -251,9 +248,9 @@ arf_writer::_get_last_entry_index()
 {
         unsigned int val;
         vector<string> entries = _file->children();  // read-only
-        for (vector<string>::const_iterator it = entries.begin(); it != entries.end(); ++it) {
-                char const * match = strstr(it->c_str(), _data_source.name());
-                if (match == 0) continue;
+        for (auto & entry : entries) {
+                char const * match = strstr(entry.c_str(), _data_source.name());
+                if (!match) continue;
                 int rc = sscanf(match + strlen(_data_source.name()), "_%ud", &val);
                 val += 1;
                 if (rc == 1 && val > _entry_idx) _entry_idx = val;
@@ -265,7 +262,7 @@ arf_writer::_get_last_entry_index()
 arf_writer::dset_map_type::iterator
 arf_writer::get_dataset(string const & name, bool is_sampled)
 {
-        map<string, string>::iterator uuid = _dset_uuids.find(name);
+        auto uuid = _dset_uuids.find(name);
         if (uuid == _dset_uuids.end()) {
                 // generate new uuid for dataset name if it doesn't exist
                 string _uuid = boost::uuids::to_string(boost::uuids::random_generator()());
@@ -273,7 +270,7 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                 INFO << "uuid for " << name << ": " << uuid->second;
         }
 
-        dset_map_type::iterator dset = _dsets.find(name);
+        auto dset = _dsets.find(name);
         if (dset == _dsets.end()) {
                 arf::packet_table_ptr pt;
                 if (is_sampled) {

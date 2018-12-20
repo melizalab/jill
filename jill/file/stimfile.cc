@@ -23,10 +23,10 @@ namespace fs = boost::filesystem;
 using namespace jill::file;
 
 stimfile::stimfile(std::string const & path)
-        : _name(fs::path(path).stem().string()), _sndfile(0)
+        : _name(fs::path(path).stem().string()), _sndfile(nullptr)
 {
         _sndfile = sf_open(path.c_str(), SFM_READ, &_sfinfo);
-        if (_sndfile == 0) throw jill::FileError(sf_strerror(_sndfile));
+        if (!_sndfile) throw jill::FileError(sf_strerror(_sndfile));
         if (_sfinfo.channels != 1) {
                 throw jill::FileError("input file contains more than one channel");
         }
