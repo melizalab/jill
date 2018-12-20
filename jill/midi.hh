@@ -12,7 +12,7 @@
 #define _MIDI_HH 1
 
 #include "types.hh"
-#include <errno.h>
+#include <cerrno>
 #include <string>
 #include <cstring>
 #include <jack/midiport.h>
@@ -25,7 +25,7 @@ namespace jill {
 
 struct midi {
 
-        typedef jack_midi_data_t data_type;
+        using data_type = jack_midi_data_t;
 
         // status bytes
         const static data_type stim_on = 0x00;      // non-standard; message is a string
@@ -57,13 +57,14 @@ struct midi {
          * @param message  the string message, or 0 to send an empty message
          *
          */
-        static int write_message(void * buffer, nframes_t time, data_type status, char const * message=0) {
+        static int write_message(void * buffer, nframes_t time, data_type status, char const * message=nullptr) {
                 std::size_t len = 1;
                 if (message)
                         len += strlen(message) + 1; // add the null byte
                 data_type *buf = jack_midi_event_reserve(buffer, time, len);
                 if (buf) {
                         buf[0] = status;
+                        // FIXME: replace with strlcpy
                         if (message) strcpy(reinterpret_cast<char*>(buf)+1, message);
                         return 0;
                 }
@@ -112,4 +113,3 @@ struct midi {
 
 
 #endif /* _MIDI_HH */
-

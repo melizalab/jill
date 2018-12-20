@@ -41,18 +41,18 @@ public:
          * @param buffer_size  the initial size of the ringbuffer (in bytes)
          */
         buffered_data_writer(boost::shared_ptr<data_writer> writer, std::size_t buffer_size=4096);
-        virtual ~buffered_data_writer();
+        ~buffered_data_writer() override;
 
         /* implementations of data_thread methods */
 
         void push(nframes_t time, dtype_t dtype, char const * id,
-                  std::size_t size, void const * data);
-        void data_ready();
-        void xrun();
-        void reset();
-        void stop();
-        void start();
-        void join();
+                  std::size_t size, void const * data) override;
+        void data_ready() override;
+        void xrun() override;
+        void reset() override;
+        void stop() override;
+        void start() override;
+        void join() override;
 
         /**
          * Resize the ringbuffer. Only takes effect if the new size is larger
@@ -63,7 +63,7 @@ public:
          * only be called when data are no longer being added to the buffer
          * (i.e. in resize_buffer callback)
          */
-        virtual std::size_t request_buffer_size(std::size_t bytes);
+        std::size_t request_buffer_size(std::size_t bytes) override;
 
         /**
          * Bind the logger to a zeromq socket. Messages may be sent to this

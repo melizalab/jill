@@ -25,7 +25,7 @@ namespace jill {
  */
 class stimulus_t : boost::noncopyable {
 public:
-        virtual ~stimulus_t() {}
+        virtual ~stimulus_t() = default;
 
         /** An identifier for the stimulus */
         virtual char const * name() const = 0;

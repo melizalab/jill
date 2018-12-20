@@ -29,8 +29,8 @@ namespace jill { namespace dsp {
 template <typename T>
 class crossing_trigger : boost::noncopyable {
 public:
-	typedef T sample_type;
-	typedef typename crossing_counter<T>::size_type size_type;
+	using sample_type = T;
+	using size_type = typename crossing_counter<T>::size_type;
 
 	/**
 	 * Instantiate a signal detector.
@@ -77,7 +77,7 @@ public:
 				_close_counter.reset();
 				// push samples after offset to open counter
 				_open_counter.push(samples+offset, size-offset, _open_count_thresh,
-						   (counts!=0) ? counts+offset : 0);
+						   (counts!=nullptr) ? counts+offset : nullptr);
 				return offset;
 			}
 		}
@@ -89,7 +89,7 @@ public:
 				_open_counter.reset();
 				// push samples after offset to close counter
 				_close_counter.push(samples+offset, size-offset, _close_count_thresh,
-						    (counts!=0) ? counts+offset : 0);
+						    (counts!=nullptr) ? counts+offset : nullptr);
 				return offset;
 			}
 		}

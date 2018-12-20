@@ -39,8 +39,35 @@
 namespace jill { namespace dsp {
 
 namespace detail {
-        template <typename T> struct copyfrom;
-        template <typename T> struct copyto;
+
+template <typename T>
+
+// helper class for copying read
+// TODO could be more clever with const traits
+struct copyfrom {
+        T* _buf;
+        copyfrom(T * buf) : _buf(buf) {}
+        std::size_t operator() (T const * src, std::size_t cnt, std::size_t index=0) {
+                if (_buf) std::copy(src, src + cnt, _buf); // assume uses memcpy for POD
+                return cnt;
+        }
+};
+
+template <typename T>
+struct copyto {
+        T const * _buf;
+        copyto(T const * buf) : _buf(buf) {}
+        std::size_t operator() (T * dst, std::size_t cnt) {
+                if (_buf) {
+                        std::copy(_buf, _buf + cnt, dst);
+                }
+                // else {
+                //         memset(dst, 0, cnt * sizeof(T));
+                // }
+                return cnt;
+        }
+};
+
 }
 
 std::size_t
@@ -68,23 +95,23 @@ inline next_pow2(std::size_t size) {
 template <typename T>
 class ringbuffer {
 public:
-        typedef T data_type;
-	typedef typename boost::function<std::size_t (data_type const * src, std::size_t cnt)> read_visitor_type;
-	typedef typename boost::function<std::size_t (data_type * src, std::size_t cnt)> write_visitor_type;
+        using data_type = T;
+        using read_visitor_type = typename boost::function<std::size_t (const data_type *, std::size_t)>;
+        using write_visitor_type = typename boost::function<std::size_t (data_type *, std::size_t)>;
 
-	/**
-	 * Construct a ringbuffer with enough room to hold @a size
-	 * objects of type T.
-	 *
-	 * @param size The size of the ringbuffer (in objects)
-	 */
-	explicit ringbuffer(std::size_t size)
+        /**
+         * Construct a ringbuffer with enough room to hold @a size
+         * objects of type T.
+         *
+         * @param size The size of the ringbuffer (in objects)
+         */
+        explicit ringbuffer(std::size_t size)
                 : _write_ptr(0), _read_ptr(0)
         {
                 resize(size);
         }
 
-	~ringbuffer() {}
+        ~ringbuffer() = default;
 
         void resize(std::size_t size) {
                 _buf.reset(new jill::util::mirrored_memory(next_pow2(size * sizeof(data_type)),0,true));
@@ -96,29 +123,29 @@ public:
                 return _buf->size() / sizeof(data_type);
         }
 
-	/// @return the number of items that can be written to the ringbuffer
-	std::size_t write_space() const {
+        /// @return the number of items that can be written to the ringbuffer
+        std::size_t write_space() const {
                 return _read_ptr + size() - _write_ptr;
         }
 
-	/// @return the number of items that can be read from the ringbuffer
-	std::size_t read_space() const {
+        /// @return the number of items that can be read from the ringbuffer
+        std::size_t read_space() const {
                 return _write_ptr - _read_ptr;
         };
 
-	/**
-	 * Write data to the ringbuffer.  Uses std::copy, so object assignment
-	 * operator semantics matter. Specifically, make sure objects in the
-	 * ringbuffer own their resources.
-	 *
-	 * @param src Pointer to source buffer. If NULL, zeros are written to
-	 *            the buffer and the write pointer is advanced.
-	 * @param cnt The number of elements in the source buffer. Only as many
-	 *            elements as there is room will be written.
-	 *
-	 * @return The number of elements actually written
-	 */
-	std::size_t push(data_type const * src, std::size_t cnt) {
+        /**
+         * Write data to the ringbuffer.  Uses std::copy, so object assignment
+         * operator semantics matter. Specifically, make sure objects in the
+         * ringbuffer own their resources.
+         *
+         * @param src Pointer to source buffer. If NULL, zeros are written to
+         *            the buffer and the write pointer is advanced.
+         * @param cnt The number of elements in the source buffer. Only as many
+         *            elements as there is room will be written.
+         *
+         * @return The number of elements actually written
+         */
+        std::size_t push(data_type const * src, std::size_t cnt) {
                 detail::copyto<data_type> copier(src);
                 return push(copier, cnt);
         }
@@ -131,34 +158,34 @@ public:
                 return cnt;
         }
 
-	std::size_t push(data_type const & src) { return push(&src, 1); }
+        std::size_t push(data_type const & src) { return push(&src, 1); }
 
-	/**
-	 * Read data from the ringbuffer. This version of the function
-	 * copies data to a destination buffer.  Uses std::copy (i.e., the
-	 * assignment operator).
-	 *
-	 * @param dest the destination buffer, which needs to be pre-allocated.
-	 *             if 0, does not write any data but still advances read pointer
-	 * @param cnt the number of elements to read (0 for all)
-	 *
-	 * @return the number of elements actually read
-	 */
-	std::size_t pop(data_type * dest, std::size_t cnt=0) {
+        /**
+         * Read data from the ringbuffer. This version of the function
+         * copies data to a destination buffer.  Uses std::copy (i.e., the
+         * assignment operator).
+         *
+         * @param dest the destination buffer, which needs to be pre-allocated.
+         *             if 0, does not write any data but still advances read pointer
+         * @param cnt the number of elements to read (0 for all)
+         *
+         * @return the number of elements actually read
+         */
+        std::size_t pop(data_type * dest, std::size_t cnt=0) {
                 detail::copyfrom<data_type> copier(dest);
                 return pop(copier, cnt);
         }
 
-	/**
-	 * Read data from the ringbuffer using a visitor function.
-	 *
-	 * @param data_fun The visitor function (@see read_visitor_type) NB: to avoid copying
-	 *                 the underlying object use boost::ref
-	 * @param cnt      The number of elements to process, or 0 for all
+        /**
+         * Read data from the ringbuffer using a visitor function.
          *
-	 * @return the number of elements actually read
-	 */
-	std::size_t pop(read_visitor_type data_fun, std::size_t cnt=0) {
+         * @param data_fun The visitor function (@see read_visitor_type) NB: to avoid copying
+         *                 the underlying object use boost::ref
+         * @param cnt      The number of elements to process, or 0 for all
+         *
+         * @return the number of elements actually read
+         */
+        std::size_t pop(read_visitor_type data_fun, std::size_t cnt=0) {
                 if (cnt==0 || cnt > read_space())
                         cnt = read_space();
                 cnt = data_fun(buffer() + read_offset(), cnt);
@@ -187,32 +214,6 @@ private:
 
 namespace detail {
 
-// helper class for copying read
-// TODO could be more clever with const traits
-template <typename T>
-struct copyfrom {
-	T* _buf;
-	copyfrom(T * buf) : _buf(buf) {}
-        std::size_t operator() (T const * src, std::size_t cnt, std::size_t index=0) {
-                if (_buf) std::copy(src, src + cnt, _buf); // assume uses memcpy for POD
-                return cnt;
-	}
-};
-
-template <typename T>
-struct copyto {
-	T const * _buf;
-	copyto(T const * buf) : _buf(buf) {}
-        std::size_t operator() (T * dst, std::size_t cnt) {
-                if (_buf) {
-                        std::copy(_buf, _buf + cnt, dst);
-                }
-                // else {
-                //         memset(dst, 0, cnt * sizeof(T));
-                // }
-                return cnt;
-	}
-};
 
 }
 

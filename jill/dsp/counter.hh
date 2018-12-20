@@ -32,13 +32,13 @@ template <class T>
 class running_counter : boost::noncopyable {
 
         /// the storage type
-        typedef boost::circular_buffer<T> storage_type;
+        using storage_type = boost::circular_buffer<T>;
 
 public:
 	/** the data type stored in the counter */
-	typedef T data_type;
+	using data_type = T;
 	/** the data type for size information */
-        typedef typename storage_type::size_type size_type;
+        using size_type = typename storage_type::size_type;
 
 	/** Initialize the counter. @param size  the size of the running sum window */
 	explicit running_counter(size_type size)

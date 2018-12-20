@@ -19,7 +19,7 @@
 
 namespace jill {
 
-typedef boost::posix_time::ptime timestamp_t;
+using timestamp_t = boost::posix_time::ptime;
 
 /**
  * ABC for classes that write (or otherwise consume) multichannel sampled and
@@ -38,7 +38,7 @@ typedef boost::posix_time::ptime timestamp_t;
 class data_writer : boost::noncopyable {
 
 public:
-        virtual ~data_writer() {}
+        virtual ~data_writer() = default;
 
         /** true if an entry is open for recording */
         virtual bool ready() const = 0;

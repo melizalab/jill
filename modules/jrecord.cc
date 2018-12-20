@@ -11,7 +11,7 @@
  *
  */
 #include <iostream>
-#include <signal.h>
+#include <csignal>
 #include <boost/shared_ptr.hpp>
 
 #include "jill/logging.hh"
@@ -26,7 +26,7 @@
 
 using namespace jill;
 using std::string;
-typedef std::vector<string> svec;
+using svec = std::vector<string>;
 
 /* declare options parsing class */
 class jrecord_options : public program_options {
@@ -49,15 +49,15 @@ public:
 
 protected:
 
-	virtual void print_usage();
-	virtual void process_options();
+	void print_usage() override;
+	void process_options() override;
 
 };
 
 jrecord_options options(PROGRAM_NAME);
 boost::shared_ptr<jack_client> client;
 boost::shared_ptr<dsp::buffered_data_writer> arf_thread;
-jack_port_t * port_trig = 0;
+jack_port_t * port_trig = nullptr;
 
 
 int
@@ -70,7 +70,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         for (it = client->ports().begin(); it != client->ports().end(); ++it) {
                 port = *it;
                 buffer = jack_port_get_buffer(port, nframes);
-                if (buffer == 0) continue;
+                if (buffer == nullptr) continue;
                 if (strcmp(jack_port_type(port), JACK_DEFAULT_AUDIO_TYPE) == 0) {
                         arf_thread->push(time, SAMPLED, jack_port_short_name(port),
                                          nframes * sizeof(sample_t), buffer);
@@ -106,7 +106,7 @@ int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
         std::size_t bytes = client->sampling_rate() * options.buffer_size_s * client->nports();
-        if (port_trig != 0)
+        if (port_trig != nullptr)
                 bytes += client->sampling_rate() * options.pretrigger_size_s * client->nports();
         // will block until buffer is empty (with any current implementation, anyway)
         bytes = arf_thread->request_buffer_size(bytes * sizeof(sample_t));
@@ -120,7 +120,7 @@ void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
         /* determine if the last connection to the trigger port was cut */
-        if (port_trig == 0 || connected || strcmp(jack_port_name(port2), jack_port_name(port_trig)) != 0)
+        if (port_trig == nullptr || connected || strcmp(jack_port_name(port2), jack_port_name(port_trig)) != 0)
                 return;
         const char ** connections = jack_port_get_connections(port_trig);
         // can't directly compare port addresses
@@ -160,7 +160,7 @@ int
 main(int argc, char **argv)
 {
 	using namespace std;
-        typedef svec::const_iterator svec_iterator;
+        using svec_iterator = svec::const_iterator;
         int ret = 0;
         map<string,string> port_connections;
         boost::shared_ptr<data_writer> writer;
@@ -194,16 +194,16 @@ main(int argc, char **argv)
                 if (options.count("in")) {
                         int name_index = 0;
                         svec const & plist = options.vmap["in"].as<svec>();
-                        for ( svec_iterator it = plist.begin(); it!= plist.end(); ++it) {
-                                jack_port_t *p = client->get_port(*it);
-                                if (p==0) {
+                        for (const auto & it : plist) {
+                                jack_port_t *p = client->get_port(it);
+                                if (p==nullptr) {
                                         LOG << "error registering port: source port \""
-                                                      << *it << "\" does not exist";
+                                                      << it << "\" does not exist";
                                         throw Exit(-1);
                                 }
                                 else if (!(jack_port_flags(p) & JackPortIsOutput)) {
                                         LOG << "error registering port: source port \""
-                                                      << *it << "\" is not an output port";
+                                                      << it << "\" is not an output port";
                                         throw Exit(-1);
                                 }
                                 else {
@@ -212,11 +212,11 @@ main(int argc, char **argv)
                                                 sprintf(buf,"pcm_%03d",name_index);
                                         else
                                                 sprintf(buf,"evt_%03d",name_index);
-                                        LOG << "startup connection: " << *it << " -> " << buf;
+                                        LOG << "startup connection: " << it << " -> " << buf;
                                         name_index++;
                                         client->register_port(buf, jack_port_type(p),
                                                               JackPortIsInput | JackPortIsTerminal, 0);
-                                        port_connections[buf] = *it;
+                                        port_connections[buf] = it;
                                 }
                         }
                 }

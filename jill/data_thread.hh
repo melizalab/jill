@@ -35,7 +35,7 @@ namespace jill {
 class data_thread : boost::noncopyable {
 
 public:
-        virtual ~data_thread() {}
+        virtual ~data_thread() = default;
 
         /**
          * Process incoming data according to current state. In Stopped and

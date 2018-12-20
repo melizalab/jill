@@ -32,16 +32,16 @@ public:
                    jill::data_source const & source,
                    std::map<std::string,std::string> entry_attrs,
                    int compression=0);
-        ~arf_writer() = default;
+        ~arf_writer() override = default;
 
         /* data_writer overrides */
-        bool ready() const;
-        void new_entry(nframes_t);
-        void close_entry();
-        void xrun();
-        void write(data_block_t const *, nframes_t, nframes_t);
-        void log(timestamp_t const &, std::string const &, std::string const &);
-        void flush();
+        bool ready() const override;
+        void new_entry(nframes_t) override;
+        void close_entry() override;
+        void xrun() override;
+        void write(data_block_t const *, nframes_t, nframes_t) override;
+        void log(timestamp_t const &, std::string const &, std::string const &) override;
+        void flush() override;
 
 protected:
         typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;

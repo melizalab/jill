@@ -27,13 +27,13 @@ namespace jill {
 class jack_client;
 
 /** The data type holding samples. Inherited from JACK */
-typedef jack_default_audio_sample_t sample_t;
+using sample_t = jack_default_audio_sample_t;
 /** The data type holding information about frame counts. Inherited from JACK */
-typedef jack_nframes_t nframes_t;
+using nframes_t = jack_nframes_t;
 /** Data type for microsecond time information */
-typedef jack_time_t utime_t;
+using utime_t = jack_time_t;
 /** A data type holding extended position information. Inherited from JACK */
-typedef jack_position_t position_t;
+using position_t = jack_position_t;
 
 /** The kinds of data moved through JILL. Corresponds to jack port types */
 enum dtype_t {

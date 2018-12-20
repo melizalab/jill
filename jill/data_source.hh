@@ -24,7 +24,7 @@ namespace jill {
 class data_source : boost::noncopyable {
 
 public:
-        virtual ~data_source() {}
+        virtual ~data_source() = default;
 
         /** An identifier for the data source */
         virtual char const * name() const = 0;

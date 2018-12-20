@@ -31,8 +31,8 @@ namespace util {
 class readahead_stimqueue : public stimqueue {
 
 public:
-        typedef std::vector<stimulus_t *>::iterator iterator;
-        typedef std::vector<stimulus_t *>::const_iterator const_iterator;
+        using iterator = std::vector<stimulus_t *>::iterator;
+        using const_iterator = std::vector<stimulus_t *>::const_iterator;
 
         /**
          * Initialize the queue with a sequence of stimuli.
@@ -45,7 +45,7 @@ public:
         readahead_stimqueue(iterator first, iterator last,
                             nframes_t samplerate,
                             bool loop=false);
-        ~readahead_stimqueue() = default;
+        ~readahead_stimqueue() override = default;
 
         stimulus_t const * head() override;
         void release() override;
