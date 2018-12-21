@@ -51,8 +51,6 @@ buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer
           _logger_bound(false)
 {
         DBG << "buffered_data_writer initializing";
-        pthread_mutex_init(&_lock, nullptr);
-        pthread_cond_init(&_ready, nullptr);
 }
 
 buffered_data_writer::~buffered_data_writer()
@@ -61,9 +59,6 @@ buffered_data_writer::~buffered_data_writer()
         // need to make sure synchrons are not in use
         stop();                 // no more new data; exit writer thread
         join();                 // wait for writer thread to exit
-        // pthread_cancel(_thread_id);
-        pthread_mutex_destroy(&_lock);
-        pthread_cond_destroy(&_ready);
         zmq_close(_socket);
         zmq_ctx_destroy(_context);
 }
@@ -82,10 +77,7 @@ buffered_data_writer::push(nframes_t time, dtype_t dtype, char const * id,
 void
 buffered_data_writer::data_ready()
 {
-        if (pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
+        _ready.notify_one();
 }
 
 
@@ -117,9 +109,7 @@ void
 buffered_data_writer::start()
 {
         if (_state == Stopped) {
-                int ret = pthread_create(&_thread_id, NULL, buffered_data_writer::thread, this);
-                if (ret != 0)
-                        throw std::runtime_error("Failed to start writer thread");
+                _thread = std::thread(&buffered_data_writer::thread, this);
         }
         else {
                 throw std::runtime_error("Tried to start already running writer thread");
@@ -129,59 +119,56 @@ buffered_data_writer::start()
 void
 buffered_data_writer::join()
 {
-        pthread_join(_thread_id, NULL);
+        if (_thread.joinable())
+                _thread.join();
 }
 
 size_t
 buffered_data_writer::request_buffer_size(size_t bytes)
 {
         // block until the buffer is empty
-        pthread_mutex_lock(&_lock);
+        std::lock_guard<std::mutex> lck(_lock);
         if (bytes > _buffer->size()) {
                 _buffer->resize(bytes);
         }
-        pthread_mutex_unlock(&_lock);
         return _buffer->size();
 }
 
-void *
-buffered_data_writer::thread(void * arg)
+void
+buffered_data_writer::thread()
 {
-        buffered_data_writer * self = static_cast<buffered_data_writer *>(arg);
         data_block_t const * hdr;
 
-        pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-        pthread_mutex_lock (&self->_lock);
-        self->_state = Running;
-        self->_xrun = self->_reset = false;
+        std::unique_lock<std::mutex> lck(_lock);
+        _state = Running;
+        _xrun = _reset = false;
         INFO << "started writer thread";
 
-        while (1) {
-                if (__sync_bool_compare_and_swap(&self->_xrun, true, false)) {
-                        self->_writer->xrun();
+        while (true) {
+                if (__sync_bool_compare_and_swap(&_xrun, true, false)) {
+                        _writer->xrun();
                 }
-                hdr = self->_buffer->peek_ahead();
-                if (hdr == 0) {
-                        self->write_messages();
+                hdr = _buffer->peek_ahead();
+                if (!hdr) {
+                        write_messages();
                         /* if ringbuffer empty and Stopping, exit loop */
-                        if (self->_state == Stopping) {
+                        if (_state == Stopping) {
                                 break;
                         }
                         /* otherwise flush to disk and wait for more data */
                         else {
-                                self->_writer->flush();
-                                pthread_cond_wait (&self->_ready, &self->_lock);
+                                _writer->flush();
+                                _ready.wait(lck,
+                                            [this]{ return(_state == Stopping || _buffer->peek()); });
                         }
                 }
                 else {
-                        self->write(hdr);
+                        write(hdr);
                 }
         }
-        self->_writer->close_entry();
-        pthread_mutex_unlock(&self->_lock);
-        self->_state = Stopped;
+        _writer->close_entry();
+        _state = Stopped;
         INFO << "exited writer thread";
-        return 0;
 }
 
 void

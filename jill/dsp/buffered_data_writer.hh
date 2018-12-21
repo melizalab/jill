@@ -13,7 +13,9 @@
 #define _BUFFERED_DATA_WRITER_HH
 
 #include <iosfwd>
-#include <pthread.h>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include <boost/shared_ptr.hpp>
 #include "../data_thread.hh"
 #include "../data_writer.hh"
@@ -102,10 +104,12 @@ protected:
         boost::shared_ptr<block_ringbuffer> _buffer;      // ringbuffer
 
 private:
-        pthread_mutex_t _lock;                     // mutex for condition variable
-        pthread_cond_t  _ready;                    // indicates data ready
-        static void * thread(void * arg);           // the thread entry point
-        pthread_t _thread_id;                      // thread id
+        void thread();                              // the writer thread
+
+        std::thread _thread;
+        std::mutex _lock;                           // mutex for condition variable
+        std::condition_variable _ready;             // indicates data ready
+
         bool _xrun;                                // flag to indicate xrun
         // variables for receiving incoming messages
         void * _context;
