@@ -31,11 +31,12 @@ public:
          *                 multiple of the page size
          *
          * @param guard_size  requested size guard pages on either side of the
-         *                 allocated memory. Not implemented
+         *                    allocated memory. Default is 4 for compatibility
+         *                    with ARM's SYSV shared memory.
          *
          * @param lock_pages  try to lock the buffer in memory
          */
-        mirrored_memory(std::size_t req_size=0, std::size_t guard_size=0, bool lock_pages=true);
+        mirrored_memory(std::size_t req_size=0, std::size_t guard_size=4, bool lock_pages=true);
         mirrored_memory(const mirrored_memory &) = delete;
         mirrored_memory& operator=(const mirrored_memory &) = delete;
         ~mirrored_memory();
@@ -54,13 +55,13 @@ protected:
         /** total (virtual) size including guards */
         std::size_t total_size() const;
 
-        char *_buf;
+        char * _buf;
         std::size_t _size;
 
 private:
         // only used for cleanup
-        char *mem_ptr;
-        char *upper_ptr;
+        char * mem_ptr;
+        char * upper_ptr;
 
 };
 

@@ -27,13 +27,14 @@ using std::size_t;
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
-mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_pages)
+mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_pages, bool lock_pages)
 {
         int shm_id;
         size_t page_size = getpagesize();
+        size_t guard_size = guard_pages * page_size;
 
         // make sure size will not overflow size_t arithmetic
-        if (arg_size > ( ( (~(size_t)0) >> 2 ) - page_size))
+        if (arg_size > ( ( (~(size_t)0) >> 2 ) - page_size - guard_size - guard_size))
                 throw std::out_of_range("Argument size exceeds address space");
 
         // round to multiple of page size
@@ -44,11 +45,11 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_p
         // The mmap call ensures that there are two contiguous pages in virtual
         // address space.
         mem_ptr = (char*) mmap (nullptr,
-                        _size + _size,
-                        PROT_NONE,
-                        MAP_ANONYMOUS | MAP_PRIVATE,
-                        -1,
-                        0);
+                                _size + _size + guard_size + guard_size,
+                                PROT_NONE,
+                                MAP_ANONYMOUS | MAP_PRIVATE,
+                                -1,
+                                0);
 
         if (mem_ptr == MAP_FAILED)
                 throw std::runtime_error("anonymous mmap failed");
@@ -56,11 +57,13 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_size, bool lock_p
         if (lock_pages)
                 mlock(mem_ptr, total_size());
 
-        _buf = mem_ptr;
+        // round the address down to SHMLBA to prevent errors on archs where
+        // this is not the same as pagesize.
+        _buf = reinterpret_cast<char *> (reinterpret_cast<uintptr_t>(mem_ptr + guard_size) &
+                                         ~(SHMLBA - 1));
         upper_ptr = _buf + _size;
 
-        // this seems like a potential race condition. maybe this is what the
-        // guard pages are for?
+        // unmap the addresses that will be attached to the shared memory
         if ( 0 > munmap( _buf, _size + _size ) )
                 throw std::runtime_error("munmap failed");
 

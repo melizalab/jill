@@ -21,7 +21,7 @@ test_mmemory()
                 buf[i] = nrand48(seed);
         }
 
-        jill::util::mirrored_memory m(BUFSIZE);
+        jill::util::mirrored_memory m(BUFSIZE, 4);
         assert( m.size() == BUFSIZE);
         memcpy(m.buffer(), buf, BUFSIZE);
         assert(memcmp(m.buffer(), m.buffer() + m.size(), m.size()) == 0);
