@@ -38,9 +38,7 @@ logger::logger()
         // messages are asynchronous (no response from recipient).
         : _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER)),
           _connected(false)
-{
-        pthread_mutex_init(&_lock, nullptr);
-}
+{}
 
 logger::~logger()
 {
@@ -54,7 +52,6 @@ logger::~logger()
         zmq_setsockopt(_socket, ZMQ_LINGER, &linger, sizeof(linger));
         zmq_close(_socket);
         zmq_ctx_destroy(_context);
-        pthread_mutex_destroy(&_lock);
 }
 
 void
@@ -66,7 +63,7 @@ logger::log(timestamp_t const & utc, std::string const & msg)
         printf("%s [%s] %s\n", to_iso_string(local).c_str(), _source.c_str(), msg.c_str());
 
         if (_connected) {
-                pthread_mutex_lock(&_lock);
+                std::lock_guard<std::mutex> lock(_lock);
                 // message consists of the source name, the timestamp (as an iso
                 // string), and the actual log message. Note that the zmq dealer socket
                 // doesn't prepend an address envelope, so this is what the recipient
@@ -74,7 +71,6 @@ logger::log(timestamp_t const & utc, std::string const & msg)
                 zmq::send(_socket, _source, ZMQ_SNDMORE);
                 zmq::send(_socket, to_iso_string(utc), ZMQ_SNDMORE);
                 zmq::send(_socket, msg);
-                pthread_mutex_unlock(&_lock);
         }
 }
 
