@@ -258,9 +258,6 @@ main(int argc, char **argv)
                 }
 
                 arf_thread->join();
-                // force arf thread to destroy its socket; otherwise it happens
-                // very late and zmq complains about a dangling socket.
-                arf_thread.reset();
 
         }
         catch (Exit const &e) {
@@ -273,6 +270,9 @@ main(int argc, char **argv)
 
         // manually deactivating the client ensures shutdown events get logged
         if (client) client->deactivate();
+        // force arf thread to destroy its socket; otherwise it happens
+        // very late and zmq complains about a dangling socket.
+        arf_thread.reset();
         return ret;
 }
 

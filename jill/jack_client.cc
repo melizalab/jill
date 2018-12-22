@@ -126,11 +126,9 @@ void
 jack_client::deactivate()
 {
         int ret = jack_deactivate(_client);
-        if (ret) {
-                throw JackError(util::make_string() << "unable to deactivate client (err="
-                                << ret << ")");
-        }
-        LOG << "deactivated client" ;
+        // fail silently here in case the server has crashed or shut down
+        if (!ret)
+                LOG << "deactivated client" ;
 }
 
 void
