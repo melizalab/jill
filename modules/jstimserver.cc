@@ -9,9 +9,10 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
-#include <pthread.h>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include <signal.h>
-#include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_map.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -60,13 +61,13 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-boost::shared_ptr<jack_client> client;
+std::unique_ptr<jack_client> client;
 boost::ptr_map<std::string, stimulus_t> _stimuli;
 // current stimulus. Use __sync_bool_compare_and_swap to set from main thread
 stimulus_t const * _stim = 0;
-// mutex/cond to signal main thread that stimulus is done
-pthread_mutex_t _lock;
-pthread_cond_t  _ready;
+// mutex/cond to signal main thread when stim starts/stops
+std::mutex _lock;
+std::condition_variable  _ready;
 // zmq variables
 static int _running = 1;
 
@@ -74,32 +75,12 @@ jack_port_t *port_out, *port_trigout;
 
 static int xruns = 0;                  // xrun counter
 
-/**
- * The realtime process loop for jstim. The logic is complicated. The process
- * can be in two states:
- *
- * 1. currently playing stimulus. copy data from the stimulus buffer to the
- * output buffer, and update the static variable that tracks position in the
- * stimulus buffer. If an xrun was flagged, terminate the stimulus at the
- * beginning of the period. If the stimulus ends before the end of the period,
- * save the stop time to another static variable.
- *
- * 2. not playing stimulus. check for (a) trigger event, if we're in triggered
- * mode or (b) satisfaction of one of the minimum time constraints (interval =
- * time since last start; gap = time since last stop). Checking (b) is
- * complicated by the fact that the frame counter is unsigned and may overflow.
- * If either condition is true, copy data from the stimulus buffer (if
- * available) into the output buffer, starting with the onset time. Advance the
- * stimulus buffer tracking variable to reflect the number of samples played.
- *
- */
+/** The realtime process loop for jstimserver. */
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer
-        static nframes_t last_start;  // last stimulus start time
-        static nframes_t last_stop;   // last stimulus stop
 
         void * trig = client->events(port_trigout, nframes);
         sample_t * out = client->samples(port_out, nframes);
@@ -112,8 +93,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 if (stim_offset > 0 && _stim) {
                         stim_offset = _stim->nframes();
                 }
-                // reset timers because running time has changed
-                last_start = last_stop = time;
                 // indicate we've handled the xrun
                 __sync_add_and_fetch(&xruns, -1);
         }
@@ -121,35 +100,30 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // if no stimulus queued do nothing
         if (_stim == 0) return 0;
 
+        // notify if stimulus started
+        if (stim_offset == 0) {
+                _ready.notify_one();
+        }
+
         // copy samples, if there are any
         nframes_t nsamples = std::min(_stim->nframes() - stim_offset, nframes);
-        // notify monitor
-        if (stim_offset == 0 && pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
-        DBG << "stim_offset=" << stim_offset << ", nsamples=" << nsamples;
         if (nsamples > 0) {
                 memcpy(out,
                        _stim->buffer() + stim_offset,
                        nsamples * sizeof(sample_t));
                 stim_offset += nsamples;
         }
+
         // did the stimulus end?
         if (stim_offset >= _stim->nframes()) {
-                last_stop = time + nsamples;
                 midi::write_message(trig, nsamples,
                                     midi::stim_off, _stim->name());
-                DBG << "playback ended: time=" << last_stop << ", _stim=" << _stim->name();
+                // reset counter
                 stim_offset = 0;
-
                 // set ptr to null once done
                 _stim = 0;
-                // signal main thread if it's blocked
-                if (pthread_mutex_trylock (&_lock) == 0) {
-                        pthread_cond_signal (&_ready);
-                        pthread_mutex_unlock (&_lock);
-                }
+                // notify condition variable
+                _ready.notify_one();
         }
 
         return 0;
@@ -176,10 +150,8 @@ jack_shutdown(jack_status_t code, char const *)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
         _running = 0;
-        if (pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
+        std::lock_guard<std::mutex> lock(_lock);
+        _ready.notify_one();
 }
 
 void
@@ -187,10 +159,8 @@ signal_handler(int sig)
 {
         __sync_add_and_fetch(&xruns, 1); // gcc specific
         _running = 0;
-        if (pthread_mutex_trylock (&_lock) == 0) {
-                pthread_cond_signal (&_ready);
-                pthread_mutex_unlock (&_lock);
-        }
+        std::lock_guard<std::mutex> lock(_lock);
+        _ready.notify_one();
 }
 
 
@@ -229,40 +199,37 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
 }
 
 // This thread looks for start and stop events and publishes them
-static void *
-stim_monitor(void * arg)
+void
+stim_monitor()
 {
         // set up zeromq socket
         fs::path path("/tmp/org.meliza.jill");
         path /= options.server_name;
-        path /= options.client_name;
         path /= "pub";
         std::ostringstream endpoint;
         endpoint << "ipc://" << path.string();
-        zsock_t * pub_socket = zsock_new_pub(endpoint.str().c_str());
-        if (pub_socket == 0) {
+        zsock_t * socket = zsock_new_pub(endpoint.str().c_str());
+        if (socket == 0) {
                 LOG << "unable to bind to endpoint " << endpoint.str();
-                return 0;
+                return;
         }
         else {
                 INFO << "publishing start/stop events at " << endpoint.str();
         }
         // notify any waiting clients that we are alive. This is a pretty
         // fragile system for doing heartbeats.
-        zstr_send(pub_socket, "STARTING");
-        pthread_mutex_lock(&_lock);
+        std::unique_lock<std::mutex> lck(_lock);
+        zstr_send(socket, "STARTING");
         while (_running) {
-                pthread_cond_wait(&_ready, &_lock);
+                _ready.wait(lck);
                 if (_stim)
-                        zstr_sendf(pub_socket, "PLAYING %s", _stim->name());
+                        zstr_sendf(socket, "PLAYING %s", _stim->name());
                 else if (!_running)
-                        zstr_send(pub_socket, "STOPPING");
+                        zstr_send(socket, "STOPPING");
                 else
-                        zstr_send(pub_socket, "DONE");
+                        zstr_send(socket, "DONE");
         }
-        pthread_mutex_unlock(&_lock);
-        zsock_destroy(&pub_socket);
-        return 0;
+        zsock_destroy(&socket);
 }
 
 
@@ -282,10 +249,6 @@ main(int argc, char **argv)
                 /* load the stimuli */
                 std::string stimlist = init_stimset(options.stimuli, client->sampling_rate());
                 DBG << "stimlist: " << stimlist;
-
-                // initialize mutex/cond for signals from process
-                pthread_mutex_init(&_lock, 0);
-                pthread_cond_init(&_ready, 0);
 
                 // set up zeromq socket
                 fs::path path("/tmp/org.meliza.jill");
@@ -330,9 +293,7 @@ main(int argc, char **argv)
                 client->connect_ports("trig_out",
                                       options.trigout_ports.begin(), options.trigout_ports.end());
 
-                pthread_t monitor_thread_id;
-                pthread_create(&monitor_thread_id, NULL, stim_monitor, NULL);
-
+                std::thread monitor_thread(stim_monitor);
                 LOG << "waiting for requests";
                 while (_running) {
                         zmsg_t * msg = zmsg_recv(req_socket);
@@ -370,9 +331,7 @@ main(int argc, char **argv)
                 LOG << "stopping";
 
                 client->deactivate();
-                pthread_join(monitor_thread_id, NULL);
-                pthread_mutex_destroy(&_lock);
-                pthread_cond_destroy(&_ready);
+                if (monitor_thread.joinable()) monitor_thread.join();
                 zsock_destroy(&req_socket);
 
                 return EXIT_SUCCESS;
