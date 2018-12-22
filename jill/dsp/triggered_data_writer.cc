@@ -25,10 +25,10 @@ operator<<(std::ostream & os, data_block_t const & b)
 
 }
 
-triggered_data_writer::triggered_data_writer(boost::shared_ptr<data_writer> writer,
+triggered_data_writer::triggered_data_writer(std::unique_ptr<data_writer> writer,
                                              string trigger_port,
                                              nframes_t pretrigger_frames, nframes_t posttrigger_frames)
-        : buffered_data_writer(writer),
+        : buffered_data_writer(std::move(writer)),
           _trigger_port(std::move(trigger_port)),
           _pretrigger(pretrigger_frames),
           _posttrigger(std::max(posttrigger_frames, 1U)),

@@ -12,7 +12,6 @@
 #include <iostream>
 #include <vector>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 
 #include "../logging.hh"
@@ -43,9 +42,9 @@ using std::string;
  * thread exits when the ringbuffer is fully flushed.
  */
 
-buffered_data_writer::buffered_data_writer(boost::shared_ptr<data_writer> writer, size_t buffer_size)
+buffered_data_writer::buffered_data_writer(std::unique_ptr<data_writer> writer, size_t buffer_size)
         : _state(Stopped),
-          _writer(writer),
+          _writer(std::move(writer)),
           _buffer(new block_ringbuffer(buffer_size)),
           _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER)),
           _logger_bound(false)
@@ -91,9 +90,9 @@ buffered_data_writer::xrun()
 void
 buffered_data_writer::stop()
 {
-        __sync_bool_compare_and_swap(&_state, Running, Stopping);
         // release condition variable to prevent deadlock
-        data_ready();
+        if (__sync_bool_compare_and_swap(&_state, Running, Stopping))
+                data_ready();
 }
 
 
@@ -142,7 +141,7 @@ buffered_data_writer::thread()
         std::unique_lock<std::mutex> lck(_lock);
         _state = Running;
         _xrun = _reset = false;
-        INFO << "started writer thread";
+        DBG << "started writer thread";
 
         while (true) {
                 if (__sync_bool_compare_and_swap(&_xrun, true, false)) {
@@ -168,7 +167,7 @@ buffered_data_writer::thread()
         }
         _writer->close_entry();
         _state = Stopped;
-        INFO << "exited writer thread";
+        DBG << "exited writer thread";
 }
 
 void

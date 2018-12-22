@@ -32,7 +32,7 @@ using svec = std::vector<string>;
 class jrecord_options : public program_options {
 
 public:
-	jrecord_options(string const &program_name);
+        jrecord_options(string const &program_name);
 
         string server_name;
         string client_name;
@@ -41,22 +41,22 @@ public:
         std::map<string, string> additional_options;
 
         string output_file;
-	float pretrigger_size_s;
-	float posttrigger_size_s;
-	float buffer_size_s;
-	int max_size_mb;
+        float pretrigger_size_s;
+        float posttrigger_size_s;
+        float buffer_size_s;
+        int max_size_mb;
         int compression;
 
 protected:
 
-	void print_usage() override;
-	void process_options() override;
+        void print_usage() override;
+        void process_options() override;
 
 };
 
 jrecord_options options(PROGRAM_NAME);
-boost::shared_ptr<jack_client> client;
-boost::shared_ptr<dsp::buffered_data_writer> arf_thread;
+std::unique_ptr<jack_client> client;
+std::unique_ptr<dsp::buffered_data_writer> arf_thread;
 jack_port_t * port_trig = nullptr;
 
 
@@ -141,36 +141,34 @@ void
 jack_shutdown(jack_status_t code, char const * msg)
 {
         LOG << "jackd shut the client down (" << msg << ")";
-        if (arf_thread) {
+        if (arf_thread)
                 arf_thread->stop();
-        }
 }
 
 
 void
 signal_handler(int sig)
 {
-        if (arf_thread) {
+        DBG << "shutting down on signal";
+        if (arf_thread)
                 arf_thread->stop();
-        }
 }
 
 
 int
 main(int argc, char **argv)
 {
-	using namespace std;
-        using svec_iterator = svec::const_iterator;
+        using namespace std;
+        using jill::file::arf_writer;
         int ret = 0;
         map<string,string> port_connections;
-        boost::shared_ptr<data_writer> writer;
-	try {
-		options.parse(argc,argv);
+        try {
+                options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
-                writer.reset(new file::arf_writer(options.output_file,
-                                                  *client,
-                                                  options.additional_options,
-                                                  options.compression));
+                auto writer = std::make_unique<arf_writer>(options.output_file,
+                                                           *client,
+                                                           options.additional_options,
+                                                           options.compression);
 
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {
@@ -178,14 +176,14 @@ main(int argc, char **argv)
                         port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                           JackPortIsInput | JackPortIsTerminal, 0);
                         arf_thread.reset(new dsp::triggered_data_writer(
-                                                 writer,
+                                                 std::move(writer),
                                                  jack_port_short_name(port_trig),
                                                  options.pretrigger_size_s * client->sampling_rate(),
                                                  options.posttrigger_size_s * client->sampling_rate()));
                 }
                 else {
                         LOG << "recording will be continuous";
-                        arf_thread.reset(new dsp::buffered_data_writer(writer));
+                        arf_thread.reset(new dsp::buffered_data_writer(std::move(writer)));
                 }
                 /* bind socket for storing messages in arf file */
                 arf_thread->bind_logger(options.server_name);
@@ -234,9 +232,9 @@ main(int argc, char **argv)
                 }
 
                 // register signal handlers
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
+                signal(SIGINT,  signal_handler);
+                signal(SIGTERM, signal_handler);
+                signal(SIGHUP,  signal_handler);
 
                 // register callbacks
                 client->set_shutdown_callback(jack_shutdown);
@@ -249,7 +247,7 @@ main(int argc, char **argv)
                 client->activate();
                 arf_thread->start();
 
-		/* connect ports */
+                /* connect ports */
                 if (options.count("trig")) {
                         svec const & plist = options.vmap["trig"].as<svec>();
                         client->connect_ports(plist.begin(), plist.end(), "trig_in");
@@ -260,15 +258,18 @@ main(int argc, char **argv)
                 }
 
                 arf_thread->join();
+                // force arf thread to destroy its socket; otherwise it happens
+                // very late and zmq complains about a dangling socket.
+                arf_thread.reset();
 
-	}
-	catch (Exit const &e) {
-		ret = e.status();
-	}
-	catch (exception const &e) {
+        }
+        catch (Exit const &e) {
+                ret = e.status();
+        }
+        catch (exception const &e) {
                 LOG << "ERROR: " << e.what();
-		ret = EXIT_FAILURE;
-	}
+                ret = EXIT_FAILURE;
+        }
 
         // manually deactivating the client ensures shutdown events get logged
         if (client) client->deactivate();

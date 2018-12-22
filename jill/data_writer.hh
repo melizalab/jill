@@ -81,9 +81,9 @@ public:
          * @param message a descriptive message. should include information
          *                about the source
          */
-        virtual void log(timestamp_t const & time,
-                         std::string const & source,
-                         std::string const & message) {}
+        virtual void log(timestamp_t time,
+                         std::string source,
+                         std::string message) {}
 
         /**
          * Request data to be flushed to disk. Implementing classes must flush data

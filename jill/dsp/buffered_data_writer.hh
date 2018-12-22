@@ -16,7 +16,6 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#include <boost/shared_ptr.hpp>
 #include "../data_thread.hh"
 #include "../data_writer.hh"
 
@@ -42,7 +41,7 @@ public:
          * @param writer       the sink for the data
          * @param buffer_size  the initial size of the ringbuffer (in bytes)
          */
-        buffered_data_writer(boost::shared_ptr<data_writer> writer, std::size_t buffer_size=4096);
+        buffered_data_writer(std::unique_ptr<data_writer> writer, std::size_t buffer_size=4096);
         ~buffered_data_writer() override;
 
         /* implementations of data_thread methods */
@@ -100,8 +99,8 @@ protected:
         state_t _state;                            // thread state
         bool _reset;                               // flag to reset stream
 
-        boost::shared_ptr<data_writer> _writer;            // output
-        boost::shared_ptr<block_ringbuffer> _buffer;      // ringbuffer
+        std::unique_ptr<data_writer> _writer;            // output
+        std::unique_ptr<block_ringbuffer> _buffer;      // ringbuffer
 
 private:
         void thread();                              // the writer thread

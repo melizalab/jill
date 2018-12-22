@@ -40,7 +40,7 @@ public:
         void close_entry() override;
         void xrun() override;
         void write(data_block_t const *, nframes_t, nframes_t) override;
-        void log(timestamp_t const &, std::string const &, std::string const &) override;
+        void log(timestamp_t, std::string, std::string) override;
         void flush() override;
 
 protected:
