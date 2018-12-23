@@ -65,7 +65,7 @@ env = Environment(ENV=os.environ,
                   PREFIX=install_prefix,
                   LIBDIR=install_libdir,
                   BINDIR=install_bindir,
-                  CXXFLAGS = ["-std=c++14"],
+                  CXXFLAGS = ["-std=c++14", "-mtune=native"],
                   tools=['default'])
 
 if system=='Darwin':

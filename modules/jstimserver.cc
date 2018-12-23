@@ -62,14 +62,14 @@ protected:
 
 jstim_options options(PROGRAM_NAME);
 boost::ptr_map<std::string, stimulus_t> _stimuli;
-// current stimulus. Use __sync_bool_compare_and_swap to set from main thread
+// current stimulus
 stimulus_t const * _stim = 0;
 // mutex/cond to signal zmq thread when stim starts/stops or if there is an xrun
 std::mutex _lock;
 std::condition_variable  _ready;
 static bool _running = true;
 static bool _xrun = false;
-
+// jack ports
 jack_port_t *port_out, *port_trigout;
 
 
@@ -82,11 +82,13 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         void * trig = client->events(port_trigout, nframes);
         sample_t * out = client->samples(port_out, nframes);
-        // zero the output buffer - somewhat inefficient but safer
-        memset(out, 0, nframes * sizeof(sample_t));
 
-        // if no stimulus queued do nothing
-        if (!_stim) return 0;
+        // if no stimulus queued zero output buffer
+        if (!_stim) {
+                for(nframes_t i = 0; i < nframes; ++i)
+                        out[i] = 0.0f;
+                return 0;
+        }
 
         // notify if stimulus started
         if (stim_offset == 0) {
@@ -98,9 +100,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // copy samples, if there are any
         nframes_t nsamples = std::min(_stim->nframes() - stim_offset, nframes);
         if (nsamples > 0) {
-                memcpy(out,
-                       _stim->buffer() + stim_offset,
-                       nsamples * sizeof(sample_t));
+                auto * stimptr = _stim->buffer() + stim_offset;
+                nframes_t i = 0;
+                for (; i < nsamples; ++i)
+                        out[i] = stimptr[i];
+                for (; i < nframes; ++i)
+                        out[i] = 0.0f;
                 stim_offset += nsamples;
         }
 
