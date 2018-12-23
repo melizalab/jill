@@ -61,19 +61,17 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-std::unique_ptr<jack_client> client;
 boost::ptr_map<std::string, stimulus_t> _stimuli;
 // current stimulus. Use __sync_bool_compare_and_swap to set from main thread
 stimulus_t const * _stim = 0;
-// mutex/cond to signal main thread when stim starts/stops
+// mutex/cond to signal zmq thread when stim starts/stops or if there is an xrun
 std::mutex _lock;
 std::condition_variable  _ready;
-// zmq variables
-static int _running = 1;
+static bool _running = true;
+static bool _xrun = false;
 
 jack_port_t *port_out, *port_trigout;
 
-static int xruns = 0;                  // xrun counter
 
 /** The realtime process loop for jstimserver. */
 int
@@ -87,21 +85,13 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // zero the output buffer - somewhat inefficient but safer
         memset(out, 0, nframes * sizeof(sample_t));
 
-        // handle xruns
-        if (xruns) {
-                // playing stimuli are truncated
-                if (stim_offset > 0 && _stim) {
-                        stim_offset = _stim->nframes();
-                }
-                // indicate we've handled the xrun
-                __sync_add_and_fetch(&xruns, -1);
-        }
-
         // if no stimulus queued do nothing
-        if (_stim == 0) return 0;
+        if (!_stim) return 0;
 
         // notify if stimulus started
         if (stim_offset == 0) {
+                midi::write_message(trig, 0,
+                                    midi::stim_on, _stim->name());
                 _ready.notify_one();
         }
 
@@ -121,7 +111,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 // reset counter
                 stim_offset = 0;
                 // set ptr to null once done
-                _stim = 0;
+                _stim = nullptr;
                 // notify condition variable
                 _ready.notify_one();
         }
@@ -132,34 +122,36 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 int
 jack_xrun(jack_client *client, float delay)
 {
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
+        std::lock_guard<std::mutex> lock(_lock);
+        _xrun = true;
+        _ready.notify_one();
         return 0;
 }
 
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // we use the xruns counter to notify the process thread that an
-        // interruption in the audio stream has occurred
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
+        // we use the xruns counter to notify that an interruption in the audio
+        // stream has occurred
+        std::lock_guard<std::mutex> lock(_lock);
+        _xrun = true;
+        _ready.notify_one();
         return 0;
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
-        _running = 0;
         std::lock_guard<std::mutex> lock(_lock);
+        _running = false;
         _ready.notify_one();
 }
 
 void
 signal_handler(int sig)
 {
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
-        _running = 0;
         std::lock_guard<std::mutex> lock(_lock);
+        _running = false;
         _ready.notify_one();
 }
 
@@ -203,8 +195,9 @@ void
 stim_monitor()
 {
         // set up zeromq socket
-        fs::path path("/tmp/org.meliza.jill");
+        fs::path path{"/tmp/org.meliza.jill"};
         path /= options.server_name;
+        path /= options.client_name;
         path /= "pub";
         std::ostringstream endpoint;
         endpoint << "ipc://" << path.string();
@@ -222,10 +215,12 @@ stim_monitor()
         zstr_send(socket, "STARTING");
         while (_running) {
                 _ready.wait(lck);
-                if (_stim)
-                        zstr_sendf(socket, "PLAYING %s", _stim->name());
+                if (_xrun)
+                        zstr_sendf(socket, "XRUN");
                 else if (!_running)
                         zstr_send(socket, "STOPPING");
+                else if (_stim)
+                        zstr_sendf(socket, "PLAYING %s", _stim->name());
                 else
                         zstr_send(socket, "DONE");
         }
@@ -239,7 +234,8 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                client.reset(new jack_client(options.client_name, options.server_name));
+                auto client = std::make_unique<jack_client>(options.client_name,
+                                                            options.server_name);
                 options.trigout_chan &= midi::chan_nib;
 
                 if (options.stimuli.size() == 0) {

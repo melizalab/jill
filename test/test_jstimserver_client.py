@@ -16,7 +16,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("-e", "--endpoint",
                    help="endpoint of jstimserver",
-                   default="ipc:///tmp/org.meliza.jill/default/")
+                   default="ipc:///tmp/org.meliza.jill/default/jstimserver")
     p.add_argument("request")
 
     opts = p.parse_args()
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     subsock.setsockopt(zmq.SUBSCRIBE, b"")
 
     reqsock = ctx.socket(zmq.REQ)
-    reqsock.connect(os.path.join(opts.endpoint, "jstimserver", "req"))
+    reqsock.connect(os.path.join(opts.endpoint, "req"))
 
     reqsock.send(opts.request.encode())
     reply = reqsock.recv()
