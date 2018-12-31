@@ -31,6 +31,8 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_pages, bool lock_
 {
         int shm_id;
         size_t page_size = getpagesize();
+        if (SHMLBA > page_size)
+                page_size = SHMLBA;
         size_t guard_size = guard_pages * page_size;
 
         // make sure size will not overflow size_t arithmetic
