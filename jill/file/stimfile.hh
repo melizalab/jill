@@ -34,21 +34,21 @@ public:
          * @throws jill::FileError if the file doesn't exist
          */
         stimfile(std::string const & path);
-        ~stimfile();
+        ~stimfile() override;
 
-        char const * name() const { return _name.c_str(); }
+        char const * name() const override { return _name.c_str(); }
 
-        nframes_t nframes() const { return _nframes; }
-        nframes_t samplerate() const { return _samplerate; }
+        nframes_t nframes() const override { return _nframes; }
+        nframes_t samplerate() const override { return _samplerate; }
 
-        sample_t const * buffer() const { return (_buffer) ? _buffer.get() : 0; }
+        sample_t const * buffer() const override { return (_buffer) ? _buffer.get() : nullptr; }
 
         /**
          * Load samples from disk and resample as needed
          *
          * @param samplerate - the target samplerate, or 0 to use the file's rate
          */
-        void load_samples(nframes_t samplerate=0);
+        void load_samples(nframes_t samplerate=0) override;
 
 private:
         std::string _name;

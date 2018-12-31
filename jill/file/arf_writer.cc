@@ -233,7 +233,7 @@ arf_writer::flush()
 }
 
 void
-arf_writer::log(timestamp_t const &utc, string const & source, string const & msg)
+arf_writer::log(timestamp_t utc, string source, string msg)
 {
         char m[msg.length() + source.length() + 4];
         sprintf(m, "[%s] %s", source.c_str(), msg.c_str());

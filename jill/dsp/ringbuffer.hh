@@ -39,8 +39,35 @@
 namespace jill { namespace dsp {
 
 namespace detail {
-        template <typename T> struct copyfrom;
-        template <typename T> struct copyto;
+
+template <typename T>
+
+// helper class for copying read
+// TODO could be more clever with const traits
+struct copyfrom {
+        T* _buf;
+        copyfrom(T * buf) : _buf(buf) {}
+        std::size_t operator() (T const * src, std::size_t cnt, std::size_t index=0) {
+                if (_buf) std::copy(src, src + cnt, _buf); // assume uses memcpy for POD
+                return cnt;
+        }
+};
+
+template <typename T>
+struct copyto {
+        T const * _buf;
+        copyto(T const * buf) : _buf(buf) {}
+        std::size_t operator() (T * dst, std::size_t cnt) {
+                if (_buf) {
+                        std::copy(_buf, _buf + cnt, dst);
+                }
+                // else {
+                //         memset(dst, 0, cnt * sizeof(T));
+                // }
+                return cnt;
+        }
+};
+
 }
 
 std::size_t
@@ -68,9 +95,9 @@ inline next_pow2(std::size_t size) {
 template <typename T>
 class ringbuffer {
 public:
-        typedef T data_type;
-        typedef typename boost::function<std::size_t (data_type const * src, std::size_t cnt)> read_visitor_type;
-        typedef typename boost::function<std::size_t (data_type * src, std::size_t cnt)> write_visitor_type;
+        using data_type = T;
+        using read_visitor_type = typename boost::function<std::size_t (const data_type *, std::size_t)>;
+        using write_visitor_type = typename boost::function<std::size_t (data_type *, std::size_t)>;
 
         /**
          * Construct a ringbuffer with enough room to hold @a size
@@ -84,7 +111,7 @@ public:
                 resize(size);
         }
 
-        ~ringbuffer() {}
+        ~ringbuffer() = default;
 
         void resize(std::size_t size) {
                 _buf.reset(new jill::util::mirrored_memory(next_pow2(size * sizeof(data_type)),
@@ -186,38 +213,6 @@ private:
         std::size_t _read_ptr;
         std::size_t _size_mask;
 };
-
-namespace detail {
-
-// helper class for copying read
-// TODO could be more clever with const traits
-template <typename T>
-struct copyfrom {
-        T* _buf;
-        copyfrom(T * buf) : _buf(buf) {}
-        std::size_t operator() (T const * src, std::size_t cnt, std::size_t index=0) {
-                if (_buf) std::copy(src, src + cnt, _buf); // assume uses memcpy for POD
-                return cnt;
-        }
-};
-
-template <typename T>
-struct copyto {
-        T const * _buf;
-        copyto(T const * buf) : _buf(buf) {}
-        std::size_t operator() (T * dst, std::size_t cnt) {
-                if (_buf) {
-                        std::copy(_buf, _buf + cnt, dst);
-                }
-                // else {
-                //         memset(dst, 0, cnt * sizeof(T));
-                // }
-                return cnt;
-        }
-};
-
-}
-
 
 }} // namespace
 

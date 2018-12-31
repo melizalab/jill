@@ -13,8 +13,9 @@
 #define _BUFFERED_DATA_WRITER_HH
 
 #include <iosfwd>
-#include <pthread.h>
-#include <boost/shared_ptr.hpp>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include "../data_thread.hh"
 #include "../data_writer.hh"
 
@@ -40,19 +41,19 @@ public:
          * @param writer       the sink for the data
          * @param buffer_size  the initial size of the ringbuffer (in bytes)
          */
-        buffered_data_writer(boost::shared_ptr<data_writer> writer, std::size_t buffer_size=4096);
-        virtual ~buffered_data_writer();
+        buffered_data_writer(std::unique_ptr<data_writer> writer, std::size_t buffer_size=4096);
+        ~buffered_data_writer() override;
 
         /* implementations of data_thread methods */
 
         void push(nframes_t time, dtype_t dtype, char const * id,
-                  std::size_t size, void const * data);
-        void data_ready();
-        void xrun();
-        void reset();
-        void stop();
-        void start();
-        void join();
+                  std::size_t size, void const * data) override;
+        void data_ready() override;
+        void xrun() override;
+        void reset() override;
+        void stop() override;
+        void start() override;
+        void join() override;
 
         /**
          * Resize the ringbuffer. Only takes effect if the new size is larger
@@ -63,7 +64,7 @@ public:
          * only be called when data are no longer being added to the buffer
          * (i.e. in resize_buffer callback)
          */
-        virtual std::size_t request_buffer_size(std::size_t bytes);
+        std::size_t request_buffer_size(std::size_t bytes) override;
 
         /**
          * Bind the logger to a zeromq socket. Messages may be sent to this
@@ -98,14 +99,16 @@ protected:
         state_t _state;                            // thread state
         bool _reset;                               // flag to reset stream
 
-        boost::shared_ptr<data_writer> _writer;            // output
-        boost::shared_ptr<block_ringbuffer> _buffer;      // ringbuffer
+        std::unique_ptr<data_writer> _writer;            // output
+        std::unique_ptr<block_ringbuffer> _buffer;      // ringbuffer
 
 private:
-        pthread_mutex_t _lock;                     // mutex for condition variable
-        pthread_cond_t  _ready;                    // indicates data ready
-        static void * thread(void * arg);           // the thread entry point
-        pthread_t _thread_id;                      // thread id
+        void thread();                              // the writer thread
+
+        std::thread _thread;
+        std::mutex _lock;                           // mutex for condition variable
+        std::condition_variable _ready;             // indicates data ready
+
         bool _xrun;                                // flag to indicate xrun
         // variables for receiving incoming messages
         void * _context;

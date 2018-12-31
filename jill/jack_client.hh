@@ -56,7 +56,7 @@ public:
 	 * @param time the time elapsed (in samples) since the client started
          * @return 0 if no errors, non-zero on error
 	 */
-	typedef boost::function<int (jack_client* client, nframes_t size, nframes_t time)> ProcessCallback;
+	using ProcessCallback = boost::function<int (jack_client *, nframes_t, nframes_t)>;
 
         /**
          * Type of the port (un)registration callback. Provides information about
@@ -67,8 +67,7 @@ public:
          * @param port the id of the registered port
          * @param registered 0 for unregistered, nonzero if registered
          */
-        typedef boost::function<void (jack_client* client, jack_port_t *port,
-                                      int registered)> PortRegisterCallback;
+        using PortRegisterCallback = boost::function<void (jack_client *, jack_port_t *, int)>;
 
         /**
          * Type of the port (dis)connection callback. Provides information about
@@ -80,15 +79,14 @@ public:
          * @param port2 the port owned by another client (or the second port if self-connected)
          * @param connected 0 for unregistered, nonzero if registered
          */
-        typedef boost::function<void (jack_client* client, jack_port_t *port1, jack_port_t *port2,
-                                      int connected)> PortConnectCallback;
+        using PortConnectCallback = boost::function<void (jack_client *, jack_port_t *, jack_port_t *, int)>;
 
-        typedef boost::function<int (jack_client* client, nframes_t srate)> SamplingRateCallback;
-        typedef boost::function<int (jack_client* client, nframes_t nframes)> BufferSizeCallback;
-        typedef boost::function<int (jack_client* client, float usec_delay)> XrunCallback;
-        typedef boost::function<void (jack_status_t code, char const * reason)> ShutdownCallback;
+        using SamplingRateCallback = boost::function<int (jack_client *, nframes_t)>;
+        using BufferSizeCallback = boost::function<int (jack_client *, nframes_t)>;
+        using XrunCallback = boost::function<int (jack_client *, float)>;
+        using ShutdownCallback = boost::function<void (jack_status_t, const char *)>;
 
-        typedef std::list<jack_port_t*> port_list_type;
+        using port_list_type = std::list<jack_port_t *>;
 
 	/**
 	 * Initialize a new JACK client. All clients are identified to the JACK
@@ -101,7 +99,7 @@ public:
 	 */
 	jack_client(std::string const & name);
 	jack_client(std::string const & name, std::string const & server_name);
-	~jack_client();
+	~jack_client() override;
 
         /**
          * @brief Register a new port for the client.
@@ -211,14 +209,14 @@ public:
         nframes_t buffer_size() const;
 
 	/**  JACK client name (long form) */
-	char const * name() const;
+	char const * name() const override;
 
         /* Implementations of data_source functions */
-	nframes_t sampling_rate() const;
-	nframes_t frame() const;
-        nframes_t frame(utime_t) const;
-        utime_t time(nframes_t) const;
-        utime_t time() const;
+	nframes_t sampling_rate() const override;
+	nframes_t frame() const override;
+        nframes_t frame(utime_t) const override;
+        utime_t time(nframes_t) const override;
+        utime_t time() const override;
 
 protected:
         /** Ports owned by this client */
@@ -236,7 +234,7 @@ private:
         XrunCallback _xrun_cb;
         ShutdownCallback _shutdown_cb;
 
-        void start_client(char const * name, char const * server_name=0);
+        void start_client(char const * name, char const * server_name=nullptr);
         void set_callbacks();
 
         /* static callback functions actually registered with JACK server */

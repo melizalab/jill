@@ -64,7 +64,7 @@ public:
          * @param program_name     the name of the program
          */
         program_options(std::string program_name);
-        virtual ~program_options() {}
+        virtual ~program_options() = default;
 
         /** Options parsed from the commandline and configfile */
         po::options_description cmd_opts;
@@ -177,9 +177,9 @@ public:
          * @param status    the value to return to the OS
          */
         Exit(int status) : _status(status) { }
-        virtual ~Exit() throw () { }
+        ~Exit() noexcept override = default;
 
-        int status() const throw() { return _status; }
+        int status() const noexcept { return _status; }
 
 protected:
         int _status;

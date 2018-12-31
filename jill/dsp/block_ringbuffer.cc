@@ -32,7 +32,7 @@ block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
                 DBG << "ringbuffer full (req=" << header.size() << "; avail=" << write_space() << ")";
                 return 0;
         }
-        char * dst = buffer() + write_offset();
+        char * dst = reinterpret_cast<char *>(buffer() + write_offset());
         // store header
         memcpy(dst, &header, sizeof(data_block_t));
         dst += sizeof(data_block_t);

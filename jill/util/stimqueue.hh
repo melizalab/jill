@@ -25,7 +25,7 @@ namespace jill { namespace util {
 class stimqueue : boost::noncopyable {
 
 public:
-        virtual ~stimqueue() {}
+        virtual ~stimqueue() = default;
 
         /**
          * Get the stimulus currently at the head of the queue.

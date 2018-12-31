@@ -3,7 +3,7 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
-#include <signal.h>
+#include <csignal>
 #include <boost/shared_ptr.hpp>
 
 #include "jill/logging.hh"
@@ -15,7 +15,7 @@
 
 using namespace jill;
 using std::string;
-typedef std::vector<string> stringvec;
+using stringvec = std::vector<string>;
 
 class jclicker_options : public program_options {
 
@@ -32,7 +32,7 @@ public:
 
 protected:
 
-	virtual void print_usage();
+	void print_usage() override;
 
 }; // jclicker_options
 
@@ -126,11 +126,11 @@ main(int argc, char **argv)
 
                 // connect ports
                 if (options.count("in")) {
-                        stringvec const & portlist = options.vmap["in"].as<stringvec>();
+                        auto const & portlist = options.vmap["in"].as<stringvec>();
                         client->connect_ports(portlist.begin(), portlist.end(), "in");
                 }
                 if (options.count("out")) {
-                        stringvec const & portlist = options.vmap["out"].as<stringvec>();
+                        auto const & portlist = options.vmap["out"].as<stringvec>();
                         client->connect_ports("out", portlist.begin(), portlist.end());
                 }
 

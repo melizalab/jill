@@ -13,7 +13,7 @@
 #define _LOGGER_HH
 
 #include <boost/noncopyable.hpp>
-#include <pthread.h>
+#include <mutex>
 
 namespace jill {
 
@@ -62,7 +62,7 @@ private:
         ~logger();
 
         std::string _source;
-        pthread_mutex_t _lock;  // mutex for zmq socket access
+        std::mutex _lock;       // mutex for zmq socket access
         void * _context;        // zmq context
         void * _socket;         // zmq socket
         bool _connected;        // was connection successful?

@@ -30,7 +30,7 @@
 namespace jill {
 
 /** Define timestamp type */
-typedef boost::posix_time::ptime timestamp_t;
+using timestamp_t = boost::posix_time::ptime;
 
 /**
  * Simple atomic logging class with stream support.

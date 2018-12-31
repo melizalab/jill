@@ -32,16 +32,16 @@ public:
          * @param posttrigger_frames  the number of frames to record from after
          *                            trigger offset events
          */
-        triggered_data_writer(boost::shared_ptr<data_writer> writer,
+        triggered_data_writer(std::unique_ptr<data_writer> writer,
                               std::string trigger_port,
                               nframes_t pretrigger_frames, nframes_t posttrigger_frames);
 
-        ~triggered_data_writer();
+        ~triggered_data_writer() override;
 
 protected:
 
         /** @see buffered_data_writer::write() */
-        void write(data_block_t const *);
+        void write(data_block_t const *) override;
 
 private:
         /** start recording at time - pretrigger */

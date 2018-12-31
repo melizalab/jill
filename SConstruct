@@ -65,14 +65,16 @@ env = Environment(ENV=os.environ,
                   PREFIX=install_prefix,
                   LIBDIR=install_libdir,
                   BINDIR=install_bindir,
-                  CXXFLAGS = ["-std=c++14", "-stdlib=libc++"],
-                  LINKFLAGS = "-stdlib=libc++",
+                  CXXFLAGS = ["-std=c++14", "-mtune=native"],
                   tools=['default'])
 
 if system=='Darwin':
-    env.Replace(CXX = "clang++")
     env.Append(CPPPATH=['/opt/local/include'],
+               # CXXFLAGS=["-stdlib=libc++"],
+               # LINKFLAGS=["-stdlib=libc++"],
                LIBPATH=['/opt/local/lib'])
+
+print(env.subst("using $CXX $CXXVERSION"))
 
 
 if os.environ.has_key('CXX'):
