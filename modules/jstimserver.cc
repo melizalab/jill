@@ -99,15 +99,13 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // copy samples, if there are any
         nframes_t nsamples = std::min(_stim->nframes() - stim_offset, nframes);
-        if (nsamples > 0) {
-                auto * stimptr = _stim->buffer() + stim_offset;
-                nframes_t i = 0;
-                for (; i < nsamples; ++i)
-                        out[i] = stimptr[i];
-                for (; i < nframes; ++i)
-                        out[i] = 0.0f;
-                stim_offset += nsamples;
-        }
+        auto * stimptr = _stim->buffer() + stim_offset;
+        nframes_t i = 0;
+        for (; i < nsamples; ++i)
+                out[i] = stimptr[i];
+        for (; i < nframes; ++i)
+                out[i] = 0.0f;
+        stim_offset += nsamples;
 
         // did the stimulus end?
         if (stim_offset >= _stim->nframes()) {
