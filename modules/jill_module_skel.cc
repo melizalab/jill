@@ -17,7 +17,6 @@
  */
 #include <iostream>
 #include <signal.h>
-#include <boost/shared_ptr.hpp>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -32,21 +31,20 @@ typedef std::vector<string> stringvec;
 class modname_options : public program_options {
 
 public:
-	modname_options(string const &program_name);
+        modname_options(string const &program_name);
 
-	/** The server name */
-	string server_name;
-	/** The client name (used in internal JACK representations) */
-	string client_name;
+        /** The server name */
+        string server_name;
+        /** The client name (used in internal JACK representations) */
+        string client_name;
 
 protected:
 
-	virtual void print_usage();
+        virtual void print_usage();
 
 }; // modname_options
 
 static modname_options options(PROGRAM_NAME);
-static boost::shared_ptr<jack_client> client;
 jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
@@ -55,8 +53,8 @@ static int running = 1;
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {
-	sample_t *in = client->samples(port_in, nframes);
-	sample_t *out = client->samples(port_out, nframes);
+        sample_t *in = client->samples(port_in, nframes);
+        sample_t *out = client->samples(port_out, nframes);
 
         // this just copies data from input to output - replace with something
         // more interesting
@@ -70,14 +68,14 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 void
 jack_latency (jack_latency_callback_mode_t mode, void *arg)
 {
-	jack_latency_range_t range;
+        jack_latency_range_t range;
         jack_port_get_latency_range (port_in, mode, &range);
-	if (mode == JackCaptureLatency) {
+        if (mode == JackCaptureLatency) {
                 // add latency between inputs and outputs
-	}
+        }
         else {
                 // add latency between output and input
-	}
+        }
         jack_port_set_latency_range (port_out, mode, &range);
 }
 
@@ -119,13 +117,14 @@ signal_handler(int sig)
 int
 main(int argc, char **argv)
 {
-	using namespace std;
-	try {
+        using namespace std;
+        try {
                 // parse options
-		options.parse(argc,argv);
+                options.parse(argc,argv);
 
                 // start client
-                client.reset(new jack_client(options.client_name, options.server_name));
+                auto client = std::make_unique<jack_client>(options.client_name,
+                                                            options.server_name);
 
                 // register ports
                 port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
@@ -134,9 +133,9 @@ main(int argc, char **argv)
                                                  JackPortIsOutput, 0);
 
                 // register signal handlers
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
+                signal(SIGINT,  signal_handler);
+                signal(SIGTERM, signal_handler);
+                signal(SIGHUP,  signal_handler);
 
                 // register jack callbacks
                 client->set_shutdown_callback(jack_shutdown);
@@ -165,24 +164,24 @@ main(int argc, char **argv)
                 }
 
                 client->deactivate();
-		return ret;
-	}
+                return ret;
+        }
 
-	/*
-	 * These catch statements handle two kinds of exceptions.  The
-	 * Exit exception is thrown to terminate the application
-	 * normally (i.e. if the user asked for the app version or
-	 * usage); other exceptions are typically thrown if there's a
-	 * serious error, in which case the user is notified on
-	 * stderr.
-	 */
-	catch (Exit const &e) {
-		return e.status();
-	}
-	catch (std::exception const &e) {
+        /*
+         * These catch statements handle two kinds of exceptions.  The
+         * Exit exception is thrown to terminate the application
+         * normally (i.e. if the user asked for the app version or
+         * usage); other exceptions are typically thrown if there's a
+         * serious error, in which case the user is notified on
+         * stderr.
+         */
+        catch (Exit const &e) {
+                return e.status();
+        }
+        catch (std::exception const &e) {
                 LOG << "ERROR: " << e.what();
-		return EXIT_FAILURE;
-	}
+                return EXIT_FAILURE;
+        }
 
 }
 
@@ -229,4 +228,3 @@ modname_options::print_usage()
                   << " * out:       output port\n"
                   << std::endl;
 }
-

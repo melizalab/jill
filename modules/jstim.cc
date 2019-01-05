@@ -11,7 +11,6 @@
 #include <iostream>
 #include <csignal>
 #include <random>
-#include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 
@@ -58,8 +57,7 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-boost::shared_ptr<jack_client> client;
-boost::shared_ptr<util::readahead_stimqueue> queue;
+std::unique_ptr<util::readahead_stimqueue> queue;
 boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_trigout, *port_trigin;
@@ -243,7 +241,8 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                client.reset(new jack_client(options.client_name, options.server_name));
+                auto client = std::make_unique<jack_client>(options.client_name,
+                                                            options.server_name);
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
                 options.trigout_chan &= midi::chan_nib;

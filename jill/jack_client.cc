@@ -50,10 +50,9 @@ jack_client::start_client(char const * name, char const * server_name)
 {
         jack_status_t status;
         if (!server_name)
-                _client = jack_client_open(name, JackNoStartServer, &status);
+                _client = jack_client_open(name, JackNullOption, &status);
         else
-                _client = jack_client_open(name, jack_options_t(JackNoStartServer|JackServerName),
-                                           &status, server_name);
+                _client = jack_client_open(name, JackServerName, &status, server_name);
 
         if (!_client) {
                 util::make_string err;
@@ -62,6 +61,8 @@ jack_client::start_client(char const * name, char const * server_name)
                 err << ")";
                 throw JackError(err);
         }
+        if (status & JackServerStarted)
+                LOG << "JACK server started";
         LOG << "created client: " << jack_get_client_name(_client)
               << " (load=" << jack_cpu_load(_client) << "%)" ;
 }
@@ -172,8 +173,7 @@ jack_client::connect_port(string const & src, string const & dest)
 void
 jack_client::disconnect_all()
 {
-        port_list_type::const_iterator it;
-        for (it = _ports.begin(); it != _ports.end(); ++it) {
+        for (auto it = _ports.begin(); it != _ports.end(); ++it) {
                 int ret = jack_port_disconnect(_client, *it);
                 if (ret)
                         throw JackError(util::make_string() << "unable to disconnect port (err=" << ret << ")");

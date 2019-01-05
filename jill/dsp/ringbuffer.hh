@@ -14,8 +14,7 @@
 #define _RINGBUFFER_HH
 
 #include <algorithm>
-#include <boost/function.hpp>
-#include <boost/scoped_ptr.hpp>
+#include <functional>
 #include "../util/mirrored_memory.hh"
 
 /**
@@ -96,8 +95,8 @@ template <typename T>
 class ringbuffer {
 public:
         using data_type = T;
-        using read_visitor_type = typename boost::function<std::size_t (const data_type *, std::size_t)>;
-        using write_visitor_type = typename boost::function<std::size_t (data_type *, std::size_t)>;
+        using read_visitor_type = typename std::function<std::size_t (const data_type *, std::size_t)>;
+        using write_visitor_type = typename std::function<std::size_t (data_type *, std::size_t)>;
 
         /**
          * Construct a ringbuffer with enough room to hold @a size
@@ -208,7 +207,7 @@ public:
 
 
 private:
-        boost::scoped_ptr<jill::util::mirrored_memory> _buf;
+        std::unique_ptr<jill::util::mirrored_memory> _buf;
         std::size_t _write_ptr;
         std::size_t _read_ptr;
         std::size_t _size_mask;

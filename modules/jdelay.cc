@@ -10,7 +10,6 @@
  */
 #include <iostream>
 #include <csignal>
-#include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
 
 #include "jill/jack_client.hh"
@@ -49,7 +48,7 @@ protected:
 
 
 static jdelay_options options(PROGRAM_NAME);
-static boost::shared_ptr<jack_client> client;
+static std::unique_ptr<jack_client> client;
 static sample_ringbuffer ringbuf(1024);
 jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;

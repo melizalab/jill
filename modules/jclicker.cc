@@ -4,7 +4,6 @@
  */
 #include <iostream>
 #include <csignal>
-#include <boost/shared_ptr.hpp>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -20,24 +19,23 @@ using stringvec = std::vector<string>;
 class jclicker_options : public program_options {
 
 public:
-	jclicker_options(string const &program_name);
+        jclicker_options(string const &program_name);
 
-	/** The server name */
-	string server_name;
-	/** The client name (used in internal JACK representations) */
-	string client_name;
+        /** The server name */
+        string server_name;
+        /** The client name (used in internal JACK representations) */
+        string client_name;
 
         bool click_onset;
         bool click_offset;
 
 protected:
 
-	void print_usage() override;
+        void print_usage() override;
 
 }; // jclicker_options
 
 static jclicker_options options(PROGRAM_NAME);
-static boost::shared_ptr<jack_client> client;
 jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
@@ -45,8 +43,8 @@ static int running = 1;
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {
-	void *in = client->events(port_in, nframes);
-	sample_t *out = client->samples(port_out, nframes);
+        void *in = client->events(port_in, nframes);
+        sample_t *out = client->samples(port_out, nframes);
 
         memset(out, 0, nframes * sizeof(sample_t));
 
@@ -98,13 +96,14 @@ signal_handler(int sig)
 int
 main(int argc, char **argv)
 {
-	using namespace std;
-	try {
+        using namespace std;
+        try {
                 // parse options
-		options.parse(argc,argv);
+                options.parse(argc,argv);
 
                 // start client
-                client.reset(new jack_client(options.client_name, options.server_name));
+                auto client = std::make_unique<jack_client>(options.client_name,
+                                                            options.server_name);
 
                 // register ports
                 port_in = client->register_port("in",JACK_DEFAULT_MIDI_TYPE,
@@ -113,9 +112,9 @@ main(int argc, char **argv)
                                                  JackPortIsOutput, 0);
 
                 // register signal handlers
-		signal(SIGINT,  signal_handler);
-		signal(SIGTERM, signal_handler);
-		signal(SIGHUP,  signal_handler);
+                signal(SIGINT,  signal_handler);
+                signal(SIGTERM, signal_handler);
+                signal(SIGHUP,  signal_handler);
 
                 // register jack callbacks
                 client->set_shutdown_callback(jack_shutdown);
@@ -139,16 +138,16 @@ main(int argc, char **argv)
                 }
 
                 client->deactivate();
-		return ret;
-	}
+                return ret;
+        }
 
-	catch (Exit const &e) {
-		return e.status();
-	}
-	catch (std::exception const &e) {
+        catch (Exit const &e) {
+                return e.status();
+        }
+        catch (std::exception const &e) {
                 LOG  << "ERROR: " << e.what();
-		return EXIT_FAILURE;
-	}
+                return EXIT_FAILURE;
+        }
 
 }
 
@@ -192,4 +191,3 @@ jclicker_options::print_usage()
                   << " * out:       output audio port\n"
                   << std::endl;
 }
-

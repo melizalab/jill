@@ -12,7 +12,6 @@
  */
 #include <iostream>
 #include <csignal>
-#include <boost/shared_ptr.hpp>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -65,9 +64,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         jack_port_t *port;
         void *buffer;
-        jack_client::port_list_type::const_iterator it;
 
-        for (it = client->ports().begin(); it != client->ports().end(); ++it) {
+        for (auto it = client->ports().begin(); it != client->ports().end(); ++it) {
                 port = *it;
                 buffer = jack_port_get_buffer(port, nframes);
                 if (buffer == nullptr) continue;

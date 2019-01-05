@@ -25,8 +25,8 @@ static const ptime epoch = ptime(date(1970,1,1));
  * @brief Storage format for log messages
  */
 struct message_t {
-        boost::int64_t sec;
-        boost::int64_t usec;
+        std::int64_t sec;
+        std::int64_t usec;
         char const * message;       // descriptive
 };
 
@@ -34,8 +34,8 @@ struct message_t {
  * @brief Storage format for event data
  */
 struct event_t {
-        boost::uint32_t start;  // relative to entry start
-        boost::uint8_t status;  // see jill::event_t::midi_type
+        std::uint32_t start;  // relative to entry start
+        std::uint8_t status;  // see jill::event_t::midi_type
         char const * message;   // message (hex encoded for standard midi status)
 };
 

@@ -12,7 +12,6 @@
 #define _STIMFILE_HH
 
 #include <string>
-#include <boost/scoped_array.hpp>
 #include <sndfile.h>
 #include "../stimulus.hh"
 
@@ -58,7 +57,7 @@ private:
         nframes_t _nframes;
         nframes_t _samplerate;
 
-        boost::scoped_array<sample_t> _buffer;
+        std::unique_ptr<sample_t[]> _buffer;
 };
 
 }} // namespace jill::file

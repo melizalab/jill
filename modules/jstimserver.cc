@@ -306,7 +306,7 @@ main(int argc, char **argv)
                         }
                         else if (memcmp(data, REQ_PLAYSTIM, strlen(REQ_PLAYSTIM)) == 0) {
                                 std::string stim(data + strlen(REQ_PLAYSTIM) + 1);
-                                boost::ptr_map<std::string, stimulus_t>::iterator it = _stimuli.find(stim);
+                                auto it = _stimuli.find(stim);
                                 if (it == _stimuli.end()) {
                                         LOG << "client requested invalid stimulus: " << stim;
                                         zframe_reset(command, REP_BADSTIM, strlen(REP_BADSTIM));

@@ -13,7 +13,6 @@
 #define _ZMQ_HELPERS_H_
 
 #include <zmq.h>
-#include <boost/shared_ptr.hpp>
 #include <string>
 
 // shims for zmq 2.2 vs 3.x
@@ -40,7 +39,7 @@
 namespace zmq {
 
 /** Smart pointer container for zmq message */
-typedef boost::shared_ptr<zmq_msg_t> msg_ptr_t;
+typedef std::shared_ptr<zmq_msg_t> msg_ptr_t;
 
 /** Create an empty zmq message */
 msg_ptr_t msg_init();

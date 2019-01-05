@@ -10,7 +10,6 @@
  */
 #include <iostream>
 #include <csignal>
-#include <boost/shared_ptr.hpp>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -57,8 +56,8 @@ protected:
 
 
 jdetect_options options(PROGRAM_NAME);
-boost::shared_ptr<jack_client> client;
-boost::shared_ptr<dsp::crossing_trigger<sample_t> > trigger;
+std::unique_ptr<jack_client> client;
+std::unique_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
 int stopping = 0;               // set to 1 to get process to clean up
 
