@@ -9,6 +9,7 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <mutex>
 #include <condition_variable>

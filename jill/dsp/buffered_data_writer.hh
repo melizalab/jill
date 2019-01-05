@@ -12,6 +12,7 @@
 #ifndef _BUFFERED_DATA_WRITER_HH
 #define _BUFFERED_DATA_WRITER_HH
 
+#include <memory>
 #include <iosfwd>
 #include <thread>
 #include <mutex>

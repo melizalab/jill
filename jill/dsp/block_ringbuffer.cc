@@ -10,6 +10,8 @@
  *
  */
 
+#include <cstring>
+
 #include "block_ringbuffer.hh"
 #include "../logging.hh"
 
@@ -27,20 +29,20 @@ block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
 {
         // serialize the data in the buffer such that the header is followed by
         // the two data arrays
-        data_block_t header = { time, dtype, strlen(id), size};
+        data_block_t header = { time, dtype, std::strlen(id), size};
         if (header.size() > write_space()) {
                 DBG << "ringbuffer full (req=" << header.size() << "; avail=" << write_space() << ")";
                 return 0;
         }
         char * dst = reinterpret_cast<char *>(buffer() + write_offset());
         // store header
-        memcpy(dst, &header, sizeof(data_block_t));
+        std::memcpy(dst, &header, sizeof(data_block_t));
         dst += sizeof(data_block_t);
         // store id
-        memcpy(dst, id, header.sz_id);
+        std::memcpy(dst, id, header.sz_id);
         dst += header.sz_id;
         // store data
-        memcpy(dst, data, header.sz_data);
+        std::memcpy(dst, data, header.sz_data);
         // advance write pointer
         return super::push(nullptr, header.size());
 }

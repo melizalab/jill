@@ -12,6 +12,7 @@
 #ifndef _ZMQ_HELPERS_H_
 #define _ZMQ_HELPERS_H_
 
+#include <memory>
 #include <zmq.h>
 #include <string>
 

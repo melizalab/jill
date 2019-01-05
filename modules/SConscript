@@ -2,14 +2,14 @@ import os
 Import('env lib')
 
 # boost libraries may be named differently
-BOOST_LIBS = ['boost_system','boost_date_time','boost_program_options','boost_filesystem']
+BOOST_LIBS = ['boost_system', 'boost_date_time', 'boost_program_options', 'boost_filesystem']
 if hasattr(os,'uname') and os.uname()[0] == 'Darwin':
     BOOST_LIBS = [x + "-mt" for x in BOOST_LIBS]
 
 # clone environment and add libraries for modules
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],
-            LIBS=['jack','samplerate','sndfile','zmq','czmq'] + BOOST_LIBS,
+            LIBS=['jack', 'samplerate', 'sndfile', 'pthread', 'zmq', 'czmq'] + BOOST_LIBS,
             )
 
 programs = {
@@ -30,8 +30,8 @@ out = []
 
 for progname, src in programs.items():
     prog = menv.Program(progname, [src, lib])
-    menv.Alias(progname,prog)
+    menv.Alias(progname, prog)
     out.append(prog)
-    env.Alias('install', env.Install(env['BINDIR'],prog))
+    env.Alias('install', env.Install(env['BINDIR'], prog))
 
-env.Alias('modules',out)
+env.Alias('modules', out)

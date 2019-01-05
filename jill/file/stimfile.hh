@@ -12,6 +12,7 @@
 #define _STIMFILE_HH
 
 #include <string>
+#include <memory>
 #include <sndfile.h>
 #include "../stimulus.hh"
 

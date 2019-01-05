@@ -13,6 +13,7 @@
 #ifndef _RINGBUFFER_HH
 #define _RINGBUFFER_HH
 
+#include <memory>
 #include <algorithm>
 #include <functional>
 #include "../util/mirrored_memory.hh"
