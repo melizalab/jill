@@ -29,6 +29,9 @@ program_options::program_options(std::string program_name)
         generic.add_options()
                 ("version,v", "print version string")
                 ("help,h",    "print help message")
+                ("no-remote-log,L",
+                 po::bool_switch()->default_value(false),
+                 "disable logging to jrecord (will still log to console)")
                 ("config,C",  po::value<string>(), "load options from a ini file (overruled by command-line)");
         cmd_opts.add(generic);
         visible_opts.add(generic);
@@ -65,9 +68,13 @@ program_options::parse(int argc, char **argv)
                 throw Exit(EXIT_SUCCESS);
         }
         // set source for logging
-        logger::instance().set_sourcename(get<string>("client_name", _program_name));
-        auto server_name = get<string>("server_name","default");
-        logger::instance().connect(server_name);
+        logger::instance().set_sourcename(get<string>("name", _program_name));
+        auto server_name = get<string>("server","default");
+        if (!get<bool>("no-remote-log")) {
+                logger::instance().connect(server_name);
+        }
+        else
+                LOG << "disabled remote logging";
         LOG << _program_name << ", version " JILL_VERSION;
         LOG << "jackd server: " << server_name;
 
