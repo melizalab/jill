@@ -112,7 +112,6 @@ private:
 
         bool _xrun;                                // flag to indicate xrun
         // variables for receiving incoming messages
-        void * _context;
         void * _socket;
         bool _logger_bound;
 

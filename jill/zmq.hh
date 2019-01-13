@@ -13,8 +13,10 @@
 #define _ZMQ_HELPERS_H_
 
 #include <memory>
-#include <zmq.h>
 #include <string>
+#include <boost/noncopyable.hpp>
+
+#include <zmq.h>
 
 // shims for zmq 2.2 vs 3.x
 #ifndef ZMQ_DONTWAIT
@@ -38,6 +40,24 @@
 #endif
 
 namespace zmq {
+
+/** global singleton class for context */
+class context : boost::noncopyable {
+
+public:
+        static context & instance() {
+                static context _instance;
+                return _instance;
+        }
+
+        static void * socket(int type);
+
+private:
+        context();
+        ~context();
+        void * _context;
+};
+
 
 /** Smart pointer container for zmq message */
 typedef std::shared_ptr<zmq_msg_t> msg_ptr_t;
@@ -65,4 +85,9 @@ int send(void *socket, T const & data, int flags=0)
 std::vector<std::string> recv(void * socket);
 
 }
+
+
+
+
+
 #endif /* _ZMQ_HELPERS_H_ */

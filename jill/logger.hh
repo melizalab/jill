@@ -63,7 +63,6 @@ private:
 
         std::string _source;
         std::mutex _lock;       // mutex for zmq socket access
-        void * _context;        // zmq context
         void * _socket;         // zmq socket
         bool _connected;        // was connection successful?
 };

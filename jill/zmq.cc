@@ -16,6 +16,23 @@
 #include "zmq.hh"
 
 
+zmq::context::context()
+        : _context(zmq_init(1))
+{}
+
+
+zmq::context::~context()
+{
+        zmq_ctx_destroy(_context);
+}
+
+void *
+zmq::context::socket(int type)
+{
+        return zmq_socket(instance()._context, type);
+}
+
+
 static void
 msg_close(zmq_msg_t * message)
 {

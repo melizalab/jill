@@ -46,7 +46,7 @@ buffered_data_writer::buffered_data_writer(std::unique_ptr<data_writer> writer, 
         : _state(Stopped),
           _writer(std::move(writer)),
           _buffer(new block_ringbuffer(buffer_size)),
-          _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER)),
+          _socket(zmq::context::socket(ZMQ_DEALER)),
           _logger_bound(false)
 {
         DBG << "buffered_data_writer initializing";
@@ -59,7 +59,6 @@ buffered_data_writer::~buffered_data_writer()
         stop();                 // no more new data; exit writer thread
         join();                 // wait for writer thread to exit
         zmq_close(_socket);
-        zmq_ctx_destroy(_context);
 }
 
 void

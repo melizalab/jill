@@ -34,9 +34,9 @@ log_msg::~log_msg()
 }
 
 logger::logger()
-        // initialize zmq context and socket. Use a dealer socket because log
-        // messages are asynchronous (no response from recipient).
-        : _context(zmq_init(1)), _socket(zmq_socket(_context, ZMQ_DEALER)),
+        // initialize zmq socket. Use a dealer socket because log messages are
+        // asynchronous (no response from recipient).
+        : _socket(zmq::context::socket(ZMQ_DEALER)),
           _connected(false)
 {}
 
@@ -51,7 +51,6 @@ logger::~logger()
         int linger = 1000;
         zmq_setsockopt(_socket, ZMQ_LINGER, &linger, sizeof(linger));
         zmq_close(_socket);
-        zmq_ctx_destroy(_context);
 }
 
 void
