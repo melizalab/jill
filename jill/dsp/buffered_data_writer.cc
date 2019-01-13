@@ -192,20 +192,9 @@ buffered_data_writer::write_messages()
         if (!_logger_bound) return;
         for (int i = 0; i < max_messages; ++i) {
                 // expect a three-part message: source, timestamp, message
-                more_t more = 1;
-                size_t more_size = sizeof(more);
-                std::vector<zmq::msg_ptr_t> messages;
-                while (more) {
-                        zmq::msg_ptr_t message = zmq::msg_init();
-                        int rc = zmq_msg_recv (message.get(), _socket, ZMQ_DONTWAIT);
-                        if (rc == -1) return;
-                        messages.push_back(message);
-                        zmq_getsockopt (_socket, ZMQ_RCVMORE, &more, &more_size);
-                }
+                std::vector<std::string> messages = zmq::recv(_socket);
                 if (messages.size() >= 3) {
-                        _writer->log(from_iso_string(zmq::msg_str(messages[1])),
-                                     zmq::msg_str(messages[0]),
-                                     zmq::msg_str(messages[2]));
+                        _writer->log(from_iso_string(messages[1]), messages[0], messages[2]);
                 }
         }
 }

@@ -61,5 +61,8 @@ int send(void *socket, T const & data, int flags=0)
         return rc;
 }
 
+/** receive a series of messages and parse them into a vector of strings */
+std::vector<std::string> recv(void * socket);
+
 }
 #endif /* _ZMQ_HELPERS_H_ */

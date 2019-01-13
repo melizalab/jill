@@ -63,6 +63,8 @@ logger::log(timestamp_t const & utc, std::string const & msg)
         printf("%s [%s] %s\n", to_iso_string(local).c_str(), _source.c_str(), msg.c_str());
 
         if (_connected) {
+                // lock here because multiple threads may be calling this
+                // function, but only one can access the socket at a time
                 std::lock_guard<std::mutex> lock(_lock);
                 // message consists of the source name, the timestamp (as an iso
                 // string), and the actual log message. Note that the zmq dealer socket
