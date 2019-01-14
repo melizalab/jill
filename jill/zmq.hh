@@ -18,28 +18,13 @@
 
 #include <zmq.h>
 
-// shims for zmq 2.2 vs 3.x
-#ifndef ZMQ_DONTWAIT
-#   define ZMQ_DONTWAIT   ZMQ_NOBLOCK
-#endif
-#ifndef ZMQ_RCVHWM
-#   define ZMQ_RCVHWM     ZMQ_HWM
-#endif
-#ifndef ZMQ_SNDHWM
-#   define ZMQ_SNDHWM     ZMQ_HWM
-#endif
-#if ZMQ_VERSION_MAJOR == 2
-#   define more_t int64_t
-#   define zmq_ctx_destroy(context) zmq_term(context)
-#   define zmq_msg_send(msg,sock,opt) zmq_send (sock, msg, opt)
-#   define zmq_msg_recv(msg,sock,opt) zmq_recv (sock, msg, opt)
-#   define ZMQ_POLL_MSEC    1000        //  zmq_poll is usec
-#elif ZMQ_VERSION_MAJOR >= 3
-#   define more_t int
-#   define ZMQ_POLL_MSEC    1           //  zmq_poll is msec
-#endif
-
 namespace zmq {
+
+//using socket_t = std::shared_ptr<void>;
+
+/** Smart pointer container for zmq message */
+using msg_ptr_t = std::shared_ptr<zmq_msg_t>;
+
 
 /** global singleton class for context */
 class context : boost::noncopyable {
@@ -59,8 +44,6 @@ private:
 };
 
 
-/** Smart pointer container for zmq message */
-typedef std::shared_ptr<zmq_msg_t> msg_ptr_t;
 
 /** Create an empty zmq message */
 msg_ptr_t msg_init();
@@ -71,18 +54,30 @@ msg_ptr_t msg_init(std::size_t size);
 /** Extract the contents of a message as a string, copying to a new string */
 std::string msg_str (msg_ptr_t const & message);
 
-/** Send an object as a message */
-template<typename T>
-int send(void *socket, T const & data, int flags=0)
+/** Send a string as a message */
+int send(void * socket, std::string const & data, int flags=0);
+int send(void * socket, char const * data, int flags=0);
+
+
+/** Send a sequence of objects */
+template <typename Iterator>
+int send_n(void * socket, Iterator it, size_t n, int flags=0)
 {
-        msg_ptr_t message = msg_init(sizeof(T));
-        memcpy (zmq_msg_data (message.get()), &data, sizeof(T));
-        int rc = zmq_msg_send (message.get(), socket, flags);
-        return rc;
+        size_t i;
+        for (i = 0; i < n - 1; ++i) {
+                int rc = send(socket, *it, flags | ZMQ_SNDMORE);
+                if (rc < 0) return rc;
+                ++it;
+        }
+        if (i < n)
+                return send(socket, *it, flags);
+        else
+                return 0;
 }
 
+
 /** receive a series of messages and parse them into a vector of strings */
-std::vector<std::string> recv(void * socket);
+std::vector<std::string> recv(void * socket, int flags=0);
 
 }
 

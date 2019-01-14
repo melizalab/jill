@@ -12,6 +12,7 @@
 #include <cstring>
 #include <cassert>
 #include <vector>
+#include <memory>
 
 #include "zmq.hh"
 
@@ -68,28 +69,38 @@ zmq::msg_str(zmq::msg_ptr_t const & message)
         return std::string((char *) zmq_msg_data(msg), zmq_msg_size(msg));
 }
 
-template<>
 int
-zmq::send(void *socket, std::string const & string, int flags)
+zmq::send(void * socket, std::string const & string, int flags)
 {
-        zmq::msg_ptr_t message = msg_init(string.length());
-        memcpy (zmq_msg_data (message.get()), string.c_str(), string.length());
-        int rc = zmq_msg_send (message.get(), socket, flags);
-        return rc;
+        return zmq_send(socket, string.c_str(), string.length(), flags);
 }
 
-std::vector<std::string>
-zmq::recv(void * socket)
+int
+zmq::send(void * socket, char const * string, int flags)
 {
-        more_t more = 1;
-        size_t more_size = sizeof(more);
+        return zmq_send(socket, string, strlen(string), flags);
+}
+
+// template<typename T>
+// int send(void * socket, T const & data, int flags=0)
+// {
+//         msg_ptr_t message = msg_init(sizeof(T));
+//         memcpy (zmq_msg_data (message.get()), &data, sizeof(T));
+//         int rc = zmq_msg_send (message.get(), socket, flags);
+//         return rc;
+// }
+
+
+std::vector<std::string>
+zmq::recv(void * socket, int flags)
+{
         std::vector<std::string> messages;
-        while (more) {
+        while (true) {
                 zmq::msg_ptr_t message = zmq::msg_init();
-                int rc = zmq_msg_recv (message.get(), socket, ZMQ_DONTWAIT);
+                int rc = zmq_msg_recv (message.get(), socket, flags);
                 if (rc < 0) break;
                 messages.push_back(zmq::msg_str(message));
-                zmq_getsockopt (socket, ZMQ_RCVMORE, &more, &more_size);
+                if (!zmq_msg_more(message.get())) break;
         }
         return messages;
 

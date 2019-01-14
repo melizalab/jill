@@ -9,7 +9,7 @@ if hasattr(os,'uname') and os.uname()[0] == 'Darwin':
 # clone environment and add libraries for modules
 menv = env.Clone()
 menv.Append(CPPPATH=['#'],
-            LIBS=['jack', 'samplerate', 'sndfile', 'pthread', 'zmq', 'czmq'] + BOOST_LIBS,
+            LIBS=['jack', 'samplerate', 'sndfile', 'pthread', 'zmq'] + BOOST_LIBS,
             )
 
 programs = {

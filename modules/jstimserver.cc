@@ -19,8 +19,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-#include <czmq.h>
-//#include "jill/zmq.hh"
+#include "jill/zmq.hh"
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -28,12 +27,7 @@
 #include "jill/file/stimfile.hh"
 #include "jill/dsp/ringbuffer.hh"
 
-#define PROGRAM_NAME "jstimserver"
-#define REQ_STIMLIST "STIMLIST"
-#define REQ_PLAYSTIM "PLAY"
-#define REP_BADCMD "BADCMD"
-#define REP_BADSTIM "BADSTIM"
-#define REP_OK "OK"
+constexpr char PROGRAM_NAME[] = "jstimserver";
 
 using namespace jill;
 namespace fs = boost::filesystem;
@@ -205,8 +199,8 @@ stim_monitor()
         path /= "pub";
         std::ostringstream endpoint;
         endpoint << "ipc://" << path.string();
-        zsock_t * socket = zsock_new_pub(endpoint.str().c_str());
-        if (socket == 0) {
+        void * socket = zmq::context::socket(ZMQ_PUB);
+        if (zmq_bind(socket, endpoint.str().c_str()) < 0) {
                 LOG << "unable to bind to endpoint " << endpoint.str();
                 return;
         }
@@ -216,21 +210,30 @@ stim_monitor()
         // notify any waiting clients that we are alive. This is a pretty
         // fragile system for doing heartbeats.
         std::unique_lock<std::mutex> lck(_lock);
-        zstr_send(socket, "STARTING");
+        zmq::send(socket, "STARTING");
         while (_running) {
                 _ready.wait(lck);
                 if (_xrun)
-                        zstr_sendf(socket, "XRUN");
+                        zmq::send(socket, "XRUN");
                 else if (!_running)
-                        zstr_send(socket, "STOPPING");
-                else if (_stim)
-                        zstr_sendf(socket, "PLAYING %s", _stim->name());
+                        zmq::send(socket, "STOPPING");
+                else if (_stim) {
+                        std::ostringstream o;
+                        o << "PLAYING " << _stim->name();
+                        zmq::send(socket, o.str());
+                }
                 else
-                        zstr_send(socket, "DONE");
+                        zmq::send(socket, "DONE");
         }
-        zsock_destroy(&socket);
+        zmq_close(socket);
 }
 
+constexpr char REQ_STIMLIST[] = "STIMLIST";
+constexpr char REQ_PLAYSTIM[] = "PLAY";
+constexpr char REP_BADCMD[] = "BADCMD";
+constexpr char REP_BADSTIM[] = "BADSTIM";
+constexpr char REP_OK[] = "OK";
+constexpr char REP_BUSY[] = "BUSY";
 
 int
 main(int argc, char **argv)
@@ -261,8 +264,8 @@ main(int argc, char **argv)
                 std::ostringstream endpoint;
                 endpoint << "ipc://" << path.string();
 
-                zsock_t * req_socket = zsock_new_router(endpoint.str().c_str());
-                if (req_socket == 0) {
+                void * req_socket = zmq::context::socket(ZMQ_ROUTER);
+                if (zmq_bind(req_socket, endpoint.str().c_str()) < 0) {
                         LOG << "unable to bind to endpoint " << endpoint.str();
                         throw Exit(-1);
                 }
@@ -296,43 +299,42 @@ main(int argc, char **argv)
                 std::thread monitor_thread(stim_monitor);
                 LOG << "waiting for requests";
                 while (_running) {
-                        zmsg_t * msg = zmsg_recv(req_socket);
-                        if (!msg)
-                                break; // interrupted
-                        zframe_t * command = zmsg_last(msg);
-                        char * data = zframe_strdup(command);
-                        if (memcmp(data, REQ_STIMLIST, strlen(REQ_STIMLIST)) == 0) {
+                        // blocking call to receive messages
+                        std::vector<std::string> messages = zmq::recv(req_socket);
+                        if (messages.empty())
+                                break; // interrupted; exit the loop
+                        auto data = messages.back();
+                        if (data.compare(REQ_STIMLIST) == 0) {
                                 LOG << "client requested playlist";
-                                zframe_reset(command, stimlist.c_str(), stimlist.size());
+                                messages.back() = stimlist;
                         }
-                        else if (memcmp(data, REQ_PLAYSTIM, strlen(REQ_PLAYSTIM)) == 0) {
-                                std::string stim(data + strlen(REQ_PLAYSTIM) + 1);
+                        else if (data.compare(0, strlen(REQ_PLAYSTIM), REQ_PLAYSTIM) == 0) {
+                                auto stim = data.substr(strlen(REQ_PLAYSTIM) + 1);
                                 auto it = _stimuli.find(stim);
                                 if (it == _stimuli.end()) {
                                         LOG << "client requested invalid stimulus: " << stim;
-                                        zframe_reset(command, REP_BADSTIM, strlen(REP_BADSTIM));
+                                        messages.back() = REP_BADSTIM;
                                 }
                                 else if (__sync_bool_compare_and_swap(&_stim, 0, it->second)) {
                                         LOG << "playing stimulus: " << stim;
-                                        zframe_reset(command, REP_OK, strlen(REP_OK));
+                                        messages.back() = REP_OK;
                                 }
                                 else {
                                         LOG << "client requested stimulus while busy";
-                                        zframe_reset(command, "BUSY", 4);
+                                        messages.back() = REP_BUSY;
                                 }
                         }
                         else {
                                 LOG << "invalid client request";
-                                zframe_reset(command, REP_BADCMD, strlen(REP_BADCMD));
+                                messages.back() = REP_BADCMD;
                         }
-                        zstr_free(&data);
-                        zmsg_send(&msg, req_socket);
+                        zmq::send_n(req_socket, messages.begin(), messages.size());
                 }
                 LOG << "stopping";
 
                 client->deactivate();
                 if (monitor_thread.joinable()) monitor_thread.join();
-                zsock_destroy(&req_socket);
+                zmq_close(req_socket);
 
                 return EXIT_SUCCESS;
         }

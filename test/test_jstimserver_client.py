@@ -37,7 +37,7 @@ if __name__ == "__main__":
     while 1:
         msg = subsock.recv()
         print("msg: %s" % msg.decode('ascii'))
-        if msg == b"STOPPING":
+        if msg.startswith(b"STOPPING"):
             break
 
     reqsock.close()

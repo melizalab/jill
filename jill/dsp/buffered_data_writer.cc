@@ -191,7 +191,7 @@ buffered_data_writer::write_messages()
         if (!_logger_bound) return;
         for (int i = 0; i < max_messages; ++i) {
                 // expect a three-part message: source, timestamp, message
-                std::vector<std::string> messages = zmq::recv(_socket);
+                std::vector<std::string> messages = zmq::recv(_socket, ZMQ_DONTWAIT);
                 if (messages.size() >= 3) {
                         _writer->log(from_iso_string(messages[1]), messages[0], messages[2]);
                 }
