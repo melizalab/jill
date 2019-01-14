@@ -59,11 +59,12 @@ jstim_options options(PROGRAM_NAME);
 boost::ptr_map<std::string, stimulus_t> _stimuli;
 // current stimulus
 stimulus_t const * _stim = 0;
-// mutex/cond to signal zmq thread when stim starts/stops or if there is an xrun
+// mutex/cond to signal zmq thread when various things happen
 std::mutex _lock;
 std::condition_variable  _ready;
 static bool _running = true;
 static bool _xrun = false;
+static bool _interrupt = false;
 // jack ports
 jack_port_t *port_out, *port_trigout;
 
@@ -77,11 +78,19 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         void * trig = client->events(port_trigout, nframes);
         sample_t * out = client->samples(port_out, nframes);
+        // zero the output buffer
+        for(nframes_t i = 0; i < nframes; ++i)
+                out[i] = 0.0f;
 
-        // if no stimulus queued zero output buffer
+        // if no stimulus queued stop
         if (!_stim) {
-                for(nframes_t i = 0; i < nframes; ++i)
-                        out[i] = 0.0f;
+                return 0;
+        }
+        else if (_interrupt) {
+                midi::write_message(trig, 0, midi::stim_off, _stim->name());
+                stim_offset = 0;
+                _stim = nullptr;
+                _ready.notify_one();
                 return 0;
         }
 
@@ -222,18 +231,24 @@ stim_monitor()
                         o << "PLAYING " << _stim->name();
                         zmq::send(socket, o.str());
                 }
-                else
+                else if (__sync_bool_compare_and_swap(&_interrupt, true, false)) {
+                        zmq::send(socket, "INTERRUPTED");
+                }
+                else {
                         zmq::send(socket, "DONE");
+                }
         }
         zmq_close(socket);
 }
 
 constexpr char REQ_STIMLIST[] = "STIMLIST";
 constexpr char REQ_PLAYSTIM[] = "PLAY";
+constexpr char REQ_INTERRUPT[] = "INTERRUPT";
 constexpr char REP_BADCMD[] = "BADCMD";
 constexpr char REP_BADSTIM[] = "BADSTIM";
 constexpr char REP_OK[] = "OK";
 constexpr char REP_BUSY[] = "BUSY";
+constexpr char REP_NOTPLAYING[] = "NOTPLAYING";
 
 int
 main(int argc, char **argv)
@@ -305,7 +320,7 @@ main(int argc, char **argv)
                                 break; // interrupted; exit the loop
                         auto data = messages.back();
                         if (data.compare(REQ_STIMLIST) == 0) {
-                                LOG << "client requested playlist";
+                                DBG << "sent playlist to client";
                                 messages.back() = stimlist;
                         }
                         else if (data.compare(0, strlen(REQ_PLAYSTIM), REQ_PLAYSTIM) == 0) {
@@ -322,6 +337,20 @@ main(int argc, char **argv)
                                 else {
                                         LOG << "client requested stimulus while busy";
                                         messages.back() = REP_BUSY;
+                                }
+                        }
+                        else if (data.compare(REQ_INTERRUPT) == 0) {
+                                if (!_stim) {
+                                        LOG << "client requested interrupt while nothing playing";
+                                        messages.back() = REP_NOTPLAYING;
+                                }
+                                else if (__sync_bool_compare_and_swap(&_interrupt, false, true)) {
+                                        LOG << "interrupting stimulus playback";
+                                        messages.back() = REP_OK;
+                                }
+                                else {
+                                        LOG << "client requested interrupt while nothing playing";
+                                        messages.back() = REP_NOTPLAYING;
                                 }
                         }
                         else {

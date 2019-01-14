@@ -9,6 +9,8 @@ from __future__ import unicode_literals
 
 import os.path
 import zmq
+import json
+import time
 
 if __name__ == "__main__":
 
@@ -17,7 +19,6 @@ if __name__ == "__main__":
     p.add_argument("-e", "--endpoint",
                    help="endpoint of jstimserver",
                    default="ipc:///tmp/org.meliza.jill/default/jstimserver")
-    p.add_argument("request")
 
     opts = p.parse_args()
 
@@ -30,9 +31,37 @@ if __name__ == "__main__":
     reqsock = ctx.socket(zmq.REQ)
     reqsock.connect(os.path.join(opts.endpoint, "req"))
 
-    reqsock.send(opts.request.encode())
+    reqsock.send(b"STIMLIST")
     reply = reqsock.recv()
-    print(reply.decode('ascii'))
+    stims = json.loads(reply.decode("utf-8"))
+    print("received list of stimuli (n=%d)" % len(stims["stimuli"]))
+
+    req = "INTERRUPT"
+    print("req: %s" % req)
+    reqsock.send_string(req)
+    reply = reqsock.recv_string()
+    print("rep: %s" % reply)
+
+    stim_1 = stims["stimuli"][0]["name"]
+    req = "PLAY %s" % stim_1
+    print("req: %s" % req)
+    reqsock.send_string(req)
+    reply = reqsock.recv_string()
+    print("rep: %s" % reply)
+
+    time.sleep(0.1)
+    req = "PLAY %s" % stim_1
+    print("req: %s" % req)
+    reqsock.send_string(req)
+    reply = reqsock.recv_string()
+    print("rep: %s" % reply)
+
+    time.sleep(0.1)
+    req = "INTERRUPT"
+    print("req: %s" % req)
+    reqsock.send_string(req)
+    reply = reqsock.recv_string()
+    print("rep: %s" % reply)
 
     while 1:
         msg = subsock.recv()
