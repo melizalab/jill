@@ -8,6 +8,7 @@ from __future__ import division
 from __future__ import unicode_literals
 
 import os.path
+import pprint
 import zmq
 import json
 import time
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     reply = reqsock.recv()
     stims = json.loads(reply.decode("utf-8"))
     print("received list of stimuli (n=%d)" % len(stims["stimuli"]))
+    pprint.pprint(stims)
 
     req = "INTERRUPT"
     print("req: %s" % req)

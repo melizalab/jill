@@ -184,7 +184,7 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
 
                         pt::ptree stim_node;
                         stim_node.put("name", name);
-                        //stim_node.put("duration", stim->duration());
+                        stim_node.put("duration", stim->duration());
                         stim_list.push_back(std::make_pair("", stim_node));
                 }
                 catch (jill::FileError const & e) {
