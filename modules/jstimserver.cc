@@ -222,8 +222,9 @@ stim_monitor()
         zmq::send(socket, "STARTING");
         while (_running) {
                 _ready.wait(lck);
-                if (_xrun)
+                if (__sync_bool_compare_and_swap(&_xrun, true, false)) {
                         zmq::send(socket, "XRUN");
+                }
                 else if (!_running)
                         zmq::send(socket, "STOPPING");
                 else if (_stim) {
