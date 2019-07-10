@@ -69,13 +69,11 @@ env = Environment(ENV=os.environ,
                   tools=['default'])
 
 if system=='Darwin':
+    env.Replace(CXX="clang++")
     env.Append(CPPPATH=['/opt/local/include'],
                # CXXFLAGS=["-stdlib=libc++"],
                # LINKFLAGS=["-stdlib=libc++"],
                LIBPATH=['/opt/local/lib'])
-
-print(env.subst("using $CXX $CXXVERSION"))
-
 
 if os.environ.has_key('CXX'):
     env.Replace(CXX=os.environ['CXX'])
@@ -85,6 +83,8 @@ if os.environ.has_key('CXXFLAGS'):
     env.Append(CXXFLAGS=os.environ['CXXFLAGS'].split())
 if os.environ.has_key('LDFLAGS'):
     env.Append(LINKFLAGS=os.environ['LDFLAGS'].split())
+
+print(env.subst("using $CXX $CXXVERSION"))
 
 if GetOption('compile_arf'):
     if system!='Darwin':
