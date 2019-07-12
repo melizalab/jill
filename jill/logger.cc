@@ -84,12 +84,14 @@ logger::set_sourcename(std::string const & name)
 void
 logger::connect(std::string const & server_name)
 {
+        DBG << "connecting logger to " << server_name;
         if (_connected) {
                 DBG << "socket already connected";
                 return;
         }
         // If the server hasn't bound to the endpoint, messages will queue up
-        // and be transmitted when it does.
+        // and be transmitted when it does. Note: this will eventually cause the
+        // program's zeromq context to shut down if the connection is never made.
         std::ostringstream endpoint;
         endpoint << "ipc:///tmp/org.meliza.jill/" << server_name << "/msg";
         if (zmq_connect(_socket, endpoint.str().c_str()) != 0) {
@@ -98,5 +100,24 @@ logger::connect(std::string const & server_name)
         else {
                 INFO << "logging to " << endpoint.str();
                 _connected = true;
+        }
+}
+
+void
+logger::disconnect(std::string const & server_name)
+{
+        DBG << "disconnecting logger from " << server_name;
+        if (!_connected) {
+                DBG << "socket is not connected";
+                return;
+        }
+        std::ostringstream endpoint;
+        endpoint << "ipc:///tmp/org.meliza.jill/" << server_name << "/msg";
+        if (zmq_disconnect(_socket, endpoint.str().c_str()) != 0) {
+                LOG << "error disconnecting from endpoint " << endpoint.str();
+        }
+        else {
+                INFO << "no longer logging to " << endpoint.str();
+                _connected = false;
         }
 }

@@ -379,9 +379,9 @@ main(int argc, char **argv)
 
 }
 
-
+// NB: remote logging is off by default
 jstim_options::jstim_options(string const &program_name)
-        : program_options(program_name)
+        : program_options(program_name, false)
 {
         using std::vector;
 

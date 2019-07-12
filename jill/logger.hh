@@ -57,6 +57,12 @@ public:
          */
         void connect(std::string const & server_name);
 
+        /**
+         * Disconnect the logger from its zeromq socket. Messages will no longer
+         * be sent.
+         */
+        void disconnect(std::string const & server_name);
+
 private:
         logger();
         ~logger();

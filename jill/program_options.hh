@@ -61,9 +61,10 @@ public:
         /**
          * Initialize the options parser with the program's name.
          *
-         * @param program_name     the name of the program
+         * @param program_name        the name of the program
+         * @param remote_log_default  whether to turn on remote logging by default
          */
-        program_options(std::string program_name);
+        program_options(std::string program_name, bool remote_log_default=true);
         virtual ~program_options() = default;
 
         /** Options parsed from the commandline and configfile */

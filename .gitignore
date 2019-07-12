@@ -12,3 +12,4 @@ core*
 /modules/jrecord
 /modules/jstim
 /modules/jevent_click
+/modules/jstimserver
