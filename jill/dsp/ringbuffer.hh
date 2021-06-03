@@ -195,6 +195,13 @@ public:
                 return cnt;
         }
 
+        data_type pop() {
+                data_type ret;
+                pop(&ret, 1);
+                return ret;
+        }
+
+
         std::size_t write_offset() const {
                 return _write_ptr & _size_mask;
         };
