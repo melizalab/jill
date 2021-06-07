@@ -90,6 +90,13 @@ static const double hilbert_filt[n_hilbert] = {
        -5.07861048e-04, -8.92437318e-03, -4.60859408e-04, -1.35574586e-01 };
 static sample_ringbuffer hilbert_rb(n_hilbert * 2);
 static sample_ringbuffer delay_rb(n_hilbert);
+static const nframes_t n_iir = 5;
+static const double lp_filt_b[] = { 8.03606182e-10, 3.21442473e-09, 4.82163709e-09, 3.21442473e-09, 8.03606182e-10 };
+static const double lp_filt_a[] = { -3.97207701,  5.91662022, -3.91700624,  0.97246304 };
+static double shift_in[n_iir] = {};
+static double shift_out[n_iir - 1] = {};
+// static dsp::ringbuffer<double> iir_in_rb(n_iir * 2);
+// static dsp::ringbuffer<double> iir_out_rb(n_iir * 2);
 
 
 /*
@@ -100,6 +107,7 @@ static sample_ringbuffer delay_rb(n_hilbert);
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {
+        // buffers for the IIR lowpass filter. Samples are shifted to higher indices
         sample_t *in = client->samples(port_in, nframes);
         sample_t *out = client->samples(port_out, nframes);
 
@@ -109,17 +117,41 @@ process(jack_client *client, nframes_t nframes, nframes_t)
                 hilbert_rb.push(sample);
                 delay_rb.push(sample);
                 // convolution
-                double conv = 0.0;
-                sample_t const * rb = hilbert_rb.buffer() + hilbert_rb.read_offset();
-                for (nframes_t j = 0; j < n_hilbert; ++j) {
-                        conv += rb[j] * hilbert_filt[j];
+                {
+                        double conv = 0.0;
+                        sample_t const * rb = hilbert_rb.buffer() + hilbert_rb.read_offset();
+                        for (nframes_t j = 0; j < n_hilbert; ++j) {
+                                conv += rb[j] * hilbert_filt[j];
+                        }
+                        hilbert_rb.pop(nullptr, 1);
+                        // envelope
+                        sample_t delayed = delay_rb.pop();
+                        double envelope = sqrt(conv * conv + delayed * delayed);
+                        // shift input samples
+                        for (nframes_t j = n_iir - 1; j > 0; --j) {
+                                shift_in[j] = shift_in[j - 1];
+                        }
+                        shift_in[0] = envelope;
+                        out[i] = shift_in[n_iir - 1];
                 }
-                hilbert_rb.pop(nullptr, 1);
-                // envelope
-                sample_t delayed = delay_rb.pop();
-                double envelope = sqrt(conv * conv + delayed * delayed);
-                // for devel, just return the envelope
-                out[i] = (sample_t)envelope;
+                // lowpass filter
+                {
+                        double conv = 0.0;
+                        // FIR
+                        for (nframes_t j = 0; j < n_iir; ++j) {
+                                conv += shift_in[j] * lp_filt_b[j];
+                        }
+                        // IIR
+                        for (nframes_t j = 0; j < n_iir - 1; ++j) {
+                                conv -= shift_out[j] * lp_filt_a[j];
+                        }
+                        // shift output samples
+                        for (nframes_t j = n_iir - 2; j > 0; --j) {
+                                shift_out[j] = shift_out[j - 1];
+                        }
+                        //shift_out[0] = conv;
+
+                }
         }
 
         return 0;
@@ -156,6 +188,9 @@ main(int argc, char **argv)
                 hilbert_rb.push(nullptr, n_hilbert - 1);
                 LOG << "initializing delay ringbuffer (" << n_hilbert / 2 << " points)";
                 delay_rb.push(nullptr, n_hilbert / 2 - 1);
+                // LOG << "initializing lowpass IIR filter ringbuffers (" << n_iir << " points)";
+                // iir_in_rb.push(nullptr, n_iir - 1);
+                // iir_out_rb.push(nullptr, n_iir - 1);
 
                 port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
                                                 JackPortIsInput, 0);
@@ -213,8 +248,8 @@ jamnoise_options::jamnoise_options(string const &program_name)
         //         ("delay,d",   po::value<float>(&delay_msec)->default_value(10),
         //          "delay to add between input and output (ms)");
 
-        // cmd_opts.add(jillopts).add(opts);
-        // visible_opts.add(jillopts).add(opts);
+        cmd_opts.add(jillopts); //.add(opts);
+        visible_opts.add(jillopts); //.add(opts);
 }
 
 void
