@@ -9,6 +9,7 @@
  * Copyright (C) 2010-2021 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <random>
 #include <csignal>
 #include <boost/filesystem.hpp>
 
@@ -55,6 +56,7 @@ static int running = 1;
 
 
 static const nframes_t n_hilbert = 128;
+// signal.remez(N, [100, 0.99 * sampling_rate / 2], [1], type='hilbert', fs=sampling_rate)
 static const double hilbert_filt[n_hilbert] = {
         1.35574586e-01,  4.60859408e-04,  8.92437318e-03,  5.07861048e-04,
         9.24435788e-03,  5.69220879e-04,  9.59325502e-03,  6.38987738e-04,
@@ -90,20 +92,20 @@ static const double hilbert_filt[n_hilbert] = {
        -5.07861048e-04, -8.92437318e-03, -4.60859408e-04, -1.35574586e-01 };
 static sample_ringbuffer hilbert_rb(n_hilbert * 2);
 static sample_ringbuffer delay_rb(n_hilbert);
-// static const nframes_t n_iir = 5;
-// static const double lp_filt_b[] = { 8.03606182e-10, 3.21442473e-09, 4.82163709e-09, 3.21442473e-09, 8.03606182e-10 };
-// static const double lp_filt_a[] = { -3.97207701,  5.91662022, -3.91700624,  0.97246304 };
-// static double shift_in[n_iir] = {};
-// static double shift_out[n_iir - 1] = {};
-// static dsp::ringbuffer<double> iir_in_rb(n_iir * 2);
-// static dsp::ringbuffer<double> iir_out_rb(n_iir * 2);
 static const nframes_t n_sos = 2;
+// this is 4th order butterworth lowpass with cutoff 500 Hz
 static const double lp_filt_sos[n_sos][6] = {
-        {2.52807462e-09,  5.05614923e-09,  2.52807462e-09, 1.00000000e+00, -1.97381644e+00,  9.74016792e-01},
-        {1.00000000e+00,  2.00000000e+00,  1.00000000e+00, 1.00000000e+00, -1.98895298e+00,  9.89154868e-01}
+        {6.14363288e-09,  1.22872658e-08,  6.14363288e-09,
+         1.00000000e+00, -1.96731471e+00,  9.67626743e-01},
+        {1.00000000e+00,  2.00000000e+00,  1.00000000e+00,
+         1.00000000e+00, -1.98614717e+00,  9.86462194e-01}
 };
 static double sos_delay[n_sos][2] = {};
 
+static bool envelope_only = false;
+static std::random_device rd;  //Will be used to obtain a seed for the random number engine
+static std::mt19937 wn_gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+static std::uniform_real_distribution<> wn_dis(-1.0, 1.0);
 /*
  * The process callback extracts the envelope of the incoming signal by
  * performing a Hilbert transform and then low-pass filtering with a 4th-order
@@ -127,18 +129,14 @@ process(jack_client *client, nframes_t nframes, nframes_t)
                         double conv = 0.0;
                         sample_t const * rb = hilbert_rb.buffer() + hilbert_rb.read_offset();
                         for (nframes_t j = 0; j < n_hilbert; ++j) {
-                                conv += rb[j] * hilbert_filt[j];
+                                // hilbert transform filter is antisymmetric, so
+                                // h(n - j) = -h(j)
+                                conv += - rb[j] * hilbert_filt[j];
                         }
                         hilbert_rb.pop(nullptr, 1);
                         // envelope
                         sample_t delayed = delay_rb.pop();
                         envelope = sqrt(conv * conv + delayed * delayed);
-                        // // shift input samples
-                        // for (nframes_t j = n_iir - 1; j > 0; --j) {
-                        //         shift_in[j] = shift_in[j - 1];
-                        // }
-                        // shift_in[0] = envelope;
-                        // out[i] = shift_in[n_iir - 1];
                 }
                 // lowpass filter. Using casacaded second-order sections, direct
                 // II transposed structure. Adapted from scipy.signal.sosfilt
@@ -148,6 +146,8 @@ process(jack_client *client, nframes_t nframes, nframes_t)
                         sos_delay[s][0] = lp_filt_sos[s][1] * x - lp_filt_sos[s][4] * envelope + sos_delay[s][1];
                         sos_delay[s][1] = lp_filt_sos[s][2] * x - lp_filt_sos[s][5] * envelope;
                 }
+                if (!envelope_only)
+                        envelope *= wn_dis(wn_gen);
                 out[i] = envelope;
         }
 
@@ -185,9 +185,10 @@ main(int argc, char **argv)
                 hilbert_rb.push(nullptr, n_hilbert - 1);
                 LOG << "initializing delay ringbuffer (" << n_hilbert / 2 << " points)";
                 delay_rb.push(nullptr, n_hilbert / 2 - 1);
-                // LOG << "initializing lowpass IIR filter ringbuffers (" << n_iir << " points)";
-                // iir_in_rb.push(nullptr, n_iir - 1);
-                // iir_out_rb.push(nullptr, n_iir - 1);
+                if (options.count("envelope")) {
+                        LOG << "outputting envelope";
+                        envelope_only = true;
+                }
 
                 port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
                                                 JackPortIsInput, 0);
@@ -240,13 +241,12 @@ jamnoise_options::jamnoise_options(string const &program_name)
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port");
 
         // tropts is a group of options
-        // po::options_description opts("Delay options");
-        // opts.add_options()
-        //         ("delay,d",   po::value<float>(&delay_msec)->default_value(10),
-        //          "delay to add between input and output (ms)");
+        po::options_description opts("Module options");
+        opts.add_options()
+                ("envelope,e",    "output envelope (used for debugging)");
 
-        cmd_opts.add(jillopts); //.add(opts);
-        visible_opts.add(jillopts); //.add(opts);
+        cmd_opts.add(jillopts).add(opts);
+        visible_opts.add(jillopts).add(opts);
 }
 
 void
