@@ -86,11 +86,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         if (!_stim) {
                 return 0;
         }
-        else if (_interrupt) {
+        else if (__sync_bool_compare_and_swap(&_interrupt, true, false)) {
                 midi::write_message(trig, 0, midi::stim_off, _stim->name());
                 stim_offset = 0;
                 _stim = nullptr;
-                _ready.notify_one();
                 return 0;
         }
 
@@ -98,7 +97,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         if (stim_offset == 0) {
                 midi::write_message(trig, 0,
                                     midi::stim_on, _stim->name());
-                _ready.notify_one();
         }
 
         // copy samples, if there are any
@@ -119,8 +117,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 stim_offset = 0;
                 // set ptr to null once done
                 _stim = nullptr;
-                // notify condition variable
-                _ready.notify_one();
         }
 
         return 0;
@@ -138,8 +134,6 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // we use the xruns counter to notify that an interruption in the audio
-        // stream has occurred
         std::lock_guard<std::mutex> lock(_lock);
         _xrun = true;
         _ready.notify_one();
@@ -157,6 +151,7 @@ jack_shutdown(jack_status_t code, char const *)
 void
 signal_handler(int sig)
 {
+        // this may generate undefined behavior in a signal handler
         std::lock_guard<std::mutex> lock(_lock);
         _running = false;
         _ready.notify_one();
@@ -216,8 +211,6 @@ stim_monitor()
         else {
                 INFO << "publishing start/stop events at " << endpoint.str();
         }
-        // notify any waiting clients that we are alive. This is a pretty
-        // fragile system for doing heartbeats.
         std::unique_lock<std::mutex> lck(_lock);
         zmq::send(socket, "STARTING");
         while (_running) {
@@ -227,17 +220,6 @@ stim_monitor()
                 }
                 else if (!_running)
                         zmq::send(socket, "STOPPING");
-                else if (_stim) {
-                        std::ostringstream o;
-                        o << "PLAYING " << _stim->name();
-                        zmq::send(socket, o.str());
-                }
-                else if (__sync_bool_compare_and_swap(&_interrupt, true, false)) {
-                        zmq::send(socket, "INTERRUPTED");
-                }
-                else {
-                        zmq::send(socket, "DONE");
-                }
         }
         zmq_close(socket);
 }
@@ -315,7 +297,6 @@ main(int argc, char **argv)
                 std::thread monitor_thread(stim_monitor);
                 LOG << "waiting for requests";
                 while (_running) {
-                        // blocking call to receive messages
                         std::vector<std::string> messages = zmq::recv(req_socket);
                         if (messages.empty())
                                 break; // interrupted; exit the loop
