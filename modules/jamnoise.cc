@@ -53,7 +53,7 @@ static std::unique_ptr<jack_client> client;
 jack_port_t *port_in, *port_out;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
-
+static float output_scale = 1.0;
 
 static const nframes_t n_hilbert = 128;
 // signal.remez(N, [100, 0.99 * sampling_rate / 2], [1], type='hilbert', fs=sampling_rate)
@@ -146,6 +146,7 @@ process(jack_client *client, nframes_t nframes, nframes_t)
                         sos_delay[s][0] = lp_filt_sos[s][1] * x - lp_filt_sos[s][4] * envelope + sos_delay[s][1];
                         sos_delay[s][1] = lp_filt_sos[s][2] * x - lp_filt_sos[s][5] * envelope;
                 }
+                envelope *= output_scale;
                 if (!envelope_only)
                         envelope *= wn_dis(wn_gen);
                 out[i] = envelope;
@@ -244,6 +245,9 @@ jamnoise_options::jamnoise_options(string const &program_name)
         po::options_description opts("Module options");
         opts.add_options()
                 ("envelope,e",    "output envelope (used for debugging)");
+        opts.add_options()
+                ("scale,s",    po::value<float>(&output_scale)->default_value(1.0),
+                 "scale output by factor");
 
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
