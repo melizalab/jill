@@ -38,9 +38,6 @@ public:
         std::vector<string> input_ports;
         std::vector<string> output_ports;
 
-        float delay_msec;
-        nframes_t delay;
-
 protected:
 
         void print_usage() override;
@@ -260,6 +257,6 @@ jamnoise_options::print_usage()
                   << visible_opts << std::endl
                   << "Ports:\n"
                   << " * in:        input port\n"
-                  << " * out:       output port with delayed signal\n"
+                  << " * out:       output port with filtered signal\n"
                   << std::endl;
 }

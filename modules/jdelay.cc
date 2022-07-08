@@ -44,7 +44,7 @@ protected:
 
         void print_usage() override;
 
-}; // jstim_options
+}; // jdelay_options
 
 
 static jdelay_options options(PROGRAM_NAME);
