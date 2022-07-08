@@ -75,13 +75,13 @@ if system=='Darwin':
                # LINKFLAGS=["-stdlib=libc++"],
                LIBPATH=['/opt/local/lib'])
 
-if os.environ.has_key('CXX'):
+if 'CXX' in os.environ:
     env.Replace(CXX=os.environ['CXX'])
-if os.environ.has_key('CFLAGS'):
+if 'CFLAGS' in os.environ:
     env.Append(CCFLAGS=os.environ['CFLAGS'].split())
-if os.environ.has_key('CXXFLAGS'):
+if 'CXXFLAGS' in os.environ:
     env.Append(CXXFLAGS=os.environ['CXXFLAGS'].split())
-if os.environ.has_key('LDFLAGS'):
+if 'LDFLAGS' in os.environ:
     env.Append(LINKFLAGS=os.environ['LDFLAGS'].split())
 
 print(env.subst("using $CXX $CXXVERSION"))
