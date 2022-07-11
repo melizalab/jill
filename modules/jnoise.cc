@@ -11,7 +11,8 @@
 #include <iostream>
 #include <random>
 #include <csignal>
-#include <boost/filesystem.hpp>
+#include <atomic>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -21,6 +22,7 @@
 #define PROGRAM_NAME "jnoise"
 
 using namespace jill;
+using namespace boost::posix_time;
 using std::string;
 using sample_ringbuffer = dsp::ringbuffer<sample_t>;
 
@@ -37,8 +39,9 @@ public:
         /** Ports to connect to */
         std::vector<string> output_ports;
 
-	float start_hour;
-	float stop_hour;
+	string start_time;
+	string stop_time;
+	float output_db;
 	
 protected:
 
@@ -52,7 +55,8 @@ static std::unique_ptr<jack_client> client;
 jack_port_t *port_out;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
-static int daytime = 0;
+static float output_scale = 0;
+std::atomic<bool> daytime(false);
 
 static std::random_device rd;  //Will be used to obtain a seed for the random number engine
 static std::mt19937 wn_gen(rd()); //Standard mersenne_twister_engine seeded with rd()
@@ -62,10 +66,16 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 {
         sample_t *out = client->samples(port_out, nframes);
 
-        for (nframes_t i = 0; i < nframes; ++i) {
-		// TODO scale the output
-		out[i] = wn_dis(wn_gen);
-        }
+	if (daytime) {
+		for (nframes_t i = 0; i < nframes; ++i) {
+			// TODO scale the output
+			out[i] = wn_dis(wn_gen) * output_scale;
+		}
+	} else {
+		for (nframes_t i = 0; i < nframes; ++i) {
+			out[i] = 0.0;
+		}
+	}
 
         return 0;
 }
@@ -98,6 +108,15 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
 
+		// parse the arguments
+		time_duration start = duration_from_string(options.start_time);
+		time_duration stop = duration_from_string(options.stop_time);
+		LOG << "noise will be played between " << start << "--" << stop;
+		// calculate scaling factor. RMS of standard normal is 3.0103 dB FS
+		output_scale = pow(10, (options.output_db - 3.0103) / 20);
+		LOG << "noise amplitude: " << options.output_db << " dB FS (std = " << output_scale << ")";
+			
+		
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput, 0);
 
@@ -115,7 +134,16 @@ main(int argc, char **argv)
 
 		// check time here
                 while (running) {
-                        usleep(100000);
+			time_duration time_of_day = second_clock::local_time().time_of_day();
+			bool is_day;
+			if (stop > start)
+				is_day = (start < time_of_day) && (time_of_day <= stop);
+			else
+				is_day = !((stop < time_of_day) && (time_of_day <= start));
+			bool old = daytime.exchange(is_day);
+			if (old != is_day)
+				LOG << "noise is " << ((is_day) ? "on" : "off") << " at " << time_of_day;
+                        sleep(5.0);
                 }
 
                 client->deactivate();
@@ -148,10 +176,10 @@ jnoise_options::jnoise_options(string const &program_name)
         // tropts is a group of options
         po::options_description opts("Module options");
         opts.add_options()
-                ("amplitude,a",    po::value<float>(&output_scale)->default_value(1.0),
-                 "scale output by factor")
-		("start",          po::value<float>(&start_hour), "hour when noise starts")
-		("stop",           po::value<float>(&stop_hour), "hour when noise stops")
+                ("amplitude,a",    po::value<float>(&output_db)->default_value(-33.0),
+                 "amplitude of the noise (in dB FS)")
+		("start",          po::value<string>(&start_time)->default_value("00:00:00"), "time of day when noise starts")
+		("stop",           po::value<string>(&stop_time)->default_value("24:00:00"), "time of day when noise stops");
 
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
