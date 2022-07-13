@@ -17,10 +17,14 @@ import time
 if __name__ == "__main__":
 
     import argparse
+
     p = argparse.ArgumentParser()
-    p.add_argument("-e", "--endpoint",
-                   help="endpoint of jstimserver",
-                   default="ipc:///tmp/org.meliza.jill/default/jstimserver")
+    p.add_argument(
+        "-e",
+        "--endpoint",
+        help="endpoint of jstimserver",
+        default="ipc:///tmp/org.meliza.jill/default/jstimserver",
+    )
 
     opts = p.parse_args()
 
@@ -48,7 +52,7 @@ if __name__ == "__main__":
         print("rep %d: %s" % (i, reply))
         while 1:
             msg = subsock.recv()
-            print("pub: %s" % msg.decode('ascii'))
+            print("pub: %s" % msg.decode("ascii"))
             if msg.startswith(b"DONE"):
                 break
 

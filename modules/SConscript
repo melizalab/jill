@@ -1,31 +1,38 @@
 import os
-Import('env lib')
+
+Import("env lib")
 
 # boost libraries may be named differently
-BOOST_LIBS = ['boost_system', 'boost_date_time', 'boost_program_options', 'boost_filesystem']
-if hasattr(os,'uname') and os.uname()[0] == 'Darwin':
+BOOST_LIBS = [
+    "boost_system",
+    "boost_date_time",
+    "boost_program_options",
+    "boost_filesystem",
+]
+if hasattr(os, "uname") and os.uname()[0] == "Darwin":
     BOOST_LIBS = [x + "-mt" for x in BOOST_LIBS]
 
 # clone environment and add libraries for modules
 menv = env.Clone()
-menv.Append(CPPPATH=['#'],
-            LIBS=['jack', 'samplerate', 'sndfile', 'pthread', 'zmq'] + BOOST_LIBS,
-            )
+menv.Append(
+    CPPPATH=["#"],
+    LIBS=["jack", "samplerate", "sndfile", "pthread", "zmq"] + BOOST_LIBS,
+)
 
 programs = {
-    'jdelay' : 'jdelay.cc',
-    'jamnoise' : 'jamnoise.cc',
-    'jnoise' : 'jnoise.cc',
-    'jdetect' : 'jdetect.cc',
-    'jstim' : 'jstim.cc',
-    'jstimserver' : 'jstimserver.cc',
-    'jclicker' : 'jclicker.cc',
-    'jmonitor' : 'monitor_client.c',
+    "jdelay": "jdelay.cc",
+    "jamnoise": "jamnoise.cc",
+    "jnoise": "jnoise.cc",
+    "jdetect": "jdetect.cc",
+    "jstim": "jstim.cc",
+    "jstimserver": "jstimserver.cc",
+    "jclicker": "jclicker.cc",
+    "jmonitor": "monitor_client.c",
 }
 
-if GetOption('compile_arf'):
-    menv.Append(LIBS=['hdf5', 'hdf5_hl'])
-    programs['jrecord'] = ['jrecord.cc'],
+if GetOption("compile_arf"):
+    menv.Append(LIBS=["hdf5", "hdf5_hl"])
+    programs["jrecord"] = (["jrecord.cc"],)
 
 
 out = []
@@ -34,6 +41,6 @@ for progname, src in programs.items():
     prog = menv.Program(progname, [src, lib])
     menv.Alias(progname, prog)
     out.append(prog)
-    env.Alias('install', env.Install(env['BINDIR'], prog))
+    env.Alias("install", env.Install(env["BINDIR"], prog))
 
-env.Alias('modules', out)
+env.Alias("modules", out)

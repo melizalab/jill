@@ -1,24 +1,35 @@
 import os
-Import('env lib')
+
+Import("env lib")
 
 # boost libraries may be named differently
-BOOST_LIBS = ['boost_system','boost_date_time','boost_program_options','boost_filesystem']
-if hasattr(os,'uname') and os.uname()[0] == 'Darwin':
+BOOST_LIBS = [
+    "boost_system",
+    "boost_date_time",
+    "boost_program_options",
+    "boost_filesystem",
+]
+if hasattr(os, "uname") and os.uname()[0] == "Darwin":
     BOOST_LIBS = [x + "-mt" for x in BOOST_LIBS]
 
 # clone environment and add libraries for modules
 menv = env.Clone()
-menv.Append(CPPPATH=['#'],
-            LIBS=['jack','samplerate','sndfile','zmq','pthread'] + BOOST_LIBS,
-            )
+menv.Append(
+    CPPPATH=["#"],
+    LIBS=["jack", "samplerate", "sndfile", "zmq", "pthread"] + BOOST_LIBS,
+)
 
 
-out = [menv.Program(os.path.splitext(str(f))[0], [f,lib]) for f in env.Glob("*.cc") if 'arf' not in f.path]
-out += [menv.Program(os.path.splitext(str(f))[0],[f]) for f in env.Glob("*.c")]
+out = [
+    menv.Program(os.path.splitext(str(f))[0], [f, lib])
+    for f in env.Glob("*.cc")
+    if "arf" not in f.path
+]
+out += [menv.Program(os.path.splitext(str(f))[0], [f]) for f in env.Glob("*.c")]
 
-if GetOption('compile_arf'):
-    menv.Append(LIBS=['hdf5', 'hdf5_hl'])
+if GetOption("compile_arf"):
+    menv.Append(LIBS=["hdf5", "hdf5_hl"])
     out.append(menv.Program("test_arf_writer", ["test_arf_writer.cc", lib]))
 
 
-env.Alias('test',out)
+env.Alias("test", out)

@@ -1,14 +1,15 @@
 import os
-Import('env libname')
 
-subdirs = ['.','util','dsp','file']
+Import("env libname")
+
+subdirs = [".", "util", "dsp", "file"]
 files = []
 for d in subdirs:
-    files.extend(env.Glob(os.path.join(d,'*.cc')))
-if not GetOption('compile_arf'):
-    files = [f for f in files if 'arf' not in f.path]
+    files.extend(env.Glob(os.path.join(d, "*.cc")))
+if not GetOption("compile_arf"):
+    files = [f for f in files if "arf" not in f.path]
 
 lib = env.Library(libname, files)
-env.Alias('library', lib)
+env.Alias("library", lib)
 
-Return('lib')
+Return("lib")
