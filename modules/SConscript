@@ -24,6 +24,7 @@ programs = {
     "jamnoise": "jamnoise.cc",
     "jnoise": "jnoise.cc",
     "jdetect": "jdetect.cc",
+    "jtime": "jtime.cc",
     "jstim": "jstim.cc",
     "jstimserver": "jstimserver.cc",
     "jclicker": "jclicker.cc",

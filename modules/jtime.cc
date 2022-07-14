@@ -17,14 +17,13 @@
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/logging.hh"
-#include "jill/dsp/ringbuffer.hh"
+#include "jill/midi.hh"
 
 #define PROGRAM_NAME "jtime"
 
 using namespace jill;
 using namespace boost::posix_time;
 using std::string;
-using sample_ringbuffer = dsp::ringbuffer<sample_t>;
 
 class jtime_options : public program_options {
 
@@ -95,17 +94,17 @@ jack_xrun(jack_client *client, float delay)
 void
 jack_shutdown(jack_status_t code, char const *)
 {
+	// we don't really need to try to clean up because all the downstream
+	// stuff is going to get killed too, but we can try
         stopping = true;
-        usleep(2e6 * client->buffer_size() / client->sampling_rate());
-        exit(-1);
+	ret = -1;
 }
 
 void
 signal_handler(int sig)
 {
         stopping = true;
-        usleep(2e6 * client->buffer_size() / client->sampling_rate());
-        exit(sig);
+	ret = sig;
 }
 
 int
@@ -139,18 +138,29 @@ main(int argc, char **argv)
 
 		// check time here
                 while (true) {
-			time_duration time_of_day = second_clock::local_time().time_of_day();
 			bool is_day;
+			midi::data_type new_status, old_status;
+			time_duration time_of_day = second_clock::local_time().time_of_day();
+			if (stopping) {
+				old_status = status.exchange(midi::note_off);
+				if (old_status == midi::note_on) {
+					trigger = true;
+					LOG << "signal off at " << time_of_day;
+				}
+				usleep(2e6 * client->buffer_size() / client->sampling_rate());
+				break;
+			}
 			if (stop > start)
 				is_day = ((start < time_of_day) && (time_of_day <= stop));
 			else
 				is_day = (!((stop < time_of_day) && (time_of_day <= start)));
-			midi::data_type new_status = (is_day) ? midi::note_on : midi::note_off;
-			midi::data_type old_status = status.exchange(new_status);
+			new_status = (is_day) ? midi::note_on : midi::note_off;
+			old_status = status.exchange(new_status);
 			if (old_status != new_status) {
 				trigger = true;
-				LOG << "signal " << ((is_day) ? "on" : "off") << " at " << time_of_day;
-                        sleep(5.0);
+				LOG << "signal " << ((is_day) ? "on " : "off") << " at " << time_of_day;
+			}
+                        sleep(1.0);
                 }
 
                 client->deactivate();
