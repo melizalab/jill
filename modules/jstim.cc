@@ -9,6 +9,7 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <atomic>
 #include <csignal>
 #include <random>
 #include <boost/filesystem.hpp>
@@ -61,8 +62,7 @@ std::unique_ptr<util::readahead_stimqueue> queue;
 boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_trigout, *port_trigin;
-
-static int xruns = 0;                  // xrun counter
+std::atomic<int> xruns(0);                  // xrun counter
 
 /**
  * The realtime process loop for jstim. The logic is complicated. The process
@@ -110,7 +110,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 // reset timers because running time has changed
                 last_start = last_stop = time;
                 // indicate we've handled the xrun
-                __sync_add_and_fetch(&xruns, -1);
+                xruns.fetch_add(-1);
         }
 
         // if no stimulus queued do nothing
@@ -179,7 +179,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 int
 jack_xrun(jack_client *client, float delay)
 {
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
+        xruns.fetch_add(1);
         return 0;
 }
 
@@ -188,21 +188,21 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 {
         // we use the xruns counter to notify the process thread that an
         // interruption in the audio stream has occurred
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
+	xruns.fetch_add(1);
         return 0;
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
+	xruns.fetch_add(1);
         if (queue) queue->stop();
 }
 
 void
 signal_handler(int sig)
 {
-        __sync_add_and_fetch(&xruns, 1); // gcc specific
+	xruns.fetch_add(1);
         if (queue) queue->stop();
 }
 

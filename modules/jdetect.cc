@@ -9,6 +9,7 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <atomic>
 #include <csignal>
 
 #include "jill/logging.hh"
@@ -59,7 +60,9 @@ jdetect_options options(PROGRAM_NAME);
 std::unique_ptr<jack_client> client;
 std::unique_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
-int stopping = 0;               // set to 1 to get process to clean up
+// set to true to get process to clean up
+std::atomic<bool> stopping(false);
+
 
 /* data storage for event times */
 struct event_t {
@@ -77,10 +80,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         jack_midi_data_t buf[] = { jack_midi_data_t(options.output_chan & midi::chan_nib),
                                    midi::default_pitch, midi::default_velocity };
 
-        if (stopping && trigger->open()) {
+        if (stopping.exchange(false) && trigger->open()) {
                 buf[0] += midi::note_off;
                 jack_midi_event_write(trig_buffer, 0, buf, 3);
-                __sync_add_and_fetch(&stopping, -1);
+                //stopping = false;
                 return 0;
         }
 
@@ -127,7 +130,7 @@ std::size_t log_times(event_t const * events, std::size_t count)
 void
 signal_handler(int sig)
 {
-        __sync_add_and_fetch(&stopping, 1);
+	stopping = true;
         // wait for at least one process loop; not strictly async safe
         usleep(2e6 * client->buffer_size() / client->sampling_rate());
         exit(sig);
@@ -136,7 +139,7 @@ signal_handler(int sig)
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-        __sync_add_and_fetch(&stopping, 1);
+	stopping = true;
         // wait for at least one process loop
         usleep(2e6 * client->buffer_size() / client->sampling_rate());
         exit(-1);
