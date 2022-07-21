@@ -39,10 +39,11 @@ public:
         /** Ports to connect to */
         std::vector<string> output_ports;
 
-	string start_time;
-	string stop_time;
-	float output_db;
-	
+        string start_time;
+        string stop_time;
+        float loud_db;
+        float quiet_db;
+
 protected:
 
         void print_usage() override;
@@ -53,9 +54,10 @@ protected:
 static jnoise_options options(PROGRAM_NAME);
 static std::unique_ptr<jack_client> client;
 jack_port_t *port_out;
-static int ret = EXIT_SUCCESS;
-static int running = 1;
-static float output_scale = 0;
+float loud_scale = 0;
+float quiet_scale = 0;
+std::atomic<int> ret(EXIT_SUCCESS);
+std::atomic<bool> running(true);
 std::atomic<bool> daytime(false);
 
 static std::random_device rd;  //Will be used to obtain a seed for the random number engine
@@ -66,16 +68,15 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 {
         sample_t *out = client->samples(port_out, nframes);
 
-	if (daytime) {
-		for (nframes_t i = 0; i < nframes; ++i) {
-			// TODO scale the output
-			out[i] = wn_dis(wn_gen) * output_scale;
-		}
-	} else {
-		for (nframes_t i = 0; i < nframes; ++i) {
-			out[i] = 0.0;
-		}
-	}
+        if (daytime) {
+                for (nframes_t i = 0; i < nframes; ++i) {
+                        out[i] = wn_dis(wn_gen) * loud_scale;
+                }
+        } else {
+                for (nframes_t i = 0; i < nframes; ++i) {
+                        out[i] = wn_dis(wn_gen) * quiet_scale;
+                }
+        }
 
         return 0;
 }
@@ -90,14 +91,14 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         ret = -1;
-        running = 0;
+        running = false;
 }
 
 void
 signal_handler(int sig)
 {
         ret = sig;
-        running = 0;
+        running = false;
 }
 
 int
@@ -108,15 +109,15 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
                 client.reset(new jack_client(options.client_name, options.server_name));
 
-		// parse the arguments
-		time_duration start = duration_from_string(options.start_time);
-		time_duration stop = duration_from_string(options.stop_time);
-		LOG << "noise will be played between " << start << "--" << stop;
-		// calculate scaling factor. RMS of standard normal is 3.0103 dB FS
-		output_scale = pow(10, (options.output_db - 3.0103) / 20);
-		LOG << "noise amplitude: " << options.output_db << " dB FS (std = " << output_scale << ")";
-			
-		
+                // parse the arguments
+                time_duration start = duration_from_string(options.start_time);
+                time_duration stop = duration_from_string(options.stop_time);
+                LOG << "noise will be " << options.loud_db << " dB FS between " << start << "--" << stop;
+                LOG << "noise will be " << options.quiet_db << " dB FS between " << stop << "--" << start;
+                // calculate scaling factor. RMS of standard normal is 3.0103 dB FS
+                loud_scale = pow(10, (options.loud_db - 3.0103) / 20);
+                quiet_scale = pow(10, (options.quiet_db - 3.0103) / 20);
+
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput, 0);
 
@@ -132,17 +133,21 @@ main(int argc, char **argv)
 
                 client->connect_ports("out", options.output_ports.begin(), options.output_ports.end());
 
-		// check time here
+                // check time here
                 while (running) {
-			time_duration time_of_day = second_clock::local_time().time_of_day();
-			bool is_day;
-			if (stop > start)
-				is_day = (start < time_of_day) && (time_of_day <= stop);
-			else
-				is_day = !((stop < time_of_day) && (time_of_day <= start));
-			bool old = daytime.exchange(is_day);
-			if (old != is_day)
-				LOG << "noise is " << ((is_day) ? "on" : "off") << " at " << time_of_day;
+                        time_duration time_of_day = second_clock::local_time().time_of_day();
+                        bool is_day;
+                        if (stop > start)
+                                is_day = (start < time_of_day) && (time_of_day <= stop);
+                        else
+                                is_day = !((stop < time_of_day) && (time_of_day <= start));
+                        bool old = daytime.exchange(is_day);
+                        if (old != is_day) {
+                                if (is_day)
+                                        LOG << "noise @ " options.loud_db " dB FS at " << time_of_day;
+                                else
+                                        LOG << "noise @ " options.quiet_db " dB FS at " << time_of_day;
+                        }
                         sleep(5.0);
                 }
 
@@ -176,10 +181,14 @@ jnoise_options::jnoise_options(string const &program_name)
         // tropts is a group of options
         po::options_description opts("Module options");
         opts.add_options()
-                ("amplitude,a",    po::value<float>(&output_db)->default_value(-33.0),
-                 "amplitude of the noise (in dB FS)")
-		("start",          po::value<string>(&start_time)->default_value("00:00:00"), "time of day when noise starts")
-		("stop",           po::value<string>(&stop_time)->default_value("24:00:00"), "time of day when noise stops");
+                ("loud-amplitude,l",    po::value<float>(&loud_db)->default_value(-33.0),
+                 "amplitude of the noise during the day (in dB FS)")
+                ("quiet-amplitude,q",    po::value<float>(&quiet_db)->default_value(-40.2),
+                 "amplitude of the noise during the night (in dB FS)")
+                ("start",          po::value<string>(&start_time)->default_value("00:00:00"),
+                 "time of day when noise gets louder")
+                ("stop",           po::value<string>(&stop_time)->default_value("24:00:00"),
+                 "time of day when noise gets quieter");
 
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
