@@ -144,9 +144,9 @@ main(int argc, char **argv)
                         bool old = daytime.exchange(is_day);
                         if (old != is_day) {
                                 if (is_day)
-                                        LOG << "noise @ " options.loud_db " dB FS at " << time_of_day;
+                                        LOG << "noise @ " << options.loud_db << " dB FS at " << time_of_day;
                                 else
-                                        LOG << "noise @ " options.quiet_db " dB FS at " << time_of_day;
+                                        LOG << "noise @ " << options.quiet_db << " dB FS at " << time_of_day;
                         }
                         sleep(5.0);
                 }
