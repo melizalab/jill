@@ -64,15 +64,14 @@ triggered_data_writer::start_recording(nframes_t event_time)
 
         /* skip any earlier periods */
         while (ptr->time + ptr->nframes() < onset) {
+		DBG << "prebuffer frame (discarded): " << *ptr;
                 _buffer->release();
                 ptr = _buffer->peek();
         }
 
-	INFO << "writing pretrigger data from " << std::max(ptr->time, onset) << "--" << event_time;
         /* write partial period(s) */
         while (ptr->time <= onset) {
-                DBG << "prebuf frame: t=" << ptr->time << ", on=" << onset - ptr->time
-                    << ", id=" << ptr->id() << ", dtype=" << ptr->dtype;
+                DBG << "prebuf frame (partial): " << *ptr << ", on=" << onset - ptr->time;
                 _writer->write(ptr, onset - ptr->time, 0);
                 _buffer->release();
                 ptr = _buffer->peek();
@@ -80,6 +79,7 @@ triggered_data_writer::start_recording(nframes_t event_time)
 
         /* write additional periods in prebuffer, up to current period */
         while (ptr->time + ptr->nframes() <= event_time) {
+		DBG << "prebuffer frame (complete): " << *ptr;
                 _writer->write(ptr, 0, 0);
                 _buffer->release();
                 ptr = _buffer->peek();
@@ -141,13 +141,14 @@ triggered_data_writer::write(data_block_t const * data)
                 // post-trigger periods. If enough data has been written, close
                 // entry.
                 framediff_t compare = _last_offset - data->time;
+		DBG << "postbuffer frame: " << *data;
                 if (compare < 0) {
                         _writer->close_entry();
                 }
                 else {
-                        _writer->write(data, 0, (nframes_t)compare);
+                        _writer->write(data, 0, 0);//(nframes_t)compare);
+			_buffer->release();
                 }
-                _buffer->release();
         }
         else {
                 // not writing: drop blocks on tail of queue as needed
