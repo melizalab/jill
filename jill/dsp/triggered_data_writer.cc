@@ -54,10 +54,11 @@ void
 triggered_data_writer::start_recording(nframes_t event_time)
 {
         nframes_t onset = event_time - _pretrigger;
-        _writer->new_entry(onset);
 
-        INFO << "writing pretrigger data from " << onset << "--" << event_time;
-        /* start at tail of queue and find onset */
+        /*
+	 * Start at tail of queue and find onset. This may not be in the buffer
+	 * if it has not had enough time to fill.
+	 */
         data_block_t const * ptr = _buffer->peek();
         assert(ptr);
 
@@ -67,6 +68,7 @@ triggered_data_writer::start_recording(nframes_t event_time)
                 ptr = _buffer->peek();
         }
 
+	INFO << "writing pretrigger data from " << std::max(ptr->time, onset) << "--" << event_time;
         /* write partial period(s) */
         while (ptr->time <= onset) {
                 DBG << "prebuf frame: t=" << ptr->time << ", on=" << onset - ptr->time

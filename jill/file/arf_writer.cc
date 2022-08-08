@@ -201,7 +201,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                 close_entry();
         }
         if (!_entry) {
-                new_entry(data->time);
+                new_entry(data->time + start_frame);
         }
         /* write the data */
         if (data->dtype == SAMPLED) {
