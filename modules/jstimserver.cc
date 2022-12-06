@@ -90,7 +90,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         if (!_stim) {
                 return 0;
         }
-        else if (_interrupt) {
+        else if (__sync_bool_compare_and_swap(&_interrupt, true, false)) {
                 midi::write_message(trig, 0, midi::stim_off, _stim->name());
                 stim_offset = 0;
                 _eventbuf.push(event_t{event_t::Interrupted, time, _stim});
@@ -346,8 +346,8 @@ main(int argc, char **argv)
                                         messages.back() = REP_OK;
                                 }
                                 else {
-                                        LOG << "client requested interrupt while nothing playing";
-                                        messages.back() = REP_NOTPLAYING;
+                                        LOG << "client requested interrupt before another interrupt completed";
+                                        messages.back() = REP_BUSY;
                                 }
                         }
                         else {
