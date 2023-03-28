@@ -9,11 +9,10 @@
  * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <atomic>
+#include <csignal>
 #include <memory>
 #include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <signal.h>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_map.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -54,22 +53,67 @@ protected:
 
 }; // jstim_options
 
+// playback can be in one of two states: Playing and Stopped
+enum class ProcessStatus {Playing, Stopped};
 
-jstim_options options(PROGRAM_NAME);
-boost::ptr_map<std::string, stimulus_t> _stimuli;
-// current stimulus
-stimulus_t const * _stim = 0;
-static bool _running = true;
-static bool _xrun = false;
-static bool _interrupt = false;
-// ringbuffer for status messages
-struct event_t {
-        enum { Playing, Interrupted, Done } status;
-        nframes_t time;
-        stimulus_t const * stim;
+// the main thread can signal the process to Start or Interrupt
+struct ProcessRequest {
+	enum request_t {None, Start, Interrupt};
+	std::atomic<request_t> request;
+	/** the stimulus to start (only used with Start) */
+	stimulus_t const * stim;
+
+	ProcessRequest() : request(None), stim(0) {}
+
+	explicit operator bool() const {
+		return request != None;
+	}
+
+	void clear() {
+		request.store(None);
+		stim = 0;
+	}
+
+	bool start(stimulus_t const * new_stim) {
+		request_t expected = None;
+		if (!request.compare_exchange_strong(expected, Start)) {
+			return false;
+		}
+		stim = new_stim;
+		return true;
+	}
+
+	bool interrupt() {
+		request_t expected = None;
+		return request.compare_exchange_strong(expected, Interrupt);
+	}
+		
 };
-static dsp::ringbuffer<event_t> _eventbuf(64);
-// jack ports
+
+// four kinds of events: Started, Interrupted, Finished, Xrun
+struct Event {
+        enum { Started, Interrupted, Done, Busy, NotPlaying, Xrun } status;
+	/** the frame when the event occurred */
+        nframes_t time;
+	/** the stimulus that started/stopped/was interrupted */
+        stimulus_t const * stim;
+
+	
+};
+
+/** store program options */
+jstim_options options(PROGRAM_NAME);
+/** the pre-loaded stimuli */
+boost::ptr_map<std::string, stimulus_t> _stimuli;
+/** signal from main thread to process to start or stop playback */
+ProcessRequest _request;
+/** signal from jack server to process that there was an xrun */
+std::atomic<int> _xruns(0);
+/** signal from jack server or signal handler to end the process */
+std::atomic<bool> _running(true);
+/** ringbuffer to send events from process thread to zmq publisher */
+static dsp::ringbuffer<Event> _eventbuf(64);
+/** jack ports */
 jack_port_t *port_out, *port_trigout;
 
 
@@ -77,8 +121,10 @@ jack_port_t *port_out, *port_trigout;
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
-        // NB static variables are initialized to 0
-        static nframes_t stim_offset; // current position in stimulus buffer
+	// NB static variables are initialized to 0
+	static stimulus_t const * _stim;       // currently playing stimulus or
+					       // zero if stopped
+        static nframes_t stim_offset;          // current position in stimulus buffer
 
         void * trig = client->events(port_trigout, nframes);
         sample_t * out = client->samples(port_out, nframes);
@@ -86,22 +132,40 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         for(nframes_t i = 0; i < nframes; ++i)
                 out[i] = 0.0f;
 
+	// if there was an xrun, add the event to the ringbuffer
+	if (_xruns) {
+		_eventbuf.push(Event{Event::Xrun, time, _stim});
+		_xruns.fetch_add(-1);
+	}
+
+	// process request
+	if (_request.request == ProcessRequest::Start) {
+		if (_stim) {
+			_eventbuf.push(Event{Event::Busy, time, nullptr});
+		}
+		else {
+			stim_offset = 0;
+			_stim = _request.stim;
+			midi::write_message(trig, 0, midi::stim_on, _stim->name());
+			_eventbuf.push(Event{Event::Started, time, _stim});
+		}
+		_request.clear();
+	}
+	else if (_request.request == ProcessRequest::Interrupt) {
+		if (_stim) {
+			midi::write_message(trig, 0, midi::stim_off, _stim->name());
+			_eventbuf.push(Event{Event::Interrupted, time, _stim});
+			_stim = nullptr;
+		}
+		else {
+			_eventbuf.push(Event{Event::NotPlaying, time, nullptr});
+		}
+		_request.clear();
+	}
+		
         // if no stimulus queued return
         if (!_stim) {
                 return 0;
-        }
-        else if (__sync_bool_compare_and_swap(&_interrupt, true, false)) {
-                midi::write_message(trig, 0, midi::stim_off, _stim->name());
-                stim_offset = 0;
-                _eventbuf.push(event_t{event_t::Interrupted, time, _stim});
-                _stim = nullptr;
-                return 0;
-        }
-
-        // notify if stimulus started
-        if (stim_offset == 0) {
-                midi::write_message(trig, 0, midi::stim_on, _stim->name());
-                _eventbuf.push(event_t{event_t::Playing, time, _stim});
         }
 
         // copy samples, if there are any
@@ -116,12 +180,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // did the stimulus end?
         if (stim_offset >= _stim->nframes()) {
-                midi::write_message(trig, nsamples,
-                                    midi::stim_off, _stim->name());
-                _eventbuf.push(event_t{event_t::Done, time + nsamples, _stim});
-                // reset counter
-                stim_offset = 0;
-                // set ptr to null once done
+                midi::write_message(trig, nsamples, midi::stim_off, _stim->name());
+                _eventbuf.push(Event{Event::Done, time + nsamples, _stim});
                 _stim = nullptr;
         }
 
@@ -131,33 +191,32 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 int
 jack_xrun(jack_client *client, float delay)
 {
-        _xrun = true;
+        _xruns.fetch_add(1);
         return 0;
 }
 
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // we use the xruns counter to notify that an interruption in the audio
-        // stream has occurred
-        _xrun = true;
+	// changes to bufsize will interrupt the audio stream
+        _xruns.fetch_add(1);
         return 0;
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-        _running = false;
+        _running.store(false);
 }
 
 void
 signal_handler(int sig)
 {
-        _running = false;
+        _running.store(false);
 }
 
 
-/* parse the list of stimuli */
+/** parse the list of stimuli */
 static std::string
 init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
 {
@@ -191,7 +250,7 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
         return ss.str();
 }
 
-// This thread looks for start and stop events and publishes them
+// This thread publishes events to a zmq socket
 void
 stim_monitor()
 {
@@ -211,30 +270,35 @@ stim_monitor()
                 INFO << "publishing start/stop events at " << endpoint.str();
         }
         zmq::send(socket, "STARTING");
-        while (_running) {
-                event_t event;
-                if (__sync_bool_compare_and_swap(&_xrun, true, false)) {
-                        zmq::send(socket, "XRUN");
-                }
+        while (_running.load()) {
+                Event event;
                 while (_eventbuf.pop(&event, 1) > 0) {
-                        if (event.status == event_t::Playing) {
-                                        std::ostringstream o;
-                                        o << "PLAYING " << event.stim->name();
-                                        zmq::send(socket, o.str());
-                        }
-                        else if (event.status == event_t::Interrupted) {
-                                zmq::send(socket, "INTERRUPTED");
-                        }
-                        else if (event.status == event_t::Done) {
-                                zmq::send(socket, "DONE");
-                        }
-                }
-                if (!_running) {
-                        zmq::send(socket, "STOPPING");
-                        break;
+			std::ostringstream o;
+			switch (event.status) {
+			case Event::Started:
+				o << "PLAYING " << event.stim->name() << " " << event.time;
+				break;
+                        case Event::Interrupted:
+				o << "INTERRUPTED " << event.stim->name() << " " << event.time;
+				break;
+			case Event::Done:
+				o << "DONE " << event.stim->name() << " " << event.time;
+				break;
+			case Event::Xrun:
+				o << "XRUN " << event.stim->name() << " " << event.time;
+				break;
+			case Event::Busy:
+				o << "BUSY";
+				break;
+			case Event::NotPlaying:
+				o << "NOTPLAYING";
+				break;
+			}
+			zmq::send(socket, o.str());
                 }
                 usleep(10000);
         }
+	zmq::send(socket, "STOPPING");
         zmq_close(socket);
 }
 
@@ -245,7 +309,6 @@ constexpr char REP_BADCMD[] = "BADCMD";
 constexpr char REP_BADSTIM[] = "BADSTIM";
 constexpr char REP_OK[] = "OK";
 constexpr char REP_BUSY[] = "BUSY";
-constexpr char REP_NOTPLAYING[] = "NOTPLAYING";
 
 int
 main(int argc, char **argv)
@@ -310,7 +373,7 @@ main(int argc, char **argv)
 
                 std::thread monitor_thread(stim_monitor);
                 LOG << "waiting for requests";
-                while (_running) {
+                while (_running.load()) {
                         // blocking call to receive messages
                         std::vector<std::string> messages = zmq::recv(req_socket);
                         if (messages.empty())
@@ -320,6 +383,10 @@ main(int argc, char **argv)
                                 DBG << "sent playlist to client";
                                 messages.back() = stimlist;
                         }
+			else if (_request.request != ProcessRequest::None) {
+				LOG << "client made a request before the previous one was handled";
+				messages.back() = REP_BUSY;
+			}
                         else if (data.compare(0, strlen(REQ_PLAYSTIM), REQ_PLAYSTIM) == 0) {
                                 auto stim = data.substr(strlen(REQ_PLAYSTIM) + 1);
                                 auto it = _stimuli.find(stim);
@@ -327,26 +394,22 @@ main(int argc, char **argv)
                                         LOG << "client requested invalid stimulus: " << stim;
                                         messages.back() = REP_BADSTIM;
                                 }
-                                else if (__sync_bool_compare_and_swap(&_stim, 0, it->second)) {
-                                        LOG << "playing stimulus: " << stim;
+				else if (_request.start(it->second)) {
+                                        LOG << "client requested stimulus: " << stim;
                                         messages.back() = REP_OK;
-                                }
-                                else {
-                                        LOG << "client requested stimulus while busy";
+				}
+				else {
+                                        LOG << "client requested stimulus before previous request was handled";
                                         messages.back() = REP_BUSY;
-                                }
+				}
                         }
                         else if (data.compare(REQ_INTERRUPT) == 0) {
-                                if (!_stim) {
-                                        LOG << "client requested interrupt while nothing playing";
-                                        messages.back() = REP_NOTPLAYING;
-                                }
-                                else if (__sync_bool_compare_and_swap(&_interrupt, false, true)) {
-                                        LOG << "interrupting stimulus playback";
+				if (_request.interrupt()) {
+					LOG << "client requested interrupt";
                                         messages.back() = REP_OK;
                                 }
                                 else {
-                                        LOG << "client requested interrupt before another interrupt completed";
+                                        LOG << "client requested interrupt before the previous request was handled";
                                         messages.back() = REP_BUSY;
                                 }
                         }
