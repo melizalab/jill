@@ -302,6 +302,7 @@ stim_monitor()
         zmq_close(socket);
 }
 
+constexpr char REQ_VERSION[] = "VERSION";
 constexpr char REQ_STIMLIST[] = "STIMLIST";
 constexpr char REQ_PLAYSTIM[] = "PLAY";
 constexpr char REQ_INTERRUPT[] = "INTERRUPT";
@@ -379,8 +380,12 @@ main(int argc, char **argv)
                         if (messages.empty())
                                 break; // interrupted; exit the loop
                         auto data = messages.back();
-                        if (data.compare(REQ_STIMLIST) == 0) {
-                                DBG << "sent playlist to client";
+                        if (data.compare(REQ_VERSION) == 0) {
+				DBG << "client requested jstimserver version";
+				messages.back() = JILL_VERSION;
+			}
+                        else if (data.compare(REQ_STIMLIST) == 0) {
+                                DBG << "client requested playlist";
                                 messages.back() = stimlist;
                         }
 			else if (_request.request != ProcessRequest::None) {
@@ -414,7 +419,7 @@ main(int argc, char **argv)
                                 }
                         }
                         else {
-                                LOG << "invalid client request";
+                                LOG << "invalid client request: " << data;
                                 messages.back() = REP_BADCMD;
                         }
                         zmq::send_n(req_socket, messages.begin(), messages.size());
