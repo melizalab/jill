@@ -107,13 +107,13 @@ async def main(argv=None):
             logging.info("testing interrupting playback...")
             for stim in stims["stimuli"]:
                 logging.info(" - requesting playback of %s...", stim["name"])
-                await reqsock.send_string(f"PLAY {stim['name']}")
+                await reqsock.send_string("PLAY %s" % stim["name"])
                 await expect(reqsock, equals("OK"), 0.1)
-                await expect(subsock, startswith(f"PLAYING {stim['name']}"), 0.1)
+                await expect(subsock, startswith("PLAYING %s " % stim["name"]), 0.1)
                 logging.info(" - requesting interrupt of %s...", stim["name"])
                 await reqsock.send_string("INTERRUPT")
                 await expect(reqsock, equals("OK"), 0.1)
-                await expect(subsock, startswith(f"INTERRUPTED {stim['name']}"), 0.1)
+                await expect(subsock, startswith("INTERRUPTED %s" % stim["name"]), 0.1)
 
             # this is the edge case; try to time the interrupt near the end of
             # the stimulus. The goal is to make sure jstimserver doesn't go into
@@ -122,14 +122,14 @@ async def main(argv=None):
             for stim in stims["stimuli"]:
                 logging.info(" - requesting playback of %s...", stim["name"])
                 async with anyio.create_task_group() as tg:
-                    await reqsock.send_string(f"PLAY {stim['name']}")
+                    await reqsock.send_string("PLAY %s " % stim["name"])
                     tg.start_soon(expect, reqsock, equals("OK"), 0.1)
                     tg.start_soon(
-                        expect, subsock, startswith(f"PLAYING {stim['name']}"), 0.1
+                        expect, subsock, startswith("PLAYING %s" % stim["name"]), 0.1
                     )
                     await anyio.sleep(stim["duration"])
                     logging.info(" - requesting interrupt of %s...", stim["name"])
-                    await reqsock.send_string(f"INTERRUPT")
+                    await reqsock.send_string("INTERRUPT")
                     tg.start_soon(expect, reqsock, equals("OK"), 0.1)
                     tg.start_soon(
                         expect_done_or_interrupt,
@@ -141,31 +141,33 @@ async def main(argv=None):
             logging.info("testing playback with no stimulus playing...")
             for stim in stims["stimuli"]:
                 logging.info(" - requesting playback of %s...", stim["name"])
-                await reqsock.send_string(f"PLAY {stim['name']}")
+                await reqsock.send_string("PLAY %s" % stim["name"])
                 await expect(reqsock, equals("OK"), 0.1)
-                await expect(subsock, startswith(f"PLAYING {stim['name']}"), 0.1)
+                await expect(subsock, startswith("PLAYING %s" % stim["name"]), 0.1)
                 await expect(
-                    subsock, startswith(f"DONE {stim['name']}"), stim["duration"] + 0.2
+                    subsock,
+                    startswith("DONE %s" % stim["name"]),
+                    stim["duration"] + 0.2,
                 )
 
             logging.info("testing playback with a stimulus playing...")
             for stim in stims["stimuli"]:
                 async with anyio.create_task_group() as tg:
                     logging.info(" - requesting playback of %s...", stim["name"])
-                    await reqsock.send_string(f"PLAY {stim['name']}")
+                    await reqsock.send_string("PLAY %s" % stim["name"])
                     tg.start_soon(expect, reqsock, equals("OK"), 0.1)
                     tg.start_soon(
-                        expect, subsock, startswith(f"PLAYING {stim['name']}"), 0.1
+                        expect, subsock, startswith("PLAYING %s" % stim["name"]), 0.1
                     )
                     await anyio.sleep(0.2)
                     logging.info(" - requesting second playback of %s...", stim["name"])
-                    await reqsock.send_string(f"PLAY {stim['name']}")
+                    await reqsock.send_string("PLAY %s" % stim["name"])
                     tg.start_soon(expect, reqsock, equals("OK"), 0.1)
                     tg.start_soon(expect, subsock, equals("BUSY"), 0.1)
                     tg.start_soon(
                         expect,
                         subsock,
-                        startswith(f"DONE {stim['name']}"),
+                        startswith("DONE %s" % stim["name"]),
                         stim["duration"] + 0.2,
                     )
 
