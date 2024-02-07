@@ -345,7 +345,7 @@ jstim_options::jstim_options(string const &program_name)
                 ("shuffle,S", "shuffle order of presentation")
                 ("loop,l",    "loop endlessly")
                 ("repeats,r", po::value<size_t>(&nreps)->default_value(1),
-                 "default number of repetitions")
+                 "default number of repetitions (can be overridden for individual stimuli)")
                 ("gap,g",     po::value<float>(&min_gap_sec)->default_value(2.0),
                  "minimum gap between sound (s)")
                 ("interval,i",po::value<float>(&min_interval_sec)->default_value(0.0),
@@ -361,7 +361,7 @@ jstim_options::jstim_options(string const &program_name)
 void
 jstim_options::print_usage()
 {
-        std::cout << "Usage: " << _program_name << " [options] [stimfile [nreps]] [stim [nreps]] ...\n"
+        std::cout << "Usage: " << _program_name << " [options] [stim1 [nreps]] [stim2 [nreps]] ...\n"
                   << visible_opts << std::endl
                   << "Ports:\n"
                   << " * out:       sampled output of the presented stimulus\n"

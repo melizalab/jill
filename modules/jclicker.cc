@@ -4,6 +4,7 @@
  */
 #include <iostream>
 #include <csignal>
+#include <boost/algorithm/string.hpp>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -26,8 +27,8 @@ public:
         /** The client name (used in internal JACK representations) */
         string client_name;
 
-        bool click_onset;
-        bool click_offset;
+	/** user-defined pulses (post-processed) */
+        stringvec pulses;
 
 protected:
 
@@ -35,8 +36,30 @@ protected:
 
 }; // jclicker_options
 
+
+struct pulse_type {
+	/** the shape of the pulse */
+	enum { Positive, Negative, Biphasic } shape;
+	/** the type of midi message that will trigger the pulse */
+	midi::data_type status;
+	/** duration of the pulse, in ms */
+	float duration_ms;
+};
+
+std::ostream& operator << (std::ostream &os, const pulse_type &p) {
+	os << midi::status_type(p.status) << ": ";
+	switch(p.shape) {
+	case pulse_type::Positive: os << "positive"; break;
+	case pulse_type::Negative: os << "negative"; break;
+	case pulse_type::Biphasic: os << "biphasic"; break;
+	}
+	os << ", " << p.duration_ms << " ms";
+	return os;
+}
+
 static jclicker_options options(PROGRAM_NAME);
 jack_port_t *port_in, *port_out;
+std::vector<pulse_type> pulses;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
 
@@ -53,26 +76,22 @@ process(jack_client *client, nframes_t nframes, nframes_t)
         for (nframes_t i = 0; i < nevents; ++i) {
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
-                midi::data_type t = event.buffer[0] & midi::type_nib;
-                switch(t) {
-                case midi::stim_on:
-                case midi::note_on:
-                        if (options.count("no-onset")==0) {
-                                out[event.time] = options.click_onset * 1.0f;
-                        }
-                        break;
-                case midi::stim_off:
-                case midi::note_off:
-                        if (options.count("no-offset")==0) {
-                                out[event.time] = options.click_offset * 1.0f;
-                        }
-                default:
-                        break;
-                }
+		for (const auto &pulse : pulses) {
+			if (pulse.status != event.buffer[0]) continue;
+			switch (pulse.shape) {
+			case pulse_type::Positive:
+				out[event.time] = 1.0f;
+				break;
+			case pulse_type::Negative:
+				out[event.time] = -1.0f;
+				break;
+			case pulse_type::Biphasic:
+				// FIXME: not actually biphasic
+				out[event.time] = 1.0f;
+			}
+			break;  // only the first match is considered
+		}
         }
-
-        // this just copies data from input to output - replace with something
-        // more interesting
 
         return 0;
 }
@@ -93,6 +112,36 @@ signal_handler(int sig)
         running = 0;
 }
 
+static
+void parse_pulses(stringvec const & pulse_defs) {
+	LOG << "parsing pulse specifications: ";
+	for (const auto &it : pulse_defs) {
+		stringvec words;
+		boost::split(words, it, [](char c) { return c==',';});
+		if (words.size() != 3) {
+			throw std::invalid_argument("invalid pulse configuration (must be condition,shape,duration)");
+		}
+		pulse_type pulse;
+		// parse first token as hex - std::invalid_argument on failure
+		pulse.status = std::stoul(words[0], 0, 16);
+		// parse second token by string matching
+		if (boost::iequals(words[1], "positive"))
+			pulse.shape = pulse_type::Positive;
+		else if (boost::iequals(words[1], "negative"))
+			pulse.shape = pulse_type::Negative;
+		else if (boost::iequals(words[1], "biphasic"))
+			pulse.shape = pulse_type::Biphasic;
+		else
+			throw std::invalid_argument("pulse shape must be 'positive', 'negative', or 'biphasic'");
+		// parse third token as a float
+		pulse.duration_ms = std::stof(words[2], 0);
+
+		LOG << "  " << pulse;
+		pulses.push_back(pulse);
+	}
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -100,6 +149,7 @@ main(int argc, char **argv)
         try {
                 // parse options
                 options.parse(argc,argv);
+		parse_pulses(options.pulses);
 
                 // start client
                 auto client = std::make_unique<jack_client>(options.client_name,
@@ -170,13 +220,11 @@ jclicker_options::jclicker_options(string const &program_name)
 
 
         // add section(s) for module-specific options
-        po::options_description opts("jclicker options");
-        opts.add_options()
-                ("no-onset", "don't generate clicks for onset events")
-                ("no-offset", "don't generate clicks for offset events");
-
-        cmd_opts.add(opts);
-        visible_opts.add(opts);
+	cmd_opts.add_options()
+		("pulse",
+		 po::value<stringvec>(&pulses)->multitoken(),
+		 "defines a pulse: condition,shape,duration");
+	pos_opts.add("pulse", -1);
 }
 
 /** provide the user with some information about the ports */
@@ -184,8 +232,12 @@ void
 jclicker_options::print_usage()
 {
         std::cout << _program_name << ": generate audible clicks for events\n\n"
-                  << "Usage: " << _program_name << " [options]\n"
+                  << "Usage: " << _program_name << " [options] [pulse1] [pulse2] ...\n"
                   << visible_opts << std::endl
+		  << "Pulse specification: condition,shape,duration \n"
+		  << " - condition: the midi event code (0x00: stim on, 0x01 acq on, 0x10 stim off, 0x11 acq off)\n"
+		  << " - shape: {positive,negative,biphasic}\n"
+		  << " - duration: total duration of the click, in ms\n\n"
                   << "Ports:\n"
                   << " * in:        input event port\n"
                   << " * out:       output audio port\n"
