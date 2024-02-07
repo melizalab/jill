@@ -104,7 +104,7 @@ print(env.subst("using $CXX $CXXVERSION"))
 if GetOption("compile_arf"):
     if system != "Darwin":
         env.ParseConfig("pkg-config --cflags --libs hdf5")
-    env.Append(CPPPATH=["#/arf"])
+    env.Append(CPPPATH=["#/arf/c++"])
 
 if int(debug):
     env.Append(CCFLAGS=["-g2", "-Wall", "-DDEBUG=%s" % debug])
