@@ -59,22 +59,22 @@ std::atomic<bool> stopping(false);
 // gets set to true by main thread the time interval starts or stops
 std::atomic<bool> trigger(false);
 // holds the current state
-std::atomic<midi::data_type> status(midi::note_off);
+std::atomic<midi::data_type> status(midi::status_type::note_off);
 
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {
         void *trig_buffer = client->events(port_trig, nframes);
         jack_midi_data_t buf[] = {
-		midi::data_type(options.output_chan & midi::chan_nib),
+		0,
 		midi::default_pitch,
 		midi::default_velocity
 	};
 
-	if (stopping.exchange(false) && status == midi::note_on) {
-		buf[0] |= midi::note_off;
+	if (stopping.exchange(false) && status == midi::status_type::note_on) {
+		buf[0] = midi::status_type(midi::status_type::note_off, options.output_chan);
 		jack_midi_event_write(trig_buffer, 0 , buf, 3);
-		status = midi::note_off;
+		status = midi::status_type::note_off;
 	} else if (trigger.exchange(false)) {
 		buf[0] |= status;
 		jack_midi_event_write(trig_buffer, 0, buf, 3);
@@ -142,8 +142,8 @@ main(int argc, char **argv)
 			midi::data_type new_status, old_status;
 			time_duration time_of_day = second_clock::local_time().time_of_day();
 			if (stopping) {
-				old_status = status.exchange(midi::note_off);
-				if (old_status == midi::note_on) {
+				old_status = status.exchange(midi::status_type::note_off);
+				if (old_status == midi::status_type::note_on) {
 					trigger = true;
 					LOG << "signal off at " << time_of_day;
 				}
@@ -154,7 +154,7 @@ main(int argc, char **argv)
 				is_day = ((start < time_of_day) && (time_of_day <= stop));
 			else
 				is_day = (!((stop < time_of_day) && (time_of_day <= start)));
-			new_status = (is_day) ? midi::note_on : midi::note_off;
+			new_status = (is_day) ? midi::status_type::note_on : midi::status_type::note_off;
 			old_status = status.exchange(new_status);
 			if (old_status != new_status) {
 				trigger = true;

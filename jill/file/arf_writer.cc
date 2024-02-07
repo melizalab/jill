@@ -214,7 +214,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                 dset = get_dataset(id, false);
                 auto * buffer = reinterpret_cast<char const *>(data->data());
                 event_t e = {data->time - _entry_start, (uint8_t)buffer[0], buffer+1};
-                if (e.status >= midi::note_off) {
+                if (midi::status_type(e.status).is_standard_midi()) {
                         // hex-encode standard midi events
                         e.message = message = to_hex(buffer + 1, data->sz_data - 1);
                 }

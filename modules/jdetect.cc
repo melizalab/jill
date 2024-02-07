@@ -67,7 +67,7 @@ std::atomic<bool> stopping(false);
 /* data storage for event times */
 struct event_t {
         nframes_t time;
-        int status;
+	midi::status_type status;
 };
 dsp::ringbuffer<event_t> trig_times(128);
 
@@ -77,11 +77,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         sample_t *in = client->samples(port_in, nframes);
         sample_t *out = (port_count) ? client->samples(port_count, nframes) : nullptr;
         void *trig_buffer = client->events(port_trig, nframes);
-        jack_midi_data_t buf[] = { jack_midi_data_t(options.output_chan & midi::chan_nib),
-                                   midi::default_pitch, midi::default_velocity };
+        jack_midi_data_t buf[] = { 0, midi::default_pitch, midi::default_velocity };
 
         if (stopping.exchange(false) && trigger->open()) {
-                buf[0] += midi::note_off;
+                buf[0] = midi::status_type(midi::status_type::note_off, options.output_chan);
                 jack_midi_event_write(trig_buffer, 0, buf, 3);
                 //stopping = false;
                 return 0;
@@ -95,13 +94,15 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         int offset = trigger->push(in, nframes, out);
         if (offset < 0) return 0;
 
-        if (trigger->open()) buf[0] += midi::note_on;
-        else buf[0] += midi::note_off;
+        if (trigger->open())
+		buf[0] = midi::status_type(midi::status_type::note_on, options.output_chan);
+        else
+		buf[0] = midi::status_type(midi::status_type::note_off, options.output_chan);
 
-        event_t event = { time + offset, buf[0] & midi::type_nib }; // data sent to logger
+        event_t event = { time + offset, buf[0] }; // data sent to logger
         if (jack_midi_event_write(trig_buffer, offset, buf, 3) != 0) {
                 // indicate error to logger function
-                event.status = midi::sysex;
+                event.status = midi::status_type::sysex;
         }
         trig_times.push(event);
 
@@ -116,12 +117,16 @@ std::size_t log_times(event_t const * events, std::size_t count)
         for (i = 0; i < count; ++i) {
                 e = events+i;
                 log_msg msg;
-                if (e->status==midi::note_on)
+		switch(e->status) {
+		case midi::status_type::note_on:
                         msg << "signal on: ";
-                else if (e->status==midi::note_off)
-                        msg << "signal off:";
-                else
+			break;
+		case midi::status_type::note_off:
+                        msg << "signal off: ";
+			break;
+                default:
                         msg << "WARNING: detected but couldn't send event: ";
+		}
                 msg << " frames=" << e->time << ", us=" << client->time(e->time);
         }
         return i;

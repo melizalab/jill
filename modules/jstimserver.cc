@@ -146,14 +146,14 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 		else {
 			stim_offset = 0;
 			_stim = _request.stim;
-			midi::write_message(trig, 0, midi::stim_on, _stim->name());
+			midi::write_message(trig, 0, midi::status_type::stim_on, _stim->name());
 			_eventbuf.push(Event{Event::Started, time, _stim});
 		}
 		_request.clear();
 	}
 	else if (_request.request == ProcessRequest::Interrupt) {
 		if (_stim) {
-			midi::write_message(trig, 0, midi::stim_off, _stim->name());
+			midi::write_message(trig, 0, midi::status_type::stim_off, _stim->name());
 			_eventbuf.push(Event{Event::Interrupted, time, _stim});
 			_stim = nullptr;
 		}
@@ -180,7 +180,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // did the stimulus end?
         if (stim_offset >= _stim->nframes()) {
-                midi::write_message(trig, nsamples, midi::stim_off, _stim->name());
+                midi::write_message(trig, nsamples, midi::status_type::stim_off, _stim->name());
                 _eventbuf.push(Event{Event::Done, time + nsamples, _stim});
                 _stim = nullptr;
         }
@@ -319,7 +319,6 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
-                options.trigout_chan &= midi::chan_nib;
 
                 if (options.stimuli.size() == 0) {
                         LOG << "no stimuli; quitting";
@@ -458,9 +457,7 @@ jstim_options::jstim_options(string const &program_name)
                 ("out,o",     po::value<vector<string> >(&output_ports),
                  "add connection to output audio port")
                 ("event,e",   po::value<vector<string> >(&trigout_ports),
-                 "add connection to output event port")
-                ("chan,c",    po::value<midi::data_type>(&trigout_chan)->default_value(0),
-                 "set MIDI channel for output messages (0-16)");
+                 "add connection to output event port");
 
         // tropts is a group of options
         po::options_description opts("Stimulus options");
