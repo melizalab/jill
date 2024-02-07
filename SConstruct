@@ -77,7 +77,7 @@ env = Environment(
     PREFIX=install_prefix,
     LIBDIR=install_libdir,
     BINDIR=install_bindir,
-    CXXFLAGS=["-std=c++14"],
+    CXXFLAGS=["-std=c++17"],
     tools=["default"],
 )
 
