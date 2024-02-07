@@ -149,6 +149,8 @@ main(int argc, char **argv)
         try {
                 // parse options
                 options.parse(argc,argv);
+		if (options.pulses.size() == 0)
+			throw std::invalid_argument("must define at least one pulse");
 		parse_pulses(options.pulses);
 
                 // start client
