@@ -39,7 +39,7 @@ public:
         /** Ports to connect to */
         std::vector<string> output_ports;
         std::vector<string> trigout_ports;
-        midi::data_type trigout_chan;
+        // midi::data_type trigout_chan;
         std::vector<string> trigin_ports;
 
         std::vector<string> stimuli; // this is postprocessed
@@ -126,7 +126,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 period_offset = midi::find_trigger(midi_buffer, true);
                 if (period_offset > nframes) return 0; // no trigger
                 last_start = time + period_offset;
-                midi::write_message(trig, period_offset, midi::stim_on, stim->name());
+                midi::write_message(trig, period_offset, midi::status_type::stim_on, stim->name());
                 DBG << "playback triggered: time=" << last_start << ", stim=" << stim->name();
         }
         // has enough time elapsed since the last stim?
@@ -147,7 +147,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 period_offset = std::max(ostart, ostop);
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
-                midi::write_message(trig, period_offset, midi::stim_on, stim->name());
+                midi::write_message(trig, period_offset, midi::status_type::stim_on, stim->name());
                 DBG << "playback started: time=" << last_start << ", stim=" << stim->name();
         }
         // sanity check - will be optimized out
@@ -168,7 +168,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 queue->release();
                 last_stop = time + period_offset + nsamples;
                 midi::write_message(trig, period_offset + nsamples,
-                                    midi::stim_off, stim->name());
+                                    midi::status_type::stim_off, stim->name());
                 DBG << "playback ended: time=" << last_stop << ", stim=" << stim->name();
                 stim_offset = 0;
         }
@@ -245,7 +245,7 @@ main(int argc, char **argv)
                                                             options.server_name);
                 options.min_gap = options.min_gap_sec * client->sampling_rate();
                 options.min_interval = options.min_interval_sec * client->sampling_rate();
-                options.trigout_chan &= midi::chan_nib;
+                // options.trigout_chan &= midi::chan_nib;
 
                 if (!options.count("trig")) {
                         LOG << "minimum gap: " << options.min_gap_sec << "s ("
@@ -333,8 +333,8 @@ jstim_options::jstim_options(string const &program_name)
                  "add connection to output audio port")
                 ("event,e",   po::value<vector<string> >(&trigout_ports),
                  "add connection to output event port")
-                ("chan,c",    po::value<midi::data_type>(&trigout_chan)->default_value(0),
-                 "set MIDI channel for output messages (0-16)")
+                // ("chan,c",    po::value<midi::data_type>(&trigout_chan)->default_value(0),
+                //  "set MIDI channel for output messages (0-16)")
                 ("trig,t",
                  po::value<vector<string> >(&trigin_ports)->multitoken()->zero_tokens(),
                  "add connection to input trigger port");
