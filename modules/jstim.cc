@@ -121,6 +121,22 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // if no stimulus queued do nothing
         if (!stim) return 0;
 
+	// a bunch of annoying unsigned arithmetic here, but it works.
+	// time since last start and stop (relative to start of the period).
+        // This difference is correct even if sample counter has overflowed
+        // because time >= lastX
+	nframes_t dstart = time - last_start;
+	nframes_t dstop = time - last_stop;
+	// check if we need to emit a posttrigger event
+	// if (options.pretrigger_interval && dstop >= *options.pretrigger_interval) {
+	// 	nframes_t otrig = *options.pretrigger_interval - dstop;
+	// 	if (otrig < nframes) {
+	// 		auto status = midi::status_type(midi::status_type::stim_on, 1);
+	// 		midi::write_message(sync, otrig, status, stim->name());
+	// 		DBG << "sent pretrigger: time=" << time + otrig << ", stim=" << stim->name();
+	// 	}
+	// }
+
         // am I playing a stimulus?
         if (stim_offset > 0) {
                 period_offset = 0;
@@ -136,20 +152,24 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // has enough time elapsed since the last stim?
         else {
-                // Fun with unsigned integer arithmetic. The gotcha is that the
-                // frame count may have overflowed between the
-                // last_start/last_stop and now. So, first we calculate the time
-                // difference between now and the lastX counters, which is
-                // correct even if there was an overflow because time >= lastX.
-                nframes_t dstart = time - last_start;
-                nframes_t dstop = time - last_stop;
-                // Then, check whether the deltas are longer than the required
-                // intervals, and if not, by how many samples are they short.
+		// samples from period start until min_interval has passed
                 nframes_t ostart = (dstart > options.min_interval) ?
                         0 : options.min_interval - dstart;
+		// samples until min_gap has passed
                 nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
-                // The start time may occur some time during this period
+                // the stimulus will start when both minimums are met
                 period_offset = std::max(ostart, ostop);
+		// check if we need to emit a pretrigger event
+		if (options.pretrigger_interval && period_offset >= *options.pretrigger_interval) {
+			// samples until pretrigger event
+			nframes_t otrig = period_offset - *options.pretrigger_interval;
+			if (otrig < nframes) {
+				auto status = midi::status_type(midi::status_type::stim_on, 1);
+				midi::write_message(sync, otrig, status, stim->name());
+				DBG << "sent pretrigger: time=" << time + otrig << ", stim=" << stim->name();
+			}
+		}
+
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
                 midi::write_message(sync, period_offset, midi::status_type::stim_on, stim->name());
@@ -368,7 +388,7 @@ jstim_options::jstim_options(string const &program_name)
 		 "if set, emit a trigger-on event this many seconds before stimulus onset (does not apply to triggered mode)")
 		("trigger-after", po::value(&posttrigger_interval_sec),
 		 "if set, emit a trigger-off event this many seconds after stimulus offset");
-	
+
 
         cmd_opts.add(jillopts).add(opts);
         cmd_opts.add_options()
@@ -399,5 +419,5 @@ jstim_options::process_options()
                 LOG << "ERROR: pretrigger and postrigger intervals must be less than the gap between stimuli!" << std::endl;
 		throw Exit(EXIT_FAILURE);
 	}
-		
+
 }
