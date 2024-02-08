@@ -48,11 +48,9 @@ public:
         float min_gap_sec;      // min gap btw sound, in sec
         float min_interval_sec; // min interval btw starts, in sec
 	boost::optional<float> pretrigger_interval_sec;
-	boost::optional<float> posttrigger_interval_sec;
         nframes_t min_gap;
         nframes_t min_interval;
 	boost::optional<nframes_t> pretrigger_interval;
-	boost::optional<nframes_t> posttrigger_interval;
 
 protected:
 
@@ -127,15 +125,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // because time >= lastX
 	nframes_t dstart = time - last_start;
 	nframes_t dstop = time - last_stop;
-	// check if we need to emit a posttrigger event
-	// if (options.pretrigger_interval && dstop >= *options.pretrigger_interval) {
-	// 	nframes_t otrig = *options.pretrigger_interval - dstop;
-	// 	if (otrig < nframes) {
-	// 		auto status = midi::status_type(midi::status_type::stim_on, 1);
-	// 		midi::write_message(sync, otrig, status, stim->name());
-	// 		DBG << "sent pretrigger: time=" << time + otrig << ", stim=" << stim->name();
-	// 	}
-	// }
 
         // am I playing a stimulus?
         if (stim_offset > 0) {
@@ -284,11 +273,6 @@ main(int argc, char **argv)
 			LOG << "pre-trigger interval: " << *options.pretrigger_interval_sec << "s ("
 			    << *options.pretrigger_interval << " samples)";
 		}
-		if (options.posttrigger_interval_sec) {
-			options.posttrigger_interval = *options.posttrigger_interval_sec * sampling_rate;
-			LOG << "post-trigger interval: " << *options.posttrigger_interval_sec << "s ("
-			    << *options.posttrigger_interval << " samples)";
-		}
                 if (options.stimuli.size() == 0) {
                         LOG << "no stimuli; quitting";
                         throw Exit(0);
@@ -385,9 +369,7 @@ jstim_options::jstim_options(string const &program_name)
                 ("interval,i",po::value(&min_interval_sec)->default_value(0.0),
                  "minimum interval between stimulus start times (s)")
 		("trigger-before", po::value(&pretrigger_interval_sec),
-		 "if set, emit a trigger-on event this many seconds before stimulus onset (does not apply to triggered mode)")
-		("trigger-after", po::value(&posttrigger_interval_sec),
-		 "if set, emit a trigger-off event this many seconds after stimulus offset");
+		 "if set, emit a trigger-on event this many seconds before stimulus onset (does not apply to triggered mode)");
 
 
         cmd_opts.add(jillopts).add(opts);
@@ -413,10 +395,8 @@ void
 jstim_options::process_options()
 {
         program_options::process_options();
-	// check timing
-	float padding_needed = pretrigger_interval_sec.value_or(0.0) + posttrigger_interval_sec.value_or(0.0);
-	if (padding_needed >= min_gap_sec) {
-                LOG << "ERROR: pretrigger and postrigger intervals must be less than the gap between stimuli!" << std::endl;
+	if (pretrigger_interval_sec.value_or(0.0) >= min_gap_sec) {
+                LOG << "ERROR: pretrigger interval must be less than the gap between stimuli!" << std::endl;
 		throw Exit(EXIT_FAILURE);
 	}
 
