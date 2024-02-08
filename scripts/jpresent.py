@@ -3,6 +3,7 @@
  jclicker, and jstim, and makes sure they're all wired up properly.
 
 """
+import time
 import datetime
 import argparse
 import subprocess
@@ -106,7 +107,7 @@ if __name__ == "__main__":
         version_info = subprocess.check_output([path, "--version"])
         try:
             version = version_info.split()[1].decode("ascii")
-        except ValueError as e:
+        except ValueError:
             p.error(f"unable to determine version for {prog}")
         log.info(" - %s %s: %s", prog, version, path)
         binary_paths[prog] = path
@@ -115,11 +116,10 @@ if __name__ == "__main__":
     arf_out = now.strftime("jpresent_%Y%m%d-%H%M%S.arf")
     jstim_args = [binary_paths["jstim"]]
 
-    log.info("starting jrecord:")
     jrecord_args = (
         binary_paths["jrecord"],
         "-n",
-        "jrecord-jpresent",
+        "jpresent",
         "-E",
         "jstim",
         "-a",
@@ -128,10 +128,9 @@ if __name__ == "__main__":
         f"animal={args.animal}",
         arf_out,
     )
-    jstim_args.extend(("-e", "jrecord-jpresent:jstim"))
+    jstim_args.extend(("-e", "jpresent:jstim"))
     log.debug(" ".join(jrecord_args))
 
-    log.info("starting jclicker for sync events:")
     jclicker_sync_args = (
         binary_paths["jclicker"],
         "-n",
@@ -159,10 +158,32 @@ if __name__ == "__main__":
         )
         log.debug(" ".join(jclicker_trig_args))
 
-    log.info("starting jstim:")
     jstim_args.extend(
         ("-o", args.audio_out, "--gap", f"{args.gap}", "--repeats", f"{args.repeats}")
     )
     jstim_args.extend(args.jstim_args)
-
     log.debug(" ".join(jstim_args))
+
+    try:
+        log.info("starting jrecord:")
+        jrecord_proc = subprocess.Popen(jrecord_args)
+
+        log.info("starting jclicker for sync events:")
+        jsync_proc = subprocess.Popen(jclicker_sync_args)
+        if args.trigger_before is not None:
+            log.info("starting jclicker for trigger events:")
+            jtrig_proc = subprocess.Popen(jclicker_trig_args)
+        else:
+            jtrig_proc = None
+        log.info("starting jstim:")
+        jstim_proc = subprocess.Popen(jstim_args)
+        jstim_proc.wait()
+    except KeyboardInterrupt:
+        log.info("experiment interrupted by user")
+        jstim_proc.terminate()
+    finally:
+        jsync_proc.terminate()
+        if jtrig_proc is not None:
+            jtrig_proc.terminate()
+        time.sleep(1)
+        jrecord_proc.terminate()
