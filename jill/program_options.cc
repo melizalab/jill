@@ -40,14 +40,14 @@ program_options::program_options(std::string program_name, bool remote_log_defau
 void
 program_options::print_version()
 {
-        std::cerr << _program_name << " " JILL_VERSION << std::endl;
+        std::cout << _program_name << " " JILL_VERSION << std::endl;
 }
 
 
 void
 program_options::print_usage()
 {
-        std::cerr << "Usage: " << _program_name << " [options] "
+        std::cout << "Usage: " << _program_name << " [options] "
                   << visible_opts;
 }
 
