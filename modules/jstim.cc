@@ -66,6 +66,7 @@ boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
+std::atomic<nframes_t> last_stop(0);        // time when last stimulus ended
 
 /**
  * The realtime process loop for jstim. The logic is complicated. The process
@@ -92,7 +93,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer
         static nframes_t last_start;  // last stimulus start time
-        static nframes_t last_stop;   // last stimulus stop
+	// last stimulus stop is a global atomic so that the main loop can
+	// initialize it. Otherwise the pre-stimulus trigger doesn't work on the
+	// first stimulus.
 
         nframes_t period_offset;      // the offset in the period to start copying
 
@@ -307,6 +310,7 @@ main(int argc, char **argv)
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
+		last_stop = client->frame();
                 client->activate();
                 // set this after starting the client so it will only be called
                 // when the buffer size *changes*
