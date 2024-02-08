@@ -69,8 +69,8 @@ program_options::parse(int argc, char **argv)
         }
         // set source for logging
         logger::instance().set_sourcename(get<string>("name", _program_name));
-        auto server_name = get<string>("server","default");
-        if (!get<bool>("no-remote-log")) {
+        auto server_name = get<string>("server", "default");
+        if (!get<bool>("no-remote-log", false)) {
                 logger::instance().connect(server_name);
         }
         else
@@ -78,7 +78,7 @@ program_options::parse(int argc, char **argv)
         LOG << _program_name << ", version " JILL_VERSION;
         LOG << "jackd server: " << server_name;
 
-        boost::filesystem::path configfile = get<string>("config","");
+        boost::filesystem::path configfile = get<string>("config", "");
         if (boost::filesystem::is_regular_file(configfile)) {
                 boost::filesystem::ifstream ff(configfile);
                 LOG << "[Parsing " << configfile.string() << ']';

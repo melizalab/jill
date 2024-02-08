@@ -14,6 +14,7 @@
 #include <random>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/optional.hpp>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -38,8 +39,7 @@ public:
 
         /** Ports to connect to */
         std::vector<string> output_ports;
-        std::vector<string> trigout_ports;
-        // midi::data_type trigout_chan;
+        std::vector<string> syncout_ports;
         std::vector<string> trigin_ports;
 
         std::vector<string> stimuli; // this is postprocessed
@@ -47,12 +47,17 @@ public:
         size_t nreps;           // default set by reps flag
         float min_gap_sec;      // min gap btw sound, in sec
         float min_interval_sec; // min interval btw starts, in sec
+	boost::optional<float> pretrigger_interval_sec;
+	boost::optional<float> posttrigger_interval_sec;
         nframes_t min_gap;
         nframes_t min_interval;
+	boost::optional<nframes_t> pretrigger_interval;
+	boost::optional<nframes_t> posttrigger_interval;
 
 protected:
 
         void print_usage() override;
+        void process_options() override;
 
 }; // jstim_options
 
@@ -61,7 +66,7 @@ jstim_options options(PROGRAM_NAME);
 std::unique_ptr<util::readahead_stimqueue> queue;
 boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
-jack_port_t *port_out, *port_trigout, *port_trigin;
+jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
 
 /**
@@ -93,7 +98,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         nframes_t period_offset;      // the offset in the period to start copying
 
-        void * trig = client->events(port_trigout, nframes);
+        void * sync = client->events(port_syncout, nframes);
         sample_t * out = client->samples(port_out, nframes);
         // zero the output buffer - somewhat inefficient but safer
         memset(out, 0, nframes * sizeof(sample_t));
@@ -126,7 +131,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 period_offset = midi::find_trigger(midi_buffer, true);
                 if (period_offset > nframes) return 0; // no trigger
                 last_start = time + period_offset;
-                midi::write_message(trig, period_offset, midi::status_type::stim_on, stim->name());
+                midi::write_message(sync, period_offset, midi::status_type::stim_on, stim->name());
                 DBG << "playback triggered: time=" << last_start << ", stim=" << stim->name();
         }
         // has enough time elapsed since the last stim?
@@ -147,7 +152,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 period_offset = std::max(ostart, ostop);
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
-                midi::write_message(trig, period_offset, midi::status_type::stim_on, stim->name());
+                midi::write_message(sync, period_offset, midi::status_type::stim_on, stim->name());
                 DBG << "playback started: time=" << last_start << ", stim=" << stim->name();
         }
         // sanity check - will be optimized out
@@ -167,7 +172,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         if (stim_offset >= stim->nframes()) {
                 queue->release();
                 last_stop = time + period_offset + nsamples;
-                midi::write_message(trig, period_offset + nsamples,
+                midi::write_message(sync, period_offset + nsamples,
                                     midi::status_type::stim_off, stim->name());
                 DBG << "playback ended: time=" << last_stop << ", stim=" << stim->name();
                 stim_offset = 0;
@@ -219,6 +224,7 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
                 if ((i+1) < stims.size()) {
                         if (sscanf(stims[i+1].c_str(),"%zd",&nreps) == 0) {
                                 nreps = default_nreps;
+				i += 1;
                         }
                 }
                 else nreps = default_nreps;
@@ -243,16 +249,26 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
-                options.min_gap = options.min_gap_sec * client->sampling_rate();
-                options.min_interval = options.min_interval_sec * client->sampling_rate();
-                // options.trigout_chan &= midi::chan_nib;
 
-                if (!options.count("trig")) {
+		nframes_t sampling_rate = client->sampling_rate();
+                if (options.count("trig") == 0) {
+			options.min_interval = options.min_interval_sec * sampling_rate;
+			options.min_gap = options.min_gap_sec * sampling_rate;
                         LOG << "minimum gap: " << options.min_gap_sec << "s ("
                                       << options.min_gap << " samples)";
                         LOG << "minimum interval: " << options.min_interval_sec << "s ("
                                       << options.min_interval << " samples)";
                 }
+		if (options.pretrigger_interval_sec) {
+			options.pretrigger_interval = *options.pretrigger_interval_sec * sampling_rate;
+			LOG << "pre-trigger interval: " << *options.pretrigger_interval_sec << "s ("
+			    << *options.pretrigger_interval << " samples)";
+		}
+		if (options.posttrigger_interval_sec) {
+			options.posttrigger_interval = *options.posttrigger_interval_sec * sampling_rate;
+			LOG << "post-trigger interval: " << *options.posttrigger_interval_sec << "s ("
+			    << *options.posttrigger_interval << " samples)";
+		}
                 if (options.stimuli.size() == 0) {
                         LOG << "no stimuli; quitting";
                         throw Exit(0);
@@ -270,7 +286,7 @@ main(int argc, char **argv)
 
                 port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput | JackPortIsTerminal, 0);
-                port_trigout = client->register_port("trig_out", JACK_DEFAULT_MIDI_TYPE,
+                port_syncout = client->register_port("sync_out", JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
                         LOG << "triggering playback from trig_in";
@@ -294,8 +310,8 @@ main(int argc, char **argv)
 
                 client->connect_ports("out",
                                       options.output_ports.begin(), options.output_ports.end());
-                client->connect_ports("trig_out",
-                                      options.trigout_ports.begin(), options.trigout_ports.end());
+                client->connect_ports("sync_out",
+                                      options.syncout_ports.begin(), options.syncout_ports.end());
                 client->connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
                                       "trig_in");
 
@@ -326,30 +342,33 @@ jstim_options::jstim_options(string const &program_name)
 
         po::options_description jillopts("JILL options");
         jillopts.add_options()
-                ("server,s",  po::value<string>(&server_name), "connect to specific jack server")
-                ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
+                ("server,s",  po::value(&server_name), "connect to specific jack server")
+                ("name,n",    po::value(&client_name)->default_value(_program_name),
                  "set client name")
-                ("out,o",     po::value<vector<string> >(&output_ports),
+                ("out,o",     po::value(&output_ports),
                  "add connection to output audio port")
-                ("event,e",   po::value<vector<string> >(&trigout_ports),
+                ("event,e",   po::value(&syncout_ports),
                  "add connection to output event port")
-                // ("chan,c",    po::value<midi::data_type>(&trigout_chan)->default_value(0),
-                //  "set MIDI channel for output messages (0-16)")
                 ("trig,t",
-                 po::value<vector<string> >(&trigin_ports)->multitoken()->zero_tokens(),
-                 "add connection to input trigger port");
+                 po::value(&trigin_ports)->multitoken()->zero_tokens(),
+                 "turn on triggered mode (playback only occurs on triggers) and optionally add connection to input trigger port.");
 
         // tropts is a group of options
         po::options_description opts("Stimulus options");
         opts.add_options()
                 ("shuffle,S", "shuffle order of presentation")
                 ("loop,l",    "loop endlessly")
-                ("repeats,r", po::value<size_t>(&nreps)->default_value(1),
+                ("repeats,r", po::value(&nreps)->default_value(1),
                  "default number of repetitions (can be overridden for individual stimuli)")
-                ("gap,g",     po::value<float>(&min_gap_sec)->default_value(2.0),
+                ("gap,g",     po::value(&min_gap_sec)->default_value(2.0),
                  "minimum gap between sound (s)")
-                ("interval,i",po::value<float>(&min_interval_sec)->default_value(0.0),
-                 "minimum interval between stimulus start times (s)");
+                ("interval,i",po::value(&min_interval_sec)->default_value(0.0),
+                 "minimum interval between stimulus start times (s)")
+		("trigger-before", po::value(&pretrigger_interval_sec),
+		 "if set, emit a trigger-on event this many seconds before stimulus onset (does not apply to triggered mode)")
+		("trigger-after", po::value(&posttrigger_interval_sec),
+		 "if set, emit a trigger-off event this many seconds after stimulus offset");
+	
 
         cmd_opts.add(jillopts).add(opts);
         cmd_opts.add_options()
@@ -365,7 +384,20 @@ jstim_options::print_usage()
                   << visible_opts << std::endl
                   << "Ports:\n"
                   << " * out:       sampled output of the presented stimulus\n"
-                  << " * trig_out:  event port reporting stimulus onset/offsets\n"
+                  << " * sync_out:  event port reporting stimulus onset/offsets\n"
                   << " * trig_in:   (optional) event port for triggering playback"
                   << std::endl;
+}
+
+void
+jstim_options::process_options()
+{
+        program_options::process_options();
+	// check timing
+	float padding_needed = pretrigger_interval_sec.value_or(0.0) + posttrigger_interval_sec.value_or(0.0);
+	if (padding_needed >= min_gap_sec) {
+                LOG << "ERROR: pretrigger and postrigger intervals must be less than the gap between stimuli!" << std::endl;
+		throw Exit(EXIT_FAILURE);
+	}
+		
 }
