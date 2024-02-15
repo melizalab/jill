@@ -114,10 +114,13 @@ public:
         ~ringbuffer() = default;
 
         void resize(std::size_t size) {
-                _buf.reset(new jill::util::mirrored_memory(next_pow2(size * sizeof(data_type)),
-                                                           2,
-                                                           true));
-                _size_mask = this->size() - 1;
+		std::size_t actual_size = next_pow2(size * sizeof(data_type));
+		if (!_buf || this->size() != actual_size) {
+			_buf.reset(new jill::util::mirrored_memory(actual_size,
+								   2,
+								   true));
+			_size_mask = this->size() - 1;
+		}
         }
 
         /// @return the size of the buffer (in objects)
