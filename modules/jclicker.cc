@@ -41,11 +41,11 @@ protected:
 
 struct pulse_type {
 	/** the shape of the pulse */
-	enum { Positive, Negative, Biphasic } shape;
+	enum { Positive, Negative, Biphasic} shape;
 	/** the type of midi message that will trigger the pulse */
 	midi::data_type status;
-	/** duration of the pulse, in ms */
-	float duration_ms;
+	/** duration of the pulse, in samples */
+	nframes_t duration;
 };
 
 std::ostream& operator << (std::ostream &os, const pulse_type &p) {
@@ -55,7 +55,7 @@ std::ostream& operator << (std::ostream &os, const pulse_type &p) {
 	case pulse_type::Negative: os << "negative"; break;
 	case pulse_type::Biphasic: os << "biphasic"; break;
 	}
-	os << ", " << p.duration_ms << " ms";
+	os << ", " << p.duration << " samples";
 	return os;
 }
 
@@ -88,16 +88,18 @@ process(jack_client *client, nframes_t nframes, nframes_t)
                 if (event.size < 1) continue;
 		for (const auto &pulse : pulses) {
 			if (pulse.status != event.buffer[0]) continue;
+			sample_t * pulse_buf = buf + event.time;
 			switch (pulse.shape) {
 			case pulse_type::Positive:
-				buf[event.time] = 1.0f;
+				std::fill(pulse_buf, pulse_buf + pulse.duration, 1.0f);
 				break;
 			case pulse_type::Negative:
-				buf[event.time] = -1.0f;
+				std::fill(pulse_buf, pulse_buf + pulse.duration, -1.0f);
 				break;
 			case pulse_type::Biphasic:
-				// FIXME: not actually biphasic
-				buf[event.time] = 1.0f;
+				nframes_t half_dur = pulse.duration / 2;
+				std::fill(pulse_buf, pulse_buf + half_dur, 1.0f);
+				std::fill(pulse_buf + half_dur, pulse_buf + pulse.duration, -1.0f);
 			}
 			break;  // only the first match is considered
 		}
@@ -134,7 +136,7 @@ signal_handler(int sig)
 }
 
 static
-void parse_pulses(stringvec const & pulse_defs) {
+void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate, nframes_t buffer_size) {
 	LOG << "parsing pulse specifications: ";
 	for (const auto &it : pulse_defs) {
 		stringvec words;
@@ -155,7 +157,10 @@ void parse_pulses(stringvec const & pulse_defs) {
 		else
 			throw std::invalid_argument("pulse shape must be 'positive', 'negative', or 'biphasic'");
 		// parse third token as a float
-		pulse.duration_ms = std::stof(words[2], 0);
+		float duration_ms = std::stof(words[2], 0);
+		pulse.duration = 0.001 * duration_ms * sampling_rate;
+		if (pulse.duration > buffer_size)
+			throw std::invalid_argument("pulse duration cannot be longer than one period");
 
 		LOG << "  " << pulse;
 		pulses.push_back(pulse);
@@ -172,11 +177,12 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
 		if (options.pulses.size() == 0)
 			throw std::invalid_argument("must define at least one pulse");
-		parse_pulses(options.pulses);
 
                 // start client
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
+		parse_pulses(options.pulses, client->sampling_rate(), client->buffer_size());
+
 		// initialize ringbuffer
 		nframes_t ringbuf_size = client->buffer_size() * 3;
 		ringbuf = std::make_unique<sample_ringbuffer>(ringbuf_size);
