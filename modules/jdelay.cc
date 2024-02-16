@@ -112,6 +112,7 @@ int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
         ringbuf.resize(options.delay + nframes);
+	DBG << "jack period size changed; ringbuffer resized to " << ringbuf.size();
         // simple way to set a fixed delay is to advance pointer
         ringbuf.push(nullptr, options.delay);
         return 0;
@@ -143,7 +144,7 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                client.reset(new jack_client(options.client_name, options.server_name));
+                client = std::make_unique<jack_client>(options.client_name, options.server_name);
                 options.delay = options.delay_msec * client->sampling_rate() / 1000;
                 LOG << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
 
