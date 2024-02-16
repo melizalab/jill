@@ -10,12 +10,14 @@
 #include "jill/jack_client.hh"
 #include "jill/midi.hh"
 #include "jill/program_options.hh"
+#include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jclicker"
 
 using namespace jill;
 using std::string;
 using stringvec = std::vector<string>;
+using sample_ringbuffer = dsp::ringbuffer<sample_t>;
 
 class jclicker_options : public program_options {
 
@@ -60,6 +62,7 @@ std::ostream& operator << (std::ostream &os, const pulse_type &p) {
 static jclicker_options options(PROGRAM_NAME);
 jack_port_t *port_in, *port_out;
 std::vector<pulse_type> pulses;
+std::unique_ptr<sample_ringbuffer> ringbuf;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
 
@@ -69,7 +72,15 @@ process(jack_client *client, nframes_t nframes, nframes_t)
         void *in = client->events(port_in, nframes);
         sample_t *out = client->samples(port_out, nframes);
 
-        memset(out, 0, nframes * sizeof(sample_t));
+	// ringbuffer acts as a backing buffer so that pulses can span the end
+	// of the current period.
+	// write pointer should be one period ahead of read pointer
+	assert (ringbuf->read_space() == nframes);
+	assert (ringbuf->write_space() >= nframes);
+	// zero out the back of the buffer
+	ringbuf->push(nullptr, nframes);
+	// write the pulses to the front using the read pointer 
+	sample_t * buf = ringbuf->buffer() + ringbuf->read_offset();
 
         jack_midi_event_t event;
         nframes_t nevents = jack_midi_get_event_count(in);
@@ -80,19 +91,30 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 			if (pulse.status != event.buffer[0]) continue;
 			switch (pulse.shape) {
 			case pulse_type::Positive:
-				out[event.time] = 1.0f;
+				buf[event.time] = 1.0f;
 				break;
 			case pulse_type::Negative:
-				out[event.time] = -1.0f;
+				buf[event.time] = -1.0f;
 				break;
 			case pulse_type::Biphasic:
 				// FIXME: not actually biphasic
-				out[event.time] = 1.0f;
+				buf[event.time] = 1.0f;
 			}
 			break;  // only the first match is considered
 		}
         }
+	// copy the front of the buffer into the output
+	ringbuf->pop(out, nframes);
 
+        return 0;
+}
+
+int
+jack_bufsize(jack_client *client, nframes_t nframes)
+{
+	// Do we need to reset the pointers?
+        ringbuf->resize(nframes * 3);
+	DBG << "jack period size changed; ringbuffer resized to " << ringbuf->size();
         return 0;
 }
 
@@ -156,6 +178,12 @@ main(int argc, char **argv)
                 // start client
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
+		// initialize ringbuffer
+		nframes_t ringbuf_size = client->buffer_size() * 3;
+		ringbuf = std::make_unique<sample_ringbuffer>(ringbuf_size);
+		// advance the write pointer one period
+		ringbuf->push(nullptr, client->buffer_size());
+		DBG << "initialized ringbuffer with " << ringbuf->size() << " samples";
 
                 // register ports
                 port_in = client->register_port("in",JACK_DEFAULT_MIDI_TYPE,
@@ -170,6 +198,7 @@ main(int argc, char **argv)
 
                 // register jack callbacks
                 client->set_shutdown_callback(jack_shutdown);
+                client->set_buffer_size_callback(jack_bufsize);
                 client->set_process_callback(process);
 
                 // activate client

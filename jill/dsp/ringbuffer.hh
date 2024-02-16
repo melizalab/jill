@@ -101,7 +101,7 @@ public:
 
         /**
          * Construct a ringbuffer with enough room to hold @a size
-         * objects of type T.
+         * objects of type T. The memory will be all zeros on construction.
          *
          * @param size The size of the ringbuffer (in objects)
          */
@@ -113,28 +113,32 @@ public:
 
         ~ringbuffer() = default;
 
+	/** 
+	 * Resize the ringbuffer. If the new size is the same as the old size,
+	 * nothing happens. If the new size is different, a new block of memory
+	 * with the correct size is allocated. The read and write pointers
+	 * are not changed but remain valid as long as the new size is respected.
+	 */
         void resize(std::size_t size) {
 		std::size_t actual_size = next_pow2(size * sizeof(data_type));
 		if (!_buf || this->size() != actual_size) {
-			_buf.reset(new jill::util::mirrored_memory(actual_size,
-								   2,
-								   true));
+			_buf.reset(new jill::util::mirrored_memory(actual_size));
 			_size_mask = this->size() - 1;
 		}
         }
 
         /// @return the size of the buffer (in objects)
-        std::size_t size() const {
+        constexpr std::size_t size() const {
                 return _buf->size() / sizeof(data_type);
         }
 
         /// @return the number of items that can be written to the ringbuffer
-        std::size_t write_space() const {
+        constexpr std::size_t write_space() const {
                 return _read_ptr + size() - _write_ptr;
         }
 
         /// @return the number of items that can be read from the ringbuffer
-        std::size_t read_space() const {
+        constexpr std::size_t read_space() const {
                 return _write_ptr - _read_ptr;
         };
 
@@ -205,16 +209,16 @@ public:
         }
 
 
-        std::size_t write_offset() const {
+        constexpr std::size_t write_offset() const {
                 return _write_ptr & _size_mask;
         };
 
-        std::size_t read_offset() const {
+        constexpr std::size_t read_offset() const {
                 return _read_ptr & _size_mask;
         };
 
-        data_type * buffer() { return reinterpret_cast<data_type*>(_buf->buffer()); }
-        data_type const * buffer() const { return reinterpret_cast<data_type const *>(_buf->buffer()); }
+        constexpr data_type * buffer() { return reinterpret_cast<data_type*>(_buf->buffer()); }
+        constexpr data_type const * buffer() const { return reinterpret_cast<data_type const *>(_buf->buffer()); }
 
 
 private:

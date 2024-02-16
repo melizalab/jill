@@ -84,10 +84,10 @@ env = Environment(
 if system == "Darwin":
     env.Replace(CXX="clang++")
     env.Append(
-        CPPPATH=["/opt/local/include"],
+        CPPPATH=["/opt/local/include/", "/opt/local/libexec/boost/1.81/include/"],
         # CXXFLAGS=["-stdlib=libc++"],
         # LINKFLAGS=["-stdlib=libc++"],
-        LIBPATH=["/opt/local/lib"],
+        LIBPATH=["/opt/local/lib/", "/opt/local/libexec/boost/1.81/lib/"],
     )
 
 if "CXX" in os.environ:
