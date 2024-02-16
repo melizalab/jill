@@ -62,6 +62,7 @@ std::ostream& operator << (std::ostream &os, const pulse_type &p) {
 static jclicker_options options(PROGRAM_NAME);
 jack_port_t *port_in, *port_out;
 std::vector<pulse_type> pulses;
+// ringbuffer acts as a backing buffer so that pulses can span the end of the current period.
 std::unique_ptr<sample_ringbuffer> ringbuf;
 static int ret = EXIT_SUCCESS;
 static int running = 1;
@@ -72,8 +73,6 @@ process(jack_client *client, nframes_t nframes, nframes_t)
         void *in = client->events(port_in, nframes);
         sample_t *out = client->samples(port_out, nframes);
 
-	// ringbuffer acts as a backing buffer so that pulses can span the end
-	// of the current period.
 	// write pointer should be one period ahead of read pointer
 	assert (ringbuf->read_space() == nframes);
 	assert (ringbuf->write_space() >= nframes);
@@ -103,7 +102,7 @@ process(jack_client *client, nframes_t nframes, nframes_t)
 			break;  // only the first match is considered
 		}
         }
-	// copy the front of the buffer into the output
+	// copy the front of the buffer into the output and advance the read pointer
 	ringbuf->pop(out, nframes);
 
         return 0;
