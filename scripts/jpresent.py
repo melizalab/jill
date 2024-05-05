@@ -61,7 +61,15 @@ if __name__ == "__main__":
     p.add_argument(
         "--trigger-before",
         type=float,
-        help="time before stimulus onset to send a trigger pulse",
+        default=1.0,
+        help="time before stimulus onset to send a trigger on pulse",
+    )
+
+    p.add_argument(
+        "--trigger-after",
+        type=float,
+        default=1.0,
+        help="time after stimulus end to send a trigger off pulse",
     )
 
     p.add_argument(
@@ -84,7 +92,7 @@ if __name__ == "__main__":
         "--gap",
         "-g",
         type=float,
-        default=2,
+        default=2.1,
         help="minimum time between end of one stimulus and start of the next (default %(default).1f s)",
     )
     p.add_argument(
@@ -95,8 +103,10 @@ if __name__ == "__main__":
     print(args)
     setup_log(log, args.debug)
 
-    if args.trigger_before is not None and args.trigger_before >= args.gap:
-        p.error("pre-stimulus trigger time must be less than gap between stimuli")
+    if args.trigger_before + args.trigger_after >= args.gap:
+        p.error(
+            "pre- and post-stimulus trigger times must sum to less than gap between stimuli"
+        )
 
     log.info("checking for jill binaries:")
     binary_paths = {}
@@ -143,20 +153,26 @@ if __name__ == "__main__":
     jstim_args.extend(("-e", "jclicker-sync:in"))
     log.debug(" ".join(jclicker_sync_args))
 
-    if args.trigger_before is not None:
-        log.info("starting jclicker for trigger events:")
-        jclicker_trig_args = (
-            binary_paths["jclicker"],
-            "-n",
-            "jclicker-trig",
-            "-o",
-            args.trig_out,
-            "0x01,positive,1",
+    log.info("starting jclicker for trigger events:")
+    jclicker_trig_args = (
+        binary_paths["jclicker"],
+        "-n",
+        "jclicker-trig",
+        "-o",
+        args.trig_out,
+        "0x01,positive,1",
+    )
+    jstim_args.extend(
+        (
+            "-e",
+            "jclicker-trig:in",
+            "--trigger-before",
+            f"{args.trigger_before}",
+            "--trigger-after",
+            f"{args.trigger_after}",
         )
-        jstim_args.extend(
-            ("-e", "jclicker-trig:in", "--trigger-before", f"{args.trigger_before}")
-        )
-        log.debug(" ".join(jclicker_trig_args))
+    )
+    log.debug(" ".join(jclicker_trig_args))
 
     jstim_args.extend(
         ("-o", args.audio_out, "--gap", f"{args.gap}", "--repeats", f"{args.repeats}")
@@ -182,6 +198,7 @@ if __name__ == "__main__":
         log.info("experiment interrupted by user")
         jstim_proc.terminate()
     finally:
+        time.sleep(1)
         jsync_proc.terminate()
         if jtrig_proc is not None:
             jtrig_proc.terminate()
