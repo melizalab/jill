@@ -68,7 +68,7 @@ static int ret = EXIT_SUCCESS;
 static int running = 1;
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t)
+process(jack_client *client, nframes_t nframes, nframes_t time)
 {
         void *in = client->events(port_in, nframes);
         sample_t *out = client->samples(port_out, nframes);
@@ -86,6 +86,7 @@ process(jack_client *client, nframes_t nframes, nframes_t)
         for (nframes_t i = 0; i < nevents; ++i) {
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
+		DBG << time + event.time << ": " << static_cast<midi::status_type>(event.buffer[0]);
 		for (const auto &pulse : pulses) {
 			if (pulse.status != event.buffer[0]) continue;
 			sample_t * pulse_buf = buf + event.time;
