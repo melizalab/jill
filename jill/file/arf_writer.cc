@@ -43,15 +43,18 @@ struct event_t {
  * convert a midi message to hex
  * @param in   the midi message
  * @param size the length of the message
+ *
+ * @returns char[] buffer, owned by the caller
  */
 template <typename T>
 char *
 to_hex(T const * in, std::size_t size)
 {
-        char * out = new char[size * 2 + 2];
-        sprintf(out, "0x");
+	const std::size_t buf_size = size * 2 + 2;
+        char * out = new char[buf_size];
+        snprintf(out, buf_size, "0x");
         for (std::size_t i = 0; i < size; ++i) {
-                sprintf(out + i*2 + 2, "%02x", in[i]);
+                snprintf(out + i*2 + 2, buf_size - i * 2 - 2, "%02x", in[i]);
         }
         return out;
 }
@@ -235,8 +238,9 @@ arf_writer::flush()
 void
 arf_writer::log(timestamp_t utc, string source, string msg)
 {
-        char m[msg.length() + source.length() + 4];
-        sprintf(m, "[%s] %s", source.c_str(), msg.c_str());
+	const std::size_t buf_size = msg.length() + source.length() + 4;
+        char m[buf_size];
+        snprintf(m, buf_size, "[%s] %s", source.c_str(), msg.c_str());
 
         time_duration t = utc - epoch;
         message_t message = { t.total_seconds(), t.fractional_seconds(), m };
