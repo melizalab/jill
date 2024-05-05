@@ -16,7 +16,7 @@ using namespace jill::util;
 readahead_stimqueue::readahead_stimqueue(iterator first, iterator last,
                                          nframes_t samplerate,
                                          bool loop)
-        :  _first(first), _last(last), _it(first), _head(nullptr),
+        :  _first(first), _last(last), _it(first), _head(nullptr), _previous(nullptr),
            _samplerate(samplerate), _loop(loop), _running(true),
            _thread(&readahead_stimqueue::loop, this)
 {}
@@ -96,11 +96,22 @@ readahead_stimqueue::head()
         return nullptr;
 }
 
+jill::stimulus_t const *
+readahead_stimqueue::previous()
+{
+        if (_previous) return _previous;
+        // It might be necessary to call this, but I'm not sure b/c loop()
+        // checks for spurious/early release.
+        // _ready.notify_one();
+        return nullptr;
+}
+
 
 void
 readahead_stimqueue::release()
 {
         // potential race condition with loop?
+	_previous = _head;
         _head = nullptr;
         // signal loop to advance the iterator
         _ready.notify_one();

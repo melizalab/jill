@@ -48,6 +48,7 @@ public:
         ~readahead_stimqueue() override = default;
 
         stimulus_t const * head() override;
+	stimulus_t const * previous();
         void release() override;
         void stop() override;
         void join() override;
@@ -59,6 +60,7 @@ private:
         iterator const _last;
         iterator _it;                             // current position
         stimulus_t * _head;
+        stimulus_t * _previous;
 
         nframes_t const _samplerate;
         bool const _loop;
