@@ -122,15 +122,29 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 xruns.fetch_add(-1);
         }
 
-        // if no stimulus queued do nothing
-        if (!stim) return 0;
-
 	// a bunch of annoying unsigned arithmetic here, but it works.
 	// time since last start and stop (relative to start of the period).
         // This difference is correct even if sample counter has overflowed
         // because time >= lastX
-	nframes_t dstart = time - last_start;
-	nframes_t dstop = time - last_stop;
+	const nframes_t dstart = time - last_start;
+	const nframes_t dstop = time - last_stop;
+
+	// check if we need to emit a posttrigger event
+	if (options.posttrigger_interval && last_stim) {
+		// samples until posttrigger event (will overflow if
+		// already passed)
+		const nframes_t otrig = *options.posttrigger_interval - dstop;
+		// DBG << "time=" << time << " dstop=" << dstop << " otrig=" << otrig;
+		if (otrig < nframes) {
+			const auto status = midi::status_type(midi::status_type::stim_off, 1);
+			midi::write_message(sync, otrig, status, last_stim->name());
+			DBG << "sent posttrigger: time=" << time + otrig
+			    << ", stim=" << last_stim->name();
+		}
+	}
+
+	// if no stimulus queued, we are done
+        if (!stim) return 0;
 
         // am I playing a stimulus?
         if (stim_offset > 0) {
@@ -163,19 +177,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 				midi::write_message(sync, otrig, status, stim->name());
 				DBG << "sent pretrigger: time=" << time + otrig
 				    << ", stim=" << stim->name();
-			}
-		}
-		// check if we need to emit a posttrigger event
-		if (options.posttrigger_interval && last_stim) {
-			// samples until posttrigger event (will overflow if
-			// already passed)
-			const nframes_t otrig = *options.posttrigger_interval - dstop;
-			// DBG << "time=" << time << " dstop=" << dstop << " otrig=" << otrig;
-			if (otrig < nframes) {
-				const auto status = midi::status_type(midi::status_type::stim_off, 1);
-				midi::write_message(sync, otrig, status, last_stim->name());
-				DBG << "sent posttrigger: time=" << time + otrig
-				    << ", stim=" << last_stim->name();
 			}
 		}
 
