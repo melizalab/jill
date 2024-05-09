@@ -13,7 +13,7 @@ import shutil
 
 log = logging.getLogger("jpresent")  # root logger
 
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 
 
 def setup_log(log, debug=False):
@@ -49,12 +49,12 @@ if __name__ == "__main__":
     )
     p.add_argument(
         "--sync-out",
-        default="system:playback_2",
+        default="system:playback_3",
         help="name of the JACK port where the synchronization signal should go (default %(default)s)",
     )
     p.add_argument(
         "--trig-out",
-        default="system:playback_3",
+        default="system:playback_4",
         help="name of the JACK port where the trigger signal should go (default %(default)s)",
     )
 
@@ -147,8 +147,8 @@ if __name__ == "__main__":
         "jclicker-sync",
         "-o",
         args.sync_out,
-        "0x00,positive,1",
-        "0x10,negative,1",
+        "0x10,positive,1",
+        "0x00,negative,1",
     )
     jstim_args.extend(("-e", "jclicker-sync:in"))
     log.debug(" ".join(jclicker_sync_args))
@@ -160,7 +160,8 @@ if __name__ == "__main__":
         "jclicker-trig",
         "-o",
         args.trig_out,
-        "0x01,positive,1",
+        "0x11,positive,1",
+        "0x01,negative,1",
     )
     jstim_args.extend(
         (
