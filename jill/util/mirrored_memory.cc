@@ -16,6 +16,7 @@
 #include <sys/mman.h>
 #include <sys/shm.h>
 #include <cstring>
+#include <cstdint>
 #include <unistd.h>
 #include <stdexcept>
 #include "mirrored_memory.hh"

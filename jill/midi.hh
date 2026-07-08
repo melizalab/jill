@@ -15,6 +15,7 @@
 #include <cerrno>
 #include <string>
 #include <cstring>
+#include <cstdint>
 #include <optional>
 #include <jack/midiport.h>
 
