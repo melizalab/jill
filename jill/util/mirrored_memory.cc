@@ -18,6 +18,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <stdexcept>
+#include <cstdint>
 #include "mirrored_memory.hh"
 
 using namespace jill::util;
