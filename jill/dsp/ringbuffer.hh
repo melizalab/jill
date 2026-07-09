@@ -113,18 +113,18 @@ public:
 
         ~ringbuffer() = default;
 
-	/** 
-	 * Resize the ringbuffer. If the new size is the same as the old size,
-	 * nothing happens. If the new size is different, a new block of memory
-	 * with the correct size is allocated. The read and write pointers
-	 * are not changed but remain valid as long as the new size is respected.
-	 */
+        /**
+         * Resize the ringbuffer. If the new size is the same as the old size,
+         * nothing happens. If the new size is different, a new block of memory
+         * with the correct size is allocated. The read and write pointers
+         * are not changed but remain valid as long as the new size is respected.
+         */
         void resize(std::size_t size) {
-		std::size_t actual_size = next_pow2(size * sizeof(data_type));
-		if (!_buf || this->size() != actual_size) {
-			_buf.reset(new jill::util::mirrored_memory(actual_size));
-			_size_mask = this->size() - 1;
-		}
+                std::size_t actual_size = next_pow2(size * sizeof(data_type));
+                if (!_buf || this->size() != actual_size) {
+                        _buf.reset(new jill::util::mirrored_memory(actual_size));
+                        _size_mask = this->size() - 1;
+                }
         }
 
         /// @return the size of the buffer (in objects)
@@ -162,8 +162,7 @@ public:
                 if (cnt > write_space())
                         cnt = write_space();
                 cnt = data_fun(reinterpret_cast<data_type*>(buffer()) + write_offset(), cnt);
-                // gcc-specific, use std::atomic?
-                __sync_add_and_fetch(&_write_ptr, cnt);
+                advance_write_ptr(cnt);
                 return cnt;
         }
 
@@ -198,7 +197,7 @@ public:
                 if (cnt==0 || cnt > read_space())
                         cnt = read_space();
                 cnt = data_fun(buffer() + read_offset(), cnt);
-                __sync_add_and_fetch(&_read_ptr, cnt);
+                advance_read_ptr(cnt);
                 return cnt;
         }
 
@@ -219,6 +218,18 @@ public:
 
         constexpr data_type * buffer() { return reinterpret_cast<data_type*>(_buf->buffer()); }
         constexpr data_type const * buffer() const { return reinterpret_cast<data_type const *>(_buf->buffer()); }
+
+protected:
+        /** Advance the write pointer cnt elements */
+        void advance_write_ptr(std::size_t cnt) {
+                // gcc-specific, use std::atomic?
+                __sync_add_and_fetch(&_write_ptr, cnt);
+        }
+
+        /** Advance the read pointer cnt elements */
+        void advance_read_ptr(std::size_t cnt) {
+                __sync_add_and_fetch(&_read_ptr, cnt);
+        }
 
 
 private:
