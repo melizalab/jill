@@ -122,7 +122,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 xruns.fetch_add(-1);
         }
 
-	// a bunch of annoying unsigned arithmetic here, but it works.
+	// a bunch of annoying unsigned arithmetic here, but it seems to work.
 	// time since last start and stop (relative to start of the period).
         // This difference is correct even if sample counter has overflowed
         // because time >= lastX
