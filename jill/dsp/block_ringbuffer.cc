@@ -43,8 +43,8 @@ block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
         dst += header.sz_id;
         // store data
         std::memcpy(dst, data, header.sz_data);
-        // advance write pointer
-        return super::push(nullptr, header.size());
+        advance_write_ptr(header.size());
+        return header.size();
 }
 
 data_block_t const *

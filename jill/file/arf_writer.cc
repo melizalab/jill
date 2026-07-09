@@ -50,7 +50,7 @@ template <typename T>
 char *
 to_hex(T const * in, std::size_t size)
 {
-	const std::size_t buf_size = size * 2 + 2;
+        const std::size_t buf_size = size * 2 + 2;
         char * out = new char[buf_size];
         snprintf(out, buf_size, "0x");
         for (std::size_t i = 0; i < size; ++i) {
@@ -238,7 +238,7 @@ arf_writer::flush()
 void
 arf_writer::log(timestamp_t utc, string source, string msg)
 {
-	const std::size_t buf_size = msg.length() + source.length() + 4;
+        const std::size_t buf_size = msg.length() + source.length() + 4;
         char m[buf_size];
         snprintf(m, buf_size, "[%s] %s", source.c_str(), msg.c_str());
 
