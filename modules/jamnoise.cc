@@ -11,7 +11,6 @@
 #include <iostream>
 #include <random>
 #include <csignal>
-#include <boost/filesystem.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"

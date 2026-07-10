@@ -19,13 +19,12 @@
 
 #include <zmq.h>
 
-namespace zmq {
+namespace jill { namespace net { namespace zmq {
 
 //using socket_t = std::shared_ptr<void>;
 
 /** Smart pointer container for zmq message */
 using msg_ptr_t = std::shared_ptr<zmq_msg_t>;
-
 
 /** global singleton class for context */
 class context : boost::noncopyable {
@@ -44,8 +43,18 @@ private:
         void * _context;
 };
 
+/** Bind a socket to an address */
+int bind(void * socket, std::string const & addr);
 
+/** Connect a socket to an endpoint */
+int connect(void * socket, std::string const & addr);
 
+/** Disconnect a socket from an endpoint */
+int disconnect(void * socket, std::string const & addr);
+			
+/** Close a socket */
+int close(void * socket);
+			
 /** Create an empty zmq message */
 msg_ptr_t msg_init();
 
@@ -58,7 +67,6 @@ std::string msg_str (msg_ptr_t const & message);
 /** Send a string as a message */
 int send(void * socket, std::string const & data, int flags=0);
 int send(void * socket, char const * data, int flags=0);
-
 
 /** Send a sequence of objects */
 template <typename Iterator>
@@ -80,10 +88,6 @@ int send_n(void * socket, Iterator it, size_t n, int flags=0)
 /** receive a series of messages and parse them into a vector of strings */
 std::vector<std::string> recv(void * socket, int flags=0);
 
-}
-
-
-
-
+}}} // end zmq
 
 #endif /* _ZMQ_HELPERS_H_ */

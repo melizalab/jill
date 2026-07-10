@@ -11,7 +11,7 @@
  */
 #include "logging.hh"
 #include "logger.hh"
-#include "zmq.hh"
+#include "net/zmq.hh"
 #include <sstream>
 #include <cstdio>
 #include <boost/date_time/c_local_time_adjustor.hpp>
@@ -19,6 +19,7 @@
 
 using namespace boost::posix_time;
 using namespace jill;
+using namespace jill::net;
 
 log_msg::log_msg()
         : _creation(microsec_clock::universal_time())
@@ -50,7 +51,7 @@ logger::~logger()
         // socket and context
         int linger = 1000;
         zmq_setsockopt(_socket, ZMQ_LINGER, &linger, sizeof(linger));
-        zmq_close(_socket);
+	zmq::close(_socket);
 }
 
 void
@@ -94,7 +95,7 @@ logger::connect(std::string const & server_name)
         // program's zeromq context to shut down if the connection is never made.
         std::ostringstream endpoint;
         endpoint << "ipc:///tmp/org.meliza.jill/" << server_name << "/msg";
-        if (zmq_connect(_socket, endpoint.str().c_str()) != 0) {
+	if (zmq::connect(_socket, endpoint.str()) != 0) {
                 LOG << "error connecting to endpoint " << endpoint.str();
         }
         else {
@@ -113,7 +114,7 @@ logger::disconnect(std::string const & server_name)
         }
         std::ostringstream endpoint;
         endpoint << "ipc:///tmp/org.meliza.jill/" << server_name << "/msg";
-        if (zmq_disconnect(_socket, endpoint.str().c_str()) != 0) {
+	if (zmq::disconnect(_socket, endpoint.str()) != 0) {
                 LOG << "error disconnecting from endpoint " << endpoint.str();
         }
         else {

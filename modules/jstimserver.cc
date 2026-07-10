@@ -18,7 +18,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-#include "jill/zmq.hh"
+#include "jill/net/zmq.hh"
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
@@ -29,6 +29,7 @@
 constexpr char PROGRAM_NAME[] = "jstimserver";
 
 using namespace jill;
+using namespace jill::net;
 namespace fs = boost::filesystem;
 using std::string;
 
@@ -262,7 +263,7 @@ stim_monitor()
         std::ostringstream endpoint;
         endpoint << "ipc://" << path.string();
         void * socket = zmq::context::socket(ZMQ_PUB);
-        if (zmq_bind(socket, endpoint.str().c_str()) < 0) {
+        if (zmq::bind(socket, endpoint.str()) < 0) {
                 LOG << "unable to bind to endpoint " << endpoint.str();
                 return;
         }
@@ -299,7 +300,7 @@ stim_monitor()
                 usleep(10000);
         }
 	zmq::send(socket, "STOPPING");
-        zmq_close(socket);
+	zmq::close(socket);
 }
 
 constexpr char REQ_VERSION[] = "VERSION";
@@ -340,7 +341,7 @@ main(int argc, char **argv)
                 endpoint << "ipc://" << path.string();
 
                 void * req_socket = zmq::context::socket(ZMQ_ROUTER);
-                if (zmq_bind(req_socket, endpoint.str().c_str()) < 0) {
+                if (zmq::bind(req_socket, endpoint.str()) < 0) {
                         LOG << "unable to bind to endpoint " << endpoint.str();
                         throw Exit(-1);
                 }
