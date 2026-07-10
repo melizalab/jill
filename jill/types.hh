@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * additions Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
+ * additions Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
