@@ -1,6 +1,6 @@
 /*
  * A simple module that transforms events into clicks.
- * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
+ * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
 #include <random>

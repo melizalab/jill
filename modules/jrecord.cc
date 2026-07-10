@@ -1,7 +1,7 @@
 /*
  * JILL - C++ framework for JACK
  *
- * Copyright (C) 2010-2013 C Daniel Meliza <dan || meliza.org>
+ * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -194,12 +194,12 @@ main(int argc, char **argv)
                                 jack_port_t *p = client->get_port(it);
                                 if (p==nullptr) {
                                         LOG << "error registering port: source port \""
-                                                      << it << "\" does not exist";
+                                            << it << "\" does not exist";
                                         throw Exit(-1);
                                 }
                                 else if (!(jack_port_flags(p) & JackPortIsOutput)) {
                                         LOG << "error registering port: source port \""
-                                                      << it << "\" is not an output port";
+                                            << it << "\" is not an output port";
                                         throw Exit(-1);
                                 }
                                 else {
