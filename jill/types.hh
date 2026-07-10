@@ -101,6 +101,11 @@ struct FileError : public Error {
         FileError(std::string const & w) : Error(w) { }
 };
 
+/** Thrown for unrecoverable network errors */
+struct NetworkError : public Error {
+        NetworkError(std::string const & w) : Error(w) { }
+};
+
 }
 
 #endif
