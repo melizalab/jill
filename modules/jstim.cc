@@ -47,12 +47,12 @@ public:
         size_t nreps;           // default set by reps flag
         float min_gap_sec;      // min gap btw sound, in sec
         float min_interval_sec; // min interval btw starts, in sec
-	boost::optional<float> pretrigger_interval_sec;
-	boost::optional<float> posttrigger_interval_sec;
+        boost::optional<float> pretrigger_interval_sec;
+        boost::optional<float> posttrigger_interval_sec;
         nframes_t min_gap;
         nframes_t min_interval;
-	boost::optional<nframes_t> pretrigger_interval;
-	boost::optional<nframes_t> posttrigger_interval;
+        boost::optional<nframes_t> pretrigger_interval;
+        boost::optional<nframes_t> posttrigger_interval;
 
 protected:
 
@@ -95,9 +95,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer
         static nframes_t last_start;  // last stimulus start time
-	// last stimulus stop is a global atomic so that the main loop can
-	// initialize it. Otherwise the pre-stimulus trigger doesn't work on the
-	// first stimulus.
+        // last stimulus stop is a global atomic so that the main loop can
+        // initialize it. Otherwise the pre-stimulus trigger doesn't work on the
+        // first stimulus.
 
         nframes_t period_offset;      // the offset in the period to start copying
 
@@ -126,24 +126,24 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 	// time since last start and stop (relative to start of the period).
         // This difference is correct even if sample counter has overflowed
         // because time >= lastX
-	const nframes_t dstart = time - last_start;
-	const nframes_t dstop = time - last_stop;
+        const nframes_t dstart = time - last_start;
+        const nframes_t dstop = time - last_stop;
 
-	// check if we need to emit a posttrigger event
-	if (options.posttrigger_interval && last_stim) {
-		// samples until posttrigger event (will overflow if
-		// already passed)
-		const nframes_t otrig = *options.posttrigger_interval - dstop;
-		// DBG << "time=" << time << " dstop=" << dstop << " otrig=" << otrig;
-		if (otrig < nframes) {
-			const auto status = midi::status_type(midi::status_type::stim_off, 1);
-			midi::write_message(sync, otrig, status, last_stim->name());
-			DBG << "sent posttrigger: time=" << time + otrig
-			    << ", stim=" << last_stim->name();
-		}
-	}
+        // check if we need to emit a posttrigger event
+        if (options.posttrigger_interval && last_stim) {
+                // samples until posttrigger event (will overflow if
+                // already passed)
+                const nframes_t otrig = *options.posttrigger_interval - dstop;
+                // DBG << "time=" << time << " dstop=" << dstop << " otrig=" << otrig;
+                if (otrig < nframes) {
+                        const auto status = midi::status_type(midi::status_type::stim_off, 1);
+                        midi::write_message(sync, otrig, status, last_stim->name());
+                        DBG << "sent posttrigger: time=" << time + otrig
+                            << ", stim=" << last_stim->name();
+                }
+        }
 
-	// if no stimulus queued, we are done
+        // if no stimulus queued, we are done
         if (!stim) return 0;
 
         // am I playing a stimulus?
@@ -161,24 +161,24 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // has enough time elapsed since the last stim?
         else {
-		// samples from period start until min_interval has passed
+                // samples from period start until min_interval has passed
                 const nframes_t ostart = (dstart > options.min_interval) ?
                         0 : options.min_interval - dstart;
-		// samples until min_gap has passed
+                // samples until min_gap has passed
                 const nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
                 // the stimulus will start when both minimums are met
                 period_offset = std::max(ostart, ostop);
-		// check if we need to emit a pretrigger event
-		if (options.pretrigger_interval && period_offset >= *options.pretrigger_interval) {
-			// samples until pretrigger event
-			const nframes_t otrig = period_offset - *options.pretrigger_interval;
-			if (otrig < nframes) {
-				const auto status = midi::status_type(midi::status_type::stim_on, 1);
-				midi::write_message(sync, otrig, status, stim->name());
-				DBG << "sent pretrigger: time=" << time + otrig
-				    << ", stim=" << stim->name();
-			}
-		}
+                // check if we need to emit a pretrigger event
+                if (options.pretrigger_interval && period_offset >= *options.pretrigger_interval) {
+                        // samples until pretrigger event
+                        const nframes_t otrig = period_offset - *options.pretrigger_interval;
+                        if (otrig < nframes) {
+                                const auto status = midi::status_type(midi::status_type::stim_on, 1);
+                                midi::write_message(sync, otrig, status, stim->name());
+                                DBG << "sent pretrigger: time=" << time + otrig
+                                    << ", stim=" << stim->name();
+                        }
+                }
 
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
@@ -223,21 +223,21 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 {
         // we use the xruns counter to notify the process thread that an
         // interruption in the audio stream has occurred
-	xruns.fetch_add(1);
+        xruns.fetch_add(1);
         return 0;
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-	xruns.fetch_add(1);
+        xruns.fetch_add(1);
         if (queue) queue->stop();
 }
 
 void
 signal_handler(int sig)
 {
-	xruns.fetch_add(1);
+        xruns.fetch_add(1);
         if (queue) queue->stop();
 }
 
@@ -251,13 +251,14 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
         size_t nreps;
         for (size_t i = 0; i < stims.size(); ++i) {
                 path p(stims[i]);
-                if ((i+1) < stims.size()) {
-                        if (sscanf(stims[i+1].c_str(),"%zd",&nreps) == 0) {
-                                nreps = default_nreps;
-				i += 1;
-                        }
-                }
-                else nreps = default_nreps;
+               if ((i+1) < stims.size()) {
+                       if (sscanf(stims[i+1].c_str(),"%zd",&nreps) == 0) {
+                               nreps = default_nreps;
+                                i += 1;
+                       }
+               }
+               else
+                       nreps = default_nreps;
                 try {
                         jill::stimulus_t *stim = new file::stimfile(p.string());
                         _stimuli.push_back(stim);
@@ -268,6 +269,7 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
                         LOG << "invalid stimulus " << p << ": " << e.what();
                 }
         }
+        LOG << "loaded " << _stimuli.size() << " stimuli";
 }
 
 
@@ -280,31 +282,32 @@ main(int argc, char **argv)
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
 
-		nframes_t sampling_rate = client->sampling_rate();
+                nframes_t sampling_rate = client->sampling_rate();
                 if (options.count("trig") == 0) {
-			options.min_interval = options.min_interval_sec * sampling_rate;
-			options.min_gap = options.min_gap_sec * sampling_rate;
+                        options.min_interval = options.min_interval_sec * sampling_rate;
+                        options.min_gap = options.min_gap_sec * sampling_rate;
                         LOG << "minimum gap: " << options.min_gap_sec << "s ("
                                       << options.min_gap << " samples)";
                         LOG << "minimum interval: " << options.min_interval_sec << "s ("
                                       << options.min_interval << " samples)";
                 }
-		if (options.pretrigger_interval_sec) {
-			options.pretrigger_interval = *options.pretrigger_interval_sec * sampling_rate;
-			LOG << "pre-trigger interval: " << *options.pretrigger_interval_sec << "s ("
-			    << *options.pretrigger_interval << " samples)";
-		}
-		if (options.posttrigger_interval_sec) {
-			options.posttrigger_interval = *options.posttrigger_interval_sec * sampling_rate;
-			LOG << "post-trigger interval: " << *options.posttrigger_interval_sec << "s ("
-			    << *options.posttrigger_interval << " samples)";
-		}
+                if (options.pretrigger_interval_sec) {
+                        options.pretrigger_interval = *options.pretrigger_interval_sec * sampling_rate;
+                        LOG << "pre-trigger interval: " << *options.pretrigger_interval_sec << "s ("
+                            << *options.pretrigger_interval << " samples)";
+                }
+                if (options.posttrigger_interval_sec) {
+                        options.posttrigger_interval = *options.posttrigger_interval_sec * sampling_rate;
+                        LOG << "post-trigger interval: " << *options.posttrigger_interval_sec << "s ("
+                            << *options.posttrigger_interval << " samples)";
+                }
                 if (options.stimuli.size() == 0) {
                         LOG << "no stimuli; quitting";
                         throw Exit(0);
                 }
 
                 /* stimulus queue */
+                DBG << "loading " << options.stimuli.size() << " stimuli";
                 init_stimset(options.stimuli, options.nreps);
                 if (options.count("shuffle")) {
                         LOG << "shuffled stimuli";
@@ -333,7 +336,7 @@ main(int argc, char **argv)
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
-		last_stop = client->frame();
+                last_stop = client->frame();
                 client->activate();
                 // set this after starting the client so it will only be called
                 // when the buffer size *changes*
@@ -395,10 +398,10 @@ jstim_options::jstim_options(string const &program_name)
                  "minimum gap between sound (s)")
                 ("interval,i",po::value(&min_interval_sec)->default_value(0.0),
                  "minimum interval between stimulus start times (s)")
-		("trigger-before", po::value(&pretrigger_interval_sec),
-		 "if set, emit a trigger-on event this many seconds before stimulus onset (does not apply to triggered mode)")
-		("trigger-after", po::value(&posttrigger_interval_sec),
-		 "if set, emit a trigger-off event this many seconds after stimulus ends");
+                ("trigger-before", po::value(&pretrigger_interval_sec),
+                 "if set, emit a trigger-on event this many seconds before stimulus onset (does not apply to triggered mode)")
+                ("trigger-after", po::value(&posttrigger_interval_sec),
+                 "if set, emit a trigger-off event this many seconds after stimulus ends");
 
 
         cmd_opts.add(jillopts).add(opts);
@@ -424,11 +427,11 @@ void
 jstim_options::process_options()
 {
         program_options::process_options();
-	const double pre_and_post_gap = pretrigger_interval_sec.value_or(0.0) +
-		posttrigger_interval_sec.value_or(0.0);
-	if (pre_and_post_gap >= min_gap_sec) {
+        const double pre_and_post_gap = pretrigger_interval_sec.value_or(0.0) +
+                posttrigger_interval_sec.value_or(0.0);
+        if (pre_and_post_gap >= min_gap_sec) {
                 LOG << "ERROR: pretrigger + posttrigger intervals must be less than the gap between stimuli!" << std::endl;
-		throw Exit(EXIT_FAILURE);
-	}
+                throw Exit(EXIT_FAILURE);
+        }
 
 }
