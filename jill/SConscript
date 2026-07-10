@@ -2,7 +2,7 @@ import os
 
 Import("env libname")
 
-subdirs = [".", "util", "dsp", "file"]
+subdirs = [".", "util", "dsp", "file", "net"]
 files = []
 for d in subdirs:
     files.extend(env.Glob(os.path.join(d, "*.cc")))

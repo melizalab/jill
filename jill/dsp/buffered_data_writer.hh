@@ -32,6 +32,10 @@ class block_ringbuffer;
  * storing the data (and log messages) is provided through an owned data_writer.
  * This implementation records continuously, though other threads may call
  * reset() to split data into separate entries.
+ *
+ * This object can also be bound to a ZMQ address for receiving log messages,
+ * which it sends to the data writer's `log` method. The buffering here is
+ * provided by the ZMQ socket.
  */
 class buffered_data_writer : public data_thread {
 

@@ -16,6 +16,7 @@
 
 #include "zmq.hh"
 
+using namespace jill::net;
 
 zmq::context::context()
         : _context(zmq_init(1))
@@ -39,6 +40,30 @@ msg_close(zmq_msg_t * message)
 {
         zmq_msg_close(message);
         delete message;
+}
+
+int
+zmq::bind(void * socket, std::string const & string)
+{
+	return zmq_bind(socket, string.c_str());
+}
+
+int
+zmq::connect(void * socket, std::string const & string)
+{
+	return zmq_connect(socket, string.c_str());
+}
+
+int
+zmq::disconnect(void * socket, std::string const & string)
+{
+	return zmq_disconnect(socket, string.c_str());
+}
+
+int
+zmq::close(void * socket)
+{
+	return zmq_close(socket);
 }
 
 

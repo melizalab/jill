@@ -28,6 +28,7 @@ programs = {
     "jstim": "jstim.cc",
     "jstimserver": "jstimserver.cc",
     "jclicker": "jclicker.cc",
+    "jrelay": "jrelay.cc",
     "jmonitor": "monitor_client.c",
 }
 

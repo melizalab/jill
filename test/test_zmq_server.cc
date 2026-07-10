@@ -3,7 +3,7 @@
 #include <sstream>
 #include <cstdio>
 #include <boost/filesystem.hpp>
-#include "jill/zmq.hh"
+#include "jill/net/zmq.hh"
 
 using namespace std;
 namespace fs = boost::filesystem;

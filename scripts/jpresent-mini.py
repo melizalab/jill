@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Manages an auditory physiology experiment using jill. Starts jrecord,
- jclicker, and jstim, and makes sure they're all wired up properly.
+"""Manages an auditory physiology miniscope experiment using jill. Starts jrecord,
+ jclicker, and jstim, and makes sure they're all wired up properly. An arf file is
+ generated with a log of the stimuli.
 
 """
 import time
@@ -13,7 +14,7 @@ import shutil
 
 log = logging.getLogger("jpresent")  # root logger
 
-__version__ = "2.2.1"
+__version__ = "2.2.2"
 
 
 def setup_log(log, debug=False):

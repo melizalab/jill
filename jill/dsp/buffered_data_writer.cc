@@ -15,12 +15,13 @@
 #include <boost/filesystem.hpp>
 
 #include "../logging.hh"
-#include "../zmq.hh"
+#include "../net/zmq.hh"
 #include "buffered_data_writer.hh"
 #include "block_ringbuffer.hh"
 
 using namespace jill;
 using namespace jill::dsp;
+using namespace jill::net;
 using std::size_t;
 using std::string;
 
