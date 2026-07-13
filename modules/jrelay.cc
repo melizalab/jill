@@ -11,7 +11,8 @@
 #include "jill/midi.hh"
 #include "jill/program_options.hh"
 #include "jill/dsp/buffered_data_writer.hh"
-#include "jill/net/open_ephys_logger.hh"
+#include "jill/net/open_ephys_receiver.hh"
+#include "jill/net/dummy_event_receiver.hh"
 
 #define PROGRAM_NAME "jrelay"
 #define DEFAULT_OPEN_EPHYS_ENDPOINT "tcp://localhost:5556"
@@ -86,16 +87,18 @@ main(int argc, char **argv)
         try {
                 // parse options
                 options.parse(argc,argv);
+		std::unique_ptr<jill::data_writer> receiver;
 		// future: support multiple endpoints. For now, only open-ephys
 		if (options.count("open-ephys") > 0) {
-			auto logger = std::make_unique<net::open_ephys_logger>(options.openephys_addr);
-			logger->send("jrelay connected");
-			zmq_thread.reset(new dsp::buffered_data_writer(std::move(logger)));
+			auto recv = new net::open_ephys_receiver(options.openephys_addr);
+			recv->send("jrelay connected");
+			receiver.reset(recv);
 		}
 		else {
-			LOG << "error: no relay endpoints configured; exiting";
-			return EXIT_FAILURE;
+			LOG << "using dummy receiver";
+			receiver.reset(new net::dummy_event_receiver());
 		}
+		zmq_thread.reset(new dsp::buffered_data_writer(std::move(receiver)));
                 // start client
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);

@@ -43,6 +43,25 @@ jill::midi::operator<< (std::ostream &os, const status_type &s) {
 	return os;
 }
 
+std::string
+jill::midi::status_type::encode(char const * message, std::size_t size) const
+{
+        if (!is_standard_midi()) {
+                return std::string(message, size);
+        }
+        static char const digits[] = "0123456789abcdef";
+        std::string out;
+        out.reserve(2 + size * 2);
+        out += "0x";
+        auto const * bytes = reinterpret_cast<std::uint8_t const *>(message);
+        for (std::size_t i = 0; i < size; ++i) {
+                out += digits[bytes[i] >> 4];
+                out += digits[bytes[i] & 0x0f];
+        }
+        return out;
+}
+
+
 int
 jill::midi::write_message(void * buffer, nframes_t time, status_type status, char const * message) {
 	std::size_t len = 1;
@@ -92,3 +111,4 @@ jill::midi::is_offset(void const * midi_buffer, std::size_t size) {
 	status_type status = *reinterpret_cast<data_type const *>(midi_buffer);
 	return status.is_offset();
 }
+

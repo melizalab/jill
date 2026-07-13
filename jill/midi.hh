@@ -31,74 +31,107 @@ namespace midi {
         const static data_type default_pitch = 60;
         const static data_type default_velocity = 64;
 
-	class status_type {
-	public:
-		enum Status : data_type {
-			// these are technically data bytes that we're using for
-			// string messages
-			stim_on = 0x00,
-			stim_off = 0x10,
-			info = 0x20,
-			// defined in the midi spec, not a complete enumeration
-			note_on = 0x80,
-			note_off = 0x90,
-			key_press = 0xa0,
-			ctl = 0xb0,
-			program_change = 0xc0,
-			channel_aftertouch = 0xd0,
-			pitch_bend = 0xe0,
-			// 0xfX values don't have an associated channel
-			sysex = 0xf0,
-			sysex_end = 0xf7,
-			reset = 0xff,
-		};
+        class status_type {
+        public:
+                enum Status : data_type {
+                        // these are technically data bytes that we're using for
+                        // string messages
+                        stim_on = 0x00,
+                        stim_off = 0x10,
+                        info = 0x20,
+                        // defined in the midi spec, not a complete enumeration
+                        note_on = 0x80,
+                        note_off = 0x90,
+                        key_press = 0xa0,
+                        ctl = 0xb0,
+                        program_change = 0xc0,
+                        channel_aftertouch = 0xd0,
+                        pitch_bend = 0xe0,
+                        // 0xfX values don't have an associated channel
+                        sysex = 0xf0,
+                        sysex_end = 0xf7,
+                        reset = 0xff,
+                };
 
-		status_type() = default;
-		constexpr status_type(data_type value) : _value(value) {};
-		constexpr status_type(Status value) : _value(value) {};
-		constexpr status_type(Status value, std::uint8_t channel) : _value(value) {
-			if (_value < 0xf0)
-				_value = (_value & 0xf0) | (channel & 0x0f);
-		}
+                status_type() = default;
+                constexpr status_type(data_type value) : _value(value) {};
+                constexpr status_type(Status value) : _value(value) {};
+                constexpr status_type(Status value, std::uint8_t channel) : _value(value) {
+                        if (_value < 0xf0)
+                                _value = (_value & 0xf0) | (channel & 0x0f);
+                }
 
-		explicit operator bool() const = delete;
-		constexpr Status status() const {
-			return static_cast<Status>((_value >= 0xf0) ? _value : _value & 0xf0);
-		}
-		constexpr std::optional<std::uint8_t> channel() const {
-			return (_value >= 0xf0) ? std::nullopt : std::optional<std::uint8_t>(_value & 0x0f);
-		}
-		constexpr data_type value() const { return _value; }
-		constexpr operator Status() const { return status(); }
+                explicit operator bool() const = delete;
+                constexpr Status status() const {
+                        return static_cast<Status>((_value >= 0xf0) ? _value : _value & 0xf0);
+                }
+                constexpr std::optional<std::uint8_t> channel() const {
+                        return (_value >= 0xf0) ? std::nullopt : std::optional<std::uint8_t>(_value & 0x0f);
+                }
+                constexpr data_type value() const { return _value; }
+                constexpr operator Status() const { return status(); }
 
-		constexpr bool is_standard_midi() const {
-			return _value >= 0x80;
-		}
+                constexpr bool is_standard_midi() const {
+                        return _value >= 0x80;
+                }
 
-		constexpr bool is_onset() const {
-			switch(status()) {
-			case status_type::note_on:
-			case status_type::stim_on:
-				return true;
-			default:
-				return false;
-			}
-		}
+                constexpr bool is_onset() const {
+                        switch(status()) {
+                        case status_type::note_on:
+                        case status_type::stim_on:
+                                return true;
+                        default:
+                                return false;
+                        }
+                }
 
-		constexpr bool is_offset() const {
-			switch(status()) {
-			case status_type::note_off:
-			case status_type::stim_off:
-				return true;
-			default:
-				return false;
-			}
-		}
-	private:
-		data_type _value;
-	};
+                constexpr bool is_offset() const {
+                        switch(status()) {
+                        case status_type::note_off:
+                        case status_type::stim_off:
+                                return true;
+                        default:
+                                return false;
+                        }
+                }
 
-	std::ostream& operator<< (std::ostream &os, const status_type &s);
+                /**
+                 * Encode a message body for this status: standard MIDI messages are
+                 * hex-encoded; JILL's string message types are passed through as raw
+                 * (UTF-8) bytes.
+                 */
+                std::string encode(char const * message, std::size_t size) const;
+
+        private:
+                data_type _value;
+        };
+
+        std::ostream& operator<< (std::ostream &os, const status_type &s);
+
+        /**
+         * A read-only view over a data_block_t known to contain EVENT data.
+         * Does not copy or own the underlying buffer.
+         */
+        class event_view {
+        public:
+                explicit event_view(data_block_t const & block) : _block(block) {
+                        assert(block.dtype == EVENT);
+                }
+
+                status_type status() const {
+                        auto const * buf = reinterpret_cast<char const *>(_block.data());
+                        return status_type(static_cast<data_type>(buf[0]));
+                }
+
+                /** the message body, hex-encoded if standard MIDI, raw UTF-8 otherwise */
+                std::string message() const {
+                        auto const * buf = reinterpret_cast<char const *>(_block.data());
+                        return status().encode(buf + 1, _block.sz_data - 1);
+                }
+
+        private:
+                data_block_t const & _block;
+        };
 
         /**
          * Write a string message to a midi buffer.
@@ -120,32 +153,11 @@ namespace midi {
          */
         int find_trigger(void const * midi_buffer, bool onset=true);
 
-	/** Returns true if a midi event buffer contains an onset */
+        /** Returns true if a midi event buffer contains an onset */
         bool is_onset(void const * midi_buffer, std::size_t size);
 
         bool is_offset(void const * midi_buffer, std::size_t size);
 
-
-/**
- * convert a midi message to hex
- * @param in   the midi message
- * @param size the length of the message
- *
- * @returns char[] buffer, owned by the caller
- */
-template <typename T>
-char *
-to_hex(T const * in, std::size_t size)
-{
-        const std::size_t buf_size = size * 2 + 2;
-        char * out = new char[buf_size];
-        snprintf(out, buf_size, "0x");
-        for (std::size_t i = 0; i < size; ++i) {
-                snprintf(out + i*2 + 2, buf_size - i * 2 - 2, "%02x", in[i]);
-        }
-        return out;
-}
-	
 } } // jill::midi
 
 

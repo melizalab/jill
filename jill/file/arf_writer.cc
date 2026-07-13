@@ -194,18 +194,13 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                 dset->second->write(samples + start_frame, stop_frame - start_frame);
         }
         else if (data->dtype == EVENT) {
-                char * message = nullptr;
                 dset = get_dataset(id, false);
-                auto * buffer = reinterpret_cast<char const *>(data->data());
-                event_t e = {data->time - _entry_start, (uint8_t)buffer[0], buffer+1};
-                if (midi::status_type(e.status).is_standard_midi()) {
-                        // hex-encode standard midi events
-                        e.message = message = midi::to_hex(buffer + 1, data->sz_data - 1);
-                }
+		midi::event_view ev(*data);
+		std::string encoded = ev.message();
+		event_t e = {data->time - _entry_start, ev.status().value(), encoded.c_str()};
                 DBG << "event: t=" << data->time << " id=" << id << " status=" << int(e.status)
                     << " message=" << e.message;
                 dset->second->write(&e, 1);
-                if (message) delete[] message;
         }
         _last_frame = data->time + stop_frame;
 }

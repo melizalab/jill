@@ -51,10 +51,10 @@ int connect(void * socket, std::string const & addr);
 
 /** Disconnect a socket from an endpoint */
 int disconnect(void * socket, std::string const & addr);
-			
+
 /** Close a socket */
 int close(void * socket);
-			
+
 /** Create an empty zmq message */
 msg_ptr_t msg_init();
 
@@ -84,6 +84,19 @@ int send_n(void * socket, Iterator it, size_t n, int flags=0)
                 return 0;
 }
 
+
+/** receive a series of messages, passing each to a callback */
+template <typename F>
+void recv(void * socket, F&& func, int flags=0)
+{
+        while (true) {
+                zmq::msg_ptr_t message = zmq::msg_init();
+                int rc = zmq_msg_recv(message.get(), socket, flags);
+                if (rc < 0) break;
+                func(message);
+                if (!zmq_msg_more(message.get())) break;
+        }
+}
 
 /** receive a series of messages and parse them into a vector of strings */
 std::vector<std::string> recv(void * socket, int flags=0);

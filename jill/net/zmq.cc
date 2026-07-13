@@ -115,18 +115,12 @@ zmq::send(void * socket, char const * string, int flags)
 //         return rc;
 // }
 
-
 std::vector<std::string>
 zmq::recv(void * socket, int flags)
 {
         std::vector<std::string> messages;
-        while (true) {
-                zmq::msg_ptr_t message = zmq::msg_init();
-                int rc = zmq_msg_recv (message.get(), socket, flags);
-                if (rc < 0) break;
-                messages.push_back(zmq::msg_str(message));
-                if (!zmq_msg_more(message.get())) break;
-        }
+        recv(socket, [&messages](zmq::msg_ptr_t const & msg) {
+                messages.push_back(zmq::msg_str(msg));
+        }, flags);
         return messages;
-
 }
