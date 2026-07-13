@@ -22,10 +22,24 @@ import subprocess
 import logging
 from pathlib import Path
 import shutil
+import requests as rq
 
 log = logging.getLogger("jpresent")  # root logger
 
 __version__ = "2.2.2"
+
+
+def check_oe_processors(processors):
+    log.debug(" - checking for broadcast option in Network Events node")
+    for processor in processors:
+        if processor["name"] == "Network Events":
+            for parameter in processor["parameters"]:
+                if parameter["name"] == "broadcast_all_messages" and parameter[
+                    "value"
+                ] in (1, "1"):
+                    return  # Ok
+            raise RuntimeError("broadcast is not set to ON in Network Events plugin")
+    raise RuntimeError("networkEvents plugin not detected in the signal chain")
 
 
 def setup_log(log, debug=False):
@@ -94,9 +108,8 @@ if __name__ == "__main__":
     #     help="time after stimulus end to send a trigger off pulse",
     # )
     p.add_argument(
-        "--dummy-relay",
-        action="store_true",
-        help="if set, don't actually try to connect to open-ephys",
+        "--open-ephys",
+        help="specify the network address where open-ephys is running",
     )
 
     p.add_argument(
@@ -128,6 +141,32 @@ if __name__ == "__main__":
 
     args = p.parse_args()
     setup_log(log, args.debug)
+
+    if args.open_ephys:
+        oe_url = f"http://{args.open_ephys}:37497/api"
+        log.info("checking for a running open-ephys at %s", oe_url)
+        oe_session = rq.Session()
+        try:
+            r = oe_session.get(f"{oe_url}/status")
+            r.raise_for_status()
+            reply = r.json()
+            if reply["mode"] != "IDLE":
+                raise RuntimeError(
+                    "open-ephys is already acquiring data. Stop it and try again."
+                )
+            r = oe_session.get(f"{oe_url}/processors")
+            r.raise_for_status()
+            reply = r.json()
+            check_oe_processors(reply["processors"])
+        except rq.exceptions.ConnectionError:
+            log.error(" - error: unable to connect to open-ephys. Is it running?")
+            p.exit(-1)
+        except KeyError:
+            log.error(" - error: unable to parse reply from open-ephys: %s", reply)
+            p.exit(-1)
+        except RuntimeError as err:
+            log.error(" - error: %s", err)
+            p.exit(-1)
 
     log.info("checking for jill binaries:")
     binary_paths = {}
@@ -194,8 +233,8 @@ if __name__ == "__main__":
         log.debug(" ".join(jclicker_trig_args))
 
     jrelay_args = [binary_paths["jrelay"]]
-    if not args.dummy_relay:
-        jrelay_args.append("--open-ephys")
+    if args.open_ephys:
+        jrelay_args.extend(("--open-ephys", f"tcp://{args.open_ephys}:5556"))
     log.debug(" ".join(jrelay_args))
     jstim_args.extend(("-e", "jrelay:in"))
 
