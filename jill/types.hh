@@ -11,6 +11,7 @@
 #ifndef _TYPES_HH
 #define _TYPES_HH
 
+#include <cassert>
 #include <jack/types.h>
 #include <jack/transport.h>
 #include <iosfwd>
@@ -41,6 +42,12 @@ enum dtype_t {
         EVENT = 1,
         VIDEO = 2
 };
+
+namespace detail {
+        template <typename T> struct dtype_for;
+        template <> struct dtype_for<sample_t> { static constexpr dtype_t value = SAMPLED; };
+        template <> struct dtype_for<char> { static constexpr dtype_t value = EVENT; };
+}
 
 /**
  * Represents a block of data and provides some help serializing it for use in
@@ -77,6 +84,12 @@ struct data_block_t {
         /** pointer to the block's data */
         void const * data() const {
                 return reinterpret_cast<char const *>(this) + sizeof(data_block_t) + sz_id;
+        }
+        /** pointer to the block's data with the appropriate type */
+        template <typename T>
+        T const * data() const {
+                assert(dtype == detail::dtype_for<T>::value && "requested type doesn't match block's dtype");
+                return reinterpret_cast<T const *>(data());
         }
 
         /** number of frames in the block; always 1 for event data */

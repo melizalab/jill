@@ -22,8 +22,8 @@ namespace jill {
 using timestamp_t = boost::posix_time::ptime;
 
 /**
- * ABC for classes that write (or otherwise consume) multichannel sampled and
- * event data.
+ * Abstract base class for objects that write (or otherwise consume)
+ * multichannel sampled and event data.
  *
  * The basic usage pattern is to call write() for each block of data. There can
  * be multiple channels (ids), but the blocks within each channel must be
@@ -34,14 +34,16 @@ using timestamp_t = boost::posix_time::ptime;
  *
  * The log() and xrun() methods are provided for callers to store messages or
  * indications that the data may have gaps.
+ *
+ * Default no-op implementations are provided for all methods except write().
  */
 class data_writer : boost::noncopyable {
 
 public:
         virtual ~data_writer() = default;
 
-        /** true if an entry is open for recording */
-        virtual bool ready() const = 0;
+        /** true if the object is ready for data */
+        virtual bool ready() const { return true; }
 
         /**
          * Create a new entry, closing the previous one if necessary. The caller
@@ -50,17 +52,17 @@ public:
          *
          * @param frame   the frame index at the start of the entry
          */
-        virtual void new_entry(nframes_t frame) = 0;
+        virtual void new_entry(nframes_t frame) {}
 
         /**
          * Close the current entry. The caller is responsible for ensuring that
          * all the data for a period have been written so that the same amount
          * of data is present for each channel.
          */
-        virtual void close_entry() = 0;
+        virtual void close_entry() {}
 
         /** Store a record that an xrun occurred in the file */
-        virtual void xrun() = 0;
+        virtual void xrun() {}
 
         /**
          * Write a block of data to disk. Looks up the appropriate channel.
