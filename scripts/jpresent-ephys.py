@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Manages an auditory physiology electrophysiology experiment using jill. Starts
- jrecord, jclicker, jrelay-oephys, and jstim, and makes sure they're all wired up properly. An arf file
+ jrecord, jclicker, jrelay, and jstim, and makes sure they're all wired up properly. An arf file
  is generated with a log of the stimuli.
 
 """
@@ -53,25 +53,25 @@ if __name__ == "__main__":
         default="system:playback_3",
         help="name of the JACK port where the synchronization signal should go (default %(default)s)",
     )
-    p.add_argument(
-        "--trig-out",
-        default="system:playback_4",
-        help="name of the JACK port where the trigger signal should go (default %(default)s)",
-    )
+    # p.add_argument(
+    #     "--trig-out",
+    #     default="system:playback_4",
+    #     help="name of the JACK port where the trigger signal should go (default %(default)s)",
+    # )
 
-    p.add_argument(
-        "--trigger-before",
-        type=float,
-        default=1.0,
-        help="time before stimulus onset to send a trigger on pulse",
-    )
+    # p.add_argument(
+    #     "--trigger-before",
+    #     type=float,
+    #     default=1.0,
+    #     help="time before stimulus onset to send a trigger on pulse",
+    # )
 
-    p.add_argument(
-        "--trigger-after",
-        type=float,
-        default=1.0,
-        help="time after stimulus end to send a trigger off pulse",
-    )
+    # p.add_argument(
+    #     "--trigger-after",
+    #     type=float,
+    #     default=1.0,
+    #     help="time after stimulus end to send a trigger off pulse",
+    # )
 
     p.add_argument(
         "--experimenter", required=True, help="name of the experimenter (required)"
@@ -104,14 +104,14 @@ if __name__ == "__main__":
     print(args)
     setup_log(log, args.debug)
 
-    if args.trigger_before + args.trigger_after >= args.gap:
-        p.error(
-            "pre- and post-stimulus trigger times must sum to less than gap between stimuli"
-        )
+    # if args.trigger_before + args.trigger_after >= args.gap:
+    #     p.error(
+    #         "pre- and post-stimulus trigger times must sum to less than gap between stimuli"
+    #     )
 
     log.info("checking for jill binaries:")
     binary_paths = {}
-    for prog in ("jrecord", "jclicker", "jstim"):
+    for prog in ("jrecord", "jclicker", "jrelay", "jstim"):
         path = shutil.which(prog, path=args.jill_path)
         if path is None:
             p.error(f"unable to find {prog}!")
@@ -154,33 +154,37 @@ if __name__ == "__main__":
     jstim_args.extend(("-e", "jclicker-sync:in"))
     log.debug(" ".join(jclicker_sync_args))
 
-    log.info("starting jclicker for trigger events:")
-    jclicker_trig_args = (
-        binary_paths["jclicker"],
-        "-n",
-        "jclicker-trig",
-        "-o",
-        args.trig_out,
-        "0x11,positive,1",
-        "0x01,negative,1",
-    )
-    jstim_args.extend(
-        (
-            "-e",
-            "jclicker-trig:in",
-            "--trigger-before",
-            f"{args.trigger_before}",
-            "--trigger-after",
-            f"{args.trigger_after}",
-        )
-    )
-    log.debug(" ".join(jclicker_trig_args))
+    # log.info("starting jclicker for trigger events:")
+    # jclicker_trig_args = (
+    #     binary_paths["jclicker"],
+    #     "-n",
+    #     "jclicker-trig",
+    #     "-o",
+    #     args.trig_out,
+    #     "0x11,positive,1",
+    #     "0x01,negative,1",
+    # )
+    # jstim_args.extend(
+    #     (
+    #         "-e",
+    #         "jclicker-trig:in",
+    #         "--trigger-before",
+    #         f"{args.trigger_before}",
+    #         "--trigger-after",
+    #         f"{args.trigger_after}",
+    #     )
+    # )
+    # log.debug(" ".join(jclicker_trig_args))
 
+    jrelay_args = (binary_paths["jrelay"], "--open-ephys")
+    jstim_args.extend(("-e", "jrelay:in"))
+    
     jstim_args.extend(
         ("-o", args.audio_out, "--gap", f"{args.gap}", "--repeats", f"{args.repeats}")
     )
     jstim_args.extend(args.jstim_args)
     log.debug(" ".join(jstim_args))
+
 
     try:
         log.info("starting jrecord:")
@@ -188,11 +192,13 @@ if __name__ == "__main__":
 
         log.info("starting jclicker for sync events:")
         jsync_proc = subprocess.Popen(jclicker_sync_args)
-        if args.trigger_before is not None:
-            log.info("starting jclicker for trigger events:")
-            jtrig_proc = subprocess.Popen(jclicker_trig_args)
-        else:
-            jtrig_proc = None
+        # if args.trigger_before is not None:
+        #     log.info("starting jclicker for trigger events:")
+        #     jtrig_proc = subprocess.Popen(jclicker_trig_args)
+        # else:
+        #     jtrig_proc = None
+        log.info("starting jrelay:")
+        jsync_proc = subprocess.Popen(jrelay_args)
         log.info("starting jstim:")
         jstim_proc = subprocess.Popen(jstim_args)
         jstim_proc.wait()
@@ -202,7 +208,7 @@ if __name__ == "__main__":
     finally:
         time.sleep(1)
         jsync_proc.terminate()
-        if jtrig_proc is not None:
-            jtrig_proc.terminate()
+        # if jtrig_proc is not None:
+        #     jtrig_proc.terminate()
         time.sleep(1)
         jrecord_proc.terminate()

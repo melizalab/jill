@@ -47,18 +47,21 @@ open_ephys_logger::write(data_block_t const * data, nframes_t, nframes_t)
 	// decode events
         if (data->sz_data == 0) return;
 	if (data->dtype == SAMPLED) return;
-	char const * message = nullptr;	
 	auto * buffer = reinterpret_cast<char const *>(data->data());
-	std::uint8_t status = buffer[0];
-	if (midi::status_type(status).is_standard_midi()) {
-		// hex-encode standard midi events
-		message = midi::to_hex(buffer + 1, data->sz_data - 1);
+	auto status = midi::status_type(buffer[0]);
+	std::ostringstream message;
+	switch (status.status()) {
+	case midi::status_type::stim_on:
+		message << "start ";
+		break;
+	case midi::status_type::stim_off:
+		message << "stop ";
+		break;
+	default:
+		return;
 	}
-	else {
-		message = buffer + 1;
-	}
-	DBG << "event: t=" << data->time << " status=" << int(status)
-	    << " message=" << message;
+	message << (buffer + 1);
+	DBG << "event: t=" << data->time << " message=" << message.str();
 	
 }
 
