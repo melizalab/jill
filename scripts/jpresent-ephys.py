@@ -37,6 +37,7 @@ if __name__ == "__main__":
         "-v", "--version", action="version", version="%(prog)s " + __version__
     )
     p.add_argument("--debug", help="show verbose log messages", action="store_true")
+    p.add_argument("-y", "--dry-run", action="store_true", help="print the commands but don't execute them")
     p.add_argument(
         "--jill-path",
         type=Path,
@@ -101,7 +102,6 @@ if __name__ == "__main__":
     )
 
     args = p.parse_args()
-    print(args)
     setup_log(log, args.debug)
 
     # if args.trigger_before + args.trigger_after >= args.gap:
@@ -176,7 +176,8 @@ if __name__ == "__main__":
     # )
     # log.debug(" ".join(jclicker_trig_args))
 
-    jrelay_args = (binary_paths["jrelay"], "--open-ephys")
+    jrelay_args = (binary_paths["jrelay"],)
+    log.debug(" ".join(jrelay_args))
     jstim_args.extend(("-e", "jrelay:in"))
     
     jstim_args.extend(
@@ -185,11 +186,14 @@ if __name__ == "__main__":
     jstim_args.extend(args.jstim_args)
     log.debug(" ".join(jstim_args))
 
-
+    if args.dry_run:
+        log.info("dry run complete")
+        p.exit()
+        
     try:
         log.info("starting jrecord:")
         jrecord_proc = subprocess.Popen(jrecord_args)
-
+        time.sleep(1)
         log.info("starting jclicker for sync events:")
         jsync_proc = subprocess.Popen(jclicker_sync_args)
         # if args.trigger_before is not None:
@@ -198,7 +202,7 @@ if __name__ == "__main__":
         # else:
         #     jtrig_proc = None
         log.info("starting jrelay:")
-        jsync_proc = subprocess.Popen(jrelay_args)
+        jrelay_proc = subprocess.Popen(jrelay_args)
         log.info("starting jstim:")
         jstim_proc = subprocess.Popen(jstim_args)
         jstim_proc.wait()
@@ -208,6 +212,7 @@ if __name__ == "__main__":
     finally:
         time.sleep(1)
         jsync_proc.terminate()
+        jrelay_proc.terminate()
         # if jtrig_proc is not None:
         #     jtrig_proc.terminate()
         time.sleep(1)

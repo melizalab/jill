@@ -32,9 +32,9 @@ public:
 
         /** Ports to connect to */
         std::vector<string> input_ports;
-	
-	/** The open-ephys NetworkEvents zmq address */
-	string openephys_addr;
+
+        /** The open-ephys NetworkEvents zmq address */
+        string openephys_addr;
 
 protected:
 
@@ -51,15 +51,16 @@ jack_port_t *port_in;
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
-	void * in = client->events(port_in, nframes);
+        void * in = client->events(port_in, nframes);
         jack_midi_event_t event;
         nframes_t nevents = jack_midi_get_event_count(in);
         for (nframes_t i = 0; i < nevents; ++i) {
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
-		zmq_thread->push(time + event.time, EVENT, jack_port_short_name(port_in), event.size, event.buffer);
-	}
-	return 0;
+                zmq_thread->push(time + event.time, EVENT, jack_port_short_name(port_in), event.size, event.buffer);
+        }
+	if (nevents > 0) zmq_thread->data_ready();
+        return 0;
 }
 
 /** handle server shutdowns */
@@ -67,7 +68,7 @@ void
 jack_shutdown(jack_status_t _code, char const * msg)
 {
         LOG << "jackd shut the client down (" << msg << ")";
-	if (zmq_thread) zmq_thread->stop();
+        if (zmq_thread) zmq_thread->stop();
 
 }
 
@@ -76,29 +77,29 @@ void
 signal_handler(int sig)
 {
         DBG << "shutting down on signal";
-	if (zmq_thread) zmq_thread->stop();
+        if (zmq_thread) zmq_thread->stop();
 }
 
 int
 main(int argc, char **argv)
 {
         using namespace std;
-	int ret = 0;
+        int ret = 0;
         try {
                 // parse options
                 options.parse(argc,argv);
-		std::unique_ptr<jill::data_writer> receiver;
-		// future: support multiple endpoints. For now, only open-ephys
-		if (options.count("open-ephys") > 0) {
-			auto recv = new net::open_ephys_receiver(options.openephys_addr);
-			recv->send("jrelay connected");
-			receiver.reset(recv);
-		}
-		else {
-			LOG << "using dummy receiver";
-			receiver.reset(new net::dummy_event_receiver());
-		}
-		zmq_thread.reset(new dsp::buffered_data_writer(std::move(receiver)));
+                std::unique_ptr<jill::data_writer> receiver;
+                // future: support multiple endpoints. For now, only open-ephys
+                if (options.count("open-ephys") > 0) {
+                        auto recv = new net::open_ephys_receiver(options.openephys_addr);
+                        recv->send("jrelay connected");
+                        receiver.reset(recv);
+                }
+                else {
+                        LOG << "using dummy receiver";
+                        receiver.reset(new net::dummy_event_receiver());
+                }
+                zmq_thread.reset(new dsp::buffered_data_writer(std::move(receiver)));
                 // start client
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
@@ -118,12 +119,12 @@ main(int argc, char **argv)
 
                 // activate client
                 client->activate();
-		zmq_thread->start();
+                zmq_thread->start();
 
                 // connect ports
                 client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
 
-		zmq_thread->join();
+                zmq_thread->join();
                 client->deactivate();
         }
 
@@ -134,9 +135,9 @@ main(int argc, char **argv)
                 LOG  << "ERROR: " << e.what();
                 ret = EXIT_FAILURE;
         }
-	zmq_thread.reset();
-	return ret;
-		
+        zmq_thread.reset();
+        return ret;
+
 
 }
 
@@ -154,10 +155,10 @@ jrelay_options::jrelay_options(string const &program_name)
                  "set client name")
                 ("in,i",      po::value<std::vector<string> >(&input_ports), "add connection to input port");
         po::options_description opts("Module options");
-	opts.add_options()
-		("open-ephys",
-		 po::value(&openephys_addr)->implicit_value(DEFAULT_OPEN_EPHYS_ENDPOINT),
-		 "endpoint for an open-ephys NetworkEvents plugin");
+        opts.add_options()
+                ("open-ephys",
+                 po::value(&openephys_addr)->implicit_value(DEFAULT_OPEN_EPHYS_ENDPOINT),
+                 "endpoint for an open-ephys NetworkEvents plugin");
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 }
@@ -173,5 +174,3 @@ jrelay_options::print_usage()
                   << " * in:        input event port\n"
                   << std::endl;
 }
-
-

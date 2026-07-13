@@ -24,7 +24,7 @@ public:
 		if (block->dtype == SAMPLED) return;
 		midi::event_view ev(*block);
 		std::string encoded = ev.message();
-		LOG << ev.status() << ": " << encoded;
+		INFO << ev.status() << ": " << encoded;
 	}
 
 };
