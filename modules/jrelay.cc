@@ -14,6 +14,7 @@
 #include "jill/net/open_ephys_logger.hh"
 
 #define PROGRAM_NAME "jrelay"
+#define DEFAULT_OPEN_EPHYS_ENDPOINT "tcp://localhost:5556"
 
 using namespace jill;
 using std::string;
@@ -47,8 +48,16 @@ jack_port_t *port_in;
 
 
 int
-process(jack_client *client, nframes_t _nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time)
 {
+	void * in = client->events(port_in, nframes);
+        jack_midi_event_t event;
+        nframes_t nevents = jack_midi_get_event_count(in);
+        for (nframes_t i = 0; i < nevents; ++i) {
+                jack_midi_event_get(&event, in, i);
+                if (event.size < 1) continue;
+		zmq_thread->push(time + event.time, EVENT, jack_port_short_name(port_in), event.size, event.buffer);
+	}
 	return 0;
 }
 
@@ -144,7 +153,7 @@ jrelay_options::jrelay_options(string const &program_name)
         po::options_description opts("Module options");
 	opts.add_options()
 		("open-ephys",
-		 po::value(&openephys_addr),
+		 po::value(&openephys_addr)->implicit_value(DEFAULT_OPEN_EPHYS_ENDPOINT),
 		 "endpoint for an open-ephys NetworkEvents plugin");
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
