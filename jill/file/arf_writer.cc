@@ -39,25 +39,6 @@ struct event_t {
         char const * message;   // message (hex encoded for standard midi status)
 };
 
-/**
- * convert a midi message to hex
- * @param in   the midi message
- * @param size the length of the message
- *
- * @returns char[] buffer, owned by the caller
- */
-template <typename T>
-char *
-to_hex(T const * in, std::size_t size)
-{
-        const std::size_t buf_size = size * 2 + 2;
-        char * out = new char[buf_size];
-        snprintf(out, buf_size, "0x");
-        for (std::size_t i = 0; i < size; ++i) {
-                snprintf(out + i*2 + 2, buf_size - i * 2 - 2, "%02x", in[i]);
-        }
-        return out;
-}
 
 // template specializations for compound data types
 namespace arf { namespace h5t { namespace detail {
@@ -219,7 +200,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                 event_t e = {data->time - _entry_start, (uint8_t)buffer[0], buffer+1};
                 if (midi::status_type(e.status).is_standard_midi()) {
                         // hex-encode standard midi events
-                        e.message = message = to_hex(buffer + 1, data->sz_data - 1);
+                        e.message = message = midi::to_hex(buffer + 1, data->sz_data - 1);
                 }
                 DBG << "event: t=" << data->time << " id=" << id << " status=" << int(e.status)
                     << " message=" << e.message;

@@ -125,6 +125,27 @@ namespace midi {
 
         bool is_offset(void const * midi_buffer, std::size_t size);
 
+
+/**
+ * convert a midi message to hex
+ * @param in   the midi message
+ * @param size the length of the message
+ *
+ * @returns char[] buffer, owned by the caller
+ */
+template <typename T>
+char *
+to_hex(T const * in, std::size_t size)
+{
+        const std::size_t buf_size = size * 2 + 2;
+        char * out = new char[buf_size];
+        snprintf(out, buf_size, "0x");
+        for (std::size_t i = 0; i < size; ++i) {
+                snprintf(out + i*2 + 2, buf_size - i * 2 - 2, "%02x", in[i]);
+        }
+        return out;
+}
+	
 } } // jill::midi
 
 
