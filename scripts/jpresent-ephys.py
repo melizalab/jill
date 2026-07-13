@@ -1,9 +1,20 @@
-#!/usr/bin/env python3
-"""Manages an auditory physiology electrophysiology experiment using jill. Starts
- jrecord, jclicker, jrelay, and jstim, and makes sure they're all wired up properly. An arf file
- is generated with a log of the stimuli.
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "requests>=2.34.2",
+# ]
+# ///
+"""Manages an auditory physiology electrophysiology experiment using jill and
+open-ephys. Starts jrecord, jclicker, jrelay, and jstim, and makes sure they're all
+wired up properly. Each stimulus will be presented in turn, generating a
+synchronization pulse and sending a message with the stimulus name to open-ephys's
+NetworkEvent plugin. A biphasic pulse can optionally be sent to a second channel, for
+example to trigger an optogenetic light pulse. An arf file is generated with a log of
+the stimuli.
 
 """
+
 import time
 import datetime
 import argparse
@@ -27,17 +38,18 @@ def setup_log(log, debug=False):
     log.addHandler(ch)
 
 
-def get_jill_binaries(jill_path):
-    return binary_paths
-
-
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "-v", "--version", action="version", version="%(prog)s " + __version__
     )
     p.add_argument("--debug", help="show verbose log messages", action="store_true")
-    p.add_argument("-y", "--dry-run", action="store_true", help="print the commands but don't execute them")
+    p.add_argument(
+        "-y",
+        "--dry-run",
+        action="store_true",
+        help="print the commands but don't execute them",
+    )
     p.add_argument(
         "--jill-path",
         type=Path,
@@ -54,25 +66,38 @@ if __name__ == "__main__":
         default="system:playback_3",
         help="name of the JACK port where the synchronization signal should go (default %(default)s)",
     )
-    # p.add_argument(
-    #     "--trig-out",
-    #     default="system:playback_4",
-    #     help="name of the JACK port where the trigger signal should go (default %(default)s)",
-    # )
+    p.add_argument(
+        "--trig-out",
+        default="system:playback_4",
+        help="name of the JACK port where the trigger signal should go (default %(default)s)",
+    )
 
-    # p.add_argument(
-    #     "--trigger-before",
-    #     type=float,
-    #     default=1.0,
-    #     help="time before stimulus onset to send a trigger on pulse",
-    # )
+    p.add_argument(
+        "--trig-duration",
+        type=float,
+        default=50,
+        help="duration of the trigger pulse (in ms; default %(default)d)",
+    )
 
+    p.add_argument(
+        "--trig-prob",
+        type=float,
+        default=0.5,
+        help="probability of the trigger pulse (0-1; default %(default)f)",
+    )
+
+    # TODO make this trigger delay
     # p.add_argument(
     #     "--trigger-after",
     #     type=float,
     #     default=1.0,
     #     help="time after stimulus end to send a trigger off pulse",
     # )
+    p.add_argument(
+        "--dummy-relay",
+        action="store_true",
+        help="if set, don't actually try to connect to open-ephys",
+    )
 
     p.add_argument(
         "--experimenter", required=True, help="name of the experimenter (required)"
@@ -103,11 +128,6 @@ if __name__ == "__main__":
 
     args = p.parse_args()
     setup_log(log, args.debug)
-
-    # if args.trigger_before + args.trigger_after >= args.gap:
-    #     p.error(
-    #         "pre- and post-stimulus trigger times must sum to less than gap between stimuli"
-    #     )
 
     log.info("checking for jill binaries:")
     binary_paths = {}
@@ -154,32 +174,31 @@ if __name__ == "__main__":
     jstim_args.extend(("-e", "jclicker-sync:in"))
     log.debug(" ".join(jclicker_sync_args))
 
-    # log.info("starting jclicker for trigger events:")
-    # jclicker_trig_args = (
-    #     binary_paths["jclicker"],
-    #     "-n",
-    #     "jclicker-trig",
-    #     "-o",
-    #     args.trig_out,
-    #     "0x11,positive,1",
-    #     "0x01,negative,1",
-    # )
-    # jstim_args.extend(
-    #     (
-    #         "-e",
-    #         "jclicker-trig:in",
-    #         "--trigger-before",
-    #         f"{args.trigger_before}",
-    #         "--trigger-after",
-    #         f"{args.trigger_after}",
-    #     )
-    # )
-    # log.debug(" ".join(jclicker_trig_args))
+    if args.trig_out is not None:
+        jclicker_trig_args = (
+            binary_paths["jclicker"],
+            "-n",
+            "jclicker-trig",
+            "-o",
+            args.trig_out,
+            "--prob",
+            f"{args.trig_prob}",
+            f"0x11,biphasic,{args.trig_duration}",
+        )
+        jstim_args.extend(
+            (
+                "-e",
+                "jclicker-trig:in",
+            )
+        )
+        log.debug(" ".join(jclicker_trig_args))
 
-    jrelay_args = (binary_paths["jrelay"],)
+    jrelay_args = [binary_paths["jrelay"]]
+    if not args.dummy_relay:
+        jrelay_args.append("--open-ephys")
     log.debug(" ".join(jrelay_args))
     jstim_args.extend(("-e", "jrelay:in"))
-    
+
     jstim_args.extend(
         ("-o", args.audio_out, "--gap", f"{args.gap}", "--repeats", f"{args.repeats}")
     )
@@ -189,20 +208,20 @@ if __name__ == "__main__":
     if args.dry_run:
         log.info("dry run complete")
         p.exit()
-        
+
     try:
         log.info("starting jrecord:")
         jrecord_proc = subprocess.Popen(jrecord_args)
-        time.sleep(1)
         log.info("starting jclicker for sync events:")
         jsync_proc = subprocess.Popen(jclicker_sync_args)
-        # if args.trigger_before is not None:
-        #     log.info("starting jclicker for trigger events:")
-        #     jtrig_proc = subprocess.Popen(jclicker_trig_args)
-        # else:
-        #     jtrig_proc = None
+        if args.trig_out is not None:
+            log.info("starting jclicker for trigger events:")
+            jtrig_proc = subprocess.Popen(jclicker_trig_args)
+        else:
+            jtrig_proc = None
         log.info("starting jrelay:")
         jrelay_proc = subprocess.Popen(jrelay_args)
+        time.sleep(1)
         log.info("starting jstim:")
         jstim_proc = subprocess.Popen(jstim_args)
         jstim_proc.wait()
@@ -213,7 +232,7 @@ if __name__ == "__main__":
         time.sleep(1)
         jsync_proc.terminate()
         jrelay_proc.terminate()
-        # if jtrig_proc is not None:
-        #     jtrig_proc.terminate()
+        if jtrig_proc is not None:
+            jtrig_proc.terminate()
         time.sleep(1)
         jrecord_proc.terminate()
