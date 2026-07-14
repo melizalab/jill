@@ -121,7 +121,7 @@ public:
          */
         void resize(std::size_t size) {
                 std::size_t actual_size = next_pow2(size * sizeof(data_type));
-                if (!_buf || this->size() != actual_size) {
+                if (!_buf || _buf->size() != actual_size) {
                         _buf.reset(new jill::util::mirrored_memory(actual_size));
                         _size_mask = this->size() - 1;
                 }
