@@ -30,9 +30,9 @@ public:
         /** The client name (used in internal JACK representations) */
         string client_name;
 
-	/** probability of emitting a pulse */
-	float pulse_prob;
-	/** user-defined pulses (post-processed) */
+        /** probability of emitting a pulse */
+        float pulse_prob;
+        /** user-defined pulses (post-processed) */
         stringvec pulses;
 
 protected:
@@ -43,28 +43,33 @@ protected:
 
 
 struct pulse_type {
-	/** the shape of the pulse */
-	enum { Positive, Negative, Biphasic} shape;
-	/** the type of midi message that will trigger the pulse */
-	midi::data_type status;
-	/** duration of the pulse, in samples */
-	nframes_t duration;
+        /** the shape of the pulse */
+        enum { Positive, Negative, Biphasic} shape;
+        /** the type of midi message that will trigger the pulse */
+        midi::data_type status;
+        /** delay between the triggering event and pulse onset, in samples */
+        nframes_t delay;
+        /** duration of the pulse, in samples */
+        nframes_t duration;
 };
 
 std::ostream& operator << (std::ostream &os, const pulse_type &p) {
-	os << midi::status_type(p.status) << ": ";
-	switch(p.shape) {
-	case pulse_type::Positive: os << "positive"; break;
-	case pulse_type::Negative: os << "negative"; break;
-	case pulse_type::Biphasic: os << "biphasic"; break;
-	}
-	os << ", " << p.duration << " samples";
-	return os;
+        os << midi::status_type(p.status) << ": ";
+        switch(p.shape) {
+        case pulse_type::Positive: os << "positive"; break;
+        case pulse_type::Negative: os << "negative"; break;
+        case pulse_type::Biphasic: os << "biphasic"; break;
+        }
+        os << ", " << p.duration << " samples";
+        if (p.delay > 0)
+                os << ", delayed " << p.delay << " samples";
+        return os;
 }
 
 static jclicker_options options(PROGRAM_NAME);
 jack_port_t *port_in, *port_out;
 std::vector<pulse_type> pulses;
+static nframes_t max_lookahead = 0;
 // ringbuffer acts as a backing buffer so that pulses can span the end of the current period.
 std::unique_ptr<sample_ringbuffer> ringbuf;
 static int ret = EXIT_SUCCESS;
@@ -80,43 +85,43 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         void *in = client->events(port_in, nframes);
         sample_t *out = client->samples(port_out, nframes);
 
-	// write pointer should be one period ahead of read pointer
-	assert (ringbuf->read_space() == nframes);
-	assert (ringbuf->write_space() >= nframes);
-	// zero out the back of the buffer
-	ringbuf->push(nullptr, nframes);
-	// write the pulses to the front using the read pointer 
-	sample_t * buf = ringbuf->buffer() + ringbuf->read_offset();
+        // write pointer should be one period + max_lookahead ahead of read pointer
+        assert (ringbuf->read_space() == nframes + max_lookahead);
+        assert (ringbuf->write_space() >= nframes);
+        // zero out the back of the buffer
+        ringbuf->push(nullptr, nframes);
+        // write the pulses to the front using the read pointer
+        sample_t * buf = ringbuf->buffer() + ringbuf->read_offset();
 
         jack_midi_event_t event;
         nframes_t nevents = jack_midi_get_event_count(in);
         for (nframes_t i = 0; i < nevents; ++i) {
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
-		float prob = p_dis(p_gen);
-		DBG << time + event.time << ": " << static_cast<midi::status_type>(event.buffer[0]);
-		DBG << " - skip if " << prob << ">" << options.pulse_prob;
-		if (prob > options.pulse_prob) continue;
-		for (const auto &pulse : pulses) {
-			if (pulse.status != event.buffer[0]) continue;
-			sample_t * pulse_buf = buf + event.time;
-			switch (pulse.shape) {
-			case pulse_type::Positive:
-				std::fill(pulse_buf, pulse_buf + pulse.duration, 1.0f);
-				break;
-			case pulse_type::Negative:
-				std::fill(pulse_buf, pulse_buf + pulse.duration, -1.0f);
-				break;
-			case pulse_type::Biphasic:
-				nframes_t half_dur = pulse.duration / 2;
-				std::fill(pulse_buf, pulse_buf + half_dur, 1.0f);
-				std::fill(pulse_buf + half_dur, pulse_buf + pulse.duration, -1.0f);
-			}
-			break;  // only the first match is considered
-		}
+                float prob = p_dis(p_gen);
+                DBG << time + event.time << ": " << static_cast<midi::status_type>(event.buffer[0]);
+                DBG << " - skip if " << prob << ">" << options.pulse_prob;
+                if (prob > options.pulse_prob) continue;
+                for (const auto &pulse : pulses) {
+                        if (pulse.status != event.buffer[0]) continue;
+                        DBG << " - adding pulse at " << pulse.delay;
+                        sample_t * pulse_buf = buf + event.time + pulse.delay;
+                        switch (pulse.shape) {
+                        case pulse_type::Positive:
+                                std::fill(pulse_buf, pulse_buf + pulse.duration, 1.0f);
+                                break;
+                        case pulse_type::Negative:
+                                std::fill(pulse_buf, pulse_buf + pulse.duration, -1.0f);
+                                break;
+                        case pulse_type::Biphasic:
+                                nframes_t half_dur = pulse.duration / 2;
+                                std::fill(pulse_buf, pulse_buf + half_dur, 1.0f);
+                                std::fill(pulse_buf + half_dur, pulse_buf + pulse.duration, -1.0f);
+                        }
+                }
         }
-	// copy the front of the buffer into the output and advance the read pointer
-	ringbuf->pop(out, nframes);
+        // copy the front of the buffer into the output and advance the read pointer
+        ringbuf->pop(out, nframes);
 
         return 0;
 }
@@ -124,9 +129,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-	// Do we need to reset the pointers?
-        ringbuf->resize(nframes * 3);
-	DBG << "jack period size changed; ringbuffer resized to " << ringbuf->size();
+        // Do we need to reset the pointers?
+        ringbuf->resize(nframes * 3 + max_lookahead);
+        DBG << "jack period size changed; ringbuffer resized to " << ringbuf->size();
         return 0;
 }
 
@@ -147,35 +152,45 @@ signal_handler(int sig)
 }
 
 static
-void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate, nframes_t buffer_size) {
-	LOG << "parsing pulse specifications: ";
-	for (const auto &it : pulse_defs) {
-		stringvec words;
-		boost::split(words, it, [](char c) { return c==',';});
-		if (words.size() != 3) {
-			throw std::invalid_argument("invalid pulse configuration (must be condition,shape,duration)");
-		}
-		pulse_type pulse;
-		// parse first token as hex - std::invalid_argument on failure
-		pulse.status = std::stoul(words[0], 0, 16);
-		// parse second token by string matching
-		if (boost::iequals(words[1], "positive"))
-			pulse.shape = pulse_type::Positive;
-		else if (boost::iequals(words[1], "negative"))
-			pulse.shape = pulse_type::Negative;
-		else if (boost::iequals(words[1], "biphasic"))
-			pulse.shape = pulse_type::Biphasic;
-		else
-			throw std::invalid_argument("pulse shape must be 'positive', 'negative', or 'biphasic'");
-		// parse third token as a float
-		float duration_ms = std::stof(words[2], 0);
-		pulse.duration = 0.001 * duration_ms * sampling_rate;
-		if (pulse.duration > buffer_size)
-			throw std::invalid_argument("pulse duration cannot be longer than one period");
+void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
+        LOG << "parsing pulse specifications: ";
+        float dt = 1.0 / sampling_rate;
+        for (const auto &it : pulse_defs) {
+                stringvec words;
+                boost::split(words, it, [](char c) { return c==',';});
+                if (words.size() != 3 && words.size() != 4) {
+                        throw std::invalid_argument(
+                                "invalid pulse configuration (must be condition,shape,duration[,delay])");
+                }
+                pulse_type pulse;
+                // parse first token as hex - std::invalid_argument on failure
+                pulse.status = std::stoul(words[0], 0, 16);
+                // parse second token by string matching
+                if (boost::iequals(words[1], "positive"))
+                        pulse.shape = pulse_type::Positive;
+                else if (boost::iequals(words[1], "negative"))
+                        pulse.shape = pulse_type::Negative;
+                else if (boost::iequals(words[1], "biphasic"))
+                        pulse.shape = pulse_type::Biphasic;
+                else
+                        throw std::invalid_argument("pulse shape must be 'positive', 'negative', or 'biphasic'");
+                // parse third token as a float
+                float duration_ms = std::stof(words[2], 0);
+                if (duration_ms < dt) {
+                        throw std::invalid_argument("duration must be positive and at least one sample");
+                }
+                pulse.duration = 0.001 * duration_ms * sampling_rate;
+                // parse optional fourth token as a float (delay in ms)
+                float delay_ms = (words.size() == 4) ? std::stof(words[3], 0) : 0.0f;
+                if (delay_ms < 0.0) {
+                        throw std::invalid_argument("delay must be positive ");
+                }
+                pulse.delay = 0.001 * delay_ms * sampling_rate;
 
-		LOG << "  " << pulse;
-		pulses.push_back(pulse);
-	}
+                LOG << "  " << pulse;
+                pulses.push_back(pulse);
+                max_lookahead = std::max(max_lookahead, pulse.delay + pulse.duration);
+        }
 }
 
 
@@ -186,20 +201,22 @@ main(int argc, char **argv)
         try {
                 // parse options
                 options.parse(argc,argv);
-		if (options.pulses.size() == 0)
-			throw std::invalid_argument("must define at least one pulse");
+                if (options.pulses.size() == 0)
+                        throw std::invalid_argument("must define at least one pulse");
 
                 // start client
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
-		parse_pulses(options.pulses, client->sampling_rate(), client->buffer_size());
+                parse_pulses(options.pulses, client->sampling_rate());
 
-		// initialize ringbuffer
-		nframes_t ringbuf_size = client->buffer_size() * 3;
-		ringbuf = std::make_unique<sample_ringbuffer>(ringbuf_size);
-		// advance the write pointer one period
-		ringbuf->push(nullptr, client->buffer_size());
-		DBG << "initialized ringbuffer with " << ringbuf->size() << " samples";
+                // initialize ringbuffer; sized to hold one period of current
+                // output plus enough lookahead for the longest configured
+                // delay+duration
+                nframes_t ringbuf_size = client->buffer_size() * 3 + max_lookahead;
+                ringbuf = std::make_unique<sample_ringbuffer>(ringbuf_size);
+                // advance the write pointer one period plus lookahead margin
+                ringbuf->push(nullptr, client->buffer_size() + max_lookahead);
+                DBG << "initialized ringbuffer with " << ringbuf->size() << " samples";
 
                 // register ports
                 port_in = client->register_port("in",JACK_DEFAULT_MIDI_TYPE,
@@ -263,19 +280,19 @@ jclicker_options::jclicker_options(string const &program_name)
                 ("in,i",      po::value<stringvec>(), "add connection to input port")
                 ("out,o",     po::value<stringvec>(), "add connection to output port");
         po::options_description opts("Module options");
-	opts.add_options()
-		("prob,p",
-		 po::value(&pulse_prob)->default_value(1.0),
-		 "probability of emitting a pulse (0-1)");
+        opts.add_options()
+                ("prob,p",
+                 po::value(&pulse_prob)->default_value(1.0),
+                 "probability of emitting a pulse (0-1)");
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 
         // add section(s) for module-specific options
-	cmd_opts.add_options()
-		("pulse",
-		 po::value<stringvec>(&pulses)->multitoken(),
-		 "defines a pulse: condition,shape,duration");
-	pos_opts.add("pulse", -1);
+        cmd_opts.add_options()
+                ("pulse",
+                 po::value<stringvec>(&pulses)->multitoken(),
+                 "defines a pulse: condition,shape,duration");
+        pos_opts.add("pulse", -1);
 }
 
 /** provide the user with some information about the ports */
@@ -285,10 +302,11 @@ jclicker_options::print_usage()
         std::cout << _program_name << ": generate audible clicks for events\n\n"
                   << "Usage: " << _program_name << " [options] [pulse1] [pulse2] ...\n"
                   << visible_opts << std::endl
-		  << "Pulse specification: condition,shape,duration \n"
-		  << " - condition: the midi event code (0x00: stim on, 0x01 acq on, 0x10 stim off, 0x11 acq off)\n"
-		  << " - shape: {positive,negative,biphasic}\n"
-		  << " - duration: total duration of the click, in ms\n\n"
+                  << "Pulse specification: condition,shape,duration \n"
+                  << " - condition: the midi event code (0x00: stim on, 0x01 acq on, 0x10 stim off, 0x11 acq off)\n"
+                  << " - shape: {positive,negative,biphasic}\n"
+                  << " - duration: total duration of the click, in ms\n"
+                  << " - delay: optional delay between event and pulse onset, in ms (default 0)\n\n"
                   << "Ports:\n"
                   << " * in:        input event port\n"
                   << " * out:       output audio port\n"

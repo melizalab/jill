@@ -165,13 +165,19 @@ if __name__ == "__main__":
         help="name of the JACK port where the trigger signal should go (default %(default)s)",
     )
 
+    TODO make this trigger delay
+    p.add_argument(
+        "--trig-delay",
+        type=int,
+        default=0,
+        help="delay of the trigger pulse after stimulus onset (in ms; default %(default)d)",
+    )
     p.add_argument(
         "--trig-duration",
-        type=float,
-        default=50,
+        type=int,
+        default=300,
         help="duration of the trigger pulse (in ms; default %(default)d)",
     )
-
     p.add_argument(
         "--trig-prob",
         type=float,
@@ -179,13 +185,6 @@ if __name__ == "__main__":
         help="probability of the trigger pulse (0-1; default %(default)f)",
     )
 
-    # TODO make this trigger delay
-    # p.add_argument(
-    #     "--trigger-after",
-    #     type=float,
-    #     default=1.0,
-    #     help="time after stimulus end to send a trigger off pulse",
-    # )
     p.add_argument(
         "--open-ephys",
         help="specify the network address where open-ephys is running",
@@ -300,6 +299,9 @@ if __name__ == "__main__":
         "jclicker-sync",
         "-o",
         args.sync_out,
+        # due to bad design in the schmitt trigger circuit, we send a negative pulse to
+        # latch up the TTL and a positive pulse to latch it down. Fix this once the
+        # circuit is fixed.
         "0x10,positive,1",
         "0x00,negative,1",
     )
@@ -315,7 +317,8 @@ if __name__ == "__main__":
             args.trig_out,
             "--prob",
             f"{args.trig_prob}",
-            f"0x00,biphasic,{args.trig_duration}",
+            f"0x00,negative,1,{args.trig_delay}",
+            f"0x00,positive,1,{args.trig_delay + args.trig_duration}"
         )
         jstim_args.extend(
             (
