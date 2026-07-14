@@ -162,7 +162,6 @@ if __name__ == "__main__":
     )
     p.add_argument(
         "--trig-out",
-        default="system:playback_4",
         help="name of the JACK port where the trigger signal should go (default %(default)s)",
     )
 
@@ -316,7 +315,7 @@ if __name__ == "__main__":
             args.trig_out,
             "--prob",
             f"{args.trig_prob}",
-            f"0x11,biphasic,{args.trig_duration}",
+            f"0x00,biphasic,{args.trig_duration}",
         )
         jstim_args.extend(
             (
@@ -374,4 +373,6 @@ if __name__ == "__main__":
         if jtrig_proc is not None:
             jtrig_proc.terminate()
         time.sleep(1)
+        if args.open_ephys is not None:
+            oe_controller.stop()
         jrecord_proc.terminate()
