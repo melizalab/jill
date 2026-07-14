@@ -15,6 +15,7 @@ the stimuli.
 
 """
 
+import os
 import time
 import datetime
 import argparse
@@ -23,24 +24,11 @@ import logging
 from pathlib import Path
 import shutil
 import requests as rq
+import json
 
 log = logging.getLogger("jpresent")  # root logger
 
 __version__ = "2.2.2"
-
-
-def check_oe_processors(processors):
-    log.debug(" - checking for broadcast option in Network Events node")
-    for processor in processors:
-        if processor["name"] == "Network Events":
-            for parameter in processor["parameters"]:
-                if parameter["name"] == "broadcast_all_messages" and parameter[
-                    "value"
-                ] in (1, "1"):
-                    return  # Ok
-            raise RuntimeError("broadcast is not set to ON in Network Events plugin")
-    raise RuntimeError("networkEvents plugin not detected in the signal chain")
-
 
 def setup_log(log, debug=False):
     ch = logging.StreamHandler()
@@ -52,6 +40,98 @@ def setup_log(log, debug=False):
     log.addHandler(ch)
 
 
+class ParseKeyVal(argparse.Action):
+    """Custom action that parses arguments formed as key=value pair"""
+
+    def parse_value(self, value):
+        import ast
+
+        try:
+            return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            return value
+
+    def __call__(self, parser, namespace, arg, option_string=None):
+        kv = getattr(namespace, self.dest)
+        if kv is None:
+            kv = dict()
+        if not arg.count("=") == 1:
+            raise ValueError(f"-k {arg} argument badly formed; needs key=value")
+        else:
+            key, val = arg.split("=")
+            kv[key] = self.parse_value(val)
+        setattr(namespace, self.dest, kv)
+    
+# The open-ephys-python-tools library is pretty broken, so we're just rolling our own calls
+
+class OpenEphysControl:
+
+    def __init__(self, hostname: str):
+        self.url = f"http://{hostname}:37497/api"
+        self.session = rq.Session()
+
+    def send(self, endpoint: str, data: dict | None = None):
+        url = f"{self.url}/{endpoint}"
+        if data is None:
+            r = self.session.get(url)
+        else:
+            r = self.session.put(url, json=data)
+        r.raise_for_status()
+        return r.json()
+        
+    def get_status(self):
+        """Get the current status of the open-ephys gui"""
+        reply = self.send("status")
+        return reply["mode"]
+
+    def start_acquisition(self):
+        """Put the gui into ACQUIRE mode"""
+        self.send("status", {"mode": "ACQUIRE"})
+
+    def start_recording(self):
+        """Put the gui into RECORD mode"""
+        self.send("status", {"mode": "RECORD"})
+
+    def stop(self):
+        """Put the gui into IDLE mode"""
+        self.send("status", {"mode": "IDLE"})
+        
+    def get_network_event_processor_port(self):
+        """Check for Network Event node, configure it for broadcast, and return the port"""
+        reply = self.send("processors")
+        for proc in reply["processors"]:
+            if proc["name"] == "Network Events":
+                break
+        else:
+            raise RunTimeError("Network Events plugin not found in the signal chain")
+        processor_id = proc["id"]
+        log.info(" - setting Network Events broadcast to ON")
+        reply = self.send(f"processors/{processor_id}/parameters/broadcast_all_messages", {"value": True})
+        if int(reply["value"]) != 1:
+            raise RuntimeError("unable to set broadcast to ON in Network Events plugin")
+        for param in proc["parameters"]:
+            if param["name"] == "port":
+                return int(param["value"])
+        else:
+            raise RuntimeError("unable to determine port for Network Events plugin")
+
+    def configure_recording(self, path: str, prepend: str, append: str):
+        """Configure the recording directory and name"""
+        reply = self.send("recording")
+        try:
+            record_node = reply["record_nodes"][0]
+            record_node_id = record_node["node_id"]
+        except KeyError:
+            raise RuntimeError("no recording node in the signal chain")
+        log.info(" - setting recording directory to %s", path)
+        self.send("recording", {"parent_directory": path, "prepend_text": f"{prepend}_", "append_text": f"_{append}"})
+        self.send(f"recording/{record_node_id}", {"parent_directory": path})
+
+    def message(self, msg: str):
+        """Send a message to all nodes (used for saving metadata)"""
+        self.send("message", {"text": msg})
+
+    
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
@@ -111,14 +191,35 @@ if __name__ == "__main__":
         "--open-ephys",
         help="specify the network address where open-ephys is running",
     )
+    p.add_argument(
+        "--warmup",
+        help="pause between starting acquisition and recording (default: %(default)s s)",
+        type=float,
+        default=5.0,
+    )
+    p.add_argument(
+        "--open-ephys-directory",
+        "-d",
+        metavar="DIR",
+        default=os.environ["HOME"],
+        help="open-ephys recording directory (default: %(default)s)",
+    )
 
     p.add_argument(
-        "--experimenter", required=True, help="name of the experimenter (required)"
+        "--experiment", required=True, help="name of the experiment"
     )
     p.add_argument(
         "--animal",
         required=True,
-        help="identifier (uuid) of the experimental subject (required)",
+        help="identifier (uuid) of the experimental subject",
+    )
+    p.add_argument(
+        "-k",
+        help="specify additional metadata for the recording (use multiple -k for multiple fields).",
+        action=ParseKeyVal,
+        default=dict(),
+        metavar="KEY=VALUE",
+        dest="metadata",
     )
 
     p.add_argument(
@@ -142,27 +243,18 @@ if __name__ == "__main__":
     args = p.parse_args()
     setup_log(log, args.debug)
 
-    if args.open_ephys:
-        oe_url = f"http://{args.open_ephys}:37497/api"
-        log.info("checking for a running open-ephys at %s", oe_url)
-        oe_session = rq.Session()
+    if args.open_ephys is not None:
         try:
-            r = oe_session.get(f"{oe_url}/status")
-            r.raise_for_status()
-            reply = r.json()
-            if reply["mode"] != "IDLE":
+            log.info("checking for a running open-ephys on %s", args.open_ephys)
+            oe_controller = OpenEphysControl(args.open_ephys)
+            if oe_controller.get_status() != "IDLE":
                 raise RuntimeError(
                     "open-ephys is already acquiring data. Stop it and try again."
                 )
-            r = oe_session.get(f"{oe_url}/processors")
-            r.raise_for_status()
-            reply = r.json()
-            check_oe_processors(reply["processors"])
+            network_event_port = oe_controller.get_network_event_processor_port()
+            oe_controller.configure_recording(args.open_ephys_directory, args.animal, args.experiment)
         except rq.exceptions.ConnectionError:
             log.error(" - error: unable to connect to open-ephys. Is it running?")
-            p.exit(-1)
-        except KeyError:
-            log.error(" - error: unable to parse reply from open-ephys: %s", reply)
             p.exit(-1)
         except RuntimeError as err:
             log.error(" - error: %s", err)
@@ -186,6 +278,7 @@ if __name__ == "__main__":
     arf_out = now.strftime("jpresent_%Y%m%d-%H%M%S.arf")
     jstim_args = [binary_paths["jstim"]]
 
+    additional_metadata = (f"-a {key}={value}" for key, value in args.metadata.items())
     jrecord_args = (
         binary_paths["jrecord"],
         "-n",
@@ -193,9 +286,10 @@ if __name__ == "__main__":
         "-E",
         "jstim",
         "-a",
-        f"experimenter={args.experimenter}",
+        f"experiment={args.experiment}",
         "-a",
         f"animal={args.animal}",
+        *additional_metadata,
         arf_out,
     )
     jstim_args.extend(("-e", "jpresent:jstim"))
@@ -233,8 +327,8 @@ if __name__ == "__main__":
         log.debug(" ".join(jclicker_trig_args))
 
     jrelay_args = [binary_paths["jrelay"]]
-    if args.open_ephys:
-        jrelay_args.extend(("--open-ephys", f"tcp://{args.open_ephys}:5556"))
+    if args.open_ephys is not None:
+        jrelay_args.extend(("--open-ephys", f"tcp://{args.open_ephys}:{network_event_port}"))
     log.debug(" ".join(jrelay_args))
     jstim_args.extend(("-e", "jrelay:in"))
 
@@ -249,6 +343,9 @@ if __name__ == "__main__":
         p.exit()
 
     try:
+        if args.open_ephys is not None:
+            log.info("starting open-ephys acquisition:")
+            oe_controller.start_acquisition()
         log.info("starting jrecord:")
         jrecord_proc = subprocess.Popen(jrecord_args)
         log.info("starting jclicker for sync events:")
@@ -260,7 +357,10 @@ if __name__ == "__main__":
             jtrig_proc = None
         log.info("starting jrelay:")
         jrelay_proc = subprocess.Popen(jrelay_args)
-        time.sleep(1)
+        if args.open_ephys is not None:
+            log.info("starting open-ephys recording:")
+            oe_controller.start_recording()
+        time.sleep(args.gap)
         log.info("starting jstim:")
         jstim_proc = subprocess.Popen(jstim_args)
         jstim_proc.wait()
