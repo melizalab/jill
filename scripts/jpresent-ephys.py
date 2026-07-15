@@ -165,7 +165,7 @@ if __name__ == "__main__":
         help="name of the JACK port where the trigger signal should go (default %(default)s)",
     )
 
-    TODO make this trigger delay
+    # TODO make this trigger delay
     p.add_argument(
         "--trig-delay",
         type=int,

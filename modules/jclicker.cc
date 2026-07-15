@@ -127,10 +127,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         return 0;
 }
 
+/** Resize the buffer. May reallocate memory, losing upcoming pulses */
 int
 jack_bufsize(jack_client *, nframes_t nframes)
 {
-        // Do we need to reset the pointers?
         ringbuf->resize(nframes * 3 + max_lookahead);
         DBG << "jack period size changed; ringbuffer resized to " << ringbuf->size();
         return 0;
