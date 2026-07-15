@@ -16,6 +16,7 @@
  * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <atomic>
 #include <signal.h>
 
 #include "jill/logging.hh"
@@ -46,8 +47,8 @@ protected:
 
 static modname_options options(PROGRAM_NAME);
 jack_port_t *port_in, *port_out;
-static int ret = EXIT_SUCCESS;
-static int running = 1;
+std::atomic<int> ret(EXIT_SUCCESS);
+std::atomic<bool> running(true);
 
 
 int
@@ -101,7 +102,7 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         ret = -1;
-        running = 0;
+        running = false;
 }
 
 
@@ -110,7 +111,7 @@ void
 signal_handler(int sig)
 {
         ret = sig;
-        running = 0;
+        running = false;
 }
 
 
@@ -123,14 +124,13 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
 
                 // start client
-                auto client = std::make_unique<jack_client>(options.client_name,
-                                                            options.server_name);
+                auto client = jack_client(options.client_name, options.server_name);
 
                 // register ports
-                port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
-                                                JackPortIsInput, 0);
-                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
-                                                 JackPortIsOutput, 0);
+                port_in = client.register_port("in",JACK_DEFAULT_AUDIO_TYPE,
+                                               JackPortIsInput, 0);
+                port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                                                JackPortIsOutput, 0);
 
                 // register signal handlers
                 signal(SIGINT,  signal_handler);
@@ -138,32 +138,32 @@ main(int argc, char **argv)
                 signal(SIGHUP,  signal_handler);
 
                 // register jack callbacks
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_xrun_callback(jack_xrun);
+                client.set_process_callback(process);
 
                 // uncomment if you need these callbacks
-                // client->set_buffer_size_callback(jack_bufsize);
-                // jack_set_latency_callback (client->client(), jack_latency, 0);
+                // client.set_buffer_size_callback(jack_bufsize);
+                // jack_set_latency_callback (client.client(), jack_latency, 0);
 
                 // activate client
-                client->activate();
+                client.activate();
 
                 // connect ports
                 if (options.count("in")) {
                         stringvec const & portlist = options.vmap["in"].as<stringvec>();
-                        client->connect_ports(portlist.begin(), portlist.end(), "in");
+                        client.connect_ports(portlist.begin(), portlist.end(), "in");
                 }
                 if (options.count("out")) {
                         stringvec const & portlist = options.vmap["out"].as<stringvec>();
-                        client->connect_ports("out", portlist.begin(), portlist.end());
+                        client.connect_ports("out", portlist.begin(), portlist.end());
                 }
 
                 while (running) {
                         usleep(100000);
                 }
 
-                client->deactivate();
+                client.deactivate();
                 return ret;
         }
 

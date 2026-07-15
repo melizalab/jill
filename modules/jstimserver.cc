@@ -59,47 +59,47 @@ enum class ProcessStatus {Playing, Stopped};
 
 // the main thread can signal the process to Start or Interrupt
 struct ProcessRequest {
-	enum request_t {None, Start, Interrupt};
-	std::atomic<request_t> request;
-	/** the stimulus to start (only used with Start) */
-	stimulus_t const * stim;
+        enum request_t {None, Start, Interrupt};
+        std::atomic<request_t> request;
+        /** the stimulus to start (only used with Start) */
+        stimulus_t const * stim;
 
-	ProcessRequest() : request(None), stim(0) {}
+        ProcessRequest() : request(None), stim(0) {}
 
-	explicit operator bool() const {
-		return request != None;
-	}
+        explicit operator bool() const {
+                return request != None;
+        }
 
-	void clear() {
-		request.store(None);
-		stim = 0;
-	}
+        void clear() {
+                request.store(None);
+                stim = 0;
+        }
 
-	bool start(stimulus_t const * new_stim) {
-		request_t expected = None;
-		if (!request.compare_exchange_strong(expected, Start)) {
-			return false;
-		}
-		stim = new_stim;
-		return true;
-	}
+        bool start(stimulus_t const * new_stim) {
+                request_t expected = None;
+                if (!request.compare_exchange_strong(expected, Start)) {
+                        return false;
+                }
+                stim = new_stim;
+                return true;
+        }
 
-	bool interrupt() {
-		request_t expected = None;
-		return request.compare_exchange_strong(expected, Interrupt);
-	}
-		
+        bool interrupt() {
+                request_t expected = None;
+                return request.compare_exchange_strong(expected, Interrupt);
+        }
+
 };
 
 // four kinds of events: Started, Interrupted, Finished, Xrun
 struct Event {
         enum { Started, Interrupted, Done, Busy, NotPlaying, Xrun } status;
-	/** the frame when the event occurred */
+        /** the frame when the event occurred */
         nframes_t time;
-	/** the stimulus that started/stopped/was interrupted */
+        /** the stimulus that started/stopped/was interrupted */
         stimulus_t const * stim;
 
-	
+
 };
 
 /** store program options */
@@ -122,9 +122,9 @@ jack_port_t *port_out, *port_trigout;
 int
 process(jack_client *client, nframes_t nframes, nframes_t time)
 {
-	// NB static variables are initialized to 0
-	static stimulus_t const * _stim;       // currently playing stimulus or
-					       // zero if stopped
+        // NB static variables are initialized to 0
+        static stimulus_t const * _stim;       // currently playing stimulus or
+                                               // zero if stopped
         static nframes_t stim_offset;          // current position in stimulus buffer
 
         void * trig = client->events(port_trigout, nframes);
@@ -133,37 +133,37 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         for(nframes_t i = 0; i < nframes; ++i)
                 out[i] = 0.0f;
 
-	// if there was an xrun, add the event to the ringbuffer
-	if (_xruns) {
-		_eventbuf.push(Event{Event::Xrun, time, _stim});
-		_xruns.fetch_add(-1);
-	}
+        // if there was an xrun, add the event to the ringbuffer
+        if (_xruns) {
+                _eventbuf.push(Event{Event::Xrun, time, _stim});
+                _xruns.fetch_add(-1);
+        }
 
-	// process request
-	if (_request.request == ProcessRequest::Start) {
-		if (_stim) {
-			_eventbuf.push(Event{Event::Busy, time, nullptr});
-		}
-		else {
-			stim_offset = 0;
-			_stim = _request.stim;
-			midi::write_message(trig, 0, midi::status_type::stim_on, _stim->name());
-			_eventbuf.push(Event{Event::Started, time, _stim});
-		}
-		_request.clear();
-	}
-	else if (_request.request == ProcessRequest::Interrupt) {
-		if (_stim) {
-			midi::write_message(trig, 0, midi::status_type::stim_off, _stim->name());
-			_eventbuf.push(Event{Event::Interrupted, time, _stim});
-			_stim = nullptr;
-		}
-		else {
-			_eventbuf.push(Event{Event::NotPlaying, time, nullptr});
-		}
-		_request.clear();
-	}
-		
+        // process request
+        if (_request.request == ProcessRequest::Start) {
+                if (_stim) {
+                        _eventbuf.push(Event{Event::Busy, time, nullptr});
+                }
+                else {
+                        stim_offset = 0;
+                        _stim = _request.stim;
+                        midi::write_message(trig, 0, midi::status_type::stim_on, _stim->name());
+                        _eventbuf.push(Event{Event::Started, time, _stim});
+                }
+                _request.clear();
+        }
+        else if (_request.request == ProcessRequest::Interrupt) {
+                if (_stim) {
+                        midi::write_message(trig, 0, midi::status_type::stim_off, _stim->name());
+                        _eventbuf.push(Event{Event::Interrupted, time, _stim});
+                        _stim = nullptr;
+                }
+                else {
+                        _eventbuf.push(Event{Event::NotPlaying, time, nullptr});
+                }
+                _request.clear();
+        }
+
         // if no stimulus queued return
         if (!_stim) {
                 return 0;
@@ -199,7 +199,7 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-	// changes to bufsize will interrupt the audio stream
+        // changes to bufsize will interrupt the audio stream
         _xruns.fetch_add(1);
         return 0;
 }
@@ -274,33 +274,33 @@ stim_monitor()
         while (_running.load()) {
                 Event event;
                 while (_eventbuf.pop(&event, 1) > 0) {
-			std::ostringstream o;
-			switch (event.status) {
-			case Event::Started:
-				o << "PLAYING " << event.stim->name() << " " << event.time;
-				break;
+                        std::ostringstream o;
+                        switch (event.status) {
+                        case Event::Started:
+                                o << "PLAYING " << event.stim->name() << " " << event.time;
+                                break;
                         case Event::Interrupted:
-				o << "INTERRUPTED " << event.stim->name() << " " << event.time;
-				break;
-			case Event::Done:
-				o << "DONE " << event.stim->name() << " " << event.time;
-				break;
-			case Event::Xrun:
-				o << "XRUN " << event.stim->name() << " " << event.time;
-				break;
-			case Event::Busy:
-				o << "BUSY";
-				break;
-			case Event::NotPlaying:
-				o << "NOTPLAYING";
-				break;
-			}
-			zmq::send(socket, o.str());
+                                o << "INTERRUPTED " << event.stim->name() << " " << event.time;
+                                break;
+                        case Event::Done:
+                                o << "DONE " << event.stim->name() << " " << event.time;
+                                break;
+                        case Event::Xrun:
+                                o << "XRUN " << event.stim->name() << " " << event.time;
+                                break;
+                        case Event::Busy:
+                                o << "BUSY";
+                                break;
+                        case Event::NotPlaying:
+                                o << "NOTPLAYING";
+                                break;
+                        }
+                        zmq::send(socket, o.str());
                 }
                 usleep(10000);
         }
-	zmq::send(socket, "STOPPING");
-	zmq::close(socket);
+        zmq::send(socket, "STOPPING");
+        zmq::close(socket);
 }
 
 constexpr char REQ_VERSION[] = "VERSION";
@@ -318,15 +318,14 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                auto client = std::make_unique<jack_client>(options.client_name,
-                                                            options.server_name);
+                auto client = jack_client(options.client_name, options.server_name);
 
                 if (options.stimuli.size() == 0) {
                         LOG << "no stimuli; quitting";
                         throw Exit(0);
                 }
                 /* load the stimuli */
-                std::string stimlist = init_stimset(options.stimuli, client->sampling_rate());
+                std::string stimlist = init_stimset(options.stimuli, client.sampling_rate());
                 DBG << "stimlist: " << stimlist;
 
                 // set up zeromq socket
@@ -349,9 +348,9 @@ main(int argc, char **argv)
                         INFO << "listening for requests at " << endpoint.str();
                 }
 
-                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput | JackPortIsTerminal, 0);
-                port_trigout = client->register_port("trig_out", JACK_DEFAULT_MIDI_TYPE,
+                port_trigout = client.register_port("trig_out", JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
 
                 // register signal handlers
@@ -359,17 +358,17 @@ main(int argc, char **argv)
                 signal(SIGTERM, signal_handler);
                 signal(SIGHUP,  signal_handler);
 
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
-                client->activate();
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_xrun_callback(jack_xrun);
+                client.set_process_callback(process);
+                client.activate();
                 // set this after starting the client so it will only be called
                 // when the buffer size *changes*
-                client->set_buffer_size_callback(jack_bufsize);
+                client.set_buffer_size_callback(jack_bufsize);
 
-                client->connect_ports("out",
+                client.connect_ports("out",
                                       options.output_ports.begin(), options.output_ports.end());
-                client->connect_ports("trig_out",
+                client.connect_ports("trig_out",
                                       options.trigout_ports.begin(), options.trigout_ports.end());
 
                 std::thread monitor_thread(stim_monitor);
@@ -381,17 +380,17 @@ main(int argc, char **argv)
                                 break; // interrupted; exit the loop
                         auto data = messages.back();
                         if (data.compare(REQ_VERSION) == 0) {
-				DBG << "client requested jstimserver version";
-				messages.back() = JILL_VERSION;
-			}
+                                DBG << "client requested jstimserver version";
+                                messages.back() = JILL_VERSION;
+                        }
                         else if (data.compare(REQ_STIMLIST) == 0) {
                                 DBG << "client requested playlist";
                                 messages.back() = stimlist;
                         }
-			else if (_request.request != ProcessRequest::None) {
-				LOG << "client made a request before the previous one was handled";
-				messages.back() = REP_BUSY;
-			}
+                        else if (_request.request != ProcessRequest::None) {
+                                LOG << "client made a request before the previous one was handled";
+                                messages.back() = REP_BUSY;
+                        }
                         else if (data.compare(0, strlen(REQ_PLAYSTIM), REQ_PLAYSTIM) == 0) {
                                 auto stim = data.substr(strlen(REQ_PLAYSTIM) + 1);
                                 auto it = _stimuli.find(stim);
@@ -399,18 +398,18 @@ main(int argc, char **argv)
                                         LOG << "client requested invalid stimulus: " << stim;
                                         messages.back() = REP_BADSTIM;
                                 }
-				else if (_request.start(it->second)) {
+                                else if (_request.start(it->second)) {
                                         LOG << "client requested stimulus: " << stim;
                                         messages.back() = REP_OK;
-				}
-				else {
+                                }
+                                else {
                                         LOG << "client requested stimulus before previous request was handled";
                                         messages.back() = REP_BUSY;
-				}
+                                }
                         }
                         else if (data.compare(REQ_INTERRUPT) == 0) {
-				if (_request.interrupt()) {
-					LOG << "client requested interrupt";
+                                if (_request.interrupt()) {
+                                        LOG << "client requested interrupt";
                                         messages.back() = REP_OK;
                                 }
                                 else {
@@ -426,7 +425,7 @@ main(int argc, char **argv)
                 }
                 LOG << "stopping";
 
-                client->deactivate();
+                client.deactivate();
                 if (monitor_thread.joinable()) monitor_thread.join();
                 zmq_close(req_socket);
 
