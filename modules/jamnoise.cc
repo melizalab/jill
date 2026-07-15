@@ -10,6 +10,7 @@
  */
 #include <iostream>
 #include <random>
+#include <atomic>
 #include <csignal>
 
 #include "jill/jack_client.hh"
@@ -45,10 +46,9 @@ protected:
 
 
 static jamnoise_options options(PROGRAM_NAME);
-static std::unique_ptr<jack_client> client;
 jack_port_t *port_in, *port_out;
-static int ret = EXIT_SUCCESS;
-static int running = 1;
+std::atomic<int> ret(EXIT_SUCCESS);
+std::atomic<bool> running(true);
 static float output_scale = 1.0;
 
 static const nframes_t n_hilbert = 128;
@@ -70,22 +70,22 @@ static const double hilbert_filt[n_hilbert] = {
         3.39986152e-02,  2.37548174e-02,  3.98622674e-02,  3.08852884e-02,
         4.88566809e-02,  4.24033772e-02,  6.43443755e-02,  6.41641855e-02,
         9.74280062e-02,  1.20767245e-01,  2.18722724e-01,  6.30080414e-01,
-       -6.30080414e-01, -2.18722724e-01, -1.20767245e-01, -9.74280062e-02,
-       -6.41641855e-02, -6.43443755e-02, -4.24033772e-02, -4.88566809e-02,
-       -3.08852884e-02, -3.98622674e-02, -2.37548174e-02, -3.39986152e-02,
-       -1.89222113e-02, -2.98413331e-02, -1.54306873e-02, -2.67367864e-02,
-       -1.27965733e-02, -2.43249447e-02, -1.07345356e-02, -2.23619322e-02,
-       -9.11355352e-03, -2.07954898e-02, -7.76544348e-03, -1.94585877e-02,
-       -6.64937101e-03, -1.82967224e-02, -5.72800738e-03, -1.73032540e-02,
-       -4.94616307e-03, -1.64303935e-02, -4.27884480e-03, -1.56544374e-02,
-       -3.71955064e-03, -1.49623271e-02, -3.15341648e-03, -1.43181333e-02,
-       -2.78296306e-03, -1.37394473e-02, -2.41620424e-03, -1.32061648e-02,
-       -2.06556124e-03, -1.27081033e-02, -1.76896695e-03, -1.22435080e-02,
-       -1.51398720e-03, -1.18104287e-02, -1.28723296e-03, -1.14506282e-02,
-       -1.24267701e-03, -1.08765812e-02, -8.73478813e-04, -1.06316260e-02,
-       -7.76308935e-04, -1.03098408e-02, -7.11308425e-04, -9.95084658e-03,
-       -6.38987738e-04, -9.59325502e-03, -5.69220879e-04, -9.24435788e-03,
-       -5.07861048e-04, -8.92437318e-03, -4.60859408e-04, -1.35574586e-01 };
+        -6.30080414e-01, -2.18722724e-01, -1.20767245e-01, -9.74280062e-02,
+        -6.41641855e-02, -6.43443755e-02, -4.24033772e-02, -4.88566809e-02,
+        -3.08852884e-02, -3.98622674e-02, -2.37548174e-02, -3.39986152e-02,
+        -1.89222113e-02, -2.98413331e-02, -1.54306873e-02, -2.67367864e-02,
+        -1.27965733e-02, -2.43249447e-02, -1.07345356e-02, -2.23619322e-02,
+        -9.11355352e-03, -2.07954898e-02, -7.76544348e-03, -1.94585877e-02,
+        -6.64937101e-03, -1.82967224e-02, -5.72800738e-03, -1.73032540e-02,
+        -4.94616307e-03, -1.64303935e-02, -4.27884480e-03, -1.56544374e-02,
+        -3.71955064e-03, -1.49623271e-02, -3.15341648e-03, -1.43181333e-02,
+        -2.78296306e-03, -1.37394473e-02, -2.41620424e-03, -1.32061648e-02,
+        -2.06556124e-03, -1.27081033e-02, -1.76896695e-03, -1.22435080e-02,
+        -1.51398720e-03, -1.18104287e-02, -1.28723296e-03, -1.14506282e-02,
+        -1.24267701e-03, -1.08765812e-02, -8.73478813e-04, -1.06316260e-02,
+        -7.76308935e-04, -1.03098408e-02, -7.11308425e-04, -9.95084658e-03,
+        -6.38987738e-04, -9.59325502e-03, -5.69220879e-04, -9.24435788e-03,
+        -5.07861048e-04, -8.92437318e-03, -4.60859408e-04, -1.35574586e-01 };
 static sample_ringbuffer hilbert_rb(n_hilbert * 2);
 static sample_ringbuffer delay_rb(n_hilbert);
 static const nframes_t n_sos = 2;
@@ -161,14 +161,14 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         ret = -1;
-        running = 0;
+        running = false;
 }
 
 void
 signal_handler(int sig)
 {
         ret = sig;
-        running = 0;
+        running = false;
 }
 
 int
@@ -177,7 +177,7 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                client.reset(new jack_client(options.client_name, options.server_name));
+                auto client = jack_client(options.client_name, options.server_name);
                 LOG << "initializing hilbert transform (" << n_hilbert << " points)";
                 hilbert_rb.push(nullptr, n_hilbert - 1);
                 LOG << "initializing delay ringbuffer (" << n_hilbert / 2 << " points)";
@@ -187,29 +187,29 @@ main(int argc, char **argv)
                         envelope_only = true;
                 }
 
-                port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
-                                                JackPortIsInput, 0);
-                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
-                                                 JackPortIsOutput, 0);
+                port_in = client.register_port("in",JACK_DEFAULT_AUDIO_TYPE,
+                                               JackPortIsInput, 0);
+                port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                                                JackPortIsOutput, 0);
 
                 // register signal handlers
                 signal(SIGINT,  signal_handler);
                 signal(SIGTERM, signal_handler);
                 signal(SIGHUP,  signal_handler);
 
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
-                client->activate();
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_xrun_callback(jack_xrun);
+                client.set_process_callback(process);
+                client.activate();
 
-                client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
-                client->connect_ports("out", options.output_ports.begin(), options.output_ports.end());
+                client.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
+                client.connect_ports("out", options.output_ports.begin(), options.output_ports.end());
 
                 while (running) {
                         usleep(100000);
                 }
 
-                client->deactivate();
+                client.deactivate();
                 return ret;
         }
 

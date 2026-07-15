@@ -5,6 +5,7 @@
 #include <iostream>
 #include <random>
 #include <csignal>
+#include <atomic>
 #include <boost/algorithm/string.hpp>
 
 #include "jill/logging.hh"
@@ -72,8 +73,8 @@ std::vector<pulse_type> pulses;
 static nframes_t max_lookahead = 0;
 // ringbuffer acts as a backing buffer so that pulses can span the end of the current period.
 std::unique_ptr<sample_ringbuffer> ringbuf;
-static int ret = EXIT_SUCCESS;
-static int running = 1;
+std::atomic<int> ret(EXIT_SUCCESS);
+std::atomic<bool> running(true);
 
 static std::random_device rd;  // Will be used to obtain a seed for the random number engine
 static std::mt19937 p_gen(rd()); // Standard mersenne_twister_engine seeded with rd()
@@ -127,7 +128,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 }
 
 int
-jack_bufsize(jack_client *client, nframes_t nframes)
+jack_bufsize(jack_client *, nframes_t nframes)
 {
         // Do we need to reset the pointers?
         ringbuf->resize(nframes * 3 + max_lookahead);
@@ -140,7 +141,7 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         ret = -1;
-        running = 0;
+        running = false;
 }
 
 /** handle POSIX signals */
@@ -148,7 +149,7 @@ void
 signal_handler(int sig)
 {
         ret = sig;
-        running = 0;
+        running = false;
 }
 
 static
@@ -205,24 +206,23 @@ main(int argc, char **argv)
                         throw std::invalid_argument("must define at least one pulse");
 
                 // start client
-                auto client = std::make_unique<jack_client>(options.client_name,
-                                                            options.server_name);
-                parse_pulses(options.pulses, client->sampling_rate());
+                auto client = jack_client(options.client_name, options.server_name);
+                parse_pulses(options.pulses, client.sampling_rate());
 
                 // initialize ringbuffer; sized to hold one period of current
                 // output plus enough lookahead for the longest configured
                 // delay+duration
-                nframes_t ringbuf_size = client->buffer_size() * 3 + max_lookahead;
+                nframes_t ringbuf_size = client.buffer_size() * 3 + max_lookahead;
                 ringbuf = std::make_unique<sample_ringbuffer>(ringbuf_size);
                 // advance the write pointer one period plus lookahead margin
-                ringbuf->push(nullptr, client->buffer_size() + max_lookahead);
+                ringbuf->push(nullptr, client.buffer_size() + max_lookahead);
                 DBG << "initialized ringbuffer with " << ringbuf->size() << " samples";
 
                 // register ports
-                port_in = client->register_port("in",JACK_DEFAULT_MIDI_TYPE,
-                                                JackPortIsInput, 0);
-                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
-                                                 JackPortIsOutput, 0);
+                port_in = client.register_port("in",JACK_DEFAULT_MIDI_TYPE,
+                                               JackPortIsInput, 0);
+                port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                                                JackPortIsOutput, 0);
 
                 // register signal handlers
                 signal(SIGINT,  signal_handler);
@@ -230,28 +230,28 @@ main(int argc, char **argv)
                 signal(SIGHUP,  signal_handler);
 
                 // register jack callbacks
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_buffer_size_callback(jack_bufsize);
-                client->set_process_callback(process);
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_buffer_size_callback(jack_bufsize);
+                client.set_process_callback(process);
 
                 // activate client
-                client->activate();
+                client.activate();
 
                 // connect ports
                 if (options.count("in")) {
                         auto const & portlist = options.vmap["in"].as<stringvec>();
-                        client->connect_ports(portlist.begin(), portlist.end(), "in");
+                        client.connect_ports(portlist.begin(), portlist.end(), "in");
                 }
                 if (options.count("out")) {
                         auto const & portlist = options.vmap["out"].as<stringvec>();
-                        client->connect_ports("out", portlist.begin(), portlist.end());
+                        client.connect_ports("out", portlist.begin(), portlist.end());
                 }
 
                 while (running) {
                         usleep(100000);
                 }
 
-                client->deactivate();
+                client.deactivate();
                 return ret;
         }
 

@@ -17,14 +17,12 @@
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"
 #include "jill/logging.hh"
-#include "jill/dsp/ringbuffer.hh"
 
 #define PROGRAM_NAME "jnoise"
 
 using namespace jill;
 using namespace boost::posix_time;
 using std::string;
-using sample_ringbuffer = dsp::ringbuffer<sample_t>;
 
 class jnoise_options : public program_options {
 
@@ -63,6 +61,7 @@ std::atomic<bool> daytime(false);
 static std::random_device rd;  //Will be used to obtain a seed for the random number engine
 static std::mt19937 wn_gen(rd()); //Standard mersenne_twister_engine seeded with rd()
 static std::normal_distribution<> wn_dis(0.0, 1.0);
+
 int
 process(jack_client *client, nframes_t nframes, nframes_t)
 {

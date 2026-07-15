@@ -54,7 +54,6 @@ protected:
 };
 
 jrecord_options options(PROGRAM_NAME);
-std::unique_ptr<jack_client> client;
 std::unique_ptr<dsp::buffered_data_writer> arf_thread;
 jack_port_t * port_trig = nullptr;
 
@@ -162,7 +161,7 @@ main(int argc, char **argv)
         map<string,string> port_connections;
         try {
                 options.parse(argc,argv);
-                client.reset(new jack_client(options.client_name, options.server_name));
+                auto client = jack_client(options.client_name, options.server_name);
                 auto writer = std::make_unique<arf_writer>(options.output_file,
                                                            *client,
                                                            options.additional_options,
@@ -171,13 +170,13 @@ main(int argc, char **argv)
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {
                         LOG << "recordings will be triggered";
-                        port_trig = client->register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
+                        port_trig = client.register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
                                                           JackPortIsInput | JackPortIsTerminal, 0);
                         arf_thread.reset(new dsp::triggered_data_writer(
                                                  std::move(writer),
                                                  jack_port_short_name(port_trig),
-                                                 options.pretrigger_size_s * client->sampling_rate(),
-                                                 options.posttrigger_size_s * client->sampling_rate()));
+                                                 options.pretrigger_size_s * client.sampling_rate(),
+                                                 options.posttrigger_size_s * client.sampling_rate()));
                 }
                 else {
                         LOG << "recording will be continuous";
@@ -191,7 +190,7 @@ main(int argc, char **argv)
                         int name_index = 0;
                         svec const & plist = options.vmap["in"].as<svec>();
                         for (const auto & it : plist) {
-                                jack_port_t *p = client->get_port(it);
+                                jack_port_t *p = client.get_port(it);
                                 if (p==nullptr) {
                                         LOG << "error registering port: source port \""
                                             << it << "\" does not exist";
@@ -210,7 +209,7 @@ main(int argc, char **argv)
                                                 sprintf(buf,"evt_%03d",name_index);
                                         LOG << "startup connection: " << it << " -> " << buf;
                                         name_index++;
-                                        client->register_port(buf, jack_port_type(p),
+                                        client.register_port(buf, jack_port_type(p),
                                                               JackPortIsInput | JackPortIsTerminal, 0);
                                         port_connections[buf] = it;
                                 }
@@ -219,13 +218,13 @@ main(int argc, char **argv)
 
                 if (options.count("in-pcm")) {
                         svec const & plist = options.vmap["in-pcm"].as<svec>();
-                        client->register_ports(plist.begin(), plist.end(), JACK_DEFAULT_AUDIO_TYPE,
+                        client.register_ports(plist.begin(), plist.end(), JACK_DEFAULT_AUDIO_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
                 if (options.count("in-evt")) {
                         svec const & plist = options.vmap["in-evt"].as<svec>();
-                        client->register_ports(plist.begin(), plist.end(), JACK_DEFAULT_MIDI_TYPE,
+                        client.register_ports(plist.begin(), plist.end(), JACK_DEFAULT_MIDI_TYPE,
                                                JackPortIsInput | JackPortIsTerminal, 0);
                 }
 
@@ -235,24 +234,24 @@ main(int argc, char **argv)
                 signal(SIGHUP,  signal_handler);
 
                 // register callbacks
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_xrun_callback(jack_xrun);
-                client->set_port_connect_callback(jack_portcon);
-                client->set_process_callback(process);
-                client->set_buffer_size_callback(jack_bufsize);
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_xrun_callback(jack_xrun);
+                client.set_port_connect_callback(jack_portcon);
+                client.set_process_callback(process);
+                client.set_buffer_size_callback(jack_bufsize);
 
                 // start disk thread and activate process callback
-                client->activate();
+                client.activate();
                 arf_thread->start();
 
                 /* connect ports */
                 if (options.count("trig")) {
                         svec const & plist = options.vmap["trig"].as<svec>();
-                        client->connect_ports(plist.begin(), plist.end(), "trig_in");
+                        client.connect_ports(plist.begin(), plist.end(), "trig_in");
                 }
                 for (map<string,string>::const_iterator it = port_connections.begin();
                      it != port_connections.end(); ++it) {
-                        if (!it->second.empty()) client->connect_port(it->second, it->first);
+                        if (!it->second.empty()) client.connect_port(it->second, it->first);
                 }
 
                 arf_thread->join();
@@ -267,7 +266,7 @@ main(int argc, char **argv)
         }
 
         // manually deactivating the client ensures shutdown events get logged
-        if (client) client->deactivate();
+        client.deactivate();
         // force arf thread to destroy its socket; otherwise it happens
         // very late and zmq complains about a dangling socket.
         arf_thread.reset();

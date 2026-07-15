@@ -10,6 +10,7 @@
  */
 #include <iostream>
 #include <csignal>
+#include <atomic>
 #include <boost/filesystem.hpp>
 
 #include "jill/jack_client.hh"
@@ -51,8 +52,8 @@ static jdelay_options options(PROGRAM_NAME);
 static std::unique_ptr<jack_client> client;
 static sample_ringbuffer ringbuf(1024);
 jack_port_t *port_in, *port_out;
-static int ret = EXIT_SUCCESS;
-static int running = 1;
+std::atomic<int> ret(EXIT_SUCCESS);
+std::atomic<bool> running(true);
 
 /*
  * The process callback introduces a delay by writing and then reading data from
@@ -112,7 +113,7 @@ int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
         ringbuf.resize(options.delay + nframes);
-	DBG << "jack period size changed; ringbuffer resized to " << ringbuf.size();
+        DBG << "jack period size changed; ringbuffer resized to " << ringbuf.size();
         // simple way to set a fixed delay is to advance pointer
         ringbuf.push(nullptr, options.delay);
         return 0;
@@ -128,14 +129,14 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         ret = -1;
-        running = 0;
+        running = false;
 }
 
 void
 signal_handler(int sig)
 {
         ret = sig;
-        running = 0;
+        running = false;
 }
 
 int

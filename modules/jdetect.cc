@@ -63,11 +63,10 @@ jack_port_t *port_in, *port_trig, *port_count;
 // set to true to get process to clean up
 std::atomic<bool> stopping(false);
 
-
 /* data storage for event times */
 struct event_t {
         nframes_t time;
-	midi::status_type status;
+        midi::status_type status;
 };
 dsp::ringbuffer<event_t> trig_times(128);
 
@@ -95,9 +94,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         if (offset < 0) return 0;
 
         if (trigger->open())
-		buf[0] = midi::status_type(midi::status_type::note_on, options.output_chan);
+                buf[0] = midi::status_type(midi::status_type::note_on, options.output_chan);
         else
-		buf[0] = midi::status_type(midi::status_type::note_off, options.output_chan);
+                buf[0] = midi::status_type(midi::status_type::note_off, options.output_chan);
 
         event_t event = { time + offset, buf[0] }; // data sent to logger
         if (jack_midi_event_write(trig_buffer, offset, buf, 3) != 0) {
@@ -117,16 +116,16 @@ std::size_t log_times(event_t const * events, std::size_t count)
         for (i = 0; i < count; ++i) {
                 e = events+i;
                 log_msg msg;
-		switch(e->status) {
-		case midi::status_type::note_on:
+                switch(e->status) {
+                case midi::status_type::note_on:
                         msg << "signal on: ";
-			break;
-		case midi::status_type::note_off:
+                        break;
+                case midi::status_type::note_off:
                         msg << "signal off: ";
-			break;
+                        break;
                 default:
                         msg << "WARNING: detected but couldn't send event: ";
-		}
+                }
                 msg << " frames=" << e->time << ", us=" << client->time(e->time);
         }
         return i;
@@ -135,7 +134,7 @@ std::size_t log_times(event_t const * events, std::size_t count)
 void
 signal_handler(int sig)
 {
-	stopping = true;
+        stopping = true;
         // wait for at least one process loop; not strictly async safe
         usleep(2e6 * client->buffer_size() / client->sampling_rate());
         exit(sig);
@@ -144,7 +143,7 @@ signal_handler(int sig)
 void
 jack_shutdown(jack_status_t code, char const *)
 {
-	stopping = true;
+        stopping = true;
         // wait for at least one process loop
         usleep(2e6 * client->buffer_size() / client->sampling_rate());
         exit(-1);
@@ -164,12 +163,12 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
         int close_count_thresh = options.close_crossing_rate * period_size / 1000 * close_crossing_periods;
 
         trigger.reset(new dsp::crossing_trigger<sample_t>(options.open_threshold,
-                                                         open_count_thresh,
-                                                         open_crossing_periods,
-                                                         options.close_threshold,
-                                                         close_count_thresh,
-                                                         close_crossing_periods,
-                                                         period_size));
+                                                          open_count_thresh,
+                                                          open_crossing_periods,
+                                                          options.close_threshold,
+                                                          close_count_thresh,
+                                                          close_crossing_periods,
+                                                          period_size));
 
         // Log parameters
         LOG << "period size: " << options.period_size_ms << " ms, " << period_size << " samples";
@@ -192,12 +191,12 @@ main(int argc, char **argv)
                 client.reset(new jack_client(options.client_name, options.server_name));
 
                 port_in = client->register_port("in", JACK_DEFAULT_AUDIO_TYPE,
-                                               JackPortIsInput, 0);
+                                                JackPortIsInput, 0);
                 port_trig = client->register_port("trig_out",JACK_DEFAULT_MIDI_TYPE,
-                                                JackPortIsOutput, 0);
+                                                  JackPortIsOutput, 0);
                 if (options.count("count-port")) {
                         port_count = client->register_port("count",JACK_DEFAULT_AUDIO_TYPE,
-                                                          JackPortIsOutput, 0);
+                                                           JackPortIsOutput, 0);
                 }
 
                 // register signal handlers

@@ -122,8 +122,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 xruns.fetch_add(-1);
         }
 
-	// a bunch of annoying unsigned arithmetic here, but it seems to work.
-	// time since last start and stop (relative to start of the period).
+        // a bunch of annoying unsigned arithmetic here, but it seems to work.
+        // time since last start and stop (relative to start of the period).
         // This difference is correct even if sample counter has overflowed
         // because time >= lastX
         const nframes_t dstart = time - last_start;
@@ -279,10 +279,9 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                auto client = std::make_unique<jack_client>(options.client_name,
-                                                            options.server_name);
+                auto client = jack_client(options.client_name, options.server_name);
 
-                nframes_t sampling_rate = client->sampling_rate();
+                nframes_t sampling_rate = client.sampling_rate();
                 if (options.count("trig") == 0) {
                         options.min_interval = options.min_interval_sec * sampling_rate;
                         options.min_gap = options.min_gap_sec * sampling_rate;
@@ -314,16 +313,16 @@ main(int argc, char **argv)
                         shuffle(_stimlist.begin(), _stimlist.end(), std::mt19937(std::random_device()()));
                 }
                 queue.reset(new util::readahead_stimqueue(_stimlist.begin(), _stimlist.end(),
-                                                          client->sampling_rate(),
+                                                          client.sampling_rate(),
                                                           options.count("loop")));
 
-                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput | JackPortIsTerminal, 0);
-                port_syncout = client->register_port("sync_out", JACK_DEFAULT_MIDI_TYPE,
+                port_syncout = client.register_port("sync_out", JACK_DEFAULT_MIDI_TYPE,
                                                      JackPortIsOutput | JackPortIsTerminal, 0);
                 if (options.count("trig")) {
                         LOG << "triggering playback from trig_in";
-                        port_trigin = client->register_port("trig_in", JACK_DEFAULT_MIDI_TYPE,
+                        port_trigin = client.register_port("trig_in", JACK_DEFAULT_MIDI_TYPE,
                                                             JackPortIsInput | JackPortIsTerminal,
                                                             0);
                 }
@@ -333,27 +332,27 @@ main(int argc, char **argv)
                 signal(SIGTERM, signal_handler);
                 signal(SIGHUP,  signal_handler);
 
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
-                last_stop = client->frame();
-                client->activate();
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_xrun_callback(jack_xrun);
+                client.set_process_callback(process);
+                last_stop = client.frame();
+                client.activate();
                 // set this after starting the client so it will only be called
                 // when the buffer size *changes*
-                client->set_buffer_size_callback(jack_bufsize);
+                client.set_buffer_size_callback(jack_bufsize);
 
-                client->connect_ports("out",
+                client.connect_ports("out",
                                       options.output_ports.begin(), options.output_ports.end());
-                client->connect_ports("sync_out",
+                client.connect_ports("sync_out",
                                       options.syncout_ports.begin(), options.syncout_ports.end());
-                client->connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
+                client.connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
                                       "trig_in");
 
                 // wait for stimuli to finish playing
                 queue->join();
                 // wait for posttrigger and midi buffers to clear
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
-                client->deactivate();
+                client.deactivate();
 
                 return EXIT_SUCCESS;
         }
