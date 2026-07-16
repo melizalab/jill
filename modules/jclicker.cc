@@ -69,6 +69,7 @@ std::ostream& operator << (std::ostream &os, const pulse_type &p) {
 static jclicker_options options(PROGRAM_NAME);
 jack_port_t *port_in, *port_out;
 std::vector<pulse_type> pulses;
+std::set<midi::data_type> event_types;
 static nframes_t max_lookahead = 0;
 // ringbuffer acts as a backing buffer so that pulses can span the end of the current period.
 std::unique_ptr<sample_ringbuffer> ringbuf;
@@ -101,7 +102,16 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
                 auto status = static_cast<midi::status_type>(event.buffer[0]);
-                DBG << status << " @ " << time + event.time << ": " << status.encode(buffer + 1, event.size - 1);
+                std::string stimulus = status.encode(reinterpret_cast<char const *>(event.buffer) + 1, event.size - 1);
+                DBG << status << " @ " << time + event.time << ": " << stimulus;
+                if (event_types.count(status.value()) == 0) {
+                        DBG << " - no pulses defined for this status";
+                        continue;
+                }
+                if (!randomizer->present(stimulus)) {
+                        DBG << " - skipped due to randomizer";
+                        continue;
+                }
                 for (const auto &pulse : pulses) {
                         if (pulse.status != event.buffer[0]) continue;
                         DBG << " - adding pulse at " << pulse.delay;
@@ -189,6 +199,7 @@ void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
 
                 LOG << "  " << pulse;
                 pulses.push_back(pulse);
+                event_types.insert(pulse.status);
                 max_lookahead = std::max(max_lookahead, pulse.delay + pulse.duration);
         }
 }
@@ -257,6 +268,14 @@ main(int argc, char **argv)
                 }
 
                 client.deactivate();
+                if (randomizer) {
+                        std::ostringstream os;
+                        std::cout << "Final event counts: ";
+                        for (auto const & it : randomizer->counts()) {
+                                std::cout << it.first << ": " << it.second.first << "/" << it.second.second << " ";
+                        }
+                        std::cout << std::endl;
+                }
                 return ret;
         }
 
@@ -287,7 +306,7 @@ jclicker_options::jclicker_options(string const &program_name)
         po::options_description opts("Module options");
         opts.add_options()
                 ("prob,p",
-                 po::value()->default_value(1.0),
+                 po::value<float>()->default_value(1.0),
                  "per-stimulus probability of emitting a pulse (0-1)");
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
@@ -311,7 +330,7 @@ jclicker_options::print_usage()
                   << " - condition: the midi event code (0x00: stim on, 0x01 acq on, 0x10 stim off, 0x11 acq off)\n"
                   << " - shape: {positive,negative,biphasic}\n"
                   << " - duration: total duration of the click, in ms\n"
-                  << " - delay: optional delay between event and pulse onset, in ms (default 0)\n\n"
+                  << " - delay: delay between event and pulse onset, in ms (optional; default 0)\n\n"
                   << "Ports:\n"
                   << " * in:        input event port\n"
                   << " * out:       output audio port\n"
