@@ -13,6 +13,7 @@
 #include "jill/midi.hh"
 #include "jill/program_options.hh"
 #include "jill/dsp/ringbuffer.hh"
+#include "jill/util/event_randomizer.hh"
 
 #define PROGRAM_NAME "jclicker"
 
@@ -31,8 +32,6 @@ public:
         /** The client name (used in internal JACK representations) */
         string client_name;
 
-        /** probability of emitting a pulse */
-        float pulse_prob;
         /** user-defined pulses (post-processed) */
         stringvec pulses;
 
@@ -75,6 +74,8 @@ static nframes_t max_lookahead = 0;
 std::unique_ptr<sample_ringbuffer> ringbuf;
 std::atomic<int> ret(EXIT_SUCCESS);
 std::atomic<bool> running(true);
+// used to track stimuli so that probability is on a per-stimulus basis
+std::unique_ptr<jill::util::event_randomizer> randomizer;
 
 static std::random_device rd;  // Will be used to obtain a seed for the random number engine
 static std::mt19937 p_gen(rd()); // Standard mersenne_twister_engine seeded with rd()
@@ -99,10 +100,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         for (nframes_t i = 0; i < nevents; ++i) {
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
-                float prob = p_dis(p_gen);
-                DBG << time + event.time << ": " << static_cast<midi::status_type>(event.buffer[0]);
-                DBG << " - skip if " << prob << ">" << options.pulse_prob;
-                if (prob > options.pulse_prob) continue;
+                auto status = static_cast<midi::status_type>(event.buffer[0]);
+                DBG << status << " @ " << time + event.time << ": " << status.encode(buffer + 1, event.size - 1);
                 for (const auto &pulse : pulses) {
                         if (pulse.status != event.buffer[0]) continue;
                         DBG << " - adding pulse at " << pulse.delay;
@@ -205,6 +204,12 @@ main(int argc, char **argv)
                 if (options.pulses.size() == 0)
                         throw std::invalid_argument("must define at least one pulse");
 
+                // configure the randomizer - use some nice defaults
+                randomizer = std::make_unique<jill::util::event_randomizer>(
+                        options.vmap["prob"].as<float>(),
+                        8.0,
+                        1024);
+
                 // start client
                 auto client = jack_client(options.client_name, options.server_name);
                 parse_pulses(options.pulses, client.sampling_rate());
@@ -282,8 +287,8 @@ jclicker_options::jclicker_options(string const &program_name)
         po::options_description opts("Module options");
         opts.add_options()
                 ("prob,p",
-                 po::value(&pulse_prob)->default_value(1.0),
-                 "probability of emitting a pulse (0-1)");
+                 po::value()->default_value(1.0),
+                 "per-stimulus probability of emitting a pulse (0-1)");
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 

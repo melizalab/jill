@@ -20,12 +20,12 @@ namespace jill { namespace net {
 class dummy_event_receiver : public data_writer {
 public:
         void write(data_block_t const * block, nframes_t, nframes_t) override {
-		if (block->sz_data == 0) return;
-		if (block->dtype == SAMPLED) return;
-		midi::event_view ev(*block);
-		std::string encoded = ev.message();
-		INFO << ev.status() << ": " << encoded;
-	}
+                if (block->sz_data == 0) return;
+                if (block->dtype == SAMPLED) return;
+                midi::event_view ev(*block);
+                std::string encoded = ev.message();
+                INFO << ev.status() << ": " << encoded;
+        }
 
 };
 
