@@ -12,6 +12,7 @@
 #define _EVENT_RANDOMIZER_HH
 
 #include <random>
+#include <map>
 
 namespace jill { namespace util {
 
@@ -45,23 +46,23 @@ public:
         /** get the current proportion of events per total presentations */
         float get_proportion(std::string const & name) const;
 
-	/** access the event count map */
-	const std::map<std::string, std::pair<int, int> > & counts() const {
-		return _counts;
-	}
+        /** access the event count map */
+        std::map<std::string, std::pair<int, int> > const & counts() const {
+                return _counts;
+        }
 
-	/** reset the counts for one stimulus */
-	void reset(std::string const & name);
-	
+        /** reset the counts for one stimulus */
+        void reset(std::string const & name);
+
         /** reset all the counts */
         void reset();
 
 private:
         float _desired_proportion;
-	float _control;
+        float _control;
         std::map<std::string, std::pair<int, int> > _counts;
-	std::mt19937 _rng;
-	std::uniform_real_distribution<float> _distribution;
+        std::mt19937 _rng;
+        std::uniform_real_distribution<float> _distribution;
 
 };
 

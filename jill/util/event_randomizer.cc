@@ -13,61 +13,62 @@
  * (at your option) any later version.
  *
  */
+#include <stdexcept>
+#include <map>
 #include "event_randomizer.hh"
 
 using namespace jill::util;
 
 event_randomizer::event_randomizer(float prob, float control, float rng_seed)
-	: _desired_proportion(prob), _control(control), _rng(rng_seed), _distribution(0.0, 1.0) {
-	if (prob > 1.0 || prob < 0.0) {
-		throw std::out_of_range("desired proportion must be between 0.0 and 1.0");
-	}
-	
+        : _desired_proportion(prob), _control(control), _rng(rng_seed), _distribution(0.0, 1.0) {
+        if (prob > 1.0 || prob < 0.0) {
+                throw std::out_of_range("desired proportion must be between 0.0 and 1.0");
+        }
+
 }
 
 bool
 event_randomizer::present(std::string const & name)
 {
-	std::pair<int, int> & events = get_events(name);
-	float observed_proportion = float(events.first) / float(events.second);
-	float err = observed_proportion - _desired_proportion;
-	float new_prob = std::clamp(_desired_proportion - _control * err, 0.0, 1.0);
-	float draw = _distribution(_rng);
-	events.second += 1;
-	if (draw > new_prob) {
-		events.first += 1;
-		return true;
+	float new_prob(_desired_proportion);
+        std::pair<int, int> & events = _counts[name];
+	if (events.second > 0) {
+		float observed_proportion = float(events.first) / float(events.second);
+		float err = observed_proportion - _desired_proportion;
+		new_prob = std::min(std::max(_desired_proportion - _control * err, 0.0f), 1.0f);
 	}
-	else {
-		return false;
-	}
+        float draw = _distribution(_rng);
+        events.second += 1;
+        if (draw < new_prob) {
+                events.first += 1;
+                return true;
+        }
+        else {
+                return false;
+        }
 }
 
 std::pair<int, int>
 event_randomizer::get_events(std::string const & name) const
 {
-	return _counts[name];
+        return _counts.at(name);
 }
 
 float
 event_randomizer::get_proportion(std::string const & name) const
 {
-	auto events = get_events(name);
-	return float(events.first) / float(events.second);
+        auto events = get_events(name);
+        return float(events.first) / float(events.second);
 }
 
 void
 event_randomizer::reset(std::string const & name)
 {
-	_counts.erase(name);
+        _counts.erase(name);
 }
 
 void
 event_randomizer::reset()
 {
-	_counts.clear();
+        _counts.clear();
 }
-
-
-
-			
