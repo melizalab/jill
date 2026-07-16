@@ -91,14 +91,14 @@ public:
          *
          * @param name  The name of the option
          */
-	template <typename T>
-	boost::optional<T> get(std::string const &name) const {
+        template <typename T>
+        boost::optional<T> get(std::string const &name) const {
                 return (vmap.count(name) == 0) ? boost::none : boost::optional<T>(vmap[name].as<T>());
-	}
+        }
 
         template <typename T>
         T get(std::string const &name, T const & default_value) const {
-		return get<T>(name).value_or(default_value);
+                return get<T>(name).value_or(default_value);
         }
 
         int count(std::string const & name) const {
