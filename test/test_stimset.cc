@@ -8,6 +8,7 @@
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <vector>
 #include <string>
+#include <random>
 
 #include "jill/util/readahead_stimqueue.hh"
 #include "jill/file/stimfile.hh"
@@ -78,8 +79,10 @@ test_stimqueue(util::stimqueue & q, int count)
 
 int main(int argc, char **argv)
 {
+	std::random_device rd;
+	std::mt19937 g(rd());	
         int count = load_stimset(argc, argv);
-        std::random_shuffle(_stimlist.begin(), _stimlist.end());
+        std::shuffle(_stimlist.begin(), _stimlist.end(), g);
         util::readahead_stimqueue queue(_stimlist.begin(), _stimlist.end(), 30000);
 
         test_stimqueue(queue, count);
