@@ -165,7 +165,6 @@ if __name__ == "__main__":
         help="name of the JACK port where the trigger signal should go (default %(default)s)",
     )
 
-    # TODO make this trigger delay
     p.add_argument(
         "--trig-delay",
         type=int,
@@ -317,13 +316,15 @@ if __name__ == "__main__":
             args.trig_out,
             "--prob",
             f"{args.trig_prob}",
-            f"0x00,negative,1,{args.trig_delay}",
-            f"0x00,positive,1,{args.trig_delay + args.trig_duration}"
+            f"0x01,negative,1,{args.trig_delay}",
+            f"0x01,positive,1,{args.trig_delay + args.trig_duration}"
         )
         jstim_args.extend(
             (
                 "-e",
                 "jclicker-trig:in",
+                "--trigger-before",
+                "0"
             )
         )
         log.debug(" ".join(jclicker_trig_args))
