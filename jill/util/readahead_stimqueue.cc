@@ -111,7 +111,7 @@ void
 readahead_stimqueue::release()
 {
         // potential race condition with loop?
-	_previous = _head;
+        _previous = _head;
         _head = nullptr;
         // signal loop to advance the iterator
         _ready.notify_one();
