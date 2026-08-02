@@ -18,6 +18,7 @@
 #include "jill/program_options.hh"
 #include "jill/logging.hh"
 #include "jill/midi.hh"
+#include "jill/util/daytime.hh"
 
 #define PROGRAM_NAME "jtime"
 
@@ -149,10 +150,7 @@ main(int argc, char **argv)
                                 usleep(2e6 * client.buffer_size() / client.sampling_rate());
                                 break;
                         }
-                        if (stop > start)
-                                is_day = ((start < time_of_day) && (time_of_day <= stop));
-                        else
-                                is_day = (!((stop < time_of_day) && (time_of_day <= start)));
+                        is_day = util::is_daytime(start, stop, time_of_day);
                         new_status = (is_day) ? midi::status_type::note_on : midi::status_type::note_off;
                         old_status = status.exchange(new_status);
                         if (old_status != new_status) {
