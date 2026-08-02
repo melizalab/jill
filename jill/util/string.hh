@@ -34,8 +34,10 @@ namespace jill { namespace util {
  *
  * string my_string = make_string() << 12 << " + " << ...;
  *
- * Conversion operators to std::string and const char* are provided,
- * allowing this class to be used in argument lists.
+ * A conversion operator to std::string is provided, allowing this class to be
+ * used in argument lists. There is deliberately no conversion to const char*:
+ * it could only return a pointer into the temporary produced by str(), which
+ * dangles as soon as the full expression ends.
  */
 class make_string
 {
@@ -53,10 +55,6 @@ public:
 
         operator std::string() {
                 return _stream.str();
-        }
-
-        operator const char*() {
-                return _stream.str().c_str();
         }
 
 private:

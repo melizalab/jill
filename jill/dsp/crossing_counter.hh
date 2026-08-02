@@ -34,8 +34,8 @@ public:
 
 	crossing_counter(const sample_type &threshold, size_type period_size, size_type period_count)
 		:  _counter(period_count), _thresh(threshold), _period_size(period_size),
-		   _period_crossings(0), _period_nsamples(0) {
-		_max_crossings = period_count * _period_size / 2;
+		   _period_count(period_count), _period_crossings(0), _period_nsamples(0) {
+		_max_crossings = _period_count * _period_size / 2;
 	}
 
 	/**
@@ -60,6 +60,9 @@ public:
 	 */
  	int push(const sample_type * samples, size_type size, count_type count_thresh, sample_type * state=0) {
 		int ret = -1, period = 0;
+		// a crossing needs two samples to compare; bail out before
+		// dereferencing rather than reading past the end
+		if (samples == nullptr || size < 2) return -1;
 		sample_type last = *samples;
 		if (state)
 			state[0] = float(_counter.running_count()) / _max_crossings;

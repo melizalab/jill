@@ -11,7 +11,8 @@
 #ifndef _COUNTER_HH
 #define _COUNTER_HH
 
-#include <iosfwd>
+#include <ostream>
+#include <iterator>
 #include <boost/noncopyable.hpp>
 #include <boost/circular_buffer.hpp>
 

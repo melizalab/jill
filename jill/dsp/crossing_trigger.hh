@@ -100,10 +100,10 @@ public:
 	bool open() const { return _open; }
 
         /** The threshold for going to an open state */
-	sample_type &open_thresh() { return _open_counter.thresh(); }
+	sample_type open_thresh() const { return _open_counter.thresh(); }
 
         /** The threshold for going to a closed state */
-	sample_type &close_thresh() { return _close_counter.thresh(); }
+	sample_type close_thresh() const { return _close_counter.thresh(); }
 
 private:
 
