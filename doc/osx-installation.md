@@ -2,6 +2,14 @@
 
 The installation instructions for OS X are similar to those for [Debian](debian-installation.md), but use MacPorts instead of the Debian package system.
 
+The build works with either MacPorts or [Homebrew](https://brew.sh) — it looks
+for both, and asks `brew --prefix` where Homebrew keeps things rather than
+assuming, since that differs between Apple Silicon and Intel machines. The
+commands below are given for MacPorts because that is what the lab uses; the
+Homebrew formula names are generally the same without the `py-` prefix. If
+Boost ends up somewhere neither is expected, point `BOOST_ROOT` at its
+installation prefix.
+
 ## MacPorts
 
 If you don't already have MacPorts, get it [here](http://www.macports.org).

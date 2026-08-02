@@ -90,14 +90,49 @@ env = Environment(
     tools=["default"],
 )
 
+def brew_prefix(package=None):
+    """Ask Homebrew where it installs things, or None if brew is not present.
+
+    The answer varies by machine -- /opt/homebrew on Apple Silicon,
+    /usr/local on Intel -- so it has to be queried rather than assumed.
+    """
+    command = ["brew", "--prefix"]
+    if package:
+        command.append(package)
+    try:
+        prefix = subprocess.check_output(
+            command, stderr=subprocess.DEVNULL, universal_newlines=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return prefix if prefix and os.path.isdir(prefix) else None
+
+
+def add_prefix(env, prefix):
+    """Add a package manager's include, library and pkg-config directories."""
+    env.Append(
+        CPPPATH=[os.path.join(prefix, "include")],
+        LIBPATH=[os.path.join(prefix, "lib")],
+    )
+    pkgconfig_dir = os.path.join(prefix, "lib", "pkgconfig")
+    if os.path.isdir(pkgconfig_dir):
+        existing = env["ENV"].get("PKG_CONFIG_PATH")
+        env["ENV"]["PKG_CONFIG_PATH"] = (
+            pkgconfig_dir if not existing else pkgconfig_dir + os.pathsep + existing
+        )
+
+
 if system == "Darwin":
     env.Replace(CXX="clang++")
-    env.Append(
-        CPPPATH=["/opt/local/include/"],
-        # CXXFLAGS=["-stdlib=libc++"],
-        # LINKFLAGS=["-stdlib=libc++"],
-        LIBPATH=["/opt/local/lib/"],
-    )
+    # env.Append(CXXFLAGS=["-stdlib=libc++"], LINKFLAGS=["-stdlib=libc++"])
+
+    # Support both package managers rather than assuming MacPorts: the GitHub
+    # Actions runners have Homebrew and no /opt/local at all.
+    if os.path.isdir("/opt/local"):
+        add_prefix(env, "/opt/local")
+    homebrew = brew_prefix()
+    if homebrew:
+        add_prefix(env, homebrew)
 
 
 def boost_version_key(path):
@@ -109,12 +144,13 @@ def boost_version_key(path):
 
 
 # Boost has no pkg-config metadata, so locate it by convention. BOOST_ROOT
-# overrides; otherwise MacPorts keeps versioned boost ports under libexec, and
-# we take the newest rather than pinning to one release.
+# overrides everything; otherwise MacPorts keeps versioned boost ports under
+# libexec, and we take the newest rather than pinning to one release. Homebrew
+# keeps its own prefix per formula.
 boost_root = os.environ.get("BOOST_ROOT")
 if boost_root is None and system == "Darwin":
     candidates = sorted(glob.glob("/opt/local/libexec/boost/*"), key=boost_version_key)
-    boost_root = candidates[-1] if candidates else None
+    boost_root = candidates[-1] if candidates else brew_prefix("boost")
 if boost_root:
     env.Append(
         CPPPATH=[os.path.join(boost_root, "include")],
@@ -148,7 +184,9 @@ else:
 def require_pkgconfig(env, *packages):
     """Add cflags/libs for each package, failing early with a clear message."""
     for pkg in packages:
-        if subprocess.call(["pkg-config", "--exists", pkg]) != 0:
+        # run the probe with the same environment ParseConfig will use, so a
+        # PKG_CONFIG_PATH added for Homebrew or MacPorts is honoured by both
+        if subprocess.call(["pkg-config", "--exists", pkg], env=env["ENV"]) != 0:
             print("error: required dependency '%s' was not found by pkg-config." % pkg)
             print("       Install its development package (see doc/debian-installation.md")
             print("       or doc/osx-installation.md), or set PKG_CONFIG_PATH.")
