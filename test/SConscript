@@ -11,16 +11,17 @@ menv.Append(
 # doctest-based suites, listed explicitly. Each source file is compiled into its own
 # binary so that suites run as separate processes and can't take the rest of the run
 # down.
-UNIT_SUITES = []
+UNIT_SUITES = [
+    "test_counter",
+    "test_randomizer",
+    "test_ringbuf",
+    "test_stimset",
+]
 
 # Standalone programs predating the harness. These are not really tests: they
 # print output for a human to read, and most return 0 whatever happens. Move
 # them into UNIT_SUITES one at a time as they are converted.
 LEGACY_PROGRAMS = [
-    "test_counter",
-    "test_randomizer",
-    "test_ringbuf",
-    "test_stimset",
     "test_xrun",  # needs a running JACK server
     "test_zmq_server",  # needs a bound socket
 ]
