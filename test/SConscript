@@ -16,6 +16,9 @@ UNIT_SUITES = [
     "test_randomizer",
     "test_ringbuf",
     "test_stimset",
+    "test_crossing",
+    "test_midi",
+    "test_util",
 ]
 
 # Standalone programs predating the harness. These are not really tests: they
