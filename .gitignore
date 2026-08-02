@@ -4,6 +4,7 @@ core*
 .sconsign.dblite
 .sconf_temp/
 config.log
+__pycache__/
 /attic
 /resources
 /test_wav
@@ -18,4 +19,3 @@ config.log
 !/test/test_*.cc
 !/test/test_*.py
 !/test/test_*.ini
-/util/jsine

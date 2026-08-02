@@ -63,15 +63,22 @@ else:
 
 Help(
     """
-Type: 'scons library' to build the library
-      'scons install' to install library and headers under %s
-      'scons examples' to compile examples
-      (use --prefix  to change library installation location)
+Type: 'scons modules' to build the JILL modules
+      'scons library' to build the library the modules link against
+      'scons test' to build the test programs
+      'scons install' to install the module binaries under %s
+
+      The library and headers are used only within this source tree,
+      so 'install' deploys the binaries and scripts and nothing else.
 
 Options:
-      debug=1      to enable debug compliation
+      debug=1      to enable debug compilation
+      debug=2      as debug=1, and emit DBG log messages at runtime
+      --no-arf     skip jrecord and the rest of the ARF/HDF5 code
+      --prefix     installation prefix (default /usr/local)
+      --bindir     binary installation directory (default PREFIX/bin)
 """
-    % install_prefix
+    % install_bindir
 )
 
 env = Environment(

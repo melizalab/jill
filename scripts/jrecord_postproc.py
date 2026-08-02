@@ -294,7 +294,7 @@ def main():
         # pass 1: calculate onset and offset delays
         print("entry\tstim\tsampling_rate\td.offset\td.onset")
         # TODO process entries in parallel
-        for entry in afp.itervalues():
+        for entry in afp.values():
             if not isinstance(entry, h5py.Group):
                 continue
             if "jill_error" in entry.attrs:

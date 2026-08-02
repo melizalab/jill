@@ -32,16 +32,8 @@ Also try running JACK 2 instead of JACK 1; it's more fault tolerant and handles 
 
 Install a system with a minimal number of applications, and disable any recurring operations.
 
-## Install a low-latency kernel
-
-On Linux, you can install a kernel that will allow itself to be pre-empted by realtime user processes, greatly reducing the probability of xruns. You shouldn't expect hard realtime performance, but you should be able to get latencies down in the 1-2 ms range. For Debian, Pengutronix maintains kernels that have been patched for low-latency: <http://www.pengutronix.com/software/linux-rt/debian_en.html>.
-
-For Red Hat based system, CCRMA at Stanford maintains a repository with patched kernels (<http://ccrma.stanford.edu/planetccrma/software/>). These are not being updated as frequently as the Pengutronix kernels.
-
-You can also try to recompile the kernel yourself with the realtime preemption patches enabled.
-
 ## Other settings
 
-This script will test various settings in your installation and make recommendations for improvement:
+This script will test various settings in your installation and make recommendations to improve realtime performance:
 
 <https://codeberg.org/rtcqs/rtcqs>
