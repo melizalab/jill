@@ -1,0 +1,65 @@
+# OS X installation
+
+The installation instructions for OS X are similar to those for [Debian](debian-installation.md), but use MacPorts instead of the Debian package system.
+
+## MacPorts
+
+If you don't already have MacPorts, get it [here](http://www.macports.org).
+
+## JACK and qjackctl
+
+You can install JACK with MacPorts:
+
+```shell
+sudo port install jack
+```
+
+But a simpler and more flexible solution is provided by [Jack OS X](http://www.jackosx.com), which to route audio to and from native OS X applications, and includes qjackctl.
+
+## YASS
+
+YASS is a simple scrolling oscilloscope. It's not necessary, but it's used in the tutorials to visualize signals in JACK.
+
+```shell
+git clone https://github.com/dmeliza/yass.git
+cd yass
+make
+sudo make install
+```
+
+At this point you're ready to go through the first tutorial.
+
+## JILL prerequisites
+
+Most of the prerequisites are available through MacPorts:
+
+```shell
+sudo port install scons boost libsamplerate libsndfile zmq
+```
+
+Note that this installs ZMQ 4.x. Older version of ZMQ are no longer compatible. If you plan to use `jrecord`, you will also need to install ARF and its hdf5 dependencies:
+
+```shell
+sudo port install hdf5 -cxx +threadsafe
+git clone https://github.com/melizalab/arf.git
+cd arf
+sudo make install
+```
+
+## JILL modules
+
+```shell
+git clone https://github.com/melizalab/jill.git
+cd jill
+scons -Q modules
+```
+
+To omit compiling `jrecord`, run `scons -Q --no-arf modules` instead. You can run the modules from their build directory. (e.g. `modules/jstim`). To
+install modules in a system location, use the following command:
+
+```shell
+scons -Q install
+```
+
+The default install location is /usr/local/bin, but this can be changed with the
+`prefix` argument.
