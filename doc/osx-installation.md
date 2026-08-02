@@ -63,3 +63,24 @@ scons -Q install
 
 The default install location is /usr/local/bin, but this can be changed with the
 `prefix` argument.
+
+## Running the tests
+
+The unit tests are written against [doctest](https://github.com/doctest/doctest),
+which is only needed to build and run the tests, not the modules themselves:
+
+```shell
+sudo port install doctest
+```
+
+Build the test programs and run one:
+
+```shell
+scons -Q test
+./test/test_ringbuf
+```
+
+Each suite is a separate binary under `test/`, and reports a non-zero exit
+status if any of its cases fail. Some of the older programs there are not yet
+converted and need external resources — a running JACK server, or a bound
+socket — so they cannot all be run unattended.
