@@ -2,14 +2,20 @@
 *.arf
 core*
 .sconsign.dblite
-/arf
+.sconf_temp/
+config.log
 /attic
 /resources
 /test_wav
-/modules/jchirp
-/modules/jdelay
-/modules/jdetect
-/modules/jrecord
-/modules/jstim
-/modules/jevent_click
-/modules/jstimserver
+
+# built binaries: ignore the link outputs but keep every source file. Listing
+# these by name meant new modules were missed as they were added.
+/modules/*
+!/modules/*.cc
+!/modules/*.c
+!/modules/SConscript
+/test/test_*
+!/test/test_*.cc
+!/test/test_*.py
+!/test/test_*.ini
+/util/jsine

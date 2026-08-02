@@ -37,19 +37,19 @@ Most of the prerequisites are available through MacPorts:
 sudo port install scons boost libsamplerate libsndfile zmq
 ```
 
-Note that this installs ZMQ 4.x. Older version of ZMQ are no longer compatible. If you plan to use `jrecord`, you will also need to install ARF and its hdf5 dependencies:
+Note that this installs ZMQ 4.x. Older version of ZMQ are no longer compatible. If you plan to use `jrecord`, you will also need the hdf5 dependencies:
 
 ```shell
 sudo port install hdf5 -cxx +threadsafe
-git clone https://github.com/melizalab/arf.git
-cd arf
-sudo make install
 ```
+
+The ARF headers themselves are tracked as a git submodule, pinned to a
+known-good release, so they are fetched along with the source below.
 
 ## JILL modules
 
 ```shell
-git clone https://github.com/melizalab/jill.git
+git clone --recursive https://github.com/melizalab/jill.git
 cd jill
 scons -Q modules
 ```

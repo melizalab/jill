@@ -35,12 +35,18 @@ sudo apt-get install scons libboost-system-dev libboost-date-time-dev libboost-p
  libboost-filesystem-dev libsndfile1-dev libsamplerate0-dev libzmq3-dev
 ```
 
-If you want to use `jrecord`, you need to install hdf5 and pull in the ARF repository:
+If you want to use `jrecord`, you need to install hdf5:
 
 ```shell
 sudo apt-get install hdf5-helpers hdf5-tools libhdf5-dev
+```
+
+The ARF headers are tracked as a git submodule, pinned to a known-good release.
+Fetch them by cloning with `--recursive`, or, in an existing checkout:
+
+```shell
 # run this command in the jill repository
-git clone https://github.com/melizalab/arf.git
+git submodule update --init
 ```
 
 ## Building JILL

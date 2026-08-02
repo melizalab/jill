@@ -1,22 +1,11 @@
-import os
-
 Import("env lib")
 
-# boost libraries may be named differently
-BOOST_LIBS = [
-    "boost_system",
-    "boost_date_time",
-    "boost_program_options",
-    "boost_filesystem",
-]
-if hasattr(os, "uname") and os.uname()[0] == "Darwin":
-    BOOST_LIBS = [x + "-mt" for x in BOOST_LIBS]
-
-# clone environment and add libraries for modules
+# jack, samplerate, sndfile and zmq come from pkg-config in the SConstruct;
+# the Boost library names were resolved there as well.
 menv = env.Clone()
 menv.Append(
     CPPPATH=["#"],
-    LIBS=["jack", "samplerate", "sndfile", "pthread", "zmq"] + BOOST_LIBS,
+    LIBS=["pthread"] + env["BOOST_LIBS"],
 )
 
 programs = {
