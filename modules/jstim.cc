@@ -63,7 +63,7 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-std::unique_ptr<util::readahead_stimqueue> queue;
+std::unique_ptr<util::readahead_stimqueue> stim_queue;
 boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_syncout, *port_trigin;
@@ -107,8 +107,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         memset(out, 0, nframes * sizeof(sample_t));
 
         // the currently playing stimulus (or nullptr)
-        jill::stimulus_t const * stim = queue->head();
-        jill::stimulus_t const * last_stim = queue->previous();
+        jill::stimulus_t const * stim = stim_queue->head();
+        jill::stimulus_t const * last_stim = stim_queue->previous();
 
         // handle xruns
         if (xruns) {
@@ -200,7 +200,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // did the stimulus end?
         if (stim_offset >= stim->nframes()) {
-                queue->release();
+                stim_queue->release();
                 last_stop = time + period_offset + nsamples;
                 midi::write_message(sync, period_offset + nsamples,
                                     midi::status_type::stim_off, stim->name());
@@ -231,14 +231,14 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         xruns.fetch_add(1);
-        if (queue) queue->stop();
+        if (stim_queue) stim_queue->stop();
 }
 
 void
 signal_handler(int sig)
 {
         xruns.fetch_add(1);
-        if (queue) queue->stop();
+        if (stim_queue) stim_queue->stop();
 }
 
 
@@ -312,7 +312,7 @@ main(int argc, char **argv)
                         LOG << "shuffled stimuli";
                         shuffle(_stimlist.begin(), _stimlist.end(), std::mt19937(std::random_device()()));
                 }
-                queue.reset(new util::readahead_stimqueue(_stimlist.begin(), _stimlist.end(),
+                stim_queue.reset(new util::readahead_stimqueue(_stimlist.begin(), _stimlist.end(),
                                                           client.sampling_rate(),
                                                           options.count("loop")));
 
@@ -349,7 +349,7 @@ main(int argc, char **argv)
                                       "trig_in");
 
                 // wait for stimuli to finish playing
-                queue->join();
+                stim_queue->join();
                 // wait for posttrigger and midi buffers to clear
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
                 client.deactivate();
