@@ -10,7 +10,7 @@
  *
  */
 #include <cstring>
-#include <cassert>
+#include <new>
 #include <vector>
 #include <memory>
 
@@ -71,8 +71,9 @@ zmq::msg_ptr_t
 zmq::msg_init()
 {
         zmq::msg_ptr_t message(new zmq_msg_t, msg_close);
-        int rc = zmq_msg_init (message.get());
-        assert(rc == 0);
+        // zmq_msg_init() is documented to always return zero, so there is no
+        // failure to check for here.
+        zmq_msg_init (message.get());
         return message;
 }
 
@@ -80,10 +81,13 @@ zmq::msg_init()
 zmq::msg_ptr_t
 zmq::msg_init(std::size_t size)
 {
-        zmq::msg_ptr_t message(new zmq_msg_t, msg_close);
-        int rc = zmq_msg_init_size (message.get(), size);
-        assert(rc == 0);
-        return message;
+        // zmq_msg_init_size() allocates and fails with ENOMEM if it cannot.
+        // Initialize before handing the message to the shared_ptr: msg_close()
+        // must never run against a message that was not initialized.
+        std::unique_ptr<zmq_msg_t> message(new zmq_msg_t);
+        if (zmq_msg_init_size (message.get(), size) != 0)
+                throw std::bad_alloc();
+        return zmq::msg_ptr_t(message.release(), msg_close);
 }
 
 

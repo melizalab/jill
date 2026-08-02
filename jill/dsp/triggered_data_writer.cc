@@ -127,9 +127,10 @@ triggered_data_writer::write(data_block_t const * data)
 
                 // sanity check if data is flushed. can't compare pointers
                 // directly because the same data may have multiple addresses in
-                // the buffer
-                data_block_t const * tail = _buffer->peek();
-                assert(tail->time == data->time && tail->id() == id);
+                // the buffer. peek() is const and side-effect free, so these
+                // checks disappear entirely when NDEBUG is defined.
+                assert(_buffer->peek()->time == data->time);
+                assert(_buffer->peek()->id() == id);
                 _writer->write(data, 0, 0);
                 _buffer->release();
                 if (__sync_bool_compare_and_swap(&_reset, true, false)) {
