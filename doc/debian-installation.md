@@ -69,17 +69,38 @@ The unit tests are written against [doctest](https://github.com/doctest/doctest)
 which is only needed to build and run the tests, not the modules themselves:
 
 ```shell
-sudo apt-get install doctest-dev
+sudo apt-get install doctest-dev python3-pytest
 ```
 
-Build the test programs and run one:
+Build the suites and run them all with a single command, from the top of the
+source tree:
 
 ```shell
 scons -Q test
-./test/test_ringbuf
+pytest
 ```
 
-Each suite is a separate binary under `test/`, and reports a non-zero exit
-status if any of its cases fail. Some of the older programs there are not yet
-converted and need external resources — a running JACK server, or a bound
-socket — so they cannot all be run unattended.
+Each suite is a separate binary under `test/`, run as its own process so that
+one crashing or hanging cannot take the rest of the run down. `pytest` reports
+a single pass or fail for the lot.
+
+Some of the older programs need external resources, and are tagged so they can
+be left out:
+
+```shell
+pytest -m "not needs_jack"   # skip anything needing a JACK server
+pytest -m "not needs_arf"    # skip the HDF5-dependent program
+```
+
+Tests needing a JACK server get one automatically: a `jackd -d dummy` is
+started for them and shut down afterwards, so no sound hardware is involved.
+`test_zmq_server` runs until interrupted and is skipped by default; start it by
+hand if you need it.
+
+You can also run a single binary directly, which is often quicker when working
+on one area:
+
+```shell
+./test/test_ringbuf
+./test/test_ringbuf --test-case="*mirrored*"
+```

@@ -5,6 +5,7 @@ core*
 .sconf_temp/
 config.log
 __pycache__/
+.pytest_cache/
 /attic
 /resources
 /test_wav
