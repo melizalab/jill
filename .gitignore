@@ -16,7 +16,9 @@ __pycache__/
 !/modules/*.cc
 !/modules/*.c
 !/modules/SConscript
-/test/test_*
-!/test/test_*.cc
-!/test/test_*.py
-!/test/test_*.ini
+/test/*
+!/test/*.cc
+!/test/*.py
+!/test/*.ini
+!/test/*.supp
+!/test/SConscript

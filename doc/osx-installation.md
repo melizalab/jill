@@ -75,10 +75,11 @@ The default install location is /usr/local/bin, but this can be changed with the
 ## Running the tests
 
 The unit tests are written against [doctest](https://github.com/doctest/doctest),
-which is only needed to build and run the tests, not the modules themselves:
+and the ARF file format is checked from python with h5py. Neither is needed
+to build the modules, only to build and run the tests:
 
 ```shell
-sudo port install doctest py-pytest
+sudo port install doctest py-pytest py-h5py
 ```
 
 Build the suites and run them all with a single command, from the top of the
@@ -98,7 +99,7 @@ be left out:
 
 ```shell
 pytest -m "not needs_jack"   # skip anything needing a JACK server
-pytest -m "not needs_arf"    # skip the HDF5-dependent program
+pytest -m "not needs_arf"    # skip the ARF/HDF5 format tests
 ```
 
 Tests needing a JACK server get one automatically: a `jackd -d dummy` is

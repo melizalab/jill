@@ -34,7 +34,11 @@ UNIT_SUITES = [
 # happens, so running them is a smoke test rather than a real check, but a
 # crash or a hang would still be caught.
 JACK_PROGRAMS = ["test_xrun"]
-ARF_PROGRAMS = ["test_arf_writer"]
+
+# Not a test: it writes an ARF file with known contents, which
+# test_arf_format.py then inspects with h5py. Declared here so the consistency
+# check below accounts for it.
+FIXTURE_PROGRAMS = ["write_arf_fixture"]
 
 # test_zmq_server binds a socket and then blocks in `while (!s_interrupted)`
 # until it is signalled. It is a diagnostic log receiver, not a test, and can
@@ -72,24 +76,6 @@ def test_jack_program(program, jack_server):
     )
 
 
-@pytest.mark.needs_arf
-@pytest.mark.parametrize("program", ARF_PROGRAMS)
-def test_arf_program(program, tmp_path):
-    """A legacy program that writes an ARF file.
-
-    Run in a temporary directory: it writes test.arf into the working
-    directory, and would otherwise litter the source tree.
-    """
-    if not (TEST_DIR / program).exists():
-        pytest.skip("%s was not built (scons --no-arf?)" % program)
-    result = run_binary(program, timeout=60, cwd=tmp_path)
-    assert result.returncode == 0, (
-        "%s exited %d\n\n--- output ---\n%s%s"
-        % (program, result.returncode, result.stdout, result.stderr)
-    )
-    assert (tmp_path / "test.arf").exists(), "no output file was written"
-
-
 @pytest.mark.manual
 @pytest.mark.parametrize("program", MANUAL_PROGRAMS)
 def test_manual_program(program):
@@ -106,7 +92,7 @@ def test_declared_suites_match_what_was_built():
     adding a suite to the SConscript and forgetting it here would leave it
     silently unrun.
     """
-    declared = set(UNIT_SUITES + JACK_PROGRAMS + ARF_PROGRAMS + MANUAL_PROGRAMS)
+    declared = set(UNIT_SUITES + JACK_PROGRAMS + FIXTURE_PROGRAMS + MANUAL_PROGRAMS)
     built = {
         entry.name
         for entry in TEST_DIR.iterdir()

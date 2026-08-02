@@ -41,7 +41,7 @@ jobs:
             libboost-filesystem-dev \
             libsndfile1-dev libsamplerate0-dev libzmq3-dev \
             libhdf5-dev hdf5-tools \
-            doctest-dev python3-pytest
+            doctest-dev python3-pytest python3-h5py python3-numpy
 
       - name: Build modules and test suites
         run: scons -Q modules test
@@ -79,7 +79,7 @@ jobs:
           brew update
           brew install scons pkgconf jack boost libsndfile libsamplerate \
             zeromq hdf5 doctest
-          python3 -m pip install --break-system-packages pytest
+          python3 -m pip install --break-system-packages pytest h5py numpy
 
       - name: Build modules and test suites
         run: scons -Q modules test

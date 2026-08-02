@@ -29,8 +29,9 @@ LEGACY_PROGRAMS = [
     "test_zmq_server",  # needs a bound socket
 ]
 
-# as above, but also needs hdf5, so only built when ARF support is enabled
-LEGACY_ARF_PROGRAMS = ["test_arf_writer"]
+# needs hdf5, so only built when ARF support is enabled
+# writes a fixture file for test_arf_format.py to inspect with h5py
+ARF_PROGRAMS = ["write_arf_fixture"]
 
 if UNIT_SUITES:
     conf = Configure(menv)
@@ -48,6 +49,6 @@ if GetOption("compile_arf"):
     # hdf5 to every target above, since the builders hold a reference to it
     aenv = menv.Clone()
     aenv.Append(LIBS=["hdf5", "hdf5_hl"])
-    out += [aenv.Program(name, ["%s.cc" % name, lib]) for name in LEGACY_ARF_PROGRAMS]
+    out += [aenv.Program(name, ["%s.cc" % name, lib]) for name in ARF_PROGRAMS]
 
 env.Alias("test", out)
