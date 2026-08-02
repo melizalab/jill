@@ -66,9 +66,16 @@ private:
         bool const _loop;
         bool _running;
 
-        std::thread _thread;
+        /* Declaration order matters here. Members are initialized in the order
+         * they are declared, whatever the constructor's initializer list says,
+         * and the constructor starts _thread running loop(), which locks _lock
+         * immediately. _thread must therefore be declared last, so that _lock
+         * and _ready are fully constructed before the thread can touch them.
+         * It also means _thread is destroyed first, before the mutex and
+         * condition variable it waits on. */
         std::mutex _lock;
         std::condition_variable  _ready;
+        std::thread _thread;
 };
 
 }} // namespace jill::util
