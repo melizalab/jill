@@ -47,20 +47,17 @@ def run_binary(name, timeout=60, cwd=None, args=()):
     )
 
 
-def jack_is_available():
-    return shutil.which("jackd") is not None
-
-
 @pytest.fixture(scope="session")
 def jack_server():
     """A JACK server on the dummy backend, for suites that need one.
 
     The dummy driver needs no sound hardware, which is what makes these
-    runnable in CI. Skips rather than fails when jackd is absent, since not
-    every machine that can build JILL can run it.
+    runnable in CI. A missing or unstartable jackd is a failure, not a skip:
+    JACK is a hard dependency of JILL, so anyone running the suites has it.
+    Platforms where a server is not wanted deselect these with -m instead.
     """
-    if not jack_is_available():
-        pytest.skip("jackd is not installed")
+    if shutil.which("jackd") is None:
+        pytest.fail("jackd is not installed")
 
     proc = subprocess.Popen(
         ["jackd", "-r", "-d", "dummy", "-r", "44100", "-p", "1024"],
@@ -87,7 +84,7 @@ def jack_server():
         except subprocess.TimeoutExpired:
             proc.kill()
             output = ""
-        pytest.skip("could not start jackd -d dummy:\n%s" % output)
+        pytest.fail("could not start jackd -d dummy:\n%s" % output)
 
     yield proc
 

@@ -1,0 +1,98 @@
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# a new push to a branch makes any in-flight run for it redundant
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: linux (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-latest]
+
+    steps:
+      - name: Check out, including the ARF submodule
+        uses: actions/checkout@v4
+        with:
+          # arf/c++ is a submodule and jrecord will not build without it
+          submodules: recursive
+
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          # jackd2 asks about realtime priority on install, so keep it quiet
+          echo 'jackd2 jackd/tweak_rt_limits boolean true' | sudo debconf-set-selections
+          sudo apt-get install -y --no-install-recommends \
+            scons pkg-config \
+            jackd2 libjack-jackd2-dev \
+            libboost-date-time-dev libboost-program-options-dev \
+            libboost-filesystem-dev \
+            libsndfile1-dev libsamplerate0-dev libzmq3-dev \
+            libhdf5-dev hdf5-tools \
+            doctest-dev python3-pytest
+
+      - name: Build modules and test suites
+        run: scons -Q modules test
+
+      # the full suite, including the JACK-dependent tests: these run on linux
+      # only, and a runner that cannot start jackd is a failure here
+      - name: Run the test suites
+        run: pytest -v --junitxml=results-${{ matrix.os }}.xml
+
+      - name: Check the build without ARF support
+        run: |
+          scons -c -Q
+          scons -Q --no-arf modules
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.os }}
+          path: results-${{ matrix.os }}.xml
+          if-no-files-found: warn
+
+  macos:
+    name: macos
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out, including the ARF submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install scons pkgconf jack boost libsndfile libsamplerate \
+            zeromq hdf5 doctest
+          python3 -m pip install --break-system-packages pytest
+
+      - name: Build modules and test suites
+        run: scons -Q modules test
+
+      # JACK on macOS is far less predictable than on Linux, so the
+      # JACK-dependent tests are left to the linux runners
+      - name: Run the test suites that need no JACK server
+        run: pytest -v -m "not needs_jack" --junitxml=results-macos.xml
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-macos
+          path: results-macos.xml
+          if-no-files-found: warn
