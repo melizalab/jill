@@ -44,8 +44,11 @@ AddOption(
     default=True,
     help="skip compilation of ARF/HDF5-dependent code",
 )
-# debug flags for compliation
+# debug flags for compilation
 debug = ARGUMENTS.get("debug", 0)
+# runtime sanitizers, e.g. sanitize=address or sanitize=thread. Passed straight
+# through to -fsanitize, so the compiler's own combinations work too.
+sanitize = ARGUMENTS.get("sanitize", None)
 
 if not GetOption("prefix") == None:
     install_prefix = GetOption("prefix")
@@ -74,6 +77,9 @@ Type: 'scons modules' to build the JILL modules
 Options:
       debug=1      to enable debug compilation
       debug=2      as debug=1, and emit DBG log messages at runtime
+      sanitize=X   build with -fsanitize=X, e.g. address or thread.
+                   Combine with debug=1, or the assertions are compiled
+                   out of the very code being checked.
       --no-arf     skip jrecord and the rest of the ARF/HDF5 code
       --prefix     installation prefix (default /usr/local)
       --bindir     binary installation directory (default PREFIX/bin)
@@ -179,6 +185,15 @@ if int(debug):
     env.Append(CCFLAGS=["-g2", "-DDEBUG=%s" % debug])
 else:
     env.Append(CCFLAGS=["-O2", "-DNDEBUG"])
+
+if sanitize:
+    # -fno-omit-frame-pointer keeps the reports readable, and the flag has to
+    # reach the linker as well as the compiler. Worth combining with debug=1:
+    # a sanitizer build with NDEBUG set has all its assertions compiled out.
+    env.Append(
+        CCFLAGS=["-fsanitize=%s" % sanitize, "-fno-omit-frame-pointer", "-g"],
+        LINKFLAGS=["-fsanitize=%s" % sanitize],
+    )
 
 
 def require_pkgconfig(env, *packages):

@@ -1,0 +1,10 @@
+# LeakSanitizer suppressions for third-party allocations that are not leaks we
+# can do anything about. Used automatically by the pytest driver; harmless in
+# builds without a sanitizer.
+#
+# HDF5 registers process-global property lists the first time the library is
+# opened and never frees them. One-time initialisation, reported once per run
+# as a direct leak from H5open.
+leak:libhdf5
+leak:H5_init_library
+leak:H5P__register_real

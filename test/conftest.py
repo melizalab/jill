@@ -6,6 +6,7 @@ The compiled suites are run as subprocesses rather than linked into pytest, so
 that a suite which crashes or hangs takes only itself down.
 """
 
+import os
 import shutil
 import socket
 import subprocess
@@ -22,9 +23,38 @@ collect_ignore = ["test_jstimserver_client.py"]
 TEST_DIR = Path(__file__).parent
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--soak",
+        type=int,
+        default=1,
+        metavar="N",
+        help="run each compiled suite N times. Races and leaks rarely show up "
+        "on a single pass, so this is how the suites are used under "
+        "-fsanitize=thread or =address.",
+    )
+
+
 def binary(name):
     """Path to a compiled test binary."""
     return TEST_DIR / name
+
+
+def sanitizer_env():
+    """Environment with the LeakSanitizer suppressions applied.
+
+    Third-party libraries -- HDF5 in particular -- allocate process-global
+    state on first use and never free it, which LeakSanitizer reports on every
+    run. Without suppressing those the real findings are lost in the noise.
+    Setting these is harmless in a build without sanitizers.
+    """
+    env = dict(os.environ)
+    suppressions = TEST_DIR / "lsan.supp"
+    if suppressions.exists():
+        option = "suppressions=%s" % suppressions
+        existing = env.get("LSAN_OPTIONS")
+        env["LSAN_OPTIONS"] = option if not existing else existing + ":" + option
+    return env
 
 
 def run_binary(name, timeout=60, cwd=None, args=()):
@@ -44,6 +74,7 @@ def run_binary(name, timeout=60, cwd=None, args=()):
         capture_output=True,
         text=True,
         timeout=timeout,
+        env=sanitizer_env(),
     )
 
 

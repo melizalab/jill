@@ -43,14 +43,22 @@ MANUAL_PROGRAMS = ["test_zmq_server"]
 
 
 @pytest.mark.parametrize("suite", UNIT_SUITES)
-def test_unit_suite(suite):
-    """A doctest suite passes when it exits zero."""
-    result = run_binary(suite, timeout=120)
-    if result.returncode != 0:
-        pytest.fail(
-            "%s exited %d\n\n--- stdout ---\n%s\n--- stderr ---\n%s"
-            % (suite, result.returncode, result.stdout, result.stderr)
-        )
+def test_unit_suite(suite, request):
+    """A doctest suite passes when it exits zero.
+
+    With --soak=N the suite is run N times. A sanitizer or a race usually
+    needs more than one pass to show itself, and the iteration is reported so
+    an intermittent failure can be told from a consistent one.
+    """
+    runs = request.config.getoption("--soak")
+    for i in range(runs):
+        result = run_binary(suite, timeout=120)
+        if result.returncode != 0:
+            pytest.fail(
+                "%s exited %d on run %d of %d\n\n"
+                "--- stdout ---\n%s\n--- stderr ---\n%s"
+                % (suite, result.returncode, i + 1, runs, result.stdout, result.stderr)
+            )
 
 
 @pytest.mark.needs_jack

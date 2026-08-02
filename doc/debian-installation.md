@@ -104,3 +104,29 @@ on one area:
 ./test/test_ringbuf
 ./test/test_ringbuf --test-case="*mirrored*"
 ```
+
+### Sanitizer and soak runs
+
+Races and leaks rarely appear on a single pass of a clean build, so the suites
+can be built against the runtime sanitizers and run repeatedly:
+
+```shell
+scons -Q -c
+scons -Q debug=1 sanitize=address test    # or sanitize=thread
+pytest --soak=50
+```
+
+Combine `sanitize=` with `debug=1`: a sanitizer build with `NDEBUG` set has all
+its assertions compiled out of exactly the code being checked. `--soak=N` runs
+each suite N times and reports which iteration failed, so an intermittent
+problem can be told from a consistent one.
+
+LeakSanitizer suppressions live in `test/lsan.supp` and are applied
+automatically by the driver. HDF5 registers process-global state on first use
+and never frees it, which would otherwise be reported on every single run.
+
+Note that `sanitize=thread` currently reports a genuine data race in
+`readahead_stimqueue`, where `head()` and `release()` touch `_head` without
+holding the lock that the background thread holds when writing it. This is a
+known finding awaiting a decision about the queue's realtime guarantees, not a
+problem with your build.
