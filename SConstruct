@@ -125,8 +125,15 @@ if "LDFLAGS" in os.environ:
 
 print(env.subst("using $CXX $CXXVERSION"))
 
+# Warnings are on in every configuration, not just debug builds, so problems
+# surface during ordinary development. -Wunused-parameter is switched back off
+# because the JACK callback signatures oblige every callback to accept
+# arguments that most of them ignore: it accounts for ~94 of the ~106 warnings
+# this codebase produces, and leaving it on buries the ones that matter.
+env.Append(CCFLAGS=["-Wall", "-Wextra", "-Wno-unused-parameter"])
+
 if int(debug):
-    env.Append(CCFLAGS=["-g2", "-Wall", "-DDEBUG=%s" % debug])
+    env.Append(CCFLAGS=["-g2", "-DDEBUG=%s" % debug])
 else:
     env.Append(CCFLAGS=["-O2", "-DNDEBUG"])
 
