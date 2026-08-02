@@ -1,5 +1,3 @@
-import os
-
 Import("env lib")
 
 # jack, samplerate, sndfile and zmq come from pkg-config in the SConstruct;
@@ -10,17 +8,42 @@ menv.Append(
     LIBS=["pthread"] + env["BOOST_LIBS"],
 )
 
+# doctest-based suites, listed explicitly. Each source file is compiled into its own
+# binary so that suites run as separate processes and can't take the rest of the run
+# down.
+UNIT_SUITES = []
 
-out = [
-    menv.Program(os.path.splitext(str(f))[0], [f, lib])
-    for f in env.Glob("*.cc")
-    if "arf" not in f.path
+# Standalone programs predating the harness. These are not really tests: they
+# print output for a human to read, and most return 0 whatever happens. Move
+# them into UNIT_SUITES one at a time as they are converted.
+LEGACY_PROGRAMS = [
+    "test_counter",
+    "test_randomizer",
+    "test_ringbuf",
+    "test_stimset",
+    "test_xrun",  # needs a running JACK server
+    "test_zmq_server",  # needs a bound socket
 ]
-out += [menv.Program(os.path.splitext(str(f))[0], [f]) for f in env.Glob("*.c")]
+
+# as above, but also needs hdf5, so only built when ARF support is enabled
+LEGACY_ARF_PROGRAMS = ["test_arf_writer"]
+
+if UNIT_SUITES:
+    conf = Configure(menv)
+    if not conf.CheckCXXHeader("doctest/doctest.h"):
+        print("error: the doctest headers were not found, and are needed to")
+        print("       build the unit test suites. Install the 'doctest-dev'")
+        print("       package on Debian, or 'doctest' from Homebrew.")
+        Exit(1)
+    menv = conf.Finish()
+
+out = [menv.Program(name, ["%s.cc" % name, lib]) for name in UNIT_SUITES + LEGACY_PROGRAMS]
 
 if GetOption("compile_arf"):
-    menv.Append(LIBS=["hdf5", "hdf5_hl"])
-    out.append(menv.Program("test_arf_writer", ["test_arf_writer.cc", lib]))
-
+    # a separate environment: appending to menv here would retroactively add
+    # hdf5 to every target above, since the builders hold a reference to it
+    aenv = menv.Clone()
+    aenv.Append(LIBS=["hdf5", "hdf5_hl"])
+    out += [aenv.Program(name, ["%s.cc" % name, lib]) for name in LEGACY_ARF_PROGRAMS]
 
 env.Alias("test", out)
