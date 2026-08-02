@@ -269,12 +269,10 @@ main(int argc, char **argv)
 
                 client.deactivate();
                 if (randomizer) {
-                        std::ostringstream os;
-                        std::cout << "Final event counts: ";
+			std::cout << "Final event counts: " << std::endl;
                         for (auto const & it : randomizer->counts()) {
-                                std::cout << it.first << ": " << it.second.first << "/" << it.second.second << " ";
+				std::cout << " - " << it.first << ": " << it.second.first << "/" << it.second.second << std::endl;
                         }
-                        std::cout << std::endl;
                 }
                 return ret;
         }
