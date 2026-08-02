@@ -25,6 +25,14 @@ if GetOption("compile_arf"):
     menv.Append(LIBS=["hdf5", "hdf5_hl"])
     programs["jrecord"] = "jrecord.cc"
 
+# Compiled but not installed. jill_module_skel is the template to copy when
+# writing a new module, so it needs to compile, but nobody runs it. Left out of
+# the build it rotted unnoticed: it referenced a program_options member that
+# does not exist, and would have failed on the first build for anyone starting
+# from it.
+check_only = {
+    "jill_module_skel": "jill_module_skel.cc",
+}
 
 out = []
 
@@ -33,5 +41,10 @@ for progname, src in programs.items():
     menv.Alias(progname, prog)
     out.append(prog)
     env.Alias("install", env.Install(env["BINDIR"], prog))
+
+for progname, src in check_only.items():
+    prog = menv.Program(progname, [src, lib])
+    menv.Alias(progname, prog)
+    out.append(prog)
 
 env.Alias("modules", out)
