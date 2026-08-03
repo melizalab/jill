@@ -31,6 +31,7 @@ UNIT_SUITES = [
     "test_playback",
     "test_pulse",
     "test_ringbuf_concurrent",
+    "test_data_writer",
 ]
 
 # Older programs that predate the harness. They mostly return 0 whatever

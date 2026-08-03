@@ -150,7 +150,8 @@ jack_shutdown(jack_status_t code, char const *)
 }
 
 /**
- * Callback for samplerate changes. This function is only called once.
+ * Callback for samplerate changes. This function is called once when the client
+ * is activated, or whenever the JACK daemon changes its sampling rate (rare).
  */
 int
 samplerate_callback(jack_client *client, nframes_t samplerate)
@@ -207,7 +208,10 @@ main(int argc, char **argv)
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_sample_rate_callback(samplerate_callback);
                 client->set_process_callback(process);
-                client->activate();
+                /* trigger is at file scope and declared after client, so static
+                 * destruction frees it first. Scoping the activation here means
+                 * the callbacks have stopped well before that. */
+                activated_client active(*client);
 
                 client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
                 client->connect_ports("trig_out", options.output_ports.begin(), options.output_ports.end());

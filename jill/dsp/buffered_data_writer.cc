@@ -91,8 +91,17 @@ void
 buffered_data_writer::stop()
 {
         // release condition variable to prevent deadlock
-        if (__sync_bool_compare_and_swap(&_state, Running, Stopping))
+        if (__sync_bool_compare_and_swap(&_state, Running, Stopping)) {
                 data_ready();
+        }
+        else {
+                /* A stop arriving before the thread has been launched has to
+                 * be honoured too, or it is lost and the thread that start()
+                 * goes on to create runs forever. A signal delivered during
+                 * startup is the way this happens in practice. start() checks
+                 * for Stopping and declines to run. */
+                __sync_bool_compare_and_swap(&_state, Stopped, Stopping);
+        }
 }
 
 
@@ -107,12 +116,24 @@ buffered_data_writer::reset()
 void
 buffered_data_writer::start()
 {
-        if (_state == Stopped) {
-                _thread = std::thread(&buffered_data_writer::thread, this);
+        if (_state == Stopping) {
+                // stop() was called before we got here; there is nothing to run
+                return;
         }
-        else {
+        if (_state != Stopped) {
                 throw std::runtime_error("Tried to start already running writer thread");
         }
+        /* Move to Running before launching, not from inside the thread. The
+         * thread used to set it, which left a window between here and there
+         * where the state was still Stopped: a stop() arriving in that window
+         * would try to move Running->Stopping, fail, and be silently lost,
+         * after which the thread ran forever and join() hung. A signal landing
+         * during startup is the realistic way in. Setting it here means stop()
+         * always has something to act on, and a stop that arrives before the
+         * thread runs is seen by its first predicate check. */
+        _state = Running;
+        _xrun = _reset = false;
+        _thread = std::thread(&buffered_data_writer::thread, this);
 }
 
 void
@@ -139,8 +160,8 @@ buffered_data_writer::thread()
         data_block_t const * hdr;
 
         std::unique_lock<std::mutex> lck(_lock);
-        _state = Running;
-        _xrun = _reset = false;
+        // _state and the flags are set by start() before this thread is
+        // launched, so that a stop() racing with startup cannot be lost
         DBG << "started writer thread";
 
         while (true) {

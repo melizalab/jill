@@ -96,15 +96,7 @@ ERROR_PATHS = [
     pytest.param("jdetect", ["-i", "no_such_port"], id="jdetect"),
     pytest.param("jrelay", ["-i", "no_such_port"], id="jrelay"),
     pytest.param("jclicker", ["-i", "no_such_port"], id="jclicker"),
-    pytest.param(
-        "jstim", ["-l", "-o", "no_such_port", "{tone}"], id="jstim",
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="aborts on the error path: connect_ports throws, "
-                   "stim_queue->join() is skipped, and the global's default "
-                   "destructor runs ~std::thread on a joinable thread. "
-                   "task 4 step 2"),
-    ),
+    pytest.param("jstim", ["-l", "-o", "no_such_port", "{tone}"], id="jstim"),
 ]
 
 

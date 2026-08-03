@@ -32,10 +32,20 @@ readahead_stimqueue::stop()
         _ready.notify_one();
 }
 
+readahead_stimqueue::~readahead_stimqueue()
+{
+        // a joinable thread reaching ~std::thread calls std::terminate
+        stop();
+        join();
+}
+
 void
 readahead_stimqueue::join()
 {
-        _thread.join();
+        // guarded so that an explicit join followed by the destructor, which
+        // is the normal sequence, does not throw
+        if (_thread.joinable())
+                _thread.join();
 }
 
 

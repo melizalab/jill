@@ -20,6 +20,7 @@
 #include "jill/file/arf_writer.hh"
 #include "jill/dsp/buffered_data_writer.hh"
 #include "jill/dsp/triggered_data_writer.hh"
+#include "jill/util/scope_guard.hh"
 
 #define PROGRAM_NAME "jrecord"
 
@@ -167,29 +168,20 @@ main(int argc, char **argv)
                                                            options.additional_options,
                                                            options.compression);
 
-                /* arf_thread has to live at file scope so the JACK callbacks
-                 * can reach it, but that makes its lifetime outlast this
-                 * scope, and two things here depend on it not doing so. The
-                 * writer holds a reference to client and calls into it while
-                 * draining -- new_entry() and get_dataset() both do -- so it
-                 * must be destroyed while client is still alive. And leaving
-                 * it to static destruction means it runs after the HDF5
-                 * library has finalized itself, which is undefined and has
-                 * been seen to crash.
+                /* The activation object below stops the callbacks, but that
+                 * is not enough here. arf_thread is at file scope and so
+                 * outlives this one, while the writer it owns holds a
+                 * reference to client and calls into it while draining --
+                 * new_entry() and get_dataset() both do. It therefore has to be
+                 * released before client goes out of scope, on the error paths
+                 * as well as the normal one. Leaving it to static destruction
+                 * would also run it after HDF5 has finalized itself.
                  *
-                 * Tearing down explicitly at the end of the try block covers
-                 * the normal path but not the exception ones. This guard is
-                 * declared after client, so it is destroyed first, on every
-                 * path out of this scope. deactivate() comes first to stop
-                 * process() touching the writer, and does not throw, so it is
-                 * safe from a destructor. */
-                struct teardown {
-                        jack_client & client;
-                        ~teardown() {
-                                client.deactivate();
-                                arf_thread.reset();
-                        }
-                } teardown_guard{client};
+                 * This is the one module where scoping the activation is not
+                 * sufficient; the rest is a consequence of the writer holding a
+                 * reference to a local, and would go away if arf_thread's
+                 * ownership moved into main. */
+                util::scope_guard release_writer{[&]{ arf_thread.reset(); }};
 
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {
@@ -265,7 +257,7 @@ main(int argc, char **argv)
                 client.set_buffer_size_callback(jack_bufsize);
 
                 // start disk thread and activate process callback
-                client.activate();
+                activated_client active(client);
                 arf_thread->start();
 
                 /* connect ports */
@@ -282,10 +274,6 @@ main(int argc, char **argv)
                 // writer to stop
                 arf_thread->join();
 
-                // manually deactivating the client here, rather than leaving it
-                // to the guard below, ensures shutdown events get logged while
-                // the writer is still running
-                client.deactivate();
         }
         catch (Exit const &e) {
                 ret = e.status();

@@ -64,9 +64,14 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-std::unique_ptr<util::readahead_stimqueue> stim_queue;
 boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
+/* Declared after the stimuli it reads, and so destroyed before them. The
+ * queue's worker thread dereferences the objects _stimuli owns, and
+ * ~readahead_stimqueue stops and joins that thread, which has to happen while
+ * they are still alive. Static destruction runs in reverse declaration order,
+ * so this ordering is the whole guarantee -- do not move it above _stimuli. */
+std::unique_ptr<util::readahead_stimqueue> stim_queue;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
 std::atomic<nframes_t> last_stop(0);        // time when last stimulus ended
@@ -311,6 +316,7 @@ main(int argc, char **argv)
                                                           client.sampling_rate(),
                                                           options.count("loop")));
 
+
                 port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput | JackPortIsTerminal, 0);
                 port_syncout = client.register_port("sync_out", JACK_DEFAULT_MIDI_TYPE,
@@ -331,7 +337,7 @@ main(int argc, char **argv)
                 client.set_xrun_callback(jack_xrun);
                 client.set_process_callback(process);
                 last_stop = client.frame();
-                client.activate();
+                activated_client active(client);
                 // set this after starting the client so it will only be called
                 // when the buffer size *changes*
                 client.set_buffer_size_callback(jack_bufsize);
@@ -347,7 +353,6 @@ main(int argc, char **argv)
                 stim_queue->join();
                 // wait for posttrigger and midi buffers to clear
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
-                client.deactivate();
 
                 return EXIT_SUCCESS;
         }

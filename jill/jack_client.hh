@@ -249,6 +249,56 @@ private:
 };
 
 
+/**
+ * @ingroup clientgroup
+ * @brief Keeps a client activated for the lifetime of this object
+ *
+ * A client goes on calling its process callback until it is deactivated, and
+ * those callbacks reach objects the module owns. Those objects therefore have
+ * to outlive the activation, not merely the client.
+ *
+ * Leaving that to ordinary destruction does not work, because the ordering is
+ * inverted: the client has to be constructed first, since everything else is
+ * built from its sampling rate and its ports, which means it is destroyed
+ * last -- after the very objects its callbacks are still reading. Nor does
+ * tearing down at the end of a try block, since an exception skips it.
+ *
+ * Declaring one of these at the point the client is activated resolves both.
+ * It is the last thing constructed, so it is the first thing destroyed, on
+ * every path out of the scope, and deactivation therefore happens before
+ * anything the callbacks touch goes away:
+ *
+ *     jack_client client(name);                 // destroyed last
+ *     auto thing = build_from(client);
+ *     client.set_process_callback(...);
+ *     activated_client active(client);         // destroyed first
+ *
+ * What is scoped here is the activation, not the client. Objects owned at file
+ * scope, so that free-function callbacks can reach them, are still destroyed
+ * during static destruction; this only guarantees no callback is running by
+ * then. An object that outlives the client while holding a reference to it
+ * needs its own teardown as well.
+ */
+class activated_client : boost::noncopyable {
+
+public:
+        explicit activated_client(jack_client & client)
+                : _client(client)
+        {
+                _client.activate();
+        }
+
+        /** Deactivates the client. Does not throw: deactivate() reports
+         *  failures silently, so this is safe during stack unwinding. */
+        ~activated_client()
+        {
+                _client.deactivate();
+        }
+
+private:
+        jack_client & _client;
+};
+
 } //namespace jill
 
 #endif

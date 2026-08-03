@@ -164,7 +164,10 @@ main(int argc, char **argv)
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
                 jack_set_latency_callback (client->client(), jack_latency, nullptr);
-                client->activate();
+                /* ringbuf is at file scope and declared after client, so static
+                 * destruction frees it first; scoping the activation here stops
+                 * the callbacks before that. */
+                activated_client active(*client);
 
                 client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
                 client->connect_ports("out", options.output_ports.begin(), options.output_ports.end());
@@ -173,7 +176,6 @@ main(int argc, char **argv)
                         usleep(100000);
                 }
 
-                client->deactivate();
                 return ret;
         }
 

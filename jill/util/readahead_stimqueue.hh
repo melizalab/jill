@@ -45,7 +45,21 @@ public:
         readahead_stimqueue(iterator first, iterator last,
                             nframes_t samplerate,
                             bool loop=false);
-        ~readahead_stimqueue() override = default;
+
+        /**
+         * Stops the background thread and waits for it.
+         *
+         * The data_thread interface asks deriving classes to do this so the
+         * thread's resources stay alive until it exits. Leaving it to the
+         * default destructor meant ~std::thread ran on a still-joinable
+         * thread, which calls std::terminate.
+         *
+         * Callers should still stop and join explicitly rather than relying on
+         * this: the thread dereferences the stimuli it was given, and if the
+         * queue is destroyed during static destruction those may already be
+         * gone.
+         */
+        ~readahead_stimqueue() override;
 
         stimulus_t const * head() override;
 	stimulus_t const * previous();
