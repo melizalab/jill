@@ -77,10 +77,19 @@ make_writer(recording_writer ** out = nullptr)
 }
 
 /* Fail rather than hang: a lost stop() shows up as join() never returning. */
-void join_within(jill::dsp::buffered_data_writer & w, std::chrono::seconds budget)
+/* Takes the owning pointer, not a reference, because a writer whose join()
+ * never returns can no longer be destroyed safely: the waiter is parked inside
+ * it. On timeout the writer is released deliberately, so that the detached
+ * waiter keeps a live object to sit in and the caller is left holding nothing
+ * to destruct. Leaking it is the point -- the alternative is a second join()
+ * from the destructor racing the first, which is undefined behaviour and shows
+ * up under ThreadSanitizer as an abort inside its pthread_join interceptor
+ * rather than as the test failure it should be. */
+void join_within(std::unique_ptr<jill::dsp::buffered_data_writer> & w,
+                 std::chrono::seconds budget)
 {
         std::atomic<bool> done(false);
-        std::thread waiter([&w, &done] { w.join(); done = true; });
+        std::thread waiter([&w, &done] { w->join(); done = true; });
         const auto deadline = std::chrono::steady_clock::now() + budget;
         while (!done && std::chrono::steady_clock::now() < deadline) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -90,6 +99,7 @@ void join_within(jill::dsp::buffered_data_writer & w, std::chrono::seconds budge
                 // the thread is wedged; detaching leaks it but lets the suite
                 // report the failure instead of hanging the whole run
                 waiter.detach();
+                w.release();    // deliberate: the waiter is still inside it
         }
         else {
                 waiter.join();
@@ -110,7 +120,7 @@ TEST_CASE("start then stop terminates the thread") {
         auto w = make_writer();
         w->start();
         w->stop();
-        join_within(*w, std::chrono::seconds(10));
+        join_within(w, std::chrono::seconds(10));
 }
 
 TEST_CASE("a stop arriving immediately after start is not lost") {
@@ -123,7 +133,7 @@ TEST_CASE("a stop arriving immediately after start is not lost") {
                 auto w = make_writer();
                 w->start();
                 w->stop();              // as tight as possible against start()
-                join_within(*w, std::chrono::seconds(10));
+                join_within(w, std::chrono::seconds(10));
         }
 }
 
@@ -134,7 +144,7 @@ TEST_CASE("a stop from another thread racing startup is not lost") {
                 std::thread stopper([&w] { w->stop(); });
                 w->start();
                 stopper.join();
-                join_within(*w, std::chrono::seconds(10));
+                join_within(w, std::chrono::seconds(10));
         }
 }
 
@@ -143,7 +153,7 @@ TEST_CASE("starting an already running writer is refused") {
         w->start();
         CHECK_THROWS_AS(w->start(), std::runtime_error);
         w->stop();
-        join_within(*w, std::chrono::seconds(10));
+        join_within(w, std::chrono::seconds(10));
 }
 
 TEST_CASE("data pushed before stopping reaches the writer") {
@@ -159,7 +169,7 @@ TEST_CASE("data pushed before stopping reaches the writer") {
                 w->data_ready();
         }
         w->stop();
-        join_within(*w, std::chrono::seconds(10));
+        join_within(w, std::chrono::seconds(10));
 
         // the thread has exited, so reading its record is safe now
         int writes = 0;
