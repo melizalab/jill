@@ -213,8 +213,8 @@ main(int argc, char **argv)
                  * the callbacks have stopped well before that. */
                 activated_client active(*client);
 
-                client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
-                client->connect_ports("trig_out", options.output_ports.begin(), options.output_ports.end());
+                active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
+                active.connect_ports("trig_out", options.output_ports.begin(), options.output_ports.end());
 
                 while(true) {
                         sleep(1);

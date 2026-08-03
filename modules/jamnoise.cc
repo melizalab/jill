@@ -200,16 +200,15 @@ main(int argc, char **argv)
                 client.set_shutdown_callback(jack_shutdown);
                 client.set_xrun_callback(jack_xrun);
                 client.set_process_callback(process);
-                client.activate();
+                activated_client active(client);
 
-                client.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
-                client.connect_ports("out", options.output_ports.begin(), options.output_ports.end());
+                active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
+                active.connect_ports("out", options.output_ports.begin(), options.output_ports.end());
 
                 while (running) {
                         usleep(100000);
                 }
 
-                client.deactivate();
                 return ret;
         }
 

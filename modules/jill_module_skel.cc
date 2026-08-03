@@ -147,23 +147,22 @@ main(int argc, char **argv)
                 // jack_set_latency_callback (client.client(), jack_latency, 0);
 
                 // activate client
-                client.activate();
+                activated_client active(client);
 
                 // connect ports
                 if (options.count("in")) {
                         stringvec const & portlist = options.vmap["in"].as<stringvec>();
-                        client.connect_ports(portlist.begin(), portlist.end(), "in");
+                        active.connect_ports(portlist.begin(), portlist.end(), "in");
                 }
                 if (options.count("out")) {
                         stringvec const & portlist = options.vmap["out"].as<stringvec>();
-                        client.connect_ports("out", portlist.begin(), portlist.end());
+                        active.connect_ports("out", portlist.begin(), portlist.end());
                 }
 
                 while (running) {
                         usleep(100000);
                 }
 
-                client.deactivate();
                 return ret;
         }
 

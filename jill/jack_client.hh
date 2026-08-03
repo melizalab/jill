@@ -41,7 +41,10 @@ namespace jill {
  * field.  Encapsulation will break if ports are registered or unregistered
  * using this pointer, or if the process callback is changed.
  *
- *
+ * Client activation/deactivation and port connection/disconnection is handled
+ * through the `activated_client` friend class. This ensures that client
+ * callbacks that depend on objects initialized after the client aren't called
+ * during teardown.
  */
 class jack_client : public data_source {
 
@@ -148,39 +151,6 @@ public:
         void set_xrun_callback(XrunCallback const & cb);
         void set_shutdown_callback(ShutdownCallback const & cb);
 
-        /** Activate the client. Do this before attempting to connect ports */
-        void activate();
-
-        /** Deactivate the client. Disconnects all ports */
-        void deactivate();
-
-        /**
-         * Connect one the client's ports to another port. Fails silently if the
-         * ports are already connected.
-         *
-         * @param src   The name of the source port (client:port or port).
-         * @param dest  The name of the destination port.
-         *
-         */
-        void connect_port(std::string const & src, std::string const & dest);
-
-        /** Connect a sequence of ports to a destination */
-        template <typename It>
-        void connect_ports(It begin, It end, std::string const & dest) {
-                for (It it = begin; it != end; ++it)
-                        connect_port(*it, dest);
-        }
-
-        /** Connect a sequence of ports to a source */
-        template <typename It>
-        void connect_ports(std::string const & src, It begin, It end) {
-                for (It it = begin; it != end; ++it)
-                        connect_port(src, *it);
-        }
-
-        /** Disconnect the client from all its ports. */
-        void disconnect_all();
-
         /** Get sample buffer for port */
         sample_t * samples(std::string const & name, nframes_t nframes);
         sample_t * samples(jack_port_t *port, nframes_t nframes);
@@ -224,6 +194,12 @@ protected:
         std::size_t _nports;
 
 private:
+	friend class activated_client;
+        /** Activate the client. Do this before attempting to connect ports */
+        void activate();
+        /** Deactivate the client. Disconnects all ports */
+        void deactivate();
+
         jack_client_t * _client; // pointer to jack client
 
         ProcessCallback _process_cb;
@@ -251,11 +227,11 @@ private:
 
 /**
  * @ingroup clientgroup
- * @brief Keeps a client activated for the lifetime of this object
+ * @brief An activated client
  *
  * A client goes on calling its process callback until it is deactivated, and
- * those callbacks reach objects the module owns. Those objects therefore have
- * to outlive the activation, not merely the client.
+ * those callbacks may reach objects initialized after the client. Those objects
+ * therefore have to outlive the activation, not merely the client.
  *
  * Leaving that to ordinary destruction does not work, because the ordering is
  * inverted: the client has to be constructed first, since everything else is
@@ -263,37 +239,58 @@ private:
  * last -- after the very objects its callbacks are still reading. Nor does
  * tearing down at the end of a try block, since an exception skips it.
  *
- * Declaring one of these at the point the client is activated resolves both.
- * It is the last thing constructed, so it is the first thing destroyed, on
- * every path out of the scope, and deactivation therefore happens before
- * anything the callbacks touch goes away:
- *
  *     jack_client client(name);                 // destroyed last
  *     auto thing = build_from(client);
  *     client.set_process_callback(...);
  *     activated_client active(client);         // destroyed first
  *
- * What is scoped here is the activation, not the client. Objects owned at file
- * scope, so that free-function callbacks can reach them, are still destroyed
- * during static destruction; this only guarantees no callback is running by
- * then. An object that outlives the client while holding a reference to it
- * needs its own teardown as well.
+ * This class also provides methods that should only be called after the client
+ * is activated, specifically port connection and disconnection.
+ *
+ * Note that the caller still needs to be careful with lifetimes of any objects
+ * that hold references to the client object itself.
  */
 class activated_client : boost::noncopyable {
 
 public:
         explicit activated_client(jack_client & client)
-                : _client(client)
-        {
+                : _client(client) {
                 _client.activate();
         }
 
         /** Deactivates the client. Does not throw: deactivate() reports
          *  failures silently, so this is safe during stack unwinding. */
-        ~activated_client()
-        {
+        ~activated_client() {
                 _client.deactivate();
         }
+
+        /**
+         * Connect one the client's ports to another port. Fails silently if the
+         * ports are already connected.
+         *
+         * @param src   The name of the source port (client:port or port).
+         * @param dest  The name of the destination port.
+         *
+         */
+        void connect_port(std::string const & src, std::string const & dest);
+
+        /** Connect a sequence of ports to a destination */
+        template <typename It>
+        void connect_ports(It begin, It end, std::string const & dest) {
+                for (It it = begin; it != end; ++it)
+                        connect_port(*it, dest);
+        }
+
+        /** Connect a sequence of ports to a source */
+        template <typename It>
+        void connect_ports(std::string const & src, It begin, It end) {
+                for (It it = begin; it != end; ++it)
+                        connect_port(src, *it);
+        }
+
+        /** Disconnect the client from all its ports. */
+        void disconnect_all();
+	
 
 private:
         jack_client & _client;

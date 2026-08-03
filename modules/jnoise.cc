@@ -128,9 +128,9 @@ main(int argc, char **argv)
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_xrun_callback(jack_xrun);
                 client->set_process_callback(process);
-                client->activate();
+                activated_client active(*client);
 
-                client->connect_ports("out", options.output_ports.begin(), options.output_ports.end());
+                active.connect_ports("out", options.output_ports.begin(), options.output_ports.end());
 
                 // check time here
                 while (running) {
@@ -150,7 +150,6 @@ main(int argc, char **argv)
                         sleep(5.0);
                 }
 
-                client->deactivate();
                 return ret;
         }
 

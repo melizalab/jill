@@ -132,53 +132,6 @@ jack_client::deactivate()
                 LOG << "deactivated client" ;
 }
 
-void
-jack_client::connect_port(string const & src, string const & dest)
-{
-        // simple name-based lookup
-        jack_port_t *p1, *p2;
-        if (src.find(':') != string::npos) {
-                p1 = jack_port_by_name(_client, src.c_str());
-        }
-        else {
-                string n = util::make_string() << jack_get_client_name(_client) << ":" << src;
-                p1 = jack_port_by_name(_client, n.c_str());
-        }
-        if (!p1)
-                throw JackError(util::make_string() << "the port " << src << " does not exist");
-
-        if (dest.find(':') != string::npos) {
-                p2 = jack_port_by_name(_client, dest.c_str());
-        }
-        else {
-                string n = util::make_string() << jack_get_client_name(_client) << ":" << dest;
-                p2 = jack_port_by_name(_client, n.c_str());
-        }
-        if (!p2)
-                throw JackError(util::make_string() << "the port " << dest << " does not exist");
-
-        // check that types are the same (FIXME use strcmp if custom types?)
-        if (jack_port_type(p1)!=jack_port_type(p2)) {
-                throw JackError(util::make_string() << jack_port_name(p1) << " (" << jack_port_type(p1) << ")"
-                                << " doesn't match " << jack_port_name(p2) << " (" << jack_port_type(p2) << ")");
-        }
-        int error = jack_connect(_client, jack_port_name(p1), jack_port_name(p2));
-        if (error && error != EEXIST) {
-                // no easy way to trap error message; it gets printed to stdout
-                throw JackError(util::make_string() << "can't connect "
-                                 << src << " to " << dest);
-        }
-}
-
-void
-jack_client::disconnect_all()
-{
-        for (auto it = _ports.begin(); it != _ports.end(); ++it) {
-                int ret = jack_port_disconnect(_client, *it);
-                if (ret)
-                        throw JackError(util::make_string() << "unable to disconnect port (err=" << ret << ")");
-        }
-}
 
 sample_t*
 jack_client::samples(string const & name, nframes_t nframes)
@@ -372,4 +325,55 @@ jack_client::set_xrun_callback(XrunCallback const & cb) {
 void
 jack_client::set_shutdown_callback(ShutdownCallback const & cb) {
         _shutdown_cb = cb;
+}
+
+/* These are methods that can only be called on activated clients */
+void
+activated_client::connect_port(string const & src, string const & dest)
+{
+	jack_client_t * client = _client._client;
+        // simple name-based lookup
+        jack_port_t *p1, *p2;
+        if (src.find(':') != string::npos) {
+                p1 = jack_port_by_name(client, src.c_str());
+        }
+        else {
+                string n = util::make_string() << jack_get_client_name(client) << ":" << src;
+                p1 = jack_port_by_name(client, n.c_str());
+        }
+        if (!p1)
+                throw JackError(util::make_string() << "the port " << src << " does not exist");
+
+        if (dest.find(':') != string::npos) {
+                p2 = jack_port_by_name(client, dest.c_str());
+        }
+        else {
+                string n = util::make_string() << jack_get_client_name(client) << ":" << dest;
+                p2 = jack_port_by_name(client, n.c_str());
+        }
+        if (!p2)
+                throw JackError(util::make_string() << "the port " << dest << " does not exist");
+
+        // check that types are the same (FIXME use strcmp if custom types?)
+        if (jack_port_type(p1)!=jack_port_type(p2)) {
+                throw JackError(util::make_string() << jack_port_name(p1) << " (" << jack_port_type(p1) << ")"
+                                << " doesn't match " << jack_port_name(p2) << " (" << jack_port_type(p2) << ")");
+        }
+        int error = jack_connect(client, jack_port_name(p1), jack_port_name(p2));
+        if (error && error != EEXIST) {
+                // no easy way to trap error message; it gets printed to stdout
+                throw JackError(util::make_string() << "can't connect "
+                                 << src << " to " << dest);
+        }
+}
+
+void
+activated_client::disconnect_all()
+{
+	jack_client_t * client = _client._client;
+        for (auto it = _client._ports.begin(); it != _client._ports.end(); ++it) {
+                int ret = jack_port_disconnect(client, *it);
+                if (ret)
+                        throw JackError(util::make_string() << "unable to disconnect port (err=" << ret << ")");
+        }
 }

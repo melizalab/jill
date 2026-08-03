@@ -26,9 +26,11 @@ main(int argc, char **argv)
         LOG << "period duration: " << xrun_usec << " usec";
 
         client->set_process_callback(process);
-        client->activate();
-
-        usleep(xrun_usec * 10);
-        client->deactivate();
-
+        {
+                // the client is deactivated when this scope ends, before the
+                // client itself is released below
+                activated_client active(*client);
+                usleep(xrun_usec * 10);
+        }
+        client.reset();
 }

@@ -241,23 +241,22 @@ main(int argc, char **argv)
                 client.set_process_callback(process);
 
                 // activate client
-                client.activate();
+                activated_client active(client);
 
                 // connect ports
                 if (options.count("in")) {
                         auto const & portlist = options.vmap["in"].as<stringvec>();
-                        client.connect_ports(portlist.begin(), portlist.end(), "in");
+                        active.connect_ports(portlist.begin(), portlist.end(), "in");
                 }
                 if (options.count("out")) {
                         auto const & portlist = options.vmap["out"].as<stringvec>();
-                        client.connect_ports("out", portlist.begin(), portlist.end());
+                        active.connect_ports("out", portlist.begin(), portlist.end());
                 }
 
                 while (running) {
                         usleep(100000);
                 }
 
-                client.deactivate();
                 if (randomizer) {
 			std::cout << "Final event counts: " << std::endl;
                         for (auto const & it : randomizer->counts()) {

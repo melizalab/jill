@@ -361,14 +361,14 @@ main(int argc, char **argv)
                 client.set_shutdown_callback(jack_shutdown);
                 client.set_xrun_callback(jack_xrun);
                 client.set_process_callback(process);
-                client.activate();
+                activated_client active(client);
                 // set this after starting the client so it will only be called
                 // when the buffer size *changes*
                 client.set_buffer_size_callback(jack_bufsize);
 
-                client.connect_ports("out",
+                active.connect_ports("out",
                                       options.output_ports.begin(), options.output_ports.end());
-                client.connect_ports("trig_out",
+                active.connect_ports("trig_out",
                                       options.trigout_ports.begin(), options.trigout_ports.end());
 
                 std::thread monitor_thread(stim_monitor);
@@ -425,7 +425,6 @@ main(int argc, char **argv)
                 }
                 LOG << "stopping";
 
-                client.deactivate();
                 if (monitor_thread.joinable()) monitor_thread.join();
                 zmq_close(req_socket);
 

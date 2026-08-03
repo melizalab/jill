@@ -49,11 +49,6 @@ public:
         /**
          * Stops the background thread and waits for it.
          *
-         * The data_thread interface asks deriving classes to do this so the
-         * thread's resources stay alive until it exits. Leaving it to the
-         * default destructor meant ~std::thread ran on a still-joinable
-         * thread, which calls std::terminate.
-         *
          * Callers should still stop and join explicitly rather than relying on
          * this: the thread dereferences the stimuli it was given, and if the
          * queue is destroyed during static destruction those may already be
@@ -80,13 +75,9 @@ private:
         bool const _loop;
         bool _running;
 
-        /* Declaration order matters here. Members are initialized in the order
-         * they are declared, whatever the constructor's initializer list says,
-         * and the constructor starts _thread running loop(), which locks _lock
-         * immediately. _thread must therefore be declared last, so that _lock
-         * and _ready are fully constructed before the thread can touch them.
-         * It also means _thread is destroyed first, before the mutex and
-         * condition variable it waits on. */
+	// Declaration order matters here. Need to initialize the mutex and
+	// condition variable before the thread starts, and shut down the thread
+	// before destroying the variables it waits on.
         std::mutex _lock;
         std::condition_variable  _ready;
         std::thread _thread;

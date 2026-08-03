@@ -263,11 +263,11 @@ main(int argc, char **argv)
                 /* connect ports */
                 if (options.count("trig")) {
                         svec const & plist = options.vmap["trig"].as<svec>();
-                        client.connect_ports(plist.begin(), plist.end(), "trig_in");
+                        active.connect_ports(plist.begin(), plist.end(), "trig_in");
                 }
                 for (map<string,string>::const_iterator it = port_connections.begin();
                      it != port_connections.end(); ++it) {
-                        if (!it->second.empty()) client.connect_port(it->second, it->first);
+                        if (!it->second.empty()) active.connect_port(it->second, it->first);
                 }
 
                 // this will sleep until sigint or jack shutdown tells the

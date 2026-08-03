@@ -90,16 +90,18 @@ buffered_data_writer::xrun()
 void
 buffered_data_writer::stop()
 {
-        // release condition variable to prevent deadlock
+	/* Begins the process of shutting down the writer. If the writer is
+	 * Running, switches the state to Stopping (which drops any further data
+	 * sent to push()) and releases the _ready condition variable so that
+	 * the writer thread flushes any remaining data. If the writer is
+	 * Stopped, the state is still switched to Stopping to avoid an
+	 * inconsistent state if the thread is in the process of starting - this
+	 * can happen if a signal is delivered during startup.
+	 */
         if (__sync_bool_compare_and_swap(&_state, Running, Stopping)) {
                 data_ready();
         }
         else {
-                /* A stop arriving before the thread has been launched has to
-                 * be honoured too, or it is lost and the thread that start()
-                 * goes on to create runs forever. A signal delivered during
-                 * startup is the way this happens in practice. start() checks
-                 * for Stopping and declines to run. */
                 __sync_bool_compare_and_swap(&_state, Stopped, Stopping);
         }
 }
@@ -123,14 +125,8 @@ buffered_data_writer::start()
         if (_state != Stopped) {
                 throw std::runtime_error("Tried to start already running writer thread");
         }
-        /* Move to Running before launching, not from inside the thread. The
-         * thread used to set it, which left a window between here and there
-         * where the state was still Stopped: a stop() arriving in that window
-         * would try to move Running->Stopping, fail, and be silently lost,
-         * after which the thread ran forever and join() hung. A signal landing
-         * during startup is the realistic way in. Setting it here means stop()
-         * always has something to act on, and a stop that arrives before the
-         * thread runs is seen by its first predicate check. */
+        // Move to Running before launching, not from inside the thread, so that
+        // stop() has something to act on if there's a signal during startup.
         _state = Running;
         _xrun = _reset = false;
         _thread = std::thread(&buffered_data_writer::thread, this);

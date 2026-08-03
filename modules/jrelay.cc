@@ -118,14 +118,13 @@ main(int argc, char **argv)
                 client->set_process_callback(process);
 
                 // activate client
-                client->activate();
+                activated_client active(*client);
                 zmq_thread->start();
 
                 // connect ports
-                client->connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
+                active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
 
                 zmq_thread->join();
-                client->deactivate();
         }
 
         catch (Exit const &e) {

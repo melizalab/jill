@@ -64,13 +64,14 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
+// Holds (and owns) all the stimuli
 boost::ptr_vector<stimulus_t> _stimuli;
+// The sequence of stimuli being played. May be shuffled and may have more than
+// one pointer to the same stimulus.
 std::vector<stimulus_t *> _stimlist;
-/* Declared after the stimuli it reads, and so destroyed before them. The
- * queue's worker thread dereferences the objects _stimuli owns, and
- * ~readahead_stimqueue stops and joins that thread, which has to happen while
- * they are still alive. Static destruction runs in reverse declaration order,
- * so this ordering is the whole guarantee -- do not move it above _stimuli. */
+// The queue of stimuli. Handles the actual file reads and any resampling
+// needed in a background thread. Must be declared after _stimuli so that the
+// thread can continue to dereference the objects owned by _stimuli.
 std::unique_ptr<util::readahead_stimqueue> stim_queue;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
@@ -342,11 +343,11 @@ main(int argc, char **argv)
                 // when the buffer size *changes*
                 client.set_buffer_size_callback(jack_bufsize);
 
-                client.connect_ports("out",
+                active.connect_ports("out",
                                       options.output_ports.begin(), options.output_ports.end());
-                client.connect_ports("sync_out",
+                active.connect_ports("sync_out",
                                       options.syncout_ports.begin(), options.syncout_ports.end());
-                client.connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
+                active.connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
                                       "trig_in");
 
                 // wait for stimuli to finish playing
