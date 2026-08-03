@@ -4,6 +4,8 @@
  */
 #include <iostream>
 #include <random>
+#include <unistd.h>
+#include <atomic>
 #include <csignal>
 
 #include "jill/logging.hh"
@@ -45,6 +47,8 @@ protected:
 static jrelay_options options(PROGRAM_NAME);
 /** buffer to send events from process thread to the main thread */
 std::unique_ptr<dsp::buffered_data_writer> zmq_thread;
+/* cleared by the signal handler; main() drives the shutdown */
+std::atomic<bool> running(true);
 jack_port_t *port_in;
 
 
@@ -68,16 +72,18 @@ void
 jack_shutdown(jack_status_t _code, char const * msg)
 {
         LOG << "jackd shut the client down (" << msg << ")";
-        if (zmq_thread) zmq_thread->stop();
+        running = false;
 
 }
 
 /** handle POSIX signals */
+/* Signal handlers may run on any thread that has not blocked the signal,
+ * including one already holding a lock the shutdown path needs. Nothing here
+ * may allocate, log, or take a mutex: set a flag and let main() do the work. */
 void
 signal_handler(int sig)
 {
-        DBG << "shutting down on signal";
-        if (zmq_thread) zmq_thread->stop();
+        running = false;
 }
 
 int
@@ -124,6 +130,11 @@ main(int argc, char **argv)
                 // connect ports
                 active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
 
+                /* stop() takes a lock, so it cannot run in the handler */
+                while (running) {
+                        usleep(100000);
+                }
+                zmq_thread->stop();
                 zmq_thread->join();
         }
 

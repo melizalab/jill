@@ -98,12 +98,27 @@ buffered_data_writer::stop()
 	 * inconsistent state if the thread is in the process of starting - this
 	 * can happen if a signal is delivered during startup.
 	 */
-        if (__sync_bool_compare_and_swap(&_state, Running, Stopping)) {
-                data_ready();
+        /* The state has to change while the lock is held. The writer thread
+         * evaluates its wait predicate under this lock and then enqueues on
+         * the condition variable; those two steps are atomic only with respect
+         * to other holders of the lock. Changing the state without it lets the
+         * change land in between, so the predicate reads the old value and the
+         * notification finds no waiter and is dropped -- after which the thread
+         * sleeps forever and join() never returns. Measured at roughly one run
+         * in three of test_data_writer.
+         *
+         * data_ready() stays lock-free because it is called from the realtime
+         * thread. A notification lost there costs one period of latency rather
+         * than a hang, since the next push notifies again. stop() has no next
+         * push, which is why it is the one that must take the lock, and why it
+         * must never be called from a signal handler. */
+        {
+                std::lock_guard<std::mutex> lck(_lock);
+                if (!__sync_bool_compare_and_swap(&_state, Running, Stopping)) {
+                        __sync_bool_compare_and_swap(&_state, Stopped, Stopping);
+                }
         }
-        else {
-                __sync_bool_compare_and_swap(&_state, Stopped, Stopping);
-        }
+        _ready.notify_one();
 }
 
 

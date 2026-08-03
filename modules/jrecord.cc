@@ -11,6 +11,8 @@
  *
  */
 #include <iostream>
+#include <atomic>
+#include <unistd.h>
 #include <csignal>
 
 #include "jill/logging.hh"
@@ -57,6 +59,8 @@ protected:
 jrecord_options options(PROGRAM_NAME);
 std::unique_ptr<dsp::buffered_data_writer> arf_thread;
 jack_port_t * port_trig = nullptr;
+/* cleared by the signal handler; main() drives the shutdown */
+std::atomic<bool> running(true);
 
 
 int
@@ -139,17 +143,17 @@ void
 jack_shutdown(jack_status_t code, char const * msg)
 {
         LOG << "jackd shut the client down (" << msg << ")";
-        if (arf_thread)
-                arf_thread->stop();
+        running = false;
 }
 
 
+/* Signal handlers may run on any thread that has not blocked the signal,
+ * including one already holding a lock the shutdown path needs. Nothing here
+ * may allocate, log, or take a mutex: set a flag and let main() do the work. */
 void
 signal_handler(int sig)
 {
-        DBG << "shutting down on signal";
-        if (arf_thread)
-                arf_thread->stop();
+        running = false;
 }
 
 
@@ -270,8 +274,13 @@ main(int argc, char **argv)
                         if (!it->second.empty()) active.connect_port(it->second, it->first);
                 }
 
-                // this will sleep until sigint or jack shutdown tells the
-                // writer to stop
+                /* Wait for a signal or a server shutdown, then stop the
+                 * writer from here. stop() takes a lock, so it cannot be
+                 * called from the signal handler. */
+                while (running) {
+                        usleep(100000);
+                }
+                arf_thread->stop();
                 arf_thread->join();
 
         }
