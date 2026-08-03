@@ -13,6 +13,7 @@
 #ifndef _RINGBUFFER_HH
 #define _RINGBUFFER_HH
 
+#include <atomic>
 #include <memory>
 #include <algorithm>
 #include <functional>
@@ -133,13 +134,19 @@ public:
         }
 
         /// @return the number of items that can be written to the ringbuffer
-        constexpr std::size_t write_space() const {
-                return _read_ptr + size() - _write_ptr;
+        std::size_t write_space() const {
+                // acquire on the consumer's pointer: space it has freed is only
+                // safe to reuse once its reads are visible to us
+                return _read_ptr.load(std::memory_order_acquire) + size()
+                        - _write_ptr.load(std::memory_order_acquire);
         }
 
         /// @return the number of items that can be read from the ringbuffer
-        constexpr std::size_t read_space() const {
-                return _write_ptr - _read_ptr;
+        std::size_t read_space() const {
+                // acquire on the producer's pointer: this is what makes the
+                // data it published before the store visible to us
+                return _write_ptr.load(std::memory_order_acquire)
+                        - _read_ptr.load(std::memory_order_acquire);
         };
 
         /**
@@ -216,12 +223,15 @@ public:
         }
 
 
-        constexpr std::size_t write_offset() const {
-                return _write_ptr & _size_mask;
+        /* Relaxed: each offset is read by the thread that owns that pointer,
+         * and the ordering against the other thread was already established by
+         * the acquire in read_space()/write_space(). */
+        std::size_t write_offset() const {
+                return _write_ptr.load(std::memory_order_relaxed) & _size_mask;
         };
 
-        constexpr std::size_t read_offset() const {
-                return _read_ptr & _size_mask;
+        std::size_t read_offset() const {
+                return _read_ptr.load(std::memory_order_relaxed) & _size_mask;
         };
 
         constexpr data_type * buffer() { return reinterpret_cast<data_type*>(_buf->buffer()); }
@@ -230,20 +240,33 @@ public:
 protected:
         /** Advance the write pointer cnt elements */
         void advance_write_ptr(std::size_t cnt) {
-                // gcc-specific, use std::atomic?
-                __sync_add_and_fetch(&_write_ptr, cnt);
+                // release: the data written above must be visible to the
+                // consumer before it can observe this pointer
+                _write_ptr.store(_write_ptr.load(std::memory_order_relaxed) + cnt,
+                                 std::memory_order_release);
         }
 
         /** Advance the read pointer cnt elements */
         void advance_read_ptr(std::size_t cnt) {
-                __sync_add_and_fetch(&_read_ptr, cnt);
+                // release: our reads must finish before the producer can see
+                // this space as free and overwrite it
+                _read_ptr.store(_read_ptr.load(std::memory_order_relaxed) + cnt,
+                                std::memory_order_release);
         }
 
 
 private:
         std::unique_ptr<jill::util::mirrored_memory> _buf;
-        std::size_t _write_ptr;
-        std::size_t _read_ptr;
+        /* Single producer, single consumer: the producer owns _write_ptr and
+         * the consumer owns _read_ptr, so each has exactly one writer and no
+         * read-modify-write is needed. What is needed is the release/acquire
+         * pairing. These were plain size_t advanced with __sync_add_and_fetch
+         * and read directly, which orders nothing: a reader that observes the
+         * new pointer had no guarantee of seeing the data written before it.
+         * That works on x86 by accident of its memory model and does not on
+         * ARM. */
+        std::atomic<std::size_t> _write_ptr;
+        std::atomic<std::size_t> _read_ptr;
         std::size_t _size_mask;
 };
 

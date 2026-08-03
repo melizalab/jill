@@ -133,7 +133,8 @@ triggered_data_writer::write(data_block_t const * data)
                 assert(_buffer->peek()->id() == id);
                 _writer->write(data, 0, 0);
                 _buffer->release();
-                if (__sync_bool_compare_and_swap(&_reset, true, false)) {
+                bool pending_reset = true;
+                if (_reset.compare_exchange_strong(pending_reset, false)) {
                         stop_recording(data->time + nframes);
                 }
         }
@@ -160,6 +161,7 @@ triggered_data_writer::write(data_block_t const * data)
                 }
                 // clear reset flag; otherwise it won't happen until the next
                 // recording starts
-                __sync_bool_compare_and_swap(&_reset, true, false);
+                bool pending_reset = true;
+                _reset.compare_exchange_strong(pending_reset, false);
         }
 }

@@ -99,7 +99,10 @@ readahead_stimqueue::loop()
 jill::stimulus_t const *
 readahead_stimqueue::head()
 {
-        if (_head) return _head;
+        // load once: testing and returning separately could observe two
+        // different values, since release() may run concurrently
+        stimulus_t * ptr = _head.load();
+        if (ptr) return ptr;
         // It might be necessary to call this, but I'm not sure b/c loop()
         // checks for spurious/early release.
         // _ready.notify_one();
@@ -109,7 +112,8 @@ readahead_stimqueue::head()
 jill::stimulus_t const *
 readahead_stimqueue::previous()
 {
-        if (_previous) return _previous;
+        stimulus_t * ptr = _previous.load();
+        if (ptr) return ptr;
         // It might be necessary to call this, but I'm not sure b/c loop()
         // checks for spurious/early release.
         // _ready.notify_one();
@@ -121,8 +125,8 @@ void
 readahead_stimqueue::release()
 {
         // potential race condition with loop?
-        _previous = _head;
-        _head = nullptr;
+        _previous.store(_head.load());
+        _head.store(nullptr);
         // signal loop to advance the iterator
         _ready.notify_one();
 }

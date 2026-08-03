@@ -11,6 +11,7 @@
 #ifndef _READAHEAD_STIMQUEUE_HH
 #define _READAHEAD_STIMQUEUE_HH
 
+#include <atomic>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -68,8 +69,15 @@ private:
         iterator const _first;
         iterator const _last;
         iterator _it;                             // current position
-        stimulus_t * _head;
-        stimulus_t * _previous;
+        /* Written by the worker thread under _lock, and read and written by
+         * the realtime thread through head(), previous() and release(), which
+         * take no lock in order to stay wait-free. ThreadSanitizer reports
+         * this on every run of test_stimset. Default ordering: one access per
+         * period, so nothing to gain from tuning it. Making the race
+         * well-defined is not the same as making the protocol correct -- what
+         * guarantees release() owes the realtime thread is still open. */
+        std::atomic<stimulus_t *> _head;
+        std::atomic<stimulus_t *> _previous;
 
         nframes_t const _samplerate;
         bool const _loop;

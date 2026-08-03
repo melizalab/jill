@@ -84,7 +84,8 @@ void
 buffered_data_writer::xrun()
 {
         // don't generate log message here
-        __sync_bool_compare_and_swap(&_xrun, false, true);
+        bool expected = false;
+        _xrun.compare_exchange_strong(expected, true);
 }
 
 void
@@ -114,8 +115,10 @@ buffered_data_writer::stop()
          * must never be called from a signal handler. */
         {
                 std::lock_guard<std::mutex> lck(_lock);
-                if (!__sync_bool_compare_and_swap(&_state, Running, Stopping)) {
-                        __sync_bool_compare_and_swap(&_state, Stopped, Stopping);
+                state_t running = Running;
+                if (!_state.compare_exchange_strong(running, Stopping)) {
+                        state_t stopped = Stopped;
+                        _state.compare_exchange_strong(stopped, Stopping);
                 }
         }
         _ready.notify_one();
@@ -125,8 +128,10 @@ buffered_data_writer::stop()
 void
 buffered_data_writer::reset()
 {
-        if (_state == Running)
-                __sync_bool_compare_and_swap(&_reset, false, true);
+        if (_state == Running) {
+                bool expected = false;
+                _reset.compare_exchange_strong(expected, true);
+        }
 }
 
 
@@ -176,7 +181,8 @@ buffered_data_writer::thread()
         DBG << "started writer thread";
 
         while (true) {
-                if (__sync_bool_compare_and_swap(&_xrun, true, false)) {
+                bool had_xrun = true;
+                if (_xrun.compare_exchange_strong(had_xrun, false)) {
                         _writer->xrun();
                 }
                 hdr = _buffer->peek_ahead();
@@ -206,7 +212,8 @@ void
 buffered_data_writer::write(data_block_t const * data)
 {
         // do we need to check that a complete period has been written?
-        if (__sync_bool_compare_and_swap(&_reset, true, false)) {
+        bool pending_reset = true;
+        if (_reset.compare_exchange_strong(pending_reset, false)) {
                 _writer->close_entry();
         }
         _writer->write(data, 0, 0);

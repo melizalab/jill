@@ -4,13 +4,12 @@
  * Drives the ringbuffers from two threads at once, which nothing else does.
  *
  * The single-threaded suite in test_ringbuf.cc checks the data structure; this
- * one exists to exercise the handoff the design actually depends on, so that
- * ThreadSanitizer has something to report. The ringbuffers advance their read
- * and write pointers with __sync_add_and_fetch but declare them as plain
- * size_t and read them without synchronization, so a run under
- * `scons debug=1 sanitize=thread` is expected to flag them. That is the point:
- * before this suite existed the most important race in the codebase was
- * invisible to the test run.
+ * one exists to exercise the handoff the design actually depends on. It was
+ * written while the ringbuffers still advanced their pointers with
+ * __sync_add_and_fetch but declared them as plain size_t, so a run under
+ * `scons debug=1 sanitize=thread` reported them; the pointers are now
+ * std::atomic and that run is expected to be clean. Keeping the suite is
+ * what makes a regression visible.
  *
  * The contract being exercised is single producer, single consumer: one
  * realtime thread pushing, one disk thread popping.
@@ -139,13 +138,23 @@ TEST_CASE("ringbuffer never reports more space than it has") {
         std::vector<int> sink(64);
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
         while (!past(deadline)) {
+                // Two independent snapshots: the producer can advance the
+                // write pointer between them, so the totals only have to stay
+                // within the buffer, not sum to it exactly. This read == that
+                // requirement was only ever met because plain, non-atomic
+                // reads let the compiler collapse the two calls into one.
                 const std::size_t r = rb.read_space();
                 const std::size_t w = rb.write_space();
-                if (r > rb.size() || w > rb.size() || r + w != rb.size()) {
+                if (r > rb.size() || w > rb.size() || r + w > rb.size()) {
                         out_of_range = true;
                         break;
                 }
-                rb.pop(sink.data(), std::min<std::size_t>(sink.size(), r));
+                /* Not pop(sink.data(), min(sink.size(), r)): a count of zero
+                 * means "read everything available" to pop(), not "read
+                 * nothing", so an empty buffer would fill sink past its end. */
+                if (r > 0) {
+                        rb.pop(sink.data(), std::min<std::size_t>(sink.size(), r));
+                }
         }
         stop = true;
         producer.join();

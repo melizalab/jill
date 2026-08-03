@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <iosfwd>
+#include <atomic>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -101,8 +102,13 @@ protected:
          */
         void write_messages();
 
-        state_t _state;                            // thread state
-        bool _reset;                               // flag to reset stream
+        /* Control flags, touched by the realtime thread, the writer thread
+         * and main(). Left at the default sequentially consistent ordering:
+         * each is read at most once per period, so the cost is irrelevant and
+         * the weaker orderings would only be an opportunity to get it wrong.
+         * The ringbuffer pointers are the ones worth tuning. */
+        std::atomic<state_t> _state;               // thread state
+        std::atomic<bool> _reset;                  // flag to reset stream
 
         std::unique_ptr<data_writer> _writer;            // output
         std::unique_ptr<block_ringbuffer> _buffer;      // ringbuffer
@@ -114,7 +120,7 @@ private:
         std::mutex _lock;                           // mutex for condition variable
         std::condition_variable _ready;             // indicates data ready
 
-        bool _xrun;                                // flag to indicate xrun
+        std::atomic<bool> _xrun;                   // flag to indicate xrun
         // variables for receiving incoming messages
         void * _socket;
         bool _logger_bound;

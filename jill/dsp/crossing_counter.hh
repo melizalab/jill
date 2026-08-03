@@ -12,6 +12,7 @@
 #ifndef _CROSSING_COUNTER_HH
 #define _CROSSING_COUNTER_HH
 
+#include <atomic>
 #include <boost/noncopyable.hpp>
 #include "counter.hh"
 
@@ -63,6 +64,11 @@ public:
 		// a crossing needs two samples to compare; bail out before
 		// dereferencing rather than reading past the end
 		if (samples == nullptr || size < 2) return -1;
+		/* Loaded once per block, not per sample: a change takes effect
+		 * at the next block boundary, which is all volatile ever
+		 * offered, and an atomic load in the innermost loop would cost
+		 * real time on the realtime path. */
+		const sample_type threshold = _thresh.load(std::memory_order_relaxed);
 		sample_type last = *samples;
 		if (state)
 			state[0] = float(_counter.running_count()) / _max_crossings;
@@ -70,7 +76,7 @@ public:
 			// I only check positive crossings because
 			// it's faster and there's not much point in
 			// counting both for most signals
-			if (last < _thresh && samples[i] >= _thresh)
+			if (last < threshold && samples[i] >= threshold)
 				_period_crossings += 1;
 			last = samples[i];
 			_period_nsamples += 1;
@@ -113,7 +119,11 @@ private:
         running_counter<count_type> _counter;
 
 	/// sample threshold
-	volatile sample_type _thresh;
+	/* May be changed from another thread while push() is running. It was
+	 * volatile, which provides neither atomicity nor ordering. Relaxed is
+	 * the right ordering: it is a bare value publishing no other data, so
+	 * there is nothing for an acquire to order against. */
+	std::atomic<sample_type> _thresh;
 	/// analysis period size
 	size_type _period_size;
 	/// number of analysis periods
