@@ -23,6 +23,7 @@
 #include "jill/file/stimfile.hh"
 #include "jill/util/readahead_stimqueue.hh"
 #include "jill/dsp/ringbuffer.hh"
+#include "jill/dsp/playback_timing.hh"
 
 #define PROGRAM_NAME "jstim"
 
@@ -131,14 +132,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // check if we need to emit a posttrigger event
         if (options.posttrigger_interval && last_stim) {
-                // samples until posttrigger event (will overflow if
-                // already passed)
-                const nframes_t otrig = *options.posttrigger_interval - dstop;
-                // DBG << "time=" << time << " dstop=" << dstop << " otrig=" << otrig;
-                if (otrig < nframes) {
+                const auto otrig = dsp::posttrigger_offset(
+                        dstop, *options.posttrigger_interval, nframes);
+                if (otrig) {
                         const auto status = midi::status_type(midi::status_type::stim_off, 1);
-                        midi::write_message(sync, otrig, status, last_stim->name());
-                        DBG << "sent posttrigger: time=" << time + otrig
+                        midi::write_message(sync, *otrig, status, last_stim->name());
+                        DBG << "sent posttrigger: time=" << time + *otrig
                             << ", stim=" << last_stim->name();
                 }
         }
@@ -161,21 +160,16 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         }
         // has enough time elapsed since the last stim?
         else {
-                // samples from period start until min_interval has passed
-                const nframes_t ostart = (dstart > options.min_interval) ?
-                        0 : options.min_interval - dstart;
-                // samples until min_gap has passed
-                const nframes_t ostop = (dstop > options.min_gap) ? 0 : options.min_gap - dstop;
-                // the stimulus will start when both minimums are met
-                period_offset = std::max(ostart, ostop);
+                period_offset = dsp::next_onset_offset(dstart, dstop,
+                                                       options.min_interval, options.min_gap);
                 // check if we need to emit a pretrigger event
-                if (options.pretrigger_interval && period_offset >= *options.pretrigger_interval) {
-                        // samples until pretrigger event
-                        const nframes_t otrig = period_offset - *options.pretrigger_interval;
-                        if (otrig < nframes) {
+                if (options.pretrigger_interval) {
+                        const auto otrig = dsp::pretrigger_offset(
+                                period_offset, *options.pretrigger_interval, nframes);
+                        if (otrig) {
                                 const auto status = midi::status_type(midi::status_type::stim_on, 1);
-                                midi::write_message(sync, otrig, status, stim->name());
-                                DBG << "sent pretrigger: time=" << time + otrig
+                                midi::write_message(sync, *otrig, status, stim->name());
+                                DBG << "sent pretrigger: time=" << time + *otrig
                                     << ", stim=" << stim->name();
                         }
                 }
@@ -189,7 +183,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         assert(period_offset < nframes);
 
         // copy samples, if there are any
-        nframes_t nsamples = std::min(stim->nframes() - stim_offset, nframes - period_offset);
+        nframes_t nsamples = dsp::samples_to_copy(stim->nframes(), stim_offset,
+                                                  nframes, period_offset);
         // DBG << "stim_offset=" << stim_offset << ", period_offset="
         //     << period_offset << ", nsamples=" << nsamples;
         if (nsamples > 0) {

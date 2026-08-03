@@ -19,6 +19,7 @@ UNIT_SUITES = [
     "test_crossing",
     "test_midi",
     "test_util",
+    "test_playback",
 ]
 
 # Standalone programs predating the harness. These are not really tests: they

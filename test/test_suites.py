@@ -28,6 +28,7 @@ UNIT_SUITES = [
     "test_crossing",
     "test_midi",
     "test_util",
+    "test_playback",
 ]
 
 # Older programs that predate the harness. They mostly return 0 whatever
