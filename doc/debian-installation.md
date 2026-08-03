@@ -126,8 +126,15 @@ LeakSanitizer suppressions live in `test/lsan.supp` and are applied
 automatically by the driver. HDF5 registers process-global state on first use
 and never frees it, which would otherwise be reported on every single run.
 
-Note that `sanitize=thread` currently reports a genuine data race in
-`readahead_stimqueue`, where `head()` and `release()` touch `_head` without
-holding the lock that the background thread holds when writing it. This is a
-known finding awaiting a decision about the queue's realtime guarantees, not a
-problem with your build.
+`sanitize=thread` currently fails, and is meant to: two suites report genuine
+data races that are being worked through as part of the concurrency audit.
+`test_stimset` reports `readahead_stimqueue`, where `head()` and `release()`
+touch `_head` without the lock the background thread holds when writing it.
+`test_ringbuf_concurrent` reports the ringbuffers themselves, which advance
+their read and write pointers atomically but declare them as plain `size_t`
+and read them without synchronization; the payload copies and block headers
+race for the same reason. Neither is a problem with your build.
+
+`test_ringbuf_concurrent` exists specifically to make that second one visible.
+Nothing else drives the ringbuffers from two threads, so before it was written
+the most important race in the codebase produced no sanitizer output at all.

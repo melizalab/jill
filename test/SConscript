@@ -21,6 +21,7 @@ UNIT_SUITES = [
     "test_util",
     "test_playback",
     "test_pulse",
+    "test_ringbuf_concurrent",
 ]
 
 # Standalone programs predating the harness. These are not really tests: they
