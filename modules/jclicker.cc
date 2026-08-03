@@ -14,6 +14,7 @@
 #include "jill/program_options.hh"
 #include "jill/dsp/ringbuffer.hh"
 #include "jill/util/event_randomizer.hh"
+#include "jill/dsp/pulse.hh"
 
 #define PROGRAM_NAME "jclicker"
 
@@ -44,7 +45,7 @@ protected:
 
 struct pulse_type {
         /** the shape of the pulse */
-        enum { Positive, Negative, Biphasic} shape;
+        dsp::pulse_shape shape;
         /** the type of midi message that will trigger the pulse */
         midi::data_type status;
         /** delay between the triggering event and pulse onset, in samples */
@@ -56,9 +57,9 @@ struct pulse_type {
 std::ostream& operator << (std::ostream &os, const pulse_type &p) {
         os << midi::status_type(p.status) << ": ";
         switch(p.shape) {
-        case pulse_type::Positive: os << "positive"; break;
-        case pulse_type::Negative: os << "negative"; break;
-        case pulse_type::Biphasic: os << "biphasic"; break;
+        case dsp::pulse_shape::positive: os << "positive"; break;
+        case dsp::pulse_shape::negative: os << "negative"; break;
+        case dsp::pulse_shape::biphasic: os << "biphasic"; break;
         }
         os << ", " << p.duration << " samples";
         if (p.delay > 0)
@@ -116,18 +117,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
                         if (pulse.status != event.buffer[0]) continue;
                         DBG << " - adding pulse at " << pulse.delay;
                         sample_t * pulse_buf = buf + event.time + pulse.delay;
-                        switch (pulse.shape) {
-                        case pulse_type::Positive:
-                                std::fill(pulse_buf, pulse_buf + pulse.duration, 1.0f);
-                                break;
-                        case pulse_type::Negative:
-                                std::fill(pulse_buf, pulse_buf + pulse.duration, -1.0f);
-                                break;
-                        case pulse_type::Biphasic:
-                                nframes_t half_dur = pulse.duration / 2;
-                                std::fill(pulse_buf, pulse_buf + half_dur, 1.0f);
-                                std::fill(pulse_buf + half_dur, pulse_buf + pulse.duration, -1.0f);
-                        }
+                        dsp::render_pulse(pulse_buf, pulse.shape, pulse.duration);
                 }
         }
         // copy the front of the buffer into the output and advance the read pointer
@@ -177,11 +167,11 @@ void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
                 pulse.status = std::stoul(words[0], 0, 16);
                 // parse second token by string matching
                 if (boost::iequals(words[1], "positive"))
-                        pulse.shape = pulse_type::Positive;
+                        pulse.shape = dsp::pulse_shape::positive;
                 else if (boost::iequals(words[1], "negative"))
-                        pulse.shape = pulse_type::Negative;
+                        pulse.shape = dsp::pulse_shape::negative;
                 else if (boost::iequals(words[1], "biphasic"))
-                        pulse.shape = pulse_type::Biphasic;
+                        pulse.shape = dsp::pulse_shape::biphasic;
                 else
                         throw std::invalid_argument("pulse shape must be 'positive', 'negative', or 'biphasic'");
                 // parse third token as a float

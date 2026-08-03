@@ -29,6 +29,7 @@ UNIT_SUITES = [
     "test_midi",
     "test_util",
     "test_playback",
+    "test_pulse",
 ]
 
 # Older programs that predate the harness. They mostly return 0 whatever

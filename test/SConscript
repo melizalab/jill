@@ -20,6 +20,7 @@ UNIT_SUITES = [
     "test_midi",
     "test_util",
     "test_playback",
+    "test_pulse",
 ]
 
 # Standalone programs predating the harness. These are not really tests: they
