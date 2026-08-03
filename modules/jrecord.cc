@@ -167,6 +167,30 @@ main(int argc, char **argv)
                                                            options.additional_options,
                                                            options.compression);
 
+                /* arf_thread has to live at file scope so the JACK callbacks
+                 * can reach it, but that makes its lifetime outlast this
+                 * scope, and two things here depend on it not doing so. The
+                 * writer holds a reference to client and calls into it while
+                 * draining -- new_entry() and get_dataset() both do -- so it
+                 * must be destroyed while client is still alive. And leaving
+                 * it to static destruction means it runs after the HDF5
+                 * library has finalized itself, which is undefined and has
+                 * been seen to crash.
+                 *
+                 * Tearing down explicitly at the end of the try block covers
+                 * the normal path but not the exception ones. This guard is
+                 * declared after client, so it is destroyed first, on every
+                 * path out of this scope. deactivate() comes first to stop
+                 * process() touching the writer, and does not throw, so it is
+                 * safe from a destructor. */
+                struct teardown {
+                        jack_client & client;
+                        ~teardown() {
+                                client.deactivate();
+                                arf_thread.reset();
+                        }
+                } teardown_guard{client};
+
                 /* create ports: one for trigger, and one for each input */
                 if (options.count("trig")) {
                         LOG << "recordings will be triggered";
@@ -258,11 +282,10 @@ main(int argc, char **argv)
                 // writer to stop
                 arf_thread->join();
 
-                // manually deactivating the client ensures shutdown events get logged
+                // manually deactivating the client here, rather than leaving it
+                // to the guard below, ensures shutdown events get logged while
+                // the writer is still running
                 client.deactivate();
-                // force arf thread to destroy its socket; otherwise it happens
-                // very late and zmq complains about a dangling socket.
-                arf_thread.reset();
         }
         catch (Exit const &e) {
                 ret = e.status();
