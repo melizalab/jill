@@ -290,6 +290,13 @@ jack_client::shutdown_callback_(jack_status_t code, char const * reason, void *a
 }
 
 void
+jack_client::latency_callback_(jack_latency_callback_mode_t mode, void *arg)
+{
+        auto * self = static_cast<jack_client*>(arg);
+        if (self->_latency_cb) self->_latency_cb(self, mode);
+}
+
+void
 jack_client::set_sample_rate_callback(SamplingRateCallback const & cb) {
         _sampling_rate_cb = cb;
         if (cb) {
@@ -327,11 +334,16 @@ jack_client::set_shutdown_callback(ShutdownCallback const & cb) {
         _shutdown_cb = cb;
 }
 
+void
+jack_client::set_latency_callback(LatencyCallback const & cb) {
+        _latency_cb = cb;
+}
+
 /* These are methods that can only be called on activated clients */
 void
 activated_client::connect_port(string const & src, string const & dest)
 {
-	jack_client_t * client = _client._client;
+        jack_client_t * client = _client._client;
         // simple name-based lookup
         jack_port_t *p1, *p2;
         if (src.find(':') != string::npos) {
@@ -370,7 +382,7 @@ activated_client::connect_port(string const & src, string const & dest)
 void
 activated_client::disconnect_all()
 {
-	jack_client_t * client = _client._client;
+        jack_client_t * client = _client._client;
         for (auto it = _client._ports.begin(); it != _client._ports.end(); ++it) {
                 int ret = jack_port_disconnect(client, *it);
                 if (ret)

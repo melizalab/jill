@@ -88,6 +88,7 @@ public:
         using BufferSizeCallback = std::function<int (jack_client *, nframes_t)>;
         using XrunCallback = std::function<int (jack_client *, float)>;
         using ShutdownCallback = std::function<void (jack_status_t, const char *)>;
+        using LatencyCallback = std::function<void (jack_client *, jack_latency_callback_mode_t)>;
 
         using port_list_type = std::list<jack_port_t *>;
 
@@ -150,6 +151,7 @@ public:
         void set_buffer_size_callback(BufferSizeCallback const & cb);
         void set_xrun_callback(XrunCallback const & cb);
         void set_shutdown_callback(ShutdownCallback const & cb);
+        void set_latency_callback(LatencyCallback const & cb);
 
         /** Get sample buffer for port */
         sample_t * samples(std::string const & name, nframes_t nframes);
@@ -194,7 +196,7 @@ protected:
         std::size_t _nports;
 
 private:
-	friend class activated_client;
+        friend class activated_client;
         /** Activate the client. Do this before attempting to connect ports */
         void activate();
         /** Deactivate the client. Disconnects all ports */
@@ -209,6 +211,7 @@ private:
         BufferSizeCallback _buffer_size_cb;
         XrunCallback _xrun_cb;
         ShutdownCallback _shutdown_cb;
+        LatencyCallback _latency_cb;
 
         void start_client(char const * name, char const * server_name=nullptr);
         void set_callbacks();
@@ -221,6 +224,7 @@ private:
         static int buffer_size_callback_(nframes_t, void *);
         static int xrun_callback_(void *);
         static void shutdown_callback_(jack_status_t, char const *, void *);
+        static void latency_callback_(jack_latency_callback_mode_t, void *);
 
 };
 
@@ -290,7 +294,7 @@ public:
 
         /** Disconnect the client from all its ports. */
         void disconnect_all();
-	
+        
 
 private:
         jack_client & _client;

@@ -49,7 +49,6 @@ protected:
 
 
 static jdelay_options options(PROGRAM_NAME);
-static std::unique_ptr<jack_client> client;
 static sample_ringbuffer ringbuf(1024);
 jack_port_t *port_in, *port_out;
 std::atomic<int> ret(EXIT_SUCCESS);
@@ -81,7 +80,7 @@ process(jack_client *client, nframes_t nframes, nframes_t)
  * indicate how much latency this client introduces to the processing stream.
  */
 void
-jack_latency (jack_latency_callback_mode_t mode, void *arg)
+jack_latency (jack_client * client, jack_latency_callback_mode_t mode)
 {
         float sr = 0.001 * client->sampling_rate();
         jack_latency_range_t range;
@@ -145,13 +144,13 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                client = std::make_unique<jack_client>(options.client_name, options.server_name);
-                options.delay = options.delay_msec * client->sampling_rate() / 1000;
+                auto client = jack_client(options.client_name, options.server_name);
+                options.delay = options.delay_msec * client.sampling_rate() / 1000;
                 LOG << "delay: " << options.delay_msec << " ms (" << options.delay << " frames)";
 
-                port_in = client->register_port("in",JACK_DEFAULT_AUDIO_TYPE,
+                port_in = client.register_port("in",JACK_DEFAULT_AUDIO_TYPE,
                                                 JackPortIsInput, 0);
-                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput, 0);
 
                 // register signal handlers
@@ -159,13 +158,13 @@ main(int argc, char **argv)
                 signal(SIGTERM, signal_handler);
                 signal(SIGHUP,  signal_handler);
 
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_buffer_size_callback(jack_bufsize);
-                client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
-                jack_set_latency_callback (client->client(), jack_latency, nullptr);
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_buffer_size_callback(jack_bufsize);
+                client.set_xrun_callback(jack_xrun);
+                client.set_process_callback(process);
+                client.set_latency_callback(jack_latency);
 
-                activated_client active(*client);
+                activated_client active(client);
                 active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
                 active.connect_ports("out", options.output_ports.begin(), options.output_ports.end());
 
