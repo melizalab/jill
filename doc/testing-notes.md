@@ -88,7 +88,15 @@ throwing allocates, and an exception unwinding out of a callback would cross
 into JACK's C frames.
 
 Marking a callback does not make it safe; it asks to be told when it is not.
-Any violation aborts the process with a stack trace at the point of the call.
+Any violation aborts the process with a stack trace at the point of the call,
+and the driver fails the test on the report rather than on the exit status --
+these modules exit non-zero on their error paths anyway, so the status alone
+cannot tell a handled error from an abort inside a callback.
+
+Note that a module only reaches its interesting code when something drives it.
+`jclicker` and `jrelay` do their per-event work only when events are arriving,
+so `test_event_driven_path_is_clean` runs each of them alongside `jstim` and
+lets real stimulus markers flow between them.
 
 If a run appears to hang instead of printing a report, it is stuck in
 `llvm-symbolizer`. Set `RTSAN_OPTIONS=symbolize=0` to get addresses instead of

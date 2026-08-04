@@ -49,12 +49,48 @@ def sanitizer_env():
     Setting these is harmless in a build without sanitizers.
     """
     env = dict(os.environ)
+    # RealtimeSanitizer's reports go through llvm-symbolizer, which hangs on
+    # some systems and would wedge a suite rather than fail it. Anything the
+    # caller already set wins, so `RTSAN_OPTIONS=symbolize=0 pytest` is how to
+    # work around that; see doc/testing-notes.md.
+    env.setdefault("RTSAN_OPTIONS", "halt_on_error=true")
     suppressions = TEST_DIR / "lsan.supp"
     if suppressions.exists():
         option = "suppressions=%s" % suppressions
         existing = env.get("LSAN_OPTIONS")
         env["LSAN_OPTIONS"] = option if not existing else existing + ":" + option
     return env
+
+
+# Every sanitizer announces a finding with a line of this shape before it does
+# anything else. Matching the banner rather than the exit status matters for the
+# module tests, which run programs whose error paths legitimately exit non-zero:
+# RealtimeSanitizer exits 43, ThreadSanitizer 66, and both would otherwise read
+# as "the module reported an error and shut down properly".
+SANITIZER_BANNER = "ERROR: "
+SANITIZERS = (
+    "AddressSanitizer",
+    "ThreadSanitizer",
+    "LeakSanitizer",
+    "MemorySanitizer",
+    "UndefinedBehaviorSanitizer",
+    "RealtimeSanitizer",
+)
+
+
+def assert_no_sanitizer_error(out, name):
+    """Fail if a sanitizer reported anything in a program's output.
+
+    A build without sanitizers never emits these lines, so this is a no-op
+    there and does not need to know how the tree was built.
+    """
+    if out is None:
+        return
+    for line in out.splitlines():
+        if SANITIZER_BANNER in line and any(s in line for s in SANITIZERS):
+            pytest.fail(
+                "%s tripped a sanitizer:\n  %s\n--- output ---\n%s"
+                % (name, line.strip(), out[-3000:]))
 
 
 def run_binary(name, timeout=60, cwd=None, args=()):
