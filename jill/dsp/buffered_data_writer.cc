@@ -76,6 +76,12 @@ buffered_data_writer::push(nframes_t time, dtype_t dtype, char const * id,
 void
 buffered_data_writer::data_ready()
 {
+        /*
+         * To stay safe for the realtime thread, data_ready() doesn't take the
+         * mutex, which means the condvar notification may get dropped. This is
+         * not thought to be a problem, because, because the next push will call
+         * this again. 
+         */
         _ready.notify_one();
 }
 
@@ -91,28 +97,27 @@ buffered_data_writer::xrun()
 void
 buffered_data_writer::stop()
 {
-	/* Begins the process of shutting down the writer. If the writer is
-	 * Running, switches the state to Stopping (which drops any further data
-	 * sent to push()) and releases the _ready condition variable so that
-	 * the writer thread flushes any remaining data. If the writer is
-	 * Stopped, the state is still switched to Stopping to avoid an
-	 * inconsistent state if the thread is in the process of starting - this
-	 * can happen if a signal is delivered during startup.
-	 */
-        /* The state has to change while the lock is held. The writer thread
-         * evaluates its wait predicate under this lock and then enqueues on
-         * the condition variable; those two steps are atomic only with respect
-         * to other holders of the lock. Changing the state without it lets the
-         * change land in between, so the predicate reads the old value and the
-         * notification finds no waiter and is dropped -- after which the thread
-         * sleeps forever and join() never returns. Measured at roughly one run
-         * in three of test_data_writer.
+        /* Begins the process of shutting down the writer. If the writer is
+         * Running, switches the state to Stopping (which drops any further data
+         * sent to push()) and releases the _ready condition variable so that
+         * the writer thread flushes any remaining data. If the writer is
+         * Stopped, the state is still switched to Stopping to avoid an
+         * inconsistent state if the thread is in the process of starting - this
+         * can happen if a signal is delivered during startup.
          *
-         * data_ready() stays lock-free because it is called from the realtime
-         * thread. A notification lost there costs one period of latency rather
-         * than a hang, since the next push notifies again. stop() has no next
-         * push, which is why it is the one that must take the lock, and why it
-         * must never be called from a signal handler. */
+         * Note that the state has to change while the lock is held. The writer
+         * thread evaluates its wait predicate under this lock and then enqueues
+         * on the condition variable; those two steps are atomic only with
+         * respect to other holders of the lock. Changing the state without it
+         * lets the change land in between, so the predicate reads the old value
+         * and the notification finds no waiter and is dropped -- after which
+         * the thread sleeps forever and join() never returns. Measured at
+         * roughly one run in three of test_data_writer.
+         *
+         * stop() has no next push, which is why needs to take a lock to ensure
+         * the notification isn't lost. This also means it must never be called
+         * from a signal handler.
+         */
         {
                 std::lock_guard<std::mutex> lck(_lock);
                 state_t running = Running;

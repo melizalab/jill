@@ -137,17 +137,11 @@ std::size_t log_times(event_t const * events, std::size_t count)
 void
 signal_handler(int sig)
 {
-        /* Stores to lock-free atomics and nothing else. This handler used to
-         * call client->buffer_size(), which enters the JACK library, then
-         * usleep(), which is not on the list of functions a handler may call,
-         * and then exit(), which runs the atexit handlers and static
-         * destructors on the interrupted thread while main() is still using
-         * the objects being destroyed.
-         *
-         * `stopping` is still set here rather than in main so the realtime
-         * thread learns about the shutdown at the earliest possible period.
-         * The wait that gives it time to emit its closing event has moved to
-         * main, where sleeping is allowed. */
+        /* Stores to lock-free atomics and nothing else. `stopping` tells the
+         * realtime thread to generate a note off event for any downstream
+         * clients (e.g. jrecord in triggered mode). `running` is polled by
+         * main() and initiates shutdown of the main thread. 
+         */
         ret = sig;
         stopping = true;
         running = false;
@@ -220,9 +214,6 @@ main(int argc, char **argv)
                 client->set_shutdown_callback(jack_shutdown);
                 client->set_sample_rate_callback(samplerate_callback);
                 client->set_process_callback(process);
-                /* trigger is at file scope and declared after client, so static
-                 * destruction frees it first. Scoping the activation here means
-                 * the callbacks have stopped well before that. */
                 activated_client active(*client);
 
                 active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");

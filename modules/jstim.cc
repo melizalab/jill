@@ -242,16 +242,16 @@ jack_shutdown(jack_status_t code, char const *)
 void
 signal_handler(int sig)
 {
-        /* Nothing here but stores to lock-free atomics, which is all a signal
-         * handler may safely do. This used to call stim_queue->stop(), which
+        /*
+	 * Only touch lock-free atomics to stay within bounds of what a signal
+         * handler can safely do. This used to call stim_queue->stop(), which
          * takes the queue's mutex: a signal delivered while the worker thread
-         * held that mutex deadlocked the process, since the handler runs on
-         * the thread it interrupted and that thread cannot release it. main()
-         * does the stopping now.
-         *
-         * The xrun bump stays. It is how the realtime thread is told to cut
-         * the stimulus short at the start of the next period rather than
-         * playing it out. */
+         * held that mutex deadlocked the process, since the handler runs on the
+         * thread it interrupted and that thread cannot release it. main() does
+         * the stopping now. The xruns variable is incremented to tell the
+         * realtime thread to cut the stimulus short at the start of the next
+         * period rather than playing it out.
+	 */
         xruns.fetch_add(1);
         ret = sig;
         running = false;
@@ -365,9 +365,9 @@ main(int argc, char **argv)
                 active.connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
                                       "trig_in");
 
-                /* Poll rather than blocking in join(), so that a signal
-                 * clearing `running` is noticed. The queue is stopped from
-                 * here because stop() takes a mutex and the handler cannot. */
+		// Poll the running flag and the stimulus queue. Running gets
+		// flipped to false by signal handlers; stimulus queue flags
+		// finished when the stimulus list is complete.
                 while (running && !stim_queue->finished()) {
                         usleep(100000);
                 }

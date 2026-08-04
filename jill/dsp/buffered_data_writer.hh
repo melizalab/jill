@@ -116,9 +116,9 @@ protected:
 private:
         void thread();                              // the writer thread
 
-        std::thread _thread;
         std::mutex _lock;                           // mutex for condition variable
         std::condition_variable _ready;             // indicates data ready
+        std::thread _thread;
 
         std::atomic<bool> _xrun;                   // flag to indicate xrun
         // variables for receiving incoming messages
