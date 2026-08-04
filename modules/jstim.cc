@@ -100,7 +100,7 @@ std::atomic<bool> running(true);
  *
  */
 int
-process(jack_client *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 {
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer

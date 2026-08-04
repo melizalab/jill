@@ -61,15 +61,35 @@ LeakSanitizer suppressions live in `test/lsan.supp` and are applied
 automatically by the driver. HDF5 registers process-global state on first use
 and never frees it, which would otherwise be reported on every single run.
 
-`sanitize=thread` currently fails, and is meant to: two suites report genuine
-data races that are being worked through as part of the concurrency audit.
-`test_stimset` reports `readahead_stimqueue`, where `head()` and `release()`
-touch `_head` without the lock the background thread holds when writing it.
-`test_ringbuf_concurrent` reports the ringbuffers themselves, which advance
-their read and write pointers atomically but declare them as plain `size_t`
-and read them without synchronization; the payload copies and block headers
-race for the same reason. Neither is a problem with your build.
+`test_ringbuf_concurrent` exists specifically to drive the ringbuffers from two
+threads. Nothing else does, so before it was written the most important race in
+the codebase produced no sanitizer output at all. It reported seventeen races
+under `sanitize=thread` until the read and write pointers became `std::atomic`;
+it should now be clean, and a report from it is a regression.
 
-`test_ringbuf_concurrent` exists specifically to make that second one visible.
-Nothing else drives the ringbuffers from two threads, so before it was written
-the most important race in the codebase produced no sanitizer output at all.
+## Checking the realtime callbacks
+
+A JACK process callback has to finish in bounded time without blocking, which
+rules out allocating, freeing, taking a lock, doing I/O, or making a syscall
+that can sleep. `sanitize=realtime` checks that instead of trusting it:
+
+```shell
+scons -Q -c
+scons -Q debug=1 sanitize=realtime modules test
+pytest test/test_module_lifecycle.py
+```
+
+This one is clang-only, because it works through clang's `nonblocking`
+attribute, which `JILL_RT` in `jill/rt.hh` expands to. The build switches the
+compiler for you and refuses to run if `CXX` names something that is not clang,
+rather than silently producing a binary that checks nothing. On gcc `JILL_RT`
+still expands to `noexcept`, so half the contract is enforced everywhere:
+throwing allocates, and an exception unwinding out of a callback would cross
+into JACK's C frames.
+
+Marking a callback does not make it safe; it asks to be told when it is not.
+Any violation aborts the process with a stack trace at the point of the call.
+
+If a run appears to hang instead of printing a report, it is stuck in
+`llvm-symbolizer`. Set `RTSAN_OPTIONS=symbolize=0` to get addresses instead of
+symbols, which `llvm-symbolizer` can resolve afterwards from the build ID.

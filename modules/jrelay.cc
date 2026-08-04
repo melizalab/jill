@@ -53,7 +53,7 @@ jack_port_t *port_in;
 
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 {
         void * in = client->events(port_in, nframes);
         jack_midi_event_t event;

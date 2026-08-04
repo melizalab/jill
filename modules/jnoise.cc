@@ -63,7 +63,7 @@ static std::mt19937 wn_gen(rd()); //Standard mersenne_twister_engine seeded with
 static std::normal_distribution<> wn_dis(0.0, 1.0);
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t)
+process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
 {
         sample_t *out = client->samples(port_out, nframes);
 

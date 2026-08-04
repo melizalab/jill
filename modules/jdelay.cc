@@ -60,7 +60,7 @@ std::atomic<bool> running(true);
  * jack_bufsize())
  */
 int
-process(jack_client *client, nframes_t nframes, nframes_t)
+process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
 {
         sample_t *in = client->samples(port_in, nframes);
         sample_t *out = client->samples(port_out, nframes);

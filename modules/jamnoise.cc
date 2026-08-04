@@ -108,7 +108,7 @@ static std::uniform_real_distribution<> wn_dis(-1.0, 1.0);
  * Butterworth.
  */
 int
-process(jack_client *client, nframes_t nframes, nframes_t)
+process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
 {
         // buffers for the IIR lowpass filter. Samples are shifted to higher indices
         sample_t *in = client->samples(port_in, nframes);

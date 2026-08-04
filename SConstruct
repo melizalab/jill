@@ -48,6 +48,7 @@ AddOption(
 debug = ARGUMENTS.get("debug", 0)
 # runtime sanitizers, e.g. sanitize=address or sanitize=thread. Passed straight
 # through to -fsanitize, so the compiler's own combinations work too.
+# sanitize=realtime is special-cased below because it is clang-only.
 sanitize = ARGUMENTS.get("sanitize", None)
 
 if not GetOption("prefix") == None:
@@ -77,7 +78,9 @@ Type: 'scons modules' to build the JILL modules
 Options:
       debug=1      to enable debug compilation
       debug=2      as debug=1, and emit DBG log messages at runtime
-      sanitize=X   build with -fsanitize=X, e.g. address or thread.
+      sanitize=X   build with -fsanitize=X, e.g. address, thread, or
+                   realtime. realtime checks the process callbacks for
+                   allocation, locking and blocking syscalls, and needs clang.
                    Combine with debug=1, or the assertions are compiled
                    out of the very code being checked.
       --no-arf     skip jrecord and the rest of the ARF/HDF5 code
@@ -185,6 +188,30 @@ if int(debug):
     env.Append(CCFLAGS=["-g2", "-DDEBUG=%s" % debug])
 else:
     env.Append(CCFLAGS=["-O2", "-DNDEBUG"])
+
+if sanitize == "realtime":
+    # RealtimeSanitizer is clang-only, and it only checks functions carrying
+    # clang's nonblocking attribute -- which is what JILL_RT expands to. A gcc
+    # build silently drops the attribute, so without this check the build would
+    # succeed, run, and verify nothing at all.
+    cxx = env.subst("$CXX")
+    is_clang = False
+    try:
+        probe = subprocess.run([cxx, "--version"], capture_output=True, text=True)
+        is_clang = "clang" in probe.stdout.lower()
+    except OSError:
+        pass
+    if not is_clang:
+        if "CXX" in os.environ:
+            print("error: sanitize=realtime needs clang, but CXX is set to '%s'." % cxx)
+            print("       RealtimeSanitizer is a clang feature and JILL_RT expands to")
+            print("       nothing on other compilers, so the build would check nothing.")
+            print("       Unset CXX to let the build pick clang++, or set CXX=clang++.")
+            Exit(1)
+        print("sanitize=realtime: switching to clang (RealtimeSanitizer is clang-only)")
+        # jmonitor is C, so the C compiler has to move too or the sanitizer
+        # flag reaches a gcc that does not know it
+        env.Replace(CXX="clang++", CC="clang")
 
 if sanitize:
     # -fno-omit-frame-pointer keeps the reports readable, and the flag has to

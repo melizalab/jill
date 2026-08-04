@@ -64,7 +64,7 @@ std::atomic<bool> running(true);
 
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 {
         jack_port_t *port;
         void *buffer;

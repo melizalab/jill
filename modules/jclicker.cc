@@ -84,7 +84,7 @@ static std::mt19937 p_gen(rd()); // Standard mersenne_twister_engine seeded with
 static std::uniform_real_distribution<> p_dis(0.0, 1.0);
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 {
         void *in = client->events(port_in, nframes);
         sample_t *out = client->samples(port_out, nframes);

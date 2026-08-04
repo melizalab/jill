@@ -62,7 +62,7 @@ std::atomic<bool> trigger(false);
 std::atomic<midi::data_type> status(midi::status_type::note_off);
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t)
+process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
 {
         void *trig_buffer = client->events(port_trig, nframes);
         jack_midi_data_t buf[] = {

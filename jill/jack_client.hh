@@ -18,6 +18,8 @@
 #include <boost/noncopyable.hpp>
 #include <jack/jack.h>
 #include "data_source.hh"
+// every module's process callback needs JILL_RT, and every module includes this
+#include "rt.hh"
 
 /**
  * @defgroup clientgroup Creating and controlling JACK clients

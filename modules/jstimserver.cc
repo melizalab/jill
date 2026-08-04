@@ -120,7 +120,7 @@ jack_port_t *port_out, *port_trigout;
 
 /** The realtime process loop for jstimserver. */
 int
-process(jack_client *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 {
         // NB static variables are initialized to 0
         static stimulus_t const * _stim;       // currently playing stimulus or

@@ -74,7 +74,7 @@ struct event_t {
 dsp::ringbuffer<event_t> trig_times(128);
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t time)
+process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 {
         sample_t *in = client->samples(port_in, nframes);
         sample_t *out = (port_count) ? client->samples(port_count, nframes) : nullptr;
