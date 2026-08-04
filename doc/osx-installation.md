@@ -82,36 +82,5 @@ to build the modules, only to build and run the tests:
 sudo port install doctest py-pytest py-h5py
 ```
 
-Build the suites and run them all with a single command, from the top of the
-source tree:
-
-```shell
-scons -Q test
-pytest
-```
-
-Each suite is a separate binary under `test/`, run as its own process so that
-one crashing or hanging cannot take the rest of the run down. `pytest` reports
-a single pass or fail for the lot.
-
-Some of the older programs need external resources, and are tagged so they can
-be left out:
-
-```shell
-pytest -m "not needs_jack"   # skip anything needing a JACK server
-pytest -m "not needs_arf"    # skip the ARF/HDF5 format tests
-```
-
-Tests needing a JACK server get one automatically: a `jackd -d dummy` is
-started for them and shut down afterwards, so no sound hardware is involved.
-JACK on macOS is less predictable than on Linux, so if `jackd` cannot be
-started those tests skip rather than fail. `test_zmq_server` runs until
-interrupted and is skipped by default.
-
-You can also run a single binary directly, which is often quicker when working
-on one area:
-
-```shell
-./test/test_ringbuf
-./test/test_ringbuf --test-case="*mirrored*"
-```
+See [testing notes](testing-notes.md) for how to run the suites and what the
+sanitizer builds check.
