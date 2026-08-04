@@ -63,6 +63,20 @@ public:
         void stop() override;
         void join() override;
 
+        /**
+         * @return true once the background thread has exited, whether because
+         *         the sequence was exhausted or because stop() was called.
+         *
+         * Lets a caller poll for completion instead of blocking in join(). A
+         * main loop that must also notice a signal needs this: stop() takes a
+         * mutex and so cannot be called from a signal handler, which leaves
+         * polling a flag as the only way for the handler to reach it.
+         *
+         * This is a latch, not a level: it is set once and never cleared, so
+         * unlike head() it will not read false again after reading true.
+         */
+        bool finished() const { return _finished.load(std::memory_order_acquire); }
+
 private:
         void loop();                      // called by thread
 
@@ -82,6 +96,8 @@ private:
         nframes_t const _samplerate;
         bool const _loop;
         bool _running;
+        // set by the worker as it exits; read by any thread through finished()
+        std::atomic<bool> _finished;
 
 	// Declaration order matters here. Need to initialize the mutex and
 	// condition variable before the thread starts, and shut down the thread

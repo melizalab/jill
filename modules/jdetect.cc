@@ -62,6 +62,9 @@ std::unique_ptr<dsp::crossing_trigger<sample_t> > trigger;
 jack_port_t *port_in, *port_trig, *port_count;
 // set to true to get process to clean up
 std::atomic<bool> stopping(false);
+// cleared by a signal or by the server going away; ends the main loop
+std::atomic<bool> running(true);
+std::atomic<int> ret(EXIT_SUCCESS);
 
 /* data storage for event times */
 struct event_t {
@@ -134,19 +137,28 @@ std::size_t log_times(event_t const * events, std::size_t count)
 void
 signal_handler(int sig)
 {
+        /* Stores to lock-free atomics and nothing else. This handler used to
+         * call client->buffer_size(), which enters the JACK library, then
+         * usleep(), which is not on the list of functions a handler may call,
+         * and then exit(), which runs the atexit handlers and static
+         * destructors on the interrupted thread while main() is still using
+         * the objects being destroyed.
+         *
+         * `stopping` is still set here rather than in main so the realtime
+         * thread learns about the shutdown at the earliest possible period.
+         * The wait that gives it time to emit its closing event has moved to
+         * main, where sleeping is allowed. */
+        ret = sig;
         stopping = true;
-        // wait for at least one process loop; not strictly async safe
-        usleep(2e6 * client->buffer_size() / client->sampling_rate());
-        exit(sig);
+        running = false;
 }
 
 void
 jack_shutdown(jack_status_t code, char const *)
 {
+        ret = -1;
         stopping = true;
-        // wait for at least one process loop
-        usleep(2e6 * client->buffer_size() / client->sampling_rate());
-        exit(-1);
+        running = false;
 }
 
 /**
@@ -216,12 +228,20 @@ main(int argc, char **argv)
                 active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
                 active.connect_ports("trig_out", options.output_ports.begin(), options.output_ports.end());
 
-                while(true) {
+                while (running) {
+                        // interrupted by a signal, so this does not delay shutdown
                         sleep(1);
                         trig_times.pop(log_times); // calls visitor function on ringbuffer
                 }
 
-                return EXIT_SUCCESS;
+                /* Give the realtime thread a period to notice `stopping` and
+                 * emit its closing note_off before activated_client goes out
+                 * of scope and deactivates the client. The signal handler used
+                 * to do this wait itself, from signal context. */
+                usleep(2e6 * client->buffer_size() / client->sampling_rate());
+                trig_times.pop(log_times); // whatever it logged on the way out
+
+                return ret;
         }
         catch (Exit const &e) {
                 return e.status();

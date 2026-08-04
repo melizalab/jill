@@ -17,7 +17,7 @@ readahead_stimqueue::readahead_stimqueue(iterator first, iterator last,
                                          nframes_t samplerate,
                                          bool loop)
         :  _first(first), _last(last), _it(first), _head(nullptr), _previous(nullptr),
-           _samplerate(samplerate), _loop(loop), _running(true),
+           _samplerate(samplerate), _loop(loop), _running(true), _finished(false),
            _thread(&readahead_stimqueue::loop, this)
 {}
 
@@ -94,6 +94,9 @@ readahead_stimqueue::loop()
                 _ready.wait(lck, [this]{ return (!_head || !_running);});
         }
         LOG << "end of stimulus list";
+        // published last, so a caller that sees finished() also sees
+        // everything the worker did before it
+        _finished.store(true, std::memory_order_release);
 }
 
 jill::stimulus_t const *

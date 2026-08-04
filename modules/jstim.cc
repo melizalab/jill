@@ -76,6 +76,9 @@ std::unique_ptr<util::readahead_stimqueue> stim_queue;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
 std::atomic<nframes_t> last_stop(0);        // time when last stimulus ended
+std::atomic<int> ret(EXIT_SUCCESS);
+// cleared by a signal or by the server going away; main stops the queue
+std::atomic<bool> running(true);
 
 /**
  * The realtime process loop for jstim. The logic is complicated. The process
@@ -232,14 +235,26 @@ void
 jack_shutdown(jack_status_t code, char const *)
 {
         xruns.fetch_add(1);
-        if (stim_queue) stim_queue->stop();
+        ret = -1;
+        running = false;
 }
 
 void
 signal_handler(int sig)
 {
+        /* Nothing here but stores to lock-free atomics, which is all a signal
+         * handler may safely do. This used to call stim_queue->stop(), which
+         * takes the queue's mutex: a signal delivered while the worker thread
+         * held that mutex deadlocked the process, since the handler runs on
+         * the thread it interrupted and that thread cannot release it. main()
+         * does the stopping now.
+         *
+         * The xrun bump stays. It is how the realtime thread is told to cut
+         * the stimulus short at the start of the next period rather than
+         * playing it out. */
         xruns.fetch_add(1);
-        if (stim_queue) stim_queue->stop();
+        ret = sig;
+        running = false;
 }
 
 
@@ -350,12 +365,18 @@ main(int argc, char **argv)
                 active.connect_ports(options.trigin_ports.begin(), options.trigin_ports.end(),
                                       "trig_in");
 
-                // wait for stimuli to finish playing
+                /* Poll rather than blocking in join(), so that a signal
+                 * clearing `running` is noticed. The queue is stopped from
+                 * here because stop() takes a mutex and the handler cannot. */
+                while (running && !stim_queue->finished()) {
+                        usleep(100000);
+                }
+                stim_queue->stop();
                 stim_queue->join();
                 // wait for posttrigger and midi buffers to clear
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
 
-                return EXIT_SUCCESS;
+                return ret;
         }
 
         catch (Exit const &e) {
