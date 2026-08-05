@@ -166,7 +166,6 @@ TEST_CASE("data pushed before stopping reaches the writer") {
         for (nframes_t i = 0; i < 8; ++i) {
                 w->push(i * 64, jill::SAMPLED, "pcm",
                         samples.size() * sizeof(sample_t), samples.data());
-                w->data_ready();
         }
         w->stop();
         join_within(w, std::chrono::seconds(10));

@@ -89,7 +89,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                         }
                 }
         }
-        arf_thread->data_ready();
 
         return 0;
 }

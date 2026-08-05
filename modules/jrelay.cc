@@ -63,7 +63,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 if (event.size < 1) continue;
                 zmq_thread->push(time + event.time, EVENT, jack_port_short_name(port_in), event.size, event.buffer);
         }
-	if (nevents > 0) zmq_thread->data_ready();
         return 0;
 }
 

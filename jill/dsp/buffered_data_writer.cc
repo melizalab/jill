@@ -9,6 +9,7 @@
  * (at your option) any later version.
  *
  */
+#include <chrono>
 #include <iostream>
 #include <vector>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -21,6 +22,22 @@
 
 using namespace jill;
 using namespace jill::dsp;
+
+namespace {
+
+/* How long the writer sleeps before looking at the buffer again.
+ *
+ * Nothing wakes it any more: the realtime thread used to signal a condition
+ * variable after every push, which is not something the audio path may do.
+ * Since it now finds the data on its own, this is the longest a block can sit
+ * unwritten -- against a ringbuffer holding seconds of audio, which is why the
+ * latency does not matter and the wakeup rate does. Fifty milliseconds is
+ * twenty wakeups a second on a recorder that runs for days.
+ *
+ * stop() still signals, under the lock, so shutdown does not wait for this. */
+const auto poll_interval = std::chrono::milliseconds(50);
+
+}
 using namespace jill::net;
 using std::size_t;
 using std::string;
@@ -47,6 +64,7 @@ buffered_data_writer::buffered_data_writer(std::unique_ptr<data_writer> writer, 
         : _state(Stopped),
           _writer(std::move(writer)),
           _buffer(new block_ringbuffer(buffer_size)),
+          _dirty(false),
           _socket(zmq::context::socket(ZMQ_DEALER)),
           _logger_bound(false)
 {
@@ -72,19 +90,6 @@ buffered_data_writer::push(nframes_t time, dtype_t dtype, char const * id,
                 }
         }
 }
-
-void
-buffered_data_writer::data_ready()
-{
-        /*
-         * To stay safe for the realtime thread, data_ready() doesn't take the
-         * mutex, which means the condvar notification may get dropped. This is
-         * not thought to be a problem, because, because the next push will call
-         * this again. 
-         */
-        _ready.notify_one();
-}
-
 
 void
 buffered_data_writer::xrun()
@@ -197,11 +202,17 @@ buffered_data_writer::thread()
                         if (_state == Stopping) {
                                 break;
                         }
-                        /* otherwise flush to disk and wait for more data */
+                        /* otherwise flush anything outstanding and sleep. The
+                         * flush is guarded because this pass now also happens
+                         * on an idle timer, and flushing an unchanged file
+                         * every interval would be pure overhead. */
                         else {
-                                _writer->flush();
-                                _ready.wait(lck,
-                                            [this]{ return(_state == Stopping || _buffer->peek()); });
+                                if (_dirty) {
+                                        _writer->flush();
+                                        _dirty = false;
+                                }
+                                _ready.wait_for(lck, poll_interval,
+                                                [this]{ return(_state == Stopping || _buffer->peek()); });
                         }
                 }
                 else {
@@ -223,6 +234,7 @@ buffered_data_writer::write(data_block_t const * data)
         }
         _writer->write(data, 0, 0);
         _buffer->release();
+        _dirty = true;
 }
 
 void
@@ -237,8 +249,16 @@ buffered_data_writer::write_messages()
         for (int i = 0; i < max_messages; ++i) {
                 // expect a three-part message: source, timestamp, message
                 std::vector<std::string> messages = zmq::recv(_socket, ZMQ_DONTWAIT);
+                if (messages.empty()) {
+                        // nothing left; the loop used to run all hundred
+                        // iterations regardless, which was merely wasteful when
+                        // it ran on a signal and is worse now that it runs on a
+                        // timer
+                        break;
+                }
                 if (messages.size() >= 3) {
                         _writer->log(from_iso_string(messages[1]), messages[0], messages[2]);
+                        _dirty = true;
                 }
         }
 }

@@ -54,7 +54,6 @@ public:
 
         void push(nframes_t time, dtype_t dtype, char const * id,
                   std::size_t size, void const * data) override;
-        void data_ready() override;
         void xrun() override;
         void reset() override;
         void stop() override;
@@ -118,6 +117,10 @@ private:
 
         std::mutex _lock;                           // mutex for condition variable
         std::condition_variable _ready;             // indicates data ready
+        /* Set when something has been written since the last flush. The
+         * consumer wakes on a timer now rather than on a signal, so without
+         * this it would flush the file on every idle pass. */
+        bool _dirty;
         std::thread _thread;
 
         std::atomic<bool> _xrun;                   // flag to indicate xrun

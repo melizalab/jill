@@ -40,9 +40,14 @@ public:
         /**
          * Process incoming data according to current state. In Stopped and
          * Running, data are stored for further processing. In Stopping, data
-         * are silently discarded. Must always be wait-free. The caller must
-         * call data_ready() after push() to notify the handler that there is
-         * data to process.
+         * are silently discarded. Must always be wait-free.
+         *
+         * There is deliberately no companion call to wake the handler. This
+         * used to be data_ready(), which the realtime thread called after
+         * every push; it signalled a condition variable, and
+         * pthread_cond_signal takes glibc's internal condvar lock and makes a
+         * futex syscall, neither of which belongs on the audio path. The
+         * handler finds the data on its own.
          *
          * @param time  the time of the block
          * @param dtype the type of data in the block
@@ -52,9 +57,6 @@ public:
          */
         virtual void push(nframes_t time, dtype_t dtype, char const * id,
                           std::size_t size, void const * data) = 0;
-
-        /** Signal the handler that data is ready. Must be wait-free. */
-        virtual void data_ready() = 0;
 
         /** Signal an overrun/underrun. Must be wait-free. */
         virtual void xrun() {}
@@ -86,8 +88,8 @@ public:
          *
          * Most implementations will use buffers to provide wait-free push()
          * behavior and thus need to know how much storage is needed between
-         * calls to data_ready. The actual amount needed will also depend on how
-         * the data are consumed.
+         * passes of the consumer. The actual amount needed will also depend on
+         * how the data are consumed.
 
          * @param bytes   the requested capacity of the buffer
          * @return the new capacity of the buffer
