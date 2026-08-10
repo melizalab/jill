@@ -106,10 +106,32 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
+        /* Registered before activation, so JACK calls this once during startup
+         * with the current period size -- which is where the ringbuffer
+         * actually gets sized -- and then again on any genuine change. It runs
+         * on the server's notification thread with the engine stopped, so
+         * blocking and allocating here are both fine; this is not the realtime
+         * thread and no process callback is running alongside it.
+         *
+         * A change means the audio stream had a gap in it. Carry on rather than
+         * give up: this runs unattended for days, and losing the remainder of a
+         * recording is far worse than a seam in it. reset() closes the current
+         * entry, so the discontinuity shows up as an entry boundary in the ARF
+         * file instead of an unmarked join. At startup the writer has not been
+         * started yet, so it is a no-op there. */
+        static nframes_t last_period = 0;
+        if (last_period != 0 && last_period != nframes) {
+                LOG << "WARNING: JACK period size changed from " << last_period
+                    << " to " << nframes << " frames; the audio stream was"
+                       " interrupted. Starting a new entry to mark the gap.";
+        }
+        last_period = nframes;
+
         std::size_t bytes = client->sampling_rate() * options.buffer_size_s * client->nports();
         if (port_trig != nullptr)
                 bytes += client->sampling_rate() * options.pretrigger_size_s * client->nports();
-        // will block until buffer is empty (with any current implementation, anyway)
+        // grows only; request_buffer_size leaves the buffer alone if it is
+        // already big enough
         bytes = arf_thread->request_buffer_size(bytes * sizeof(sample_t));
         arf_thread->reset();
         LOG << "ringbuffer size (bytes): " << bytes;

@@ -133,9 +133,22 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         for(nframes_t i = 0; i < nframes; ++i)
                 out[i] = 0.0f;
 
-        // if there was an xrun, add the event to the ringbuffer
+        /* An xrun -- or a buffer size change, which routes here too -- means
+         * a gap in the audio stream. Truncate anything playing rather than
+         * carrying on from where we left off: the stimulus would come out with
+         * a hole in the middle, and a trial that sounds intact but is not is
+         * far harder to exclude from an analysis than one that is obviously
+         * short. The client is told both that the stream broke and that this
+         * particular playback was cut off. */
         if (_xruns) {
                 _eventbuf.push(Event{Event::Xrun, time, _stim});
+                if (_stim) {
+                        midi::write_message(trig, 0, midi::status_type::stim_off,
+                                            _stim->name());
+                        _eventbuf.push(Event{Event::Interrupted, time, _stim});
+                        _stim = nullptr;
+                        stim_offset = 0;
+                }
                 _xruns.fetch_add(-1);
         }
 
@@ -199,7 +212,16 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // changes to bufsize will interrupt the audio stream
+        /* Registered after activation, so this only ever runs on a real change,
+         * never to report the initial size. JACK delivers it on its
+         * notification thread with the engine stopped, so logging and
+         * allocating here are both fine -- this is not the realtime thread.
+         *
+         * The stream has a gap in it either way, so route it through the xrun
+         * path, which truncates the current stimulus and tells the client. */
+        LOG << "WARNING: JACK period size changed to " << nframes
+            << " frames; the audio stream was interrupted and any playback in"
+               " progress has been truncated";
         _xruns.fetch_add(1);
         return 0;
 }

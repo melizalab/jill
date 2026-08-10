@@ -133,12 +133,35 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         return 0;
 }
 
-/** Resize the buffer. May reallocate memory, losing upcoming pulses */
+/**
+ * Make the buffer fit the new period size.
+ *
+ * Runs once at activation, because the callback is registered before the
+ * client is activated, and then on any genuine change. Both cases are the same
+ * work, so there is nothing to distinguish. JACK delivers this on its
+ * notification thread with the engine stopped, so allocating is allowed and no
+ * process callback is running concurrently.
+ */
 int
 jack_bufsize(jack_client *, nframes_t nframes)
 {
-        ringbuf->resize(nframes * 3 + max_lookahead);
-        DBG << "jack period size changed; ringbuffer resized to " << ringbuf->size();
+        /* Grow only, but empty either way. Whatever is in the buffer is pulses
+         * already rendered into sample positions on the old timeline, and the
+         * stream has just been interrupted -- emitting them now would fire a
+         * click at the wrong latency after the event that asked for it, which
+         * is worse than the silence that replaces them. */
+        const std::size_t needed = nframes * 3 + max_lookahead;
+        if (needed > ringbuf->size()) {
+                ringbuf->resize(needed);        // discards
+        }
+        else {
+                ringbuf->clear();
+        }
+        // process() requires exactly one period plus the lookahead margin to be
+        // readable; re-establish that against the new period size
+        ringbuf->push(nullptr, nframes + max_lookahead);
+        DBG << "jack period size now " << nframes << "; ringbuffer holds "
+            << ringbuf->size() << " samples, " << ringbuf->read_space() << " primed";
         return 0;
 }
 

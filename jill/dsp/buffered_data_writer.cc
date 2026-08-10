@@ -172,11 +172,30 @@ buffered_data_writer::join()
 size_t
 buffered_data_writer::request_buffer_size(size_t bytes)
 {
-        // block until the buffer is empty
+        /* Called from the JACK buffer size callback, which the server delivers
+         * on its notification thread with the engine stopped -- so blocking and
+         * allocating here are both fine, and no process callback is running to
+         * push while this works.
+         *
+         * Grows only. A larger period fits in a buffer sized for a longer span
+         * of audio, and shrinking would mean throwing away headroom to no end.
+         */
         std::lock_guard<std::mutex> lck(_lock);
-        if (bytes > _buffer->size()) {
-                _buffer->resize(bytes);
+        if (bytes <= _buffer->size()) {
+                return _buffer->size();
         }
+        /* resize() discards, so anything still buffered has to reach the file
+         * first. Taking the lock already implies the writer thread is parked,
+         * and it only parks after draining and flushing -- but that is a
+         * property of the loop above rather than a promise, and the cost of
+         * being wrong is a silent hole in a recording. Drain explicitly. */
+        data_block_t const * hdr;
+        while ((hdr = _buffer->peek()) != nullptr) {
+                write(hdr);
+        }
+        _writer->flush();
+        _dirty = false;
+        _buffer->resize(bytes);
         return _buffer->size();
 }
 

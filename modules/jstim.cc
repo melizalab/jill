@@ -225,8 +225,19 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        // we use the xruns counter to notify the process thread that an
-        // interruption in the audio stream has occurred
+        /* Registered after activation, so this only ever runs on a real change,
+         * never to report the initial size. JACK delivers it on its
+         * notification thread with the engine stopped, so logging here is fine;
+         * this is not the realtime thread.
+         *
+         * The xrun counter is how the process thread is told the stream broke.
+         * It truncates the stimulus at the next period boundary and emits the
+         * stim_off marker there, so the recording carries the length that was
+         * actually played rather than the length that was intended. One trial
+         * is spoiled and can be dropped from the analysis. */
+        LOG << "WARNING: JACK period size changed to " << nframes
+            << " frames; the audio stream was interrupted and any stimulus in"
+               " progress has been truncated";
         xruns.fetch_add(1);
         return 0;
 }

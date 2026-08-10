@@ -103,18 +103,34 @@ jack_latency (jack_client * client, jack_latency_callback_mode_t mode)
 }
 
 /**
- * This function is called whenever JACK's period size changes. We have to
- * reallocate the ringbuffer to accomodate the number of samples in subsequent
- * process() calls. This is where the delay is introduced by adding zeros to the
- * buffer.
+ * Make the ringbuffer fit the period size and re-establish the delay.
+ *
+ * Registered before activation, so JACK calls this once during startup with the
+ * current period size and then again on any genuine change. It runs on the
+ * server's notification thread with the engine stopped, so allocating here is
+ * allowed and no process callback is running alongside it.
  */
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        ringbuf.resize(options.delay + nframes);
-        DBG << "jack period size changed; ringbuffer resized to " << ringbuf.size();
-        // simple way to set a fixed delay is to advance pointer
+        /* Grow only, but empty either way. The buffer holds the audio that
+         * constitutes the delay line, and by the time this runs the stream has
+         * already been interrupted -- so those samples are from before the gap
+         * and would be spliced back in at the wrong time. Drop them and start
+         * the delay again from silence. */
+        const std::size_t needed = options.delay + nframes;
+        if (needed > ringbuf.size()) {
+                ringbuf.resize(needed);         // discards
+        }
+        else {
+                ringbuf.clear();
+        }
+
+        // advancing the write pointer past the read pointer by `delay` samples
+        // is what puts the output that far behind the input
         ringbuf.push(nullptr, options.delay);
+        DBG << "jack period size now " << nframes << "; ringbuffer holds "
+            << ringbuf.size() << " samples, " << ringbuf.read_space() << " delayed";
         return 0;
 }
 
