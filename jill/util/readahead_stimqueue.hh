@@ -16,7 +16,6 @@
 #include <mutex>
 #include <condition_variable>
 #include <vector>
-#include <boost/shared_ptr.hpp>
 #include "stimqueue.hh"
 
 namespace jill {
@@ -28,20 +27,38 @@ namespace util {
 /**
  * An implementation of stimqueue that provides a background thread for loading
  * data from disk and resampling.
+ *
+ * Handoff between the two threads. The worker's only job is to keep _next
+ * filled with a trial whose samples are loaded; the realtime thread takes it
+ * from there and owns it until it is done. So _next has exactly one producer
+ * (the worker, writing null to non-null) and one consumer (the realtime
+ * thread, exchanging non-null back to null), and _head is written only by the
+ * realtime thread. Neither pointer needs a read-modify-write to arbitrate, and
+ * nothing on the realtime side waits for the worker to run.
+ *
+ * That last part is the point. head() promotes the pre-loaded trial itself
+ * rather than clearing _head and asking the worker to refill it, so there is no
+ * interval after a stimulus ends during which head() returns null while a
+ * background thread is scheduled. jstim checks head() before it reads its
+ * trigger port and gives up for the period if the queue is empty, so such an
+ * interval does not delay an external trigger, it discards it.
  */
 class readahead_stimqueue : public stimqueue {
 
 public:
-        using iterator = std::vector<stimulus_t *>::iterator;
-        using const_iterator = std::vector<stimulus_t *>::const_iterator;
+        using iterator = std::vector<trial>::iterator;
+        using const_iterator = std::vector<trial>::const_iterator;
 
         /**
-         * Initialize the queue with a sequence of stimuli.
+         * Initialize the queue with a sequence of trials.
          *
          * @param first  iterator pointing to the start of the sequence
          * @param last   iterator pointing to the end of the sequence
          * @param samplerate   the sampling rate needed by the consumer
          * @param loop         whether to keep repeating the queue
+         *
+         * @note the sequence must outlive the queue, and must not be resized
+         * while it runs: the queue hands out pointers into it.
          */
         readahead_stimqueue(iterator first, iterator last,
                             nframes_t samplerate,
@@ -57,8 +74,9 @@ public:
          */
         ~readahead_stimqueue() override;
 
-        stimulus_t const * head() override;
-	stimulus_t const * previous();
+        trial const * head() override;
+        /** @return the trial released most recently, or nullptr */
+        trial const * previous();
         void release() override;
         void stop() override;
         void join() override;
@@ -82,16 +100,15 @@ private:
 
         iterator const _first;
         iterator const _last;
-        iterator _it;                             // current position
-        /* Written by the worker thread under _lock, and read and written by
-         * the realtime thread through head(), previous() and release(), which
-         * take no lock in order to stay wait-free. ThreadSanitizer reports
-         * this on every run of test_stimset. Default ordering: one access per
-         * period, so nothing to gain from tuning it. Making the race
-         * well-defined is not the same as making the protocol correct -- what
-         * guarantees release() owes the realtime thread is still open. */
-        std::atomic<stimulus_t *> _head;
-        std::atomic<stimulus_t *> _previous;
+        iterator _it;                             // next trial to load
+
+        /* _next is filled by the worker and taken by the realtime thread;
+         * _head and _previous are touched only by the realtime thread, through
+         * head(), previous() and release(). Default ordering throughout: one
+         * access per period, nothing to gain from tuning it. */
+        std::atomic<trial *> _next;
+        std::atomic<trial *> _head;
+        std::atomic<trial *> _previous;
 
         nframes_t const _samplerate;
         bool const _loop;

@@ -84,12 +84,12 @@ std::vector<std::string> drain(jill::util::stimqueue & q, std::size_t expected,
         std::vector<std::string> seen;
         const auto deadline = std::chrono::steady_clock::now() + budget;
         while (seen.size() < expected && std::chrono::steady_clock::now() < deadline) {
-                jill::stimulus_t const * ptr = q.head();
-                if (ptr == nullptr) {
+                jill::util::trial const * t = q.head();
+                if (t == nullptr) {
                         std::this_thread::sleep_for(std::chrono::milliseconds(1));
                         continue;
                 }
-                seen.push_back(ptr->name());
+                seen.push_back(t->stim->name());
                 q.release();
         }
         return seen;
@@ -174,13 +174,13 @@ TEST_CASE("readahead_stimqueue delivers every stimulus in order") {
         const jill::nframes_t samplerate = 8000;
 
         std::vector<std::unique_ptr<stimfile>> owned;
-        std::vector<jill::stimulus_t *> playlist;
+        std::vector<jill::util::trial> playlist;
         for (int i = 0; i < 4; ++i) {
                 const std::string name = "stim_" + std::to_string(i);
                 const std::string path =
                         write_tone(dir.path / (name + ".wav"), 800 * (i + 1), samplerate);
                 owned.push_back(std::make_unique<stimfile>(path));
-                playlist.push_back(owned.back().get());
+                playlist.push_back(jill::util::trial{owned.back().get(), false});
         }
 
         jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), samplerate);
@@ -190,7 +190,7 @@ TEST_CASE("readahead_stimqueue delivers every stimulus in order") {
 
         REQUIRE(seen.size() == playlist.size());
         for (std::size_t i = 0; i < playlist.size(); ++i) {
-                CHECK(seen[i] == playlist[i]->name());
+                CHECK(seen[i] == playlist[i].stim->name());
         }
 }
 
@@ -200,7 +200,7 @@ TEST_CASE("an exhausted queue reports nothing more") {
         const std::string path = write_tone(dir.path / "only.wav", 800, samplerate);
 
         stimfile f(path);
-        std::vector<jill::stimulus_t *> playlist{&f};
+        std::vector<jill::util::trial> playlist{{&f, false}};
 
         jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), samplerate);
         const std::vector<std::string> seen = drain(queue, 1);
@@ -217,10 +217,10 @@ TEST_CASE("the queue resamples to the rate the consumer asked for") {
         const std::string path = write_tone(dir.path / "tone.wav", 800, file_rate);
 
         stimfile f(path);
-        std::vector<jill::stimulus_t *> playlist{&f};
+        std::vector<jill::util::trial> playlist{{&f, false}};
 
         jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), consumer_rate);
-        jill::stimulus_t const * head = nullptr;
+        jill::util::trial const * head = nullptr;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
         while (head == nullptr && std::chrono::steady_clock::now() < deadline) {
                 head = queue.head();
@@ -228,10 +228,112 @@ TEST_CASE("the queue resamples to the rate the consumer asked for") {
         }
 
         REQUIRE(head != nullptr);
-        CHECK(head->samplerate() == consumer_rate);
-        CHECK(head->buffer() != nullptr);
+        CHECK(head->stim->samplerate() == consumer_rate);
+        CHECK(head->stim->buffer() != nullptr);
 
         queue.release();
         queue.stop();
+        queue.join();
+}
+
+/* The condition flag rides on the playlist entry, not on the stimulus, because
+ * several entries alias one stimulus. These pin that it survives the handoff
+ * and that a stimulus can appear both marked and unmarked. */
+
+TEST_CASE("previous() reports the trial that was just released") {
+        temp_dir dir;
+        const jill::nframes_t samplerate = 8000;
+        const std::string a = write_tone(dir.path / "a.wav", 800, samplerate);
+        const std::string b = write_tone(dir.path / "b.wav", 1600, samplerate);
+        stimfile fa(a), fb(b);
+        std::vector<jill::util::trial> playlist{{&fa, true}, {&fb, false}};
+
+        jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), samplerate);
+
+        CHECK(queue.previous() == nullptr);     // nothing released yet
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (queue.head() == nullptr && std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        REQUIRE(queue.head() != nullptr);
+        queue.release();
+
+        jill::util::trial const * prev = queue.previous();
+        REQUIRE(prev != nullptr);
+        CHECK(prev->stim->name() == fa.name());
+        CHECK(prev->condition);                 // the flag comes along
+        queue.stop();
+        queue.join();
+}
+
+TEST_CASE("head() promotes without waiting for the worker") {
+        /* The point of the redesign. release() clears the head and head()
+         * promotes the pre-loaded trial itself, so the queue is never
+         * momentarily empty while a background thread is scheduled. jstim gives
+         * up on its trigger port for the period when head() is null, so such a
+         * window discards external triggers rather than delaying them. */
+        temp_dir dir;
+        const jill::nframes_t samplerate = 8000;
+        const std::string path = write_tone(dir.path / "a.wav", 800, samplerate);
+        stimfile f(path);
+        std::vector<jill::util::trial> playlist{{&f, false}, {&f, false}, {&f, false}};
+
+        jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), samplerate);
+
+        // wait for the first, which does need the worker to have run once
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (queue.head() == nullptr && std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        REQUIRE(queue.head() != nullptr);
+
+        /* Now let the worker get ahead, release, and demand the next one
+         * immediately -- no sleeping, no retry. The old design cleared _head
+         * and signalled, so this would have come back null. */
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        queue.release();
+        CHECK(queue.head() != nullptr);
+
+        queue.stop();
+        queue.join();
+}
+
+TEST_CASE("a queue with no stimuli finishes on its own") {
+        std::vector<jill::util::trial> playlist;
+        jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), 8000);
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (!queue.finished() && std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        CHECK(queue.finished());
+        CHECK(queue.head() == nullptr);
+        queue.join();
+}
+
+TEST_CASE("finished() waits for the last stimulus to be released") {
+        // it is a latch for "the list is done", not "the list was handed out":
+        // jstim polls it to decide when playback is over
+        temp_dir dir;
+        const jill::nframes_t samplerate = 8000;
+        const std::string path = write_tone(dir.path / "a.wav", 800, samplerate);
+        stimfile f(path);
+        std::vector<jill::util::trial> playlist{{&f, false}};
+
+        jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), samplerate);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (queue.head() == nullptr && std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        REQUIRE(queue.head() != nullptr);
+        CHECK_FALSE(queue.finished());          // still playing
+
+        queue.release();
+        const auto deadline2 = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (!queue.finished() && std::chrono::steady_clock::now() < deadline2) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        CHECK(queue.finished());
         queue.join();
 }

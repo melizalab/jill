@@ -67,9 +67,10 @@ protected:
 jstim_options options(PROGRAM_NAME);
 // Holds (and owns) all the stimuli
 boost::ptr_vector<stimulus_t> _stimuli;
-// The sequence of stimuli being played. May be shuffled and may have more than
-// one pointer to the same stimulus.
-std::vector<stimulus_t *> _stimlist;
+// The sequence of trials being played. May be shuffled, and holds one entry
+// per repetition -- several of which alias the same stimulus, which is why
+// per-repetition state has to live on the entry rather than on the stimulus.
+std::vector<util::trial> _stimlist;
 // The queue of stimuli. Handles the actual file reads and any resampling
 // needed in a background thread. Must be declared after _stimuli so that the
 // thread can continue to dereference the objects owned by _stimuli.
@@ -117,9 +118,11 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         // zero the output buffer - somewhat inefficient but safer
         memset(out, 0, nframes * sizeof(sample_t));
 
-        // the currently playing stimulus (or nullptr)
-        jill::stimulus_t const * stim = stim_queue->head();
-        jill::stimulus_t const * last_stim = stim_queue->previous();
+        // the currently playing trial (or nullptr), and the one before it
+        util::trial const * current = stim_queue->head();
+        util::trial const * last = stim_queue->previous();
+        jill::stimulus_t const * stim = (current) ? current->stim : nullptr;
+        jill::stimulus_t const * last_stim = (last) ? last->stim : nullptr;
 
         // handle xruns
         if (xruns) {
@@ -313,7 +316,7 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
                         jill::stimulus_t *stim = new file::stimfile(p.string());
                         _stimuli.push_back(stim);
                         for (size_t j = 0; j < nreps; ++j)
-                                _stimlist.push_back(stim);
+                                _stimlist.push_back(util::trial{stim, false});
                 }
                 catch (jill::FileError const & e) {
                         LOG << "invalid stimulus " << p << ": " << e.what();

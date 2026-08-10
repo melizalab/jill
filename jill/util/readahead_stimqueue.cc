@@ -8,15 +8,34 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
+#include <chrono>
 #include "../logging.hh"
 #include "readahead_stimqueue.hh"
 
 using namespace jill::util;
 
+namespace {
+
+/* How long the worker sleeps before checking whether the realtime thread has
+ * taken the pre-loaded trial.
+ *
+ * Nothing wakes it for that any more. It used to be signalled from release(),
+ * which meant pthread_cond_signal on the audio path -- glibc's takes the
+ * condition variable's internal lock and issues a futex wake. Since the
+ * realtime thread now promotes the pre-loaded trial itself, the worker is only
+ * refilling a slot that has a whole stimulus to be refilled in, and a fiftieth
+ * of a second is nowhere near that.
+ *
+ * stop() still signals, under the lock, so shutdown does not wait for this. */
+const auto poll_interval = std::chrono::milliseconds(50);
+
+}
+
 readahead_stimqueue::readahead_stimqueue(iterator first, iterator last,
                                          nframes_t samplerate,
                                          bool loop)
-        :  _first(first), _last(last), _it(first), _head(nullptr), _previous(nullptr),
+        :  _first(first), _last(last), _it(first),
+           _next(nullptr), _head(nullptr), _previous(nullptr),
            _samplerate(samplerate), _loop(loop), _running(true), _finished(false),
            _thread(&readahead_stimqueue::loop, this)
 {}
@@ -50,48 +69,38 @@ readahead_stimqueue::join()
 
 
 /*
- * Threading notes: background thread locks mutex while it's working, and waits
- * on a condition variable when it's not (releasing the mutex).  RT threads call
- * head() and release(), both of which may need to notify the worker to load the
- * next stimulus. To keep these calls waitfree, the mutex is not locked prior to
- * signaling the condition variable.
+ * The worker keeps _next filled and does nothing else. It never writes _head:
+ * the realtime thread promotes for itself in head(), so a stimulus becomes
+ * available the moment the previous one is released rather than whenever this
+ * thread is next scheduled.
  *
- * I'm not sure if _head is properly protected, because both release() can
- * modify it even when loop() has the lock. I think it's probably okay though,
- * because release() doesn't modify the underlying object, and loop() only
- * performs a simple assignment. The consumer needs to avoid calling release()
- * when head is null to avoid any weird issues like tearing, but it's unlikely
- * to do so because it should check this condition.
+ * Loading a stimulus that is already loaded is cheap -- load_samples() checks
+ * -- so a pass with nothing to do costs a comparison and a timed wait.
  */
 void
 readahead_stimqueue::loop()
 {
-        jill::stimulus_t * ptr;
         std::unique_lock<std::mutex> lck(_lock);
 
         while (_running) {
-                // load data
-                if (!_head) {
-                        if (_it == _last) {
-                                if (_loop) _it = _first;
-                                else break;
+                if (_next.load() == nullptr) {
+                        if (_it == _last && _loop) {
+                                _it = _first;
                         }
-                        ptr = *_it;
-                        ptr->load_samples(_samplerate);
-                        _head = ptr;
-                        LOG << "pre-loaded next stim: " << ptr->name() << " (" << ptr->duration() << " s)";
-                        _it += 1;
+                        if (_it != _last) {
+                                trial * t = &*_it;
+                                t->stim->load_samples(_samplerate);
+                                LOG << "pre-loaded next stim: " << t->stim->name()
+                                    << " (" << t->stim->duration() << " s)";
+                                _next.store(t);
+                                _it += 1;
+                        }
+                        else if (_head.load() == nullptr) {
+                                // list exhausted and nothing still playing
+                                break;
+                        }
                 }
-
-                // read ahead
-                if (_it != _last) {
-                        ptr = *_it;
-                        ptr->load_samples(_samplerate);
-                }
-
-                // wait for process thread to call release(). Calling stop()
-                // will also break the wait
-                _ready.wait(lck, [this]{ return (!_head || !_running);});
+                _ready.wait_for(lck, poll_interval, [this]{ return !_running; });
         }
         LOG << "end of stimulus list";
         // published last, so a caller that sees finished() also sees
@@ -99,37 +108,32 @@ readahead_stimqueue::loop()
         _finished.store(true, std::memory_order_release);
 }
 
-jill::stimulus_t const *
+jill::util::trial const *
 readahead_stimqueue::head()
 {
-        // load once: testing and returning separately could observe two
-        // different values, since release() may run concurrently
-        stimulus_t * ptr = _head.load();
+        trial * ptr = _head.load();
         if (ptr) return ptr;
-        // It might be necessary to call this, but I'm not sure b/c loop()
-        // checks for spurious/early release.
-        // _ready.notify_one();
-        return nullptr;
+        /* Nothing current, so take whatever the worker has ready. Both steps
+         * are ours alone: the worker only ever fills _next, and only the
+         * realtime thread writes _head. */
+        ptr = _next.exchange(nullptr);
+        if (ptr) _head.store(ptr);
+        return ptr;
 }
 
-jill::stimulus_t const *
+jill::util::trial const *
 readahead_stimqueue::previous()
 {
-        stimulus_t * ptr = _previous.load();
-        if (ptr) return ptr;
-        // It might be necessary to call this, but I'm not sure b/c loop()
-        // checks for spurious/early release.
-        // _ready.notify_one();
-        return nullptr;
+        return _previous.load();
 }
 
 
 void
 readahead_stimqueue::release()
 {
-        // potential race condition with loop?
+        /* Hand the current trial to _previous and clear _head. The next call to
+         * head() promotes the pre-loaded one, so there is no window where the
+         * queue looks empty while a background thread catches up. */
         _previous.store(_head.load());
         _head.store(nullptr);
-        // signal loop to advance the iterator
-        _ready.notify_one();
 }
