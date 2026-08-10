@@ -11,6 +11,7 @@
 #include <iostream>
 #include <atomic>
 #include <csignal>
+#include <cstdlib>
 #include <random>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
@@ -269,23 +270,41 @@ signal_handler(int sig)
 }
 
 
+/**
+ * Is this argument a repeat count rather than a filename?
+ *
+ * The whole token has to be digits. sscanf("%zu") would happily read 5 out of
+ * "5.wav" and report success, which would eat a legitimate stimulus.
+ */
+static bool
+parse_count(string const & s, size_t & out)
+{
+        if (s.empty()) return false;
+        char * end = nullptr;
+        const unsigned long value = std::strtoul(s.c_str(), &end, 10);
+        if (*end != '\0') return false;
+        out = value;
+        return true;
+}
+
 /* parse the list of stimuli */
 static void
 init_stimset(std::vector<string> const & stims, size_t const default_nreps)
 {
         using namespace boost::filesystem;
 
-        size_t nreps;
         for (size_t i = 0; i < stims.size(); ++i) {
                 path p(stims[i]);
-               if ((i+1) < stims.size()) {
-                       if (sscanf(stims[i+1].c_str(),"%zd",&nreps) == 0) {
-                               nreps = default_nreps;
-                                i += 1;
-                       }
-               }
-               else
-                       nreps = default_nreps;
+                /* A bare count following a filename is that stimulus's number
+                 * of repeats, and is consumed here so it is not opened as a
+                 * file. Both halves of this used to be inverted: a count was
+                 * read but left in place, so it became the next "filename",
+                 * and a following *filename* was skipped instead, so
+                 * `jstim a.wav b.wav` silently played only a.wav. */
+                size_t nreps = default_nreps;
+                if ((i + 1) < stims.size() && parse_count(stims[i + 1], nreps)) {
+                        i += 1;
+                }
                 try {
                         jill::stimulus_t *stim = new file::stimfile(p.string());
                         _stimuli.push_back(stim);
