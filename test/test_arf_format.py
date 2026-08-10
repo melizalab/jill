@@ -113,7 +113,9 @@ def test_sampled_datasets(entries):
         assert dset.dtype == np.float32
         assert dset.shape == (PERIODS * PERIOD,)
         assert dset.attrs["sampling_rate"] == SAMPLING_RATE
-        assert "units" in dset.attrs
+        # sampled data must not claim a timebase: the spec reserves "samples"
+        # and "s" for event data, and says units alone determine the timebase
+        assert dset.attrs["units"] == b""
 
 
 def test_sampled_values_survive_the_round_trip(entries):
@@ -167,6 +169,19 @@ def test_event_dataset(entries):
     assert row["status"] == STIM_ON
     # a stimulus name is passed through as utf-8, not hex encoded
     assert row["message"].decode() == STIMULUS_NAME
+
+
+def test_event_units_are_per_field(entries):
+    """Complex event data carries one unit per compound field.
+
+    The specification requires an array here, not a string: only `start` has a
+    timebase, and it is the units attribute alone that says which. jill wrote a
+    bare "samples" until the arf 3 upgrade, which arf.py rejects.
+    """
+    events = entries[0][EVENT_CHANNEL]
+    units = events.attrs["units"]
+    assert len(units) == len(events.dtype.names)
+    assert [u.decode() for u in units] == ["samples", "", ""]
 
 
 def test_xrun_is_recorded(entries):

@@ -2,9 +2,10 @@
 #define _ARF_WRITER_HH
 
 #include <map>
+#include <optional>
 #include <string>
 #include <iosfwd>
-#include <arf/types.hpp>
+#include <arf.hpp>
 
 #include "../data_writer.hh"
 
@@ -44,7 +45,10 @@ public:
         void flush() override;
 
 protected:
-        typedef std::map<std::string, arf::packet_table_ptr> dset_map_type;
+        /* arf 3 packet tables are move-only handles rather than shared_ptrs,
+         * so this map has a move-only mapped type: use emplace, not
+         * operator[]. Erasing an element closes the table. */
+        typedef std::map<std::string, arf::h5pt::packet_table> dset_map_type;
 
         /**
          * Look up dataset in current entry, creating as needed.
@@ -62,12 +66,15 @@ private:
         // references
         jill::data_source const & _data_source;
 
-        // owned resources
-        arf::file_ptr _file;                       // output file
+        // owned resources. arf 3 handles own their identifier and are
+        // move-only, so these are values rather than pointers; the file and the
+        // log are built in the initializer list because neither is optional.
+        arf::file _file;                           // output file
         std::map<std::string, std::string> _attrs; // attributes for new entries
-        arf::packet_table_ptr _log;                // log dataset
-        arf::entry_ptr _entry;                     // current entry (owned by thread)
-        dset_map_type _dsets;                      // pointers to packet tables (owned)
+        arf::h5pt::packet_table _log;              // log dataset
+        // empty between entries, which is what ready() reports on
+        std::optional<arf::entry> _entry;          // current entry (owned by thread)
+        dset_map_type _dsets;                      // packet tables (owned)
         std::map<std::string, std::string> _dset_uuids; // session/channel uuid
         int _compression;                          // compression level for new datasets
 

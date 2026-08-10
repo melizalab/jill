@@ -75,39 +75,52 @@ struct datatype_traits<event_t> {
 
 }}}
 
+namespace {
+
+/* The log dataset is either opened or created, which is a branch, and
+ * packet_table has no default constructor to leave a member in until the branch
+ * resolves. Returning by value lets it be built in the initializer list; the
+ * move is what arf 3 handles are for. */
+arf::h5pt::packet_table
+open_or_create_log(arf::file & file, int compression)
+{
+        arf::h5t::wrapper<message_t> t;
+        arf::h5t::datatype logtype(t);
+        if (file.contains(JILL_LOGDATASET_NAME)) {
+                arf::h5pt::packet_table log(file.hid(), JILL_LOGDATASET_NAME);
+                if (logtype != log.datatype()) {
+                        throw arf::Exception(JILL_LOGDATASET_NAME " has wrong datatype");
+                }
+                INFO << "appending log messages to /" << JILL_LOGDATASET_NAME;
+                return log;
+        }
+        arf::h5pt::packet_table log(file.hid(), JILL_LOGDATASET_NAME, logtype,
+                                    ARF_CHUNK_SIZE, compression);
+        INFO << "created log dataset /" << JILL_LOGDATASET_NAME;
+        return log;
+}
+
+}
+
 arf_writer::arf_writer(string const & filename,
                        data_source const & source,
                        map<string,string> entry_attrs,
                        int compression)
         : _data_source(source),
+          _file(filename, "a"),
           _attrs(std::move(entry_attrs)),
+          // uses the parameter, not the member: _compression is declared later
+          // and so is not initialized yet
+          _log(open_or_create_log(_file, compression)),
           _compression(compression),
           _entry_start(0), _entry_idx(0)
 {
         _base_usec = _data_source.time();
         _base_ptime = microsec_clock::universal_time();
         LOG << "registered system clock to usec clock at " << _base_usec;
-
-        _file.reset(new arf::file(filename, "a"));
         LOG << "opened file: " << filename;
-        if (!_file->has_attribute("file_creator")) {
-                _file->write_attribute("file_creator", "org.meliza.jill/jrecord " JILL_VERSION);
-        }
-
-        // open/create log
-        arf::h5t::wrapper<message_t> t;
-        arf::h5t::datatype logtype(t);
-        if (_file->contains(JILL_LOGDATASET_NAME)) {
-                _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME));
-                if (logtype != *(_log->datatype())) {
-                        throw arf::Exception(JILL_LOGDATASET_NAME " has wrong datatype");
-                }
-                INFO << "appending log messages to /" << JILL_LOGDATASET_NAME;
-        }
-        else {
-                _log.reset(new arf::h5pt::packet_table(_file->hid(), JILL_LOGDATASET_NAME,
-                                                       logtype, ARF_CHUNK_SIZE, _compression));
-                INFO << "created log dataset /" << JILL_LOGDATASET_NAME;
+        if (!_file.has_attribute("file_creator")) {
+                _file.write_attribute("file_creator", "org.meliza.jill/jrecord " JILL_VERSION);
         }
         _get_last_entry_index();
 }
@@ -127,8 +140,8 @@ arf_writer::new_entry(nframes_t frame_count)
         frame_usec = _data_source.time(_entry_start);
         ts = (_base_ptime + microseconds(frame_usec - _base_usec)) - epoch;
 
-        _entry.reset(new arf::entry(*_file, name.str(),
-                                    ts.total_seconds(), ts.fractional_seconds()));
+        _entry.emplace(_file, name.str(),
+                       ts.total_seconds(), ts.fractional_seconds());
 
         LOG << "created entry: " << _entry->name() << " (frame=" << _entry_start << ")" ;
 
@@ -143,7 +156,7 @@ arf_writer::new_entry(nframes_t frame_count)
 void
 arf_writer::close_entry()
 {
-        _dsets.clear();         // release any old packet tables
+        _dsets.clear();         // closes any old packet tables
         if (_entry) {
                 LOG << "closed entry: " << _entry->name() << " (frame=" << _last_frame << ")";
                 _entry->write_attribute("trial_off", _last_frame - _entry_start);
@@ -156,7 +169,7 @@ arf_writer::close_entry()
 bool
 arf_writer::ready() const
 {
-        return static_cast<bool>(_entry);
+        return _entry.has_value();
 }
 
 void
@@ -191,7 +204,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
         if (data->dtype == SAMPLED) {
                 dset = get_dataset(id, true);
                 auto * samples = reinterpret_cast<sample_t const *>(data->data());
-                dset->second->write(samples + start_frame, stop_frame - start_frame);
+                dset->second.write(samples + start_frame, stop_frame - start_frame);
         }
         else if (data->dtype == EVENT) {
                 dset = get_dataset(id, false);
@@ -200,7 +213,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
 		event_t e = {data->time - _entry_start, ev.status().value(), encoded.c_str()};
                 DBG << "event: t=" << data->time << " id=" << id << " status=" << int(e.status)
                     << " message=" << e.message;
-                dset->second->write(&e, 1);
+                dset->second.write(&e, 1);
         }
         _last_frame = data->time + stop_frame;
 }
@@ -208,7 +221,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
 void
 arf_writer::flush()
 {
-        _file->flush();
+        _file.flush();
 }
 
 void
@@ -220,14 +233,14 @@ arf_writer::log(timestamp_t utc, string source, string msg)
 
         time_duration t = utc - epoch;
         message_t message = { t.total_seconds(), t.fractional_seconds(), m };
-        _log->write(&message, 1);
+        _log.write(&message, 1);
 }
 
 void
 arf_writer::_get_last_entry_index()
 {
         unsigned int val;
-        vector<string> entries = _file->children();  // read-only
+        vector<string> entries = _file.children();  // read-only
         for (auto & entry : entries) {
                 char const * match = strstr(entry.c_str(), _data_source.name());
                 if (!match) continue;
@@ -252,21 +265,33 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
 
         auto dset = _dsets.find(name);
         if (dset == _dsets.end()) {
-                arf::packet_table_ptr pt;
                 if (is_sampled) {
-                        pt = _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
-                                                                   false, ARF_CHUNK_SIZE,
-                                                                   _compression);
+                        arf::h5pt::packet_table pt =
+                                _entry->create_packet_table<sample_t>(name, "", arf::UNDEFINED,
+                                                                      false, ARF_CHUNK_SIZE,
+                                                                      _compression);
+                        pt.write_attribute("sampling_rate", _data_source.sampling_rate());
+                        pt.write_attribute("uuid", uuid->second);
+                        LOG << "created dataset: " << pt.name();
+                        dset = _dsets.emplace_hint(dset, name, std::move(pt));
                 }
                 else {
-                        pt = _entry->create_packet_table<event_t>(name, "samples", arf::EVENT,
-                                                                  false, ARF_CHUNK_SIZE,
-                                                                  _compression);
+                        /* event_t is a compound of three fields, and the
+                         * specification requires one unit per field for complex
+                         * event data. Only the first carries a timebase: start
+                         * is in samples, status and message are not quantities.
+                         * This used to pass the bare string "samples", which
+                         * arf 2 accepted and arf.py rejects. */
+                        const std::vector<std::string> units{"samples", "", ""};
+                        arf::h5pt::packet_table pt =
+                                _entry->create_packet_table<event_t>(name, units, arf::EVENT,
+                                                                     false, ARF_CHUNK_SIZE,
+                                                                     _compression);
+                        pt.write_attribute("sampling_rate", _data_source.sampling_rate());
+                        pt.write_attribute("uuid", uuid->second);
+                        LOG << "created dataset: " << pt.name();
+                        dset = _dsets.emplace_hint(dset, name, std::move(pt));
                 }
-                pt->write_attribute("sampling_rate", _data_source.sampling_rate());
-                pt->write_attribute("uuid", uuid->second);
-                LOG << "created dataset: " << pt->name();
-                dset = _dsets.insert(dset, make_pair(name,pt));
         }
 
         return dset;
