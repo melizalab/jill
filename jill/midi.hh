@@ -31,6 +31,30 @@ namespace midi {
         const static data_type default_pitch = 60;
         const static data_type default_velocity = 64;
 
+        /**
+         * The event streams a stimulus module publishes, one per MIDI channel.
+         *
+         * The status byte says what happened -- something started, something
+         * stopped -- and the channel says what it happened to. Keeping those
+         * separate is what lets one listener follow stimulus onsets while
+         * another follows a wider window around them.
+         *
+         * These are named for the interval each stream delimits, never for
+         * whoever consumes it. Channel 1 was called "acq" when its only job was
+         * starting an acquisition early enough to cover a trial, and then a
+         * pilot experiment used the same window to gate an LED, at which point
+         * the name had quietly stopped describing anything. What the channel
+         * actually is, in both cases, is the trial's outer bracket.
+         */
+        namespace channel {
+                /// the stimulus itself: exact onset and offset
+                const data_type stim = 0;
+                /// a wider window around it, for anything needing lead time
+                const data_type trial = 1;
+                /// set on the subset of trials carrying the manipulation
+                const data_type condition = 2;
+        }
+
         class status_type {
         public:
                 enum Status : data_type {

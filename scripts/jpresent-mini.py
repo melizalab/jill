@@ -60,14 +60,14 @@ if __name__ == "__main__":
     )
 
     p.add_argument(
-        "--trigger-before",
+        "--trial-before",
         type=float,
         default=1.0,
         help="time before stimulus onset to send a trigger on pulse",
     )
 
     p.add_argument(
-        "--trigger-after",
+        "--trial-after",
         type=float,
         default=1.0,
         help="time after stimulus end to send a trigger off pulse",
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     print(args)
     setup_log(log, args.debug)
 
-    if args.trigger_before + args.trigger_after >= args.gap:
+    if args.trial_before + args.trial_after >= args.gap:
         p.error(
             "pre- and post-stimulus trigger times must sum to less than gap between stimuli"
         )
@@ -168,10 +168,10 @@ if __name__ == "__main__":
         (
             "-e",
             "jclicker-trig:in",
-            "--trigger-before",
-            f"{args.trigger_before}",
-            "--trigger-after",
-            f"{args.trigger_after}",
+            "--trial-before",
+            f"{args.trial_before}",
+            "--trial-after",
+            f"{args.trial_after}",
         )
     )
     log.debug(" ".join(jclicker_trig_args))
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
         log.info("starting jclicker for sync events:")
         jsync_proc = subprocess.Popen(jclicker_sync_args)
-        if args.trigger_before is not None:
+        if args.trial_before is not None:
             log.info("starting jclicker for trigger events:")
             jtrig_proc = subprocess.Popen(jclicker_trig_args)
         else:

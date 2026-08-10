@@ -368,7 +368,11 @@ jclicker_options::print_usage()
                   << "Usage: " << _program_name << " [options] [pulse1] [pulse2] ...\n"
                   << visible_opts << std::endl
                   << "Pulse specification: condition,shape,duration \n"
-                  << " - condition: the midi event code (0x00: stim on, 0x01 acq on, 0x10 stim off, 0x11 acq off)\n"
+                  << " - condition: the midi event code. The high nibble is on (0x0) or off\n"
+                  << "     (0x1); the low nibble is the channel: 0 the stimulus\n"
+                  << "     itself, 1 the trial window around it, 2 the trials in\n"
+                  << "     the manipulated condition. So 0x00 stim on, 0x01 trial\n"
+                  << "     on, 0x02 condition on, 0x10/0x11/0x12 the matching offs.\n"
                   << " - shape: {positive,negative,biphasic}\n"
                   << " - duration: total duration of the click, in ms\n"
                   << " - delay: delay between event and pulse onset, in ms (optional; default 0)\n\n"

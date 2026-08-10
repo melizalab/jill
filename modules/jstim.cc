@@ -145,8 +145,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 const auto otrig = dsp::posttrigger_offset(
                         dstop, *options.posttrigger_interval, nframes);
                 if (otrig) {
-                        const auto status = midi::status_type(midi::status_type::stim_off, 1);
-                        midi::write_message(sync, *otrig, status, last_stim->name());
+                        midi::write_message(sync, *otrig,
+                                            midi::status_type(midi::status_type::stim_off,
+                                                              midi::channel::trial),
+                                            last_stim->name());
                         DBG << "sent posttrigger: time=" << time + *otrig
                             << ", stim=" << last_stim->name();
                 }
@@ -177,8 +179,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                         const auto otrig = dsp::pretrigger_offset(
                                 period_offset, *options.pretrigger_interval, nframes);
                         if (otrig) {
-                                const auto status = midi::status_type(midi::status_type::stim_on, 1);
-                                midi::write_message(sync, *otrig, status, stim->name());
+                                midi::write_message(sync, *otrig,
+                                                    midi::status_type(midi::status_type::stim_on,
+                                                                      midi::channel::trial),
+                                                    stim->name());
                                 DBG << "sent pretrigger: time=" << time + *otrig
                                     << ", stim=" << stim->name();
                         }
@@ -449,10 +453,10 @@ jstim_options::jstim_options(string const &program_name)
                  "minimum gap between sound (s)")
                 ("interval,i",po::value(&min_interval_sec)->default_value(0.0),
                  "minimum interval between stimulus start times (s)")
-                ("trigger-before", po::value(&pretrigger_interval_sec),
-                 "if set, emit a trigger-on event this many seconds before stimulus onset (does not apply to triggered mode)")
-                ("trigger-after", po::value(&posttrigger_interval_sec),
-                 "if set, emit a trigger-off event this many seconds after stimulus ends");
+                ("trial-before", po::value(&pretrigger_interval_sec),
+                 "if set, open the trial window (channel 1) this many seconds before stimulus onset (does not apply to triggered mode)")
+                ("trial-after", po::value(&posttrigger_interval_sec),
+                 "if set, close the trial window (channel 1) this many seconds after the stimulus ends");
 
 
         cmd_opts.add(jillopts).add(opts);

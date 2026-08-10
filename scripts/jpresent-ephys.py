@@ -323,7 +323,7 @@ if __name__ == "__main__":
             (
                 "-e",
                 "jclicker-trig:in",
-                "--trigger-before",
+                "--trial-before",
                 "0"
             )
         )
