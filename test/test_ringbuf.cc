@@ -194,3 +194,104 @@ TEST_CASE("block_ringbuffer preserves block times") {
         }
         CHECK(rb.peek() == nullptr);
 }
+
+/* resize() had no coverage at all, and used to leave the read and write
+ * pointers alone while replacing the block and recomputing the mask -- so
+ * read_space(), their difference, kept reporting the old count against a fresh
+ * zeroed mapping at differently masked offsets. It now discards deliberately
+ * and says so; see the note on resize() for why discarding is what the callers
+ * actually want. */
+
+TEST_CASE("resizing an empty ringbuffer just changes its size") {
+        jill::dsp::ringbuffer<int> rb(64);
+        const std::size_t before = rb.size();
+        rb.resize(before * 4);
+        CHECK(rb.size() > before);
+        CHECK(rb.read_space() == 0);
+        CHECK(rb.write_space() == rb.size());
+}
+
+TEST_CASE("growing discards whatever was unread") {
+        jill::dsp::ringbuffer<int> rb(64);
+        std::vector<int> in(20);
+        for (std::size_t i = 0; i < in.size(); ++i) in[i] = static_cast<int>(i) + 1;
+        REQUIRE(rb.push(in.data(), in.size()) == in.size());
+        REQUIRE(rb.read_space() == in.size());
+
+        rb.resize(rb.size() * 4);
+        CHECK(rb.read_space() == 0);            // gone, not carried across
+        CHECK(rb.write_space() == rb.size());
+}
+
+TEST_CASE("a resize to the same size still empties the buffer") {
+        // the allocation is untouched, but the contract is the same either way:
+        // a caller asking to resize is telling us the old contents are stale
+        jill::dsp::ringbuffer<int> rb(64);
+        const std::vector<int> in{1, 2, 3, 4};
+        rb.push(in.data(), in.size());
+        const std::size_t size = rb.size();
+
+        rb.resize(size);
+        CHECK(rb.size() == size);
+        CHECK(rb.read_space() == 0);
+}
+
+TEST_CASE("a resized buffer is usable again straight away") {
+        jill::dsp::ringbuffer<int> rb(64);
+        const std::vector<int> stale{9, 9, 9};
+        rb.push(stale.data(), stale.size());
+        rb.resize(rb.size() * 2);
+
+        const std::vector<int> fresh{1, 2, 3, 4, 5};
+        REQUIRE(rb.push(fresh.data(), fresh.size()) == fresh.size());
+        std::vector<int> out(fresh.size());
+        REQUIRE(rb.pop(out.data(), out.size()) == fresh.size());
+        CHECK(out == fresh);                    // no stale values mixed in
+}
+
+TEST_CASE("clear empties without reallocating") {
+        jill::dsp::ringbuffer<int> rb(64);
+        const std::size_t size = rb.size();
+        const std::vector<int> in{1, 2, 3, 4};
+        rb.push(in.data(), in.size());
+        REQUIRE(rb.read_space() == in.size());
+
+        rb.clear();
+        CHECK(rb.size() == size);               // same allocation
+        CHECK(rb.read_space() == 0);
+        CHECK(rb.write_space() == size);
+}
+
+TEST_CASE("clear rewinds to the start rather than draining") {
+        // the distinction matters: popping everything would leave the offsets
+        // wherever they had reached, clear() puts them back at zero
+        jill::dsp::ringbuffer<int> rb(64);
+        std::vector<int> filler(rb.size() - 4, 0);
+        rb.push(filler.data(), filler.size());
+        rb.pop(nullptr, filler.size());
+        REQUIRE(rb.read_offset() != 0);
+
+        rb.clear();
+        CHECK(rb.read_offset() == 0);
+        CHECK(rb.write_offset() == 0);
+}
+
+TEST_CASE("block_ringbuffer is emptied by a resize") {
+        const std::size_t frames = 32;
+        const std::size_t bytes = frames * sizeof(jill::sample_t);
+        jill::dsp::block_ringbuffer rb(bytes * 4);
+
+        std::vector<jill::sample_t> payload(frames, 0.25f);
+        REQUIRE(rb.push(64, jill::SAMPLED, "pcm", bytes, payload.data()) != 0);
+        REQUIRE(rb.peek() != nullptr);
+
+        rb.resize(rb.size() * 4);
+        CHECK(rb.peek() == nullptr);
+
+        // and it still works: a block pushed afterwards reads back intact
+        REQUIRE(rb.push(128, jill::SAMPLED, "pcm", bytes, payload.data()) != 0);
+        jill::data_block_t const * block = rb.peek();
+        REQUIRE(block != nullptr);
+        CHECK(block->time == 128);
+        CHECK(block->id() == "pcm");
+}

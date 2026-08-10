@@ -115,17 +115,55 @@ public:
         ~ringbuffer() = default;
 
         /**
-         * Resize the ringbuffer. If the new size is the same as the old size,
-         * nothing happens. If the new size is different, a new block of memory
-         * with the correct size is allocated. The read and write pointers
-         * are not changed but remain valid as long as the new size is respected.
+         * Resize the ringbuffer, discarding whatever is in it.
+         *
+         * The buffer is empty when this returns, whether or not a new block
+         * had to be allocated. Anything unread is gone: drain it first if it
+         * matters.
+         *
+         * Discarding is the right default for every caller here, and not
+         * merely the cheap one. A resize only happens when the JACK period
+         * size changes, which means the audio stream has just been
+         * interrupted. Data left over from before that gap belongs to a
+         * timeline that no longer connects to the one about to resume:
+         * jclicker's buffer holds pulses rendered for sample positions that
+         * have moved, and jdelay's holds the audio that constitutes its delay
+         * line. Carrying either across would splice pre-gap material into the
+         * output at the wrong time -- a pulse at the wrong latency, a snippet
+         * of stale audio -- which is worse than the silence that replaces it.
+         * The one caller with data worth keeping, jrecord, writes it to disk
+         * before calling rather than asking the buffer to hold it.
+         *
+         * @note NOT safe to call concurrently with push() or pop(). This
+         * allocates, so it belongs on a control path with the producer and
+         * consumer both stopped. In the modules that means a JACK buffer size
+         * callback, which the server delivers on its notification thread with
+         * the engine halted, so no process callback is running.
          */
         void resize(std::size_t size) {
-                std::size_t actual_size = next_pow2(size * sizeof(data_type));
+                const std::size_t actual_size = next_pow2(size * sizeof(data_type));
                 if (!_buf || _buf->size() != actual_size) {
                         _buf.reset(new jill::util::mirrored_memory(actual_size));
                         _size_mask = this->size() - 1;
                 }
+                clear();
+        }
+
+        /**
+         * Discard the contents without touching the allocation.
+         *
+         * Same threading rules as resize(): both ends have to be stopped. This
+         * exists so a caller that needs to drop stale data but already has a
+         * big enough buffer does not have to reallocate to say so.
+         *
+         * Note that this is not the same as popping everything. It rewinds
+         * both pointers to zero rather than advancing the reader to meet the
+         * writer, so the readable span afterwards starts at the beginning of
+         * the buffer.
+         */
+        void clear() {
+                _read_ptr.store(0, std::memory_order_relaxed);
+                _write_ptr.store(0, std::memory_order_relaxed);
         }
 
         /// @return the size of the buffer (in objects)
