@@ -240,6 +240,38 @@ TEST_CASE("the queue resamples to the rate the consumer asked for") {
  * several entries alias one stimulus. These pin that it survives the handoff
  * and that a stimulus can appear both marked and unmarked. */
 
+TEST_CASE("the condition flag reaches the consumer with its trial") {
+        temp_dir dir;
+        const jill::nframes_t samplerate = 8000;
+        const std::string path = write_tone(dir.path / "a.wav", 800, samplerate);
+        stimfile f(path);
+
+        // the same stimulus three times, marked in the middle only
+        std::vector<jill::util::trial> playlist{
+                {&f, false}, {&f, true}, {&f, false}};
+
+        jill::util::readahead_stimqueue queue(playlist.begin(), playlist.end(), samplerate);
+        std::vector<bool> seen;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (seen.size() < playlist.size()
+               && std::chrono::steady_clock::now() < deadline) {
+                jill::util::trial const * t = queue.head();
+                if (t == nullptr) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                        continue;
+                }
+                seen.push_back(t->condition);
+                queue.release();
+        }
+        queue.stop();
+        queue.join();
+
+        REQUIRE(seen.size() == 3);
+        CHECK_FALSE(seen[0]);
+        CHECK(seen[1]);
+        CHECK_FALSE(seen[2]);
+}
+
 TEST_CASE("previous() reports the trial that was just released") {
         temp_dir dir;
         const jill::nframes_t samplerate = 8000;

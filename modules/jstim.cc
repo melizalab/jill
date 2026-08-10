@@ -11,7 +11,9 @@
 #include <iostream>
 #include <atomic>
 #include <csignal>
+#include <cmath>
 #include <cstdlib>
+#include <algorithm>
 #include <random>
 #include <boost/filesystem.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
@@ -51,6 +53,7 @@ public:
         float min_interval_sec; // min interval btw starts, in sec
         boost::optional<float> pretrigger_interval_sec;
         boost::optional<float> posttrigger_interval_sec;
+        float condition_prob;
         nframes_t min_gap;
         nframes_t min_interval;
         boost::optional<nframes_t> pretrigger_interval;
@@ -68,8 +71,8 @@ jstim_options options(PROGRAM_NAME);
 // Holds (and owns) all the stimuli
 boost::ptr_vector<stimulus_t> _stimuli;
 // The sequence of trials being played. May be shuffled, and holds one entry
-// per repetition -- several of which alias the same stimulus, which is why
-// per-repetition state has to live on the entry rather than on the stimulus.
+// per repetition -- several of which alias the same stimulus, which is why the
+// condition flag lives on the entry rather than on the stimulus.
 std::vector<util::trial> _stimlist;
 // The queue of stimuli. Handles the actual file reads and any resampling
 // needed in a background thread. Must be declared after _stimuli so that the
@@ -152,6 +155,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                                             midi::status_type(midi::status_type::stim_off,
                                                               midi::channel::trial),
                                             last_stim->name());
+                        if (last->condition) {
+                                midi::write_message(sync, *otrig,
+                                                    midi::status_type(midi::status_type::stim_off,
+                                                                      midi::channel::condition),
+                                                    last_stim->name());
+                        }
                         DBG << "sent posttrigger: time=" << time + *otrig
                             << ", stim=" << last_stim->name();
                 }
@@ -171,6 +180,14 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 if (period_offset > nframes) return 0; // no trigger
                 last_start = time + period_offset;
                 midi::write_message(sync, period_offset, midi::status_type::stim_on, stim->name());
+                // no pretrigger in triggered mode, so the condition window
+                // opens with the stimulus
+                if (current->condition) {
+                        midi::write_message(sync, period_offset,
+                                            midi::status_type(midi::status_type::stim_on,
+                                                              midi::channel::condition),
+                                            stim->name());
+                }
                 DBG << "playback triggered: time=" << last_start << ", stim=" << stim->name();
         }
         // has enough time elapsed since the last stim?
@@ -186,6 +203,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                                                     midi::status_type(midi::status_type::stim_on,
                                                                       midi::channel::trial),
                                                     stim->name());
+                                if (current->condition) {
+                                        midi::write_message(sync, *otrig,
+                                                            midi::status_type(midi::status_type::stim_on,
+                                                                              midi::channel::condition),
+                                                            stim->name());
+                                }
                                 DBG << "sent pretrigger: time=" << time + *otrig
                                     << ", stim=" << stim->name();
                         }
@@ -194,6 +217,15 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
                 midi::write_message(sync, period_offset, midi::status_type::stim_on, stim->name());
+                /* The condition window brackets the trial, so when there is a
+                 * pretrigger it opened there and this would double it. Without
+                 * one there is no wider window to ride on, so it opens here. */
+                if (current->condition && !options.pretrigger_interval) {
+                        midi::write_message(sync, period_offset,
+                                            midi::status_type(midi::status_type::stim_on,
+                                                              midi::channel::condition),
+                                            stim->name());
+                }
                 DBG << "playback started: time=" << last_start << ", stim=" << stim->name();
         }
         // sanity check - will be optimized out
@@ -212,10 +244,19 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         }
         // did the stimulus end?
         if (stim_offset >= stim->nframes()) {
+                const bool was_condition = current->condition;
                 stim_queue->release();
                 last_stop = time + period_offset + nsamples;
                 midi::write_message(sync, period_offset + nsamples,
                                     midi::status_type::stim_off, stim->name());
+                // as at onset: the posttrigger closes the condition window when
+                // there is one, otherwise it closes with the stimulus
+                if (was_condition && !options.posttrigger_interval) {
+                        midi::write_message(sync, period_offset + nsamples,
+                                            midi::status_type(midi::status_type::stim_off,
+                                                              midi::channel::condition),
+                                            stim->name());
+                }
                 DBG << "playback ended: time=" << last_stop << ", stim=" << stim->name();
                 stim_offset = 0;
         }
@@ -296,10 +337,12 @@ parse_count(string const & s, size_t & out)
 
 /* parse the list of stimuli */
 static void
-init_stimset(std::vector<string> const & stims, size_t const default_nreps)
+init_stimset(std::vector<string> const & stims, size_t const default_nreps,
+             float condition_prob, std::mt19937 & rng)
 {
         using namespace boost::filesystem;
 
+        size_t marked = 0;
         for (size_t i = 0; i < stims.size(); ++i) {
                 path p(stims[i]);
                 /* A bare count following a filename is that stimulus's number
@@ -315,14 +358,38 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
                 try {
                         jill::stimulus_t *stim = new file::stimfile(p.string());
                         _stimuli.push_back(stim);
-                        for (size_t j = 0; j < nreps; ++j)
-                                _stimlist.push_back(util::trial{stim, false});
+                        /* Assign the condition by counting rather than by
+                         * drawing per trial. Every stimulus gets exactly
+                         * round(p * nreps) of its repetitions marked, so the
+                         * proportion is exact instead of approached, and which
+                         * repetitions they are is still random -- the flags are
+                         * shuffled within this stimulus's block. Doing it here
+                         * rather than after the whole list is built is what
+                         * keeps the balance per stimulus rather than overall.
+                         *
+                         * This is also why it does not depend on --shuffle:
+                         * that decides presentation order, which is a separate
+                         * question from which trials carry the manipulation. */
+                        const size_t want = std::lround(condition_prob * nreps);
+                        std::vector<bool> flags(nreps, false);
+                        std::fill_n(flags.begin(), want, true);
+                        std::shuffle(flags.begin(), flags.end(), rng);
+                        for (size_t j = 0; j < nreps; ++j) {
+                                _stimlist.push_back(util::trial{stim, flags[j]});
+                        }
+                        marked += want;
                 }
                 catch (jill::FileError const & e) {
                         LOG << "invalid stimulus " << p << ": " << e.what();
                 }
         }
-        LOG << "loaded " << _stimuli.size() << " stimuli";
+        LOG << "loaded " << _stimuli.size() << " stimuli, " << _stimlist.size()
+            << " trials";
+        if (condition_prob > 0.0) {
+                LOG << marked << " of " << _stimlist.size()
+                    << " trials are in the condition (channel "
+                    << int(midi::channel::condition) << ")";
+        }
 }
 
 
@@ -360,10 +427,14 @@ main(int argc, char **argv)
 
                 /* stimulus queue */
                 DBG << "loading " << options.stimuli.size() << " stimuli";
-                init_stimset(options.stimuli, options.nreps);
+                if (options.condition_prob < 0.0 || options.condition_prob > 1.0) {
+                        throw std::invalid_argument("--condition-prob must be between 0 and 1");
+                }
+                std::mt19937 rng(std::random_device{}());
+                init_stimset(options.stimuli, options.nreps, options.condition_prob, rng);
                 if (options.count("shuffle")) {
                         LOG << "shuffled stimuli";
-                        shuffle(_stimlist.begin(), _stimlist.end(), std::mt19937(std::random_device()()));
+                        shuffle(_stimlist.begin(), _stimlist.end(), rng);
                 }
                 stim_queue.reset(new util::readahead_stimqueue(_stimlist.begin(), _stimlist.end(),
                                                           client.sampling_rate(),
@@ -459,7 +530,11 @@ jstim_options::jstim_options(string const &program_name)
                 ("trial-before", po::value(&pretrigger_interval_sec),
                  "if set, open the trial window (channel 1) this many seconds before stimulus onset (does not apply to triggered mode)")
                 ("trial-after", po::value(&posttrigger_interval_sec),
-                 "if set, close the trial window (channel 1) this many seconds after the stimulus ends");
+                 "if set, close the trial window (channel 1) this many seconds after the stimulus ends")
+                ("condition-prob", po::value(&condition_prob)->default_value(0.0),
+                 "proportion of each stimulus's repetitions to mark as being in "
+                 "the manipulated condition (channel 2). Exactly this fraction "
+                 "of every stimulus's repeats is marked, chosen at random.");
 
 
         cmd_opts.add(jillopts).add(opts);
