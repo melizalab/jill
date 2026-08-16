@@ -14,7 +14,7 @@
 #include <string>
 #include <stdexcept>
 #include <vector>
-#include <boost/optional.hpp>
+#include <optional>
 #include <boost/program_options.hpp>
 #include "version.hh"
 
@@ -92,8 +92,8 @@ public:
          * @param name  The name of the option
          */
         template <typename T>
-        boost::optional<T> get(std::string const &name) const {
-                return (vmap.count(name) == 0) ? boost::none : boost::optional<T>(vmap[name].as<T>());
+        std::optional<T> get(std::string const &name) const {
+                return (vmap.count(name) == 0) ? std::nullopt : std::optional<T>(vmap[name].as<T>());
         }
 
         template <typename T>

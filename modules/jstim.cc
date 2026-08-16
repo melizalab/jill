@@ -17,7 +17,7 @@
 #include <random>
 #include <filesystem>
 #include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/optional.hpp>
+#include <optional>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -51,13 +51,13 @@ public:
         size_t nreps;           // default set by reps flag
         float min_gap_sec;      // min gap btw sound, in sec
         float min_interval_sec; // min interval btw starts, in sec
-        boost::optional<float> pretrigger_interval_sec;
-        boost::optional<float> posttrigger_interval_sec;
+        std::optional<float> pretrigger_interval_sec;
+        std::optional<float> posttrigger_interval_sec;
         float condition_prob;
         nframes_t min_gap;
         nframes_t min_interval;
-        boost::optional<nframes_t> pretrigger_interval;
-        boost::optional<nframes_t> posttrigger_interval;
+        std::optional<nframes_t> pretrigger_interval;
+        std::optional<nframes_t> posttrigger_interval;
 
 protected:
 
