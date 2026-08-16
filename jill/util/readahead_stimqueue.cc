@@ -21,13 +21,29 @@ namespace {
  *
  * Nothing wakes it for that any more. It used to be signalled from release(),
  * which meant pthread_cond_signal on the audio path -- glibc's takes the
- * condition variable's internal lock and issues a futex wake. Since the
- * realtime thread now promotes the pre-loaded trial itself, the worker is only
- * refilling a slot that has a whole stimulus to be refilled in, and a fiftieth
- * of a second is nowhere near that.
+ * condition variable's internal lock and issues a futex wake. The realtime
+ * thread now promotes the pre-loaded trial itself, so this only governs how
+ * quickly the empty slot is refilled.
+ *
+ * It bounds the queue's sustained rate at one trial per interval, because
+ * head() empties _next and nothing refills it until the next wake. That is not
+ * a throughput problem for the protocols this runs -- stimuli last a second or
+ * two with gaps of at least a second -- but it is a jitter problem: whatever
+ * the interval is, it is also how much the gap between stimuli can vary from
+ * one run to the next. --gap promises a minimum rather than an exact spacing,
+ * so this breaks no contract, but repeatable is better than merely conformant.
+ * Five milliseconds costs two hundred wakeups a second on a thread that does
+ * one comparison when it has nothing to do, and measures out: consuming
+ * back-to-back went from 51 ms a trial to 5.6, and a consumer holding each
+ * trial for 20 ms now runs at 21.5 ms a trial rather than 50, meaning the
+ * queue has stopped being the thing setting the pace.
+ *
+ * Note this is a floor, not the whole story: a stimulus not already in memory
+ * still has to be read and resampled, which dominates for a playlist of
+ * distinct files and vanishes for one that repeats.
  *
  * stop() still signals, under the lock, so shutdown does not wait for this. */
-const auto poll_interval = std::chrono::milliseconds(50);
+const auto poll_interval = std::chrono::milliseconds(5);
 
 }
 
