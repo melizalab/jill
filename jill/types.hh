@@ -72,6 +72,17 @@ struct data_block_t {
         std::size_t sz_id;      // the number of bytes in the id
         std::size_t sz_data;    // the number of bytes in the data
 
+        data_block_t(nframes_t time_, dtype_t dtype_,
+                     std::size_t sz_id_, std::size_t sz_data_)
+                : time(time_), dtype(dtype_), sz_id(sz_id_), sz_data(sz_data_) {}
+
+        /* Only the header is a data_block_t; the id and the data follow it in
+         * the buffer, and id() and data() find them by offset from `this`. A
+         * copy would carry the sizes and point at whatever happened to be
+         * after the copy. */
+        data_block_t(data_block_t const &) = delete;
+        data_block_t & operator=(data_block_t const &) = delete;
+
         /** total size of the data, including header */
         std::size_t size() const { return sizeof(data_block_t) + sz_id + sz_data; }
 

@@ -36,12 +36,9 @@ std::vector<char> pack(jill::nframes_t time, jill::dtype_t dtype,
                        std::string const & id, void const * data, std::size_t sz_data)
 {
         std::vector<char> buf(sizeof(jill::data_block_t) + id.size() + sz_data);
-        jill::data_block_t header;
-        header.time = time;
-        header.dtype = dtype;
-        header.sz_id = id.size();
-        header.sz_data = sz_data;
-
+        jill::data_block_t header(time, dtype, id.size(), sz_data);
+        // a byte copy of the header, which is what the ringbuffer does too;
+        // the type itself is not copyable
         memcpy(buf.data(), &header, sizeof(header));
         memcpy(buf.data() + sizeof(header), id.data(), id.size());
         if (sz_data) memcpy(buf.data() + sizeof(header) + id.size(), data, sz_data);

@@ -29,7 +29,7 @@ block_ringbuffer::push(nframes_t time, dtype_t dtype, char const * id,
 {
         // serialize the data in the buffer such that the header is followed by
         // the two data arrays
-        data_block_t header = { time, dtype, std::strlen(id), size};
+        data_block_t header(time, dtype, std::strlen(id), size);
         if (header.size() > write_space()) {
                 DBG << "ringbuffer full (req=" << header.size() << "; avail=" << write_space() << ")";
                 return 0;
