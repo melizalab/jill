@@ -16,10 +16,10 @@
 #include <sys/mman.h>
 #endif
 #include <boost/static_assert.hpp>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <samplerate.h>
 
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 using namespace jill::file;
 
 stimfile::stimfile(std::string const & path)

@@ -13,7 +13,7 @@
 #include <iostream>
 #include <vector>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 
 #include "../logging.hh"
 #include "../net/zmq.hh"
@@ -277,7 +277,7 @@ buffered_data_writer::bind_logger(std::string const & server_name)
                 DBG << "already bound to " << server_name;
                 return;
         }
-        namespace fs = boost::filesystem;
+        namespace fs = std::filesystem;
         std::ostringstream endpoint;
         fs::path path("/tmp/org.meliza.jill");
         path /= server_name;

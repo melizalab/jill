@@ -11,7 +11,6 @@
 #include <iostream>
 #include <csignal>
 #include <atomic>
-#include <boost/filesystem.hpp>
 
 #include "jill/jack_client.hh"
 #include "jill/program_options.hh"

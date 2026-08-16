@@ -13,7 +13,7 @@
 #include <csignal>
 #include <memory>
 #include <thread>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <boost/ptr_container/ptr_map.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -30,7 +30,7 @@ constexpr char PROGRAM_NAME[] = "jstimserver";
 
 using namespace jill;
 using namespace jill::net;
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 using std::string;
 
 class jstim_options : public program_options {
@@ -246,7 +246,7 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
         // serialize the stimulus list here as well. It's sort of a shitty JSON
         // serializer (floats get cast to strings, etc)
         namespace pt = boost::property_tree;
-        namespace fs = boost::filesystem;
+        namespace fs = std::filesystem;
         pt::ptree root;
         pt::ptree stim_list;
 

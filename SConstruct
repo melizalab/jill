@@ -252,10 +252,8 @@ if GetOption("compile_arf"):
     env.Append(CPPPATH=["#/arf/c++"])
 
 # Boost library names vary by platform: MacPorts has historically used an -mt
-# suffix, Debian has not. Detect rather than guess. Boost.System is deliberately
-# absent -- it has been header-only since Boost 1.69 and recent distributions no
-# longer ship the stub library at all.
-BOOST_LIBS = ["boost_date_time", "boost_program_options", "boost_filesystem"]
+# suffix, Debian has not. Detect rather than guess.
+BOOST_LIBS = ["boost_date_time", "boost_program_options"]
 
 if not GetOption("help") and not GetOption("clean"):
     conf = Configure(env)

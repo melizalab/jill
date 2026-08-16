@@ -2,11 +2,11 @@
 #include <iostream>
 #include <sstream>
 #include <cstdio>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include "jill/net/zmq.hh"
 
 using namespace std;
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 
 // Receives all message parts from socket, prints neatly
 //

@@ -15,7 +15,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <random>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/optional.hpp>
 
@@ -340,11 +340,11 @@ static void
 init_stimset(std::vector<string> const & stims, size_t const default_nreps,
              float condition_prob, std::mt19937 & rng)
 {
-        using namespace boost::filesystem;
+        namespace fs = std::filesystem;
 
         size_t marked = 0;
         for (size_t i = 0; i < stims.size(); ++i) {
-                path p(stims[i]);
+                fs::path p(stims[i]);
                 /* A bare count following a filename is that stimulus's number
                  * of repeats, and is consumed here so it is not opened as a
                  * file. Both halves of this used to be inverted: a count was

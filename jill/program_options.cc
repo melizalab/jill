@@ -10,8 +10,8 @@
  */
 #include <iostream>
 #include <map>
-#include <boost/filesystem.hpp>
-#include <boost/filesystem/fstream.hpp>
+#include <filesystem>
+#include <fstream>
 
 #include "logging.hh"
 #include "logger.hh"
@@ -78,15 +78,19 @@ program_options::parse(int argc, char **argv)
         LOG << _program_name << ", version " JILL_VERSION;
         LOG << "jackd server: " << server_name;
 
-        boost::filesystem::path configfile = get<string>("config", "");
-        if (boost::filesystem::is_regular_file(configfile)) {
-                boost::filesystem::ifstream ff(configfile);
+        std::filesystem::path configfile = get<string>("config", "");
+        if (std::filesystem::is_regular_file(configfile)) {
+                // std::filesystem has no ifstream of its own; since C++17 the
+                // standard one takes a path directly
+                std::ifstream ff(configfile);
                 LOG << "[Parsing " << configfile.string() << ']';
                 po::parsed_options parsed = po::parse_config_file(ff, cmd_opts, true);
                 po::store(parsed, vmap);
         }
         else if (!configfile.empty()) {
-                LOG << "ERROR: configuration file " << configfile << " doesn't exist";
+                // .string(): std::filesystem::path streams itself quoted, unlike
+                // boost's, and the "Parsing" message above is unquoted
+                LOG << "ERROR: configuration file " << configfile.string() << " doesn't exist";
                 throw Exit(EXIT_FAILURE);
         }
 
