@@ -1,11 +1,20 @@
 /*
- * A jill module that relays stimulus onset and offset events to open-ephys
+ * A jill module that relays stimulus onset and offset events to open-ephys.
+ *
+ * The implementation is based on `dsp::buffered_data_writer`, which
+ * encapsulates a ringbuffer with a realtime-safe push() method for the process
+ * loop and a backing thread that drains the ringbuffer to a data_writer. In
+ * this case the data_writer is open_ephys_receiver, which translates the MIDI
+ * messages into ZMQ messages sent to open-ephys (or other data acquisition
+ * systems, if this becomes necessary in the future).
+ *
  * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
 #include <random>
 #include <unistd.h>
 #include <atomic>
+#include <chrono>
 #include <csignal>
 
 #include "jill/logging.hh"
@@ -47,7 +56,7 @@ protected:
 static jrelay_options options(PROGRAM_NAME);
 /** buffer to send events from process thread to the main thread */
 std::unique_ptr<dsp::buffered_data_writer> zmq_thread;
-/* cleared by the signal handler; main() drives the shutdown */
+/** flag to trigger shutdown in main() */
 std::atomic<bool> running(true);
 jack_port_t *port_in;
 
@@ -76,12 +85,11 @@ jack_shutdown(jack_status_t _code, char const * msg)
 }
 
 /** handle POSIX signals */
-/* Signal handlers may run on any thread that has not blocked the signal,
- * including one already holding a lock the shutdown path needs. Nothing here
- * may allocate, log, or take a mutex: set a flag and let main() do the work. */
 void
 signal_handler(int sig)
 {
+	// NB: signal handler may run on any thread, so we just set a flag and
+	// let main do the work.
         running = false;
 }
 
@@ -95,6 +103,7 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
                 std::unique_ptr<jill::data_writer> receiver;
                 // future: support multiple endpoints. For now, only open-ephys
+                // or dummy.
                 if (options.count("open-ephys") > 0) {
                         auto recv = new net::open_ephys_receiver(options.openephys_addr);
                         recv->send("jrelay connected");
@@ -104,7 +113,20 @@ main(int argc, char **argv)
                         LOG << "using dummy receiver";
                         receiver.reset(new net::dummy_event_receiver());
                 }
-                zmq_thread.reset(new dsp::buffered_data_writer(std::move(receiver)));
+                /* Poll faster than jrecord does. jrelay's output is a zmq
+                 * message carrying a stimulus name and nothing else -- JACK
+                 * frame counts mean nothing to open-ephys, which runs its own
+                 * acquisition clock -- so the receiving end has only arrival
+                 * order and arrival time to work with. Timing comes from
+                 * jclicker's TTL pulse on a separate hardware line; these
+                 * messages are the labels that TTL edges get paired with. That
+                 * pairing is unambiguous either way at the intervals in use,
+                 * but there is no reason to add jitter to it: unlike jrecord,
+                 * whose flush() reaches H5Fflush, this writer's flush is a
+                 * no-op, so a shorter interval costs nothing here. */
+                zmq_thread.reset(new dsp::buffered_data_writer(
+                                         std::move(receiver), 4096,
+                                         std::chrono::milliseconds(5)));
                 // start client
                 auto client = std::make_unique<jack_client>(options.client_name,
                                                             options.server_name);
@@ -129,7 +151,6 @@ main(int argc, char **argv)
                 // connect ports
                 active.connect_ports(options.input_ports.begin(), options.input_ports.end(), "in");
 
-                /* stop() takes a lock, so it cannot run in the handler */
                 while (running) {
                         usleep(100000);
                 }

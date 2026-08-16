@@ -23,21 +23,6 @@
 using namespace jill;
 using namespace jill::dsp;
 
-namespace {
-
-/* How long the writer sleeps before looking at the buffer again.
- *
- * Nothing wakes it any more: the realtime thread used to signal a condition
- * variable after every push, which is not something the audio path may do.
- * Since it now finds the data on its own, this is the longest a block can sit
- * unwritten -- against a ringbuffer holding seconds of audio, which is why the
- * latency does not matter and the wakeup rate does. Fifty milliseconds is
- * twenty wakeups a second on a recorder that runs for days.
- *
- * stop() still signals, under the lock, so shutdown does not wait for this. */
-const auto poll_interval = std::chrono::milliseconds(50);
-
-}
 using namespace jill::net;
 using std::size_t;
 using std::string;
@@ -60,11 +45,14 @@ using std::string;
  * thread exits when the ringbuffer is fully flushed.
  */
 
-buffered_data_writer::buffered_data_writer(std::unique_ptr<data_writer> writer, size_t buffer_size)
+buffered_data_writer::buffered_data_writer(std::unique_ptr<data_writer> writer,
+                                           size_t buffer_size,
+                                           std::chrono::milliseconds poll_interval)
         : _state(Stopped),
           _writer(std::move(writer)),
           _buffer(new block_ringbuffer(buffer_size)),
           _dirty(false),
+          _poll_interval(poll_interval),
           _socket(zmq::context::socket(ZMQ_DEALER)),
           _logger_bound(false)
 {
@@ -230,7 +218,7 @@ buffered_data_writer::thread()
                                         _writer->flush();
                                         _dirty = false;
                                 }
-                                _ready.wait_for(lck, poll_interval,
+                                _ready.wait_for(lck, _poll_interval,
                                                 [this]{ return(_state == Stopping || _buffer->peek()); });
                         }
                 }

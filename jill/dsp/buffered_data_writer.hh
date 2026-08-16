@@ -16,6 +16,7 @@
 #include <iosfwd>
 #include <atomic>
 #include <thread>
+#include <chrono>
 #include <mutex>
 #include <condition_variable>
 #include "../data_thread.hh"
@@ -47,7 +48,24 @@ public:
          * @param writer       the sink for the data
          * @param buffer_size  the initial size of the ringbuffer (in bytes)
          */
-        buffered_data_writer(std::unique_ptr<data_writer> writer, std::size_t buffer_size=4096);
+        /**
+         * @param poll_interval  how long the consumer sleeps between passes.
+         *
+         * Nothing wakes it: the realtime thread used to signal a condition
+         * variable after every push, which is not something the audio path may
+         * do. So this bounds how long data sits unwritten, and how long a
+         * consumer whose output is observable lags behind the events that
+         * produced it.
+         *
+         * The default suits a writer whose data carries its own timestamps --
+         * jrecord's, where nothing downstream can tell when the write happened
+         * and the only thing more frequent polling buys is more calls to
+         * H5Fflush. A consumer whose delivery time *is* the timestamp wants
+         * something shorter; see jrelay.
+         */
+        buffered_data_writer(std::unique_ptr<data_writer> writer,
+                             std::size_t buffer_size=4096,
+                             std::chrono::milliseconds poll_interval=std::chrono::milliseconds(50));
         ~buffered_data_writer() override;
 
         /* implementations of data_thread methods */
@@ -121,6 +139,7 @@ private:
          * consumer wakes on a timer now rather than on a signal, so without
          * this it would flush the file on every idle pass. */
         bool _dirty;
+        std::chrono::milliseconds _poll_interval;
         std::thread _thread;
 
         std::atomic<bool> _xrun;                   // flag to indicate xrun
