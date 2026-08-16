@@ -1,0 +1,112 @@
+name: c++20 probe
+
+# Answers one question: can Apple clang do what a move to C++20 would be for?
+#
+# Linux is not in doubt -- jthread needs GCC 10 and atomic::wait GCC 11, and
+# every platform in use is well past both. macOS is, because SConstruct sets
+# CXX=clang++ on Darwin, which is Apple clang, whose libc++ has historically
+# lagged on <stop_token>.
+#
+# Deliberately manual and deliberately separate from the test workflow. It is
+# not a gate on anything; it is a question, to be fired when someone wants the
+# answer and deleted once the decision is made.
+#
+# The steps report independently rather than stopping at the first failure,
+# because the outcomes lead to different decisions:
+#
+#   jthread yes, chrono yes  -> bump, then std::jthread, then date_time to chrono
+#   jthread yes, chrono no   -> bump and do jthread; leave boost::date_time alone
+#   jthread no               -> do not bump for this; write a ~15-line
+#                               joining_thread guard instead, which works anywhere
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: c++20 on macos
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out, including the ARF submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install scons pkgconf jack boost libsndfile libsamplerate \
+            zeromq hdf5 doctest
+          python3 -m pip install --break-system-packages pytest h5py numpy
+
+      - name: Which compiler is this
+        run: |
+          clang++ --version
+          echo "--- __cplusplus and library feature macros under -std=c++20 ---"
+          printf '#include <version>\n#include <cstdio>\nint main(){\n' > probe.cc
+          printf '  std::printf("__cplusplus          %%ld\\n", (long)__cplusplus);\n' >> probe.cc
+          for m in __cpp_lib_jthread __cpp_lib_atomic_wait __cpp_lib_format __cpp_lib_span; do
+            printf '#ifdef %s\n  std::printf("%-24s %%ld\\n", (long)%s);\n#else\n  std::printf("%-24s absent\\n");\n#endif\n' "$m" "$m" "$m" "$m" >> probe.cc
+          done
+          printf '  return 0;\n}\n' >> probe.cc
+          clang++ -std=c++20 probe.cc -o probe && ./probe
+
+      # std::jthread is the whole reason to consider the bump: it is what fixes
+      # jstimserver's monitor_thread being joined inside a try block, and what
+      # would let readahead_stimqueue and buffered_data_writer stop hand-writing
+      # join-in-destructor guards.
+      - name: Does std::jthread work
+        continue-on-error: true
+        run: |
+          cat > jt.cc <<'EOF'
+          #include <thread>
+          #include <atomic>
+          #include <cstdio>
+          int main() {
+                  std::atomic<int> n{0};
+                  { std::jthread t([&n]{ n = 1; }); }        // joins on scope exit
+                  std::jthread s([](std::stop_token st){ while (!st.stop_requested()) ; });
+                  s.request_stop();
+                  std::printf("jthread ok (ran=%d)\n", n.load());
+                  return n == 1 ? 0 : 1;
+          }
+          EOF
+          clang++ -std=c++20 jt.cc -o jt && ./jt
+
+      # would let boost::date_time go, which is ten files and the second of the
+      # two linked boost libraries
+      - name: Does chrono formatting and parsing work
+        continue-on-error: true
+        run: |
+          cat > ch.cc <<'EOF'
+          #include <chrono>
+          #include <format>
+          #include <sstream>
+          #include <string>
+          #include <cstdio>
+          int main() {
+                  auto now = std::chrono::system_clock::now();
+                  std::string iso = std::format("{:%Y%m%dT%H%M%S}", now);
+                  std::chrono::sys_time<std::chrono::microseconds> parsed;
+                  std::istringstream is(iso);
+                  std::chrono::from_stream(is, "%Y%m%dT%H%M%S", parsed);
+                  std::printf("chrono ok (%s, reparsed=%s)\n",
+                              iso.c_str(), is.fail() ? "no" : "yes");
+                  return is.fail() ? 1 : 0;
+          }
+          EOF
+          clang++ -std=c++20 ch.cc -o ch && ./ch
+
+      # the bump is free on this machine's toolchains; this checks Apple's
+      - name: Build the tree as c++20
+        continue-on-error: true
+        env:
+          CXXFLAGS: -std=c++20
+        run: scons -Q modules test
+
+      - name: Run the suites that need no JACK server
+        continue-on-error: true
+        env:
+          CXXFLAGS: -std=c++20
+        run: pytest -v -m "not needs_jack"
