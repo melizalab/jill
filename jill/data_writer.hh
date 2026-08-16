@@ -12,7 +12,6 @@
 #ifndef _DATA_WRITER_HH
 #define _DATA_WRITER_HH
 
-#include <boost/noncopyable.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include "types.hh"
 
@@ -37,10 +36,17 @@ using timestamp_t = boost::posix_time::ptime;
  *
  * Default no-op implementations are provided for all methods except write().
  */
-class data_writer : boost::noncopyable {
+class data_writer {
 
 public:
+        data_writer() = default;
         virtual ~data_writer() = default;
+
+        /* An implementation holds an open file or socket, which cannot be
+         * duplicated. Deleting the copy constructor here also keeps a derived
+         * object from being sliced down to this interface. */
+        data_writer(data_writer const &) = delete;
+        data_writer & operator=(data_writer const &) = delete;
 
         /** true if the object is ready for data */
         virtual bool ready() const { return true; }

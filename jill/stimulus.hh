@@ -11,7 +11,6 @@
 #ifndef _STIMULUS_HH
 #define _STIMULUS_HH
 
-#include <boost/noncopyable.hpp>
 #include "types.hh"
 
 namespace jill {
@@ -23,9 +22,18 @@ namespace jill {
  * disk.
  *
  */
-class stimulus_t : boost::noncopyable {
+class stimulus_t {
 public:
+        stimulus_t() = default;
         virtual ~stimulus_t() = default;
+
+        /* An implementation owns its sample buffer and whatever it was read
+	 * from. Duplicating a stimulus would be meaningful, unlike the other
+	 * interfaces here, but nothing needs it; relax this if something does.
+	 * Deleting the copy constructor also keeps a derived object from being
+	 * sliced down to this interface. */
+        stimulus_t(stimulus_t const &) = delete;
+        stimulus_t & operator=(stimulus_t const &) = delete;
 
         /** An identifier for the stimulus */
         virtual char const * name() const = 0;

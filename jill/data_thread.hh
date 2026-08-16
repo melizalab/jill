@@ -12,7 +12,6 @@
 #ifndef _DATA_THREAD_HH
 #define _DATA_THREAD_HH
 
-#include <boost/noncopyable.hpp>
 #include "types.hh"
 
 namespace jill {
@@ -32,10 +31,18 @@ namespace jill {
  * data_thread objects are safe to use in realtime applications as long as the
  * methods marked as wait-free are implemented using wait-free algorithms.
  */
-class data_thread : boost::noncopyable {
+class data_thread {
 
 public:
+        data_thread() = default;
         virtual ~data_thread() = default;
+
+        /* An implementation owns the consumer thread and the buffer it drains,
+         * neither of which can be duplicated. Deleting the copy constructor
+         * here also keeps a derived object from being sliced down to this
+         * interface. */
+        data_thread(data_thread const &) = delete;
+        data_thread & operator=(data_thread const &) = delete;
 
         /**
          * Process incoming data according to current state. In Stopped and

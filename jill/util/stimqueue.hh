@@ -11,7 +11,6 @@
 #ifndef _STIMQUEUE_HH
 #define _STIMQUEUE_HH
 
-#include <boost/noncopyable.hpp>
 #include "../stimulus.hh"
 
 namespace jill { namespace util {
@@ -42,10 +41,17 @@ struct trial {
  * be responsible for preparing the data.  The method(s) for adding stimuli to the
  * queue are implementation-specific.
  */
-class stimqueue : boost::noncopyable {
+class stimqueue {
 
 public:
+        stimqueue() = default;
         virtual ~stimqueue() = default;
+
+        /* An implementation owns the worker thread that prepares the next stimulus,
+         * which cannot be duplicated. Deleting the copy here also keeps a derived
+         * object from being sliced down to this interface. */
+        stimqueue(stimqueue const &) = delete;
+        stimqueue & operator=(stimqueue const &) = delete;
 
         /**
          * Get the trial currently at the head of the queue.
