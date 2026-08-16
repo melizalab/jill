@@ -13,7 +13,6 @@
 #define _CROSSING_COUNTER_HH
 
 #include <atomic>
-#include <boost/noncopyable.hpp>
 #include "counter.hh"
 
 namespace jill { namespace dsp {
@@ -26,7 +25,10 @@ namespace jill { namespace dsp {
  * a moving sum of the counts in previous blocks.
  */
 template<typename T>
-class crossing_counter : boost::noncopyable {
+/* Not copyable, because _thresh is a std::atomic: the threshold can be changed
+ * from another thread while push() is running. That is a property of the
+ * member rather than a rule imposed here. */
+class crossing_counter {
 public:
 	using sample_type = T;
         using count_type = int32_t;

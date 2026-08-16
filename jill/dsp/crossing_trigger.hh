@@ -27,7 +27,8 @@ namespace jill { namespace dsp {
  *
  */
 template <typename T>
-class crossing_trigger : boost::noncopyable {
+// not copyable: holds two crossing_counters, which are not
+class crossing_trigger {
 public:
 	using sample_type = T;
 	using size_type = typename crossing_counter<T>::size_type;

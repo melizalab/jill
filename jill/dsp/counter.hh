@@ -13,7 +13,6 @@
 
 #include <ostream>
 #include <iterator>
-#include <boost/noncopyable.hpp>
 #include <boost/circular_buffer.hpp>
 
 namespace jill { namespace dsp {
@@ -30,7 +29,7 @@ namespace jill { namespace dsp {
  * threshold.
  */
 template <class T>
-class running_counter : boost::noncopyable {
+class running_counter {
 
         /// the storage type
         using storage_type = boost::circular_buffer<T>;
