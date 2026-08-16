@@ -121,19 +121,6 @@ public:
          * had to be allocated. Anything unread is gone: drain it first if it
          * matters.
          *
-         * Discarding is the right default for every caller here, and not
-         * merely the cheap one. A resize only happens when the JACK period
-         * size changes, which means the audio stream has just been
-         * interrupted. Data left over from before that gap belongs to a
-         * timeline that no longer connects to the one about to resume:
-         * jclicker's buffer holds pulses rendered for sample positions that
-         * have moved, and jdelay's holds the audio that constitutes its delay
-         * line. Carrying either across would splice pre-gap material into the
-         * output at the wrong time -- a pulse at the wrong latency, a snippet
-         * of stale audio -- which is worse than the silence that replaces it.
-         * The one caller with data worth keeping, jrecord, writes it to disk
-         * before calling rather than asking the buffer to hold it.
-         *
          * @note NOT safe to call concurrently with push() or pop(). This
          * allocates, so it belongs on a control path with the producer and
          * consumer both stopped. In the modules that means a JACK buffer size
@@ -297,12 +284,9 @@ private:
         std::unique_ptr<jill::util::mirrored_memory> _buf;
         /* Single producer, single consumer: the producer owns _write_ptr and
          * the consumer owns _read_ptr, so each has exactly one writer and no
-         * read-modify-write is needed. What is needed is the release/acquire
-         * pairing. These were plain size_t advanced with __sync_add_and_fetch
-         * and read directly, which orders nothing: a reader that observes the
-         * new pointer had no guarantee of seeing the data written before it.
-         * That works on x86 by accident of its memory model and does not on
-         * ARM. */
+         * read-modify-write is needed, but load should use
+         * std::memory_order_relaxed and store should use
+         * std::memory_order_release to ensure ordering on ARM. */
         std::atomic<std::size_t> _write_ptr;
         std::atomic<std::size_t> _read_ptr;
         std::size_t _size_mask;

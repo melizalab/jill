@@ -87,7 +87,7 @@ public:
          * pointer to the header. Successive calls will access successive
          * blocks.
          *
-         * @return data_block_t* for the next block, or 0 if none is
+         * @return data_block_t* for the next block, or nullptr if none is
          * available.
          *
          */
@@ -98,7 +98,7 @@ public:
          * the read queue, or NULL if the read queue is empty.  Successive calls
          * will access the oldest block until it is released.
          *
-         * @return data_block_t* for the oldest block, or 0 if none is
+         * @return data_block_t* for the oldest block, or nullptr if none is
          * available.
          */
         data_block_t const * peek() const;

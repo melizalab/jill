@@ -1,5 +1,13 @@
 /*
- * A simple module that transforms events into clicks.
+ * Transform events into clicks.
+ *
+ * This module's primary function is to synchronize audio stimulus playback
+ * (i.e., using jstim) with other hardware using analog or digital inputs. The
+ * module is started with a list of event types to listen for and what kinds of
+ * clicks to emit for each one (positive, negative, or biphasic), and then
+ * generates a click on its output channel at the appropriate offset whenever it
+ * receives a matching event.
+ * 
  * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
