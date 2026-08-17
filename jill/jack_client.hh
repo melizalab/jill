@@ -15,7 +15,6 @@
 #include <string>
 #include <list>
 #include <functional>
-#include <boost/noncopyable.hpp>
 #include <jack/jack.h>
 #include "data_source.hh"
 // every module's process callback needs JILL_RT, and every module includes this
@@ -256,9 +255,14 @@ private:
  * Note that the caller still needs to be careful with lifetimes of any objects
  * that hold references to the client object itself.
  */
-class activated_client : boost::noncopyable {
+class activated_client {
 
 public:
+        /* Scopes an activation: the constructor activates the client and the
+         * destructor deactivates it. Copying would deactivate twice. */
+        activated_client(activated_client const &) = delete;
+        activated_client & operator=(activated_client const &) = delete;
+
         explicit activated_client(jack_client & client)
                 : _client(client) {
                 _client.activate();

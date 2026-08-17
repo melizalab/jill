@@ -12,7 +12,6 @@
 #ifndef _LOGGER_HH
 #define _LOGGER_HH
 
-#include <boost/noncopyable.hpp>
 #include <mutex>
 
 namespace jill {
@@ -25,10 +24,15 @@ namespace jill {
  *
  * This class is a singleton and can only be accessed through instance()
  */
-class logger : boost::noncopyable {
+class logger {
 public:
 
         /** Access the instance of the logger */
+        /* One instance, reached through instance(); a copy would be a
+         * second one holding the same connection. */
+        logger(logger const &) = delete;
+        logger & operator=(logger const &) = delete;
+
         static logger & instance() {
                 // threadsafe in gcc to initialize static locals
                 static logger _instance;

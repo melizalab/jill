@@ -12,7 +12,6 @@
 #ifndef _LOGGING_HH
 #define _LOGGING_HH
 
-#include <boost/noncopyable.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <iosfwd>
 
@@ -42,9 +41,14 @@ using timestamp_t = boost::posix_time::ptime;
  * and that will be written on destruction (here, at the end of the statement).
  *
  */
-class log_msg : boost::noncopyable {
+class log_msg {
 
 public:
+        /* Accumulates a line and emits it on destruction. A copy would emit
+         * the same line a second time. */
+        log_msg(log_msg const &) = delete;
+        log_msg & operator=(log_msg const &) = delete;
+
         log_msg();
         explicit log_msg(timestamp_t const & utc);
         ~log_msg();

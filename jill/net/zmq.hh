@@ -15,7 +15,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <boost/noncopyable.hpp>
 
 #include <zmq.h>
 
@@ -27,9 +26,14 @@ namespace jill { namespace net { namespace zmq {
 using msg_ptr_t = std::shared_ptr<zmq_msg_t>;
 
 /** global singleton class for context */
-class context : boost::noncopyable {
+class context {
 
 public:
+        /* One instance, reached through instance(); a copy would be a
+         * second one holding the same connection. */
+        context(context const &) = delete;
+        context & operator=(context const &) = delete;
+
         static context & instance() {
                 static context _instance;
                 return _instance;
