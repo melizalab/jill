@@ -50,7 +50,6 @@ public:
          *  sampled data. A good minimum is nframes*nchannels*12
          */
         explicit block_ringbuffer(std::size_t size);
-        ~block_ringbuffer() = default;
 
         /// @return the number of samples ahead of the read pointer the read-ahead pointer is
         std::size_t read_ahead_space() const {

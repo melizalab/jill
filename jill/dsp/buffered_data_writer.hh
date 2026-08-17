@@ -68,6 +68,11 @@ public:
                              std::chrono::milliseconds poll_interval=std::chrono::milliseconds(50));
         ~buffered_data_writer() override;
 
+        /* Owns the consumer thread and the socket log messages arrive on. A copy
+         * would put two threads on one buffer and close the socket twice. */
+        buffered_data_writer(buffered_data_writer const &) = delete;
+        buffered_data_writer & operator=(buffered_data_writer const &) = delete;
+
         /* implementations of data_thread methods */
 
         void push(nframes_t time, dtype_t dtype, char const * id,

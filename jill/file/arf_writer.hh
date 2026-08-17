@@ -35,6 +35,11 @@ public:
                    int compression=0);
         ~arf_writer() override = default;
 
+        /* Owns the HDF5 file and the packet tables written into it, which are
+         * themselves move-only handles. */
+        arf_writer(arf_writer const &) = delete;
+        arf_writer & operator=(arf_writer const &) = delete;
+
         /* data_writer overrides */
         bool ready() const override;
         void new_entry(nframes_t) override;

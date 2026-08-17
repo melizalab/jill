@@ -74,6 +74,11 @@ public:
          */
         ~readahead_stimqueue() override;
 
+        /* Owns the worker thread that pre-loads stimuli. A copy would leave two
+         * objects expecting to join it. */
+        readahead_stimqueue(readahead_stimqueue const &) = delete;
+        readahead_stimqueue & operator=(readahead_stimqueue const &) = delete;
+
         trial const * head() override;
         /** @return the trial released most recently, or nullptr */
         trial const * previous();

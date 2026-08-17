@@ -112,8 +112,6 @@ public:
                 resize(size);
         }
 
-        ~ringbuffer() = default;
-
         /**
          * Resize the ringbuffer, discarding whatever is in it.
          *

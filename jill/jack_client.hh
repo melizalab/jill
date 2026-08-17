@@ -106,6 +106,10 @@ public:
         jack_client(std::string const & name, std::string const & server_name);
         ~jack_client() override;
 
+        /* Owns the connection to the server. A copy would close it twice. */
+        jack_client(jack_client const &) = delete;
+        jack_client & operator=(jack_client const &) = delete;
+
         /**
          * @brief Register a new port for the client.
          *
