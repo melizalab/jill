@@ -12,9 +12,6 @@
 #include "stimfile.hh"
 #include "../logging.hh"
 
-#if MLOCK_STIMFILES
-#include <sys/mman.h>
-#endif
 #include <filesystem>
 #include <samplerate.h>
 
@@ -36,9 +33,6 @@ stimfile::stimfile(std::string const & path)
 stimfile::~stimfile()
 {
         if (_sndfile) sf_close(_sndfile);
-#if MLOCK_STIMFILES
-        if (_buffer) munlock(_buffer.get(), _nframes * sizeof(sample_t));
-#endif
 }
 
 void
@@ -84,9 +78,6 @@ stimfile::load_samples(nframes_t samplerate)
                 samples = std::move(resampled);
         }
 
-#if MLOCK_STIMFILES
-        mlock(samples.get(), _nframes * sizeof(sample_t));
-#endif
         _buffer = std::move(samples);
 
 }

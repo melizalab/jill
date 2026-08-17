@@ -78,6 +78,18 @@ program_options::parse(int argc, char **argv)
         LOG << _program_name << ", version " JILL_VERSION;
         LOG << "jackd server: " << server_name;
 
+        /* If page locking is ever wanted, it goes here: one
+         * mlockall(MCL_CURRENT|MCL_FUTURE) per process, behind an option,
+         * reporting whether it succeeded. Not mlock() per buffer, which is
+         * what used to be attempted and could not work -- see the note in
+         * mirrored_memory.cc. mlockall covers everything the realtime thread
+         * reaches, code and stack included, rather than one allocation.
+         *
+         * Nothing needs it today. Anonymous pages cannot be evicted on a host
+         * without swap, which is how the small ones are configured, and the
+         * larger ones have memory to spare. MCL_FUTURE also turns an
+         * allocation failure into a hard stop, so it should be opt-in. */
+
         std::filesystem::path configfile = get<string>("config", "");
         if (std::filesystem::is_regular_file(configfile)) {
                 // std::filesystem has no ifstream of its own; since C++17 the

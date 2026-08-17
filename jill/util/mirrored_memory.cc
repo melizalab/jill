@@ -28,7 +28,7 @@ using std::size_t;
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
-mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_pages, bool lock_pages)
+mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_pages)
 {
         int shm_id;
         size_t page_size = getpagesize();
@@ -59,8 +59,11 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_pages, bool lock_
         if (mem_ptr == MAP_FAILED)
                 throw std::runtime_error("anonymous mmap failed");
 
-        if (lock_pages)
-                mlock(mem_ptr, total_size());
+        /* An mlock() used to sit here, and could not have worked: this mapping
+         * is PROT_NONE, which mlock refuses with ENOMEM, and the middle of it
+         * is unmapped and replaced by the shared segment a few lines below.
+         * Page locking, if it is ever wanted, belongs in one mlockall() per
+         * process; see the note in program_options.cc. */
 
         // round the address down to SHMLBA to prevent errors on archs where
         // this is not the same as pagesize.
