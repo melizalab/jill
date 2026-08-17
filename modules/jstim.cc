@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <random>
 #include <filesystem>
-#include <boost/ptr_container/ptr_vector.hpp>
+#include <memory>
 #include <optional>
 
 #include "jill/logging.hh"
@@ -68,8 +68,16 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-// Holds (and owns) all the stimuli
-boost::ptr_vector<stimulus_t> _stimuli;
+/* Holds (and owns) all the stimuli. Kept separate from _stimlist because the
+ * two answer different questions: this is the set of distinct stimuli, that is
+ * the sequence they are presented in, with repeats aliasing entries here.
+ *
+ * Worth revisiting if the split ever costs more than it gives. Ownership could
+ * move into _stimlist -- a shared_ptr per trial, or entries holding an index
+ * into this -- which would remove the declaration-order dependency noted below.
+ * The pointers _stimlist hands the queue stay valid across growth either way,
+ * since it is the unique_ptrs that move and not what they point at. */
+std::vector<std::unique_ptr<stimulus_t>> _stimuli;
 // The sequence of trials being played. May be shuffled, and holds one entry
 // per repetition -- several of which alias the same stimulus, which is why the
 // condition flag lives on the entry rather than on the stimulus.
@@ -356,8 +364,8 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps,
                         i += 1;
                 }
                 try {
-                        jill::stimulus_t *stim = new file::stimfile(p.string());
-                        _stimuli.push_back(stim);
+                        _stimuli.push_back(std::make_unique<file::stimfile>(p.string()));
+                        jill::stimulus_t * stim = _stimuli.back().get();
                         /* Assign the condition by counting rather than by
                          * drawing per trial. Every stimulus gets exactly
                          * round(p * nreps) of its repetitions marked, so the

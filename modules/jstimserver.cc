@@ -14,7 +14,8 @@
 #include <memory>
 #include <thread>
 #include <filesystem>
-#include <boost/ptr_container/ptr_map.hpp>
+#include <map>
+#include <memory>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
@@ -104,8 +105,9 @@ struct Event {
 
 /** store program options */
 jstim_options options(PROGRAM_NAME);
-/** the pre-loaded stimuli */
-boost::ptr_map<std::string, stimulus_t> _stimuli;
+/** the pre-loaded stimuli, keyed by name; loaded once at startup and only read
+    afterwards */
+std::map<std::string, std::unique_ptr<stimulus_t>> _stimuli;
 /** signal from main thread to process to start or stop playback */
 ProcessRequest _request;
 /** signal from jack server to process that there was an xrun */
@@ -253,14 +255,16 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
         for (size_t i = 0; i < stims.size(); ++i) {
                 fs::path p(stims[i]);
                 try {
-                        jill::stimulus_t * stim = new file::stimfile(p.string());
+                        auto stim = std::make_unique<file::stimfile>(p.string());
                         std::string name(stim->name());
                         stim->load_samples(sampling_rate);
-                        _stimuli.insert(name, stim);
+                        // read before the move; the map owns it afterwards
+                        const float duration = stim->duration();
+                        _stimuli.emplace(name, std::move(stim));
 
                         pt::ptree stim_node;
                         stim_node.put("name", name);
-                        stim_node.put("duration", stim->duration());
+                        stim_node.put("duration", duration);
                         stim_list.push_back(std::make_pair("", stim_node));
                 }
                 catch (jill::FileError const & e) {
@@ -420,7 +424,7 @@ main(int argc, char **argv)
                                         LOG << "client requested invalid stimulus: " << stim;
                                         messages.back() = REP_BADSTIM;
                                 }
-                                else if (_request.start(it->second)) {
+                                else if (_request.start(it->second.get())) {
                                         LOG << "client requested stimulus: " << stim;
                                         messages.back() = REP_OK;
                                 }
