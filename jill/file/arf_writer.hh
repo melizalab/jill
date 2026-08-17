@@ -90,8 +90,9 @@ private:
 
         // local state
         nframes_t _entry_start;                    // offset sample counts
-        nframes_t _last_frame;                     // last frame written to the
-                                                   // current entry
+        nframes_t _last_offset;                    // furthest point written in
+                                                   // the current entry, as an
+                                                   // offset from _entry_start
         std::size_t _entry_idx;                    // manage entry numbering
 
 };

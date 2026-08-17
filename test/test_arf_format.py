@@ -78,7 +78,7 @@ def test_entries_are_numbered_sequentially(arf_file, entries):
     names = [n for n in sorted(arf_file) if isinstance(arf_file[n], h5py.Group)]
     assert names == ["%s_%04d" % (SOURCE, i) for i in range(len(names))]
     # four, because the frame counter wrap splits the last one
-    assert len(entries) == 4
+    assert len(entries) == 5
 
 
 @pytest.mark.parametrize("attr", ["timestamp", "jack_frame", "jack_sampling_rate",
@@ -206,3 +206,16 @@ def test_frame_counter_wrap_splits_the_entry(entries):
     # no samples are lost in the split
     total = len(before[CHANNELS[0]]) + len(after[CHANNELS[0]])
     assert total == 6 * PERIOD
+
+
+def test_trial_off_is_the_furthest_point_written(entries):
+    """An event stamped before existing data must not shorten the entry.
+
+    arf_writer tracks the end of an entry as the furthest offset reached, not
+    the most recent write. The last fixture entry writes two periods and then
+    an event timestamped at the start of the first, which used to drag
+    trial_off back to zero.
+    """
+    entry = entries[4]
+    assert entry.attrs["trial_off"] == 2 * PERIOD
+    assert entry[CHANNELS[0]].shape[0] == 2 * PERIOD

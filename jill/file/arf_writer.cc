@@ -113,7 +113,7 @@ arf_writer::arf_writer(string const & filename,
           // and so is not initialized yet
           _log(open_or_create_log(_file, compression)),
           _compression(compression),
-          _entry_start(0), _entry_idx(0)
+          _entry_start(0), _last_offset(0), _entry_idx(0)
 {
         _base_usec = _data_source.time();
         _base_ptime = microsec_clock::universal_time();
@@ -135,6 +135,7 @@ arf_writer::new_entry(nframes_t frame_count)
 
         close_entry();
         _entry_start = frame_count;
+        _last_offset = 0;
 
         time_duration ts;
         frame_usec = _data_source.time(_entry_start);
@@ -158,8 +159,9 @@ arf_writer::close_entry()
 {
         _dsets.clear();         // closes any old packet tables
         if (_entry) {
-                LOG << "closed entry: " << _entry->name() << " (frame=" << _last_frame << ")";
-                _entry->write_attribute("trial_off", _last_frame - _entry_start);
+                LOG << "closed entry: " << _entry->name()
+                    << " (frame=" << _entry_start + _last_offset << ")";
+                _entry->write_attribute("trial_off", _last_offset);
                 // if (!aligned())
                 //         o << " (warning: unequal dataset length)";
         }
@@ -215,7 +217,14 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                     << " message=" << e.message;
                 dset->second.write(&e, 1);
         }
-        _last_frame = data->time + stop_frame;
+        /* Track the furthest point reached as an offset from the start of the
+         * entry, not as a frame number. Two things have to hold at once: an
+         * event stamped earlier than data already written must not pull the
+         * end backwards, and the sample counter can wrap mid-entry. The
+         * subtraction is correct across a wrap where a comparison of the frame
+         * numbers themselves would not be. */
+        const nframes_t offset = (data->time + stop_frame) - _entry_start;
+        if (offset > _last_offset) _last_offset = offset;
 }
 
 void
@@ -227,12 +236,12 @@ arf_writer::flush()
 void
 arf_writer::log(timestamp_t utc, string source, string msg)
 {
-        const std::size_t buf_size = msg.length() + source.length() + 4;
-        char m[buf_size];
-        snprintf(m, buf_size, "[%s] %s", source.c_str(), msg.c_str());
+        // not a VLA: the length comes from the message, and sizing a stack
+        // allocation from that is neither standard C++ nor bounded
+        const std::string m = "[" + source + "] " + msg;
 
         time_duration t = utc - epoch;
-        message_t message = { t.total_seconds(), t.fractional_seconds(), m };
+        message_t message = { t.total_seconds(), t.fractional_seconds(), m.c_str() };
         _log.write(&message, 1);
 }
 

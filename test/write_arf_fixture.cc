@@ -99,11 +99,7 @@ std::vector<sample_t> ramp(nframes_t n, int channel)
 /* Write one entry's worth of sampled data on every channel.
  *
  * If event_after_period is not negative, a stimulus-onset event is emitted at
- * that period's timestamp. Events are interleaved in time order rather than
- * appended, because arf_writer tracks the last frame written as
- * `data->time + stop_frame` without taking a maximum: an event timestamped
- * earlier than data already written would drag that value backwards and
- * understate the entry's length. */
+ * that period's timestamp. */
 void write_periods(data_writer & writer, nframes_t start, int periods,
                    int event_after_period = -1)
 {
@@ -175,6 +171,23 @@ main(int argc, char ** argv)
         const nframes_t near_wrap = 0xffffffffu - 3 * PERIOD;
         writer->new_entry(near_wrap);
         write_periods(*writer, near_wrap, 6);
+        writer->close_entry();
+
+        /* An event stamped before data already written. arf_writer used to
+         * record the end of an entry as the last write rather than the
+         * furthest one, so this dragged trial_off backwards; the entry is two
+         * periods long whichever order the writes arrive in. */
+        writer->new_entry(200000);
+        write_periods(*writer, 200000, 2);
+        {
+                std::vector<char> payload;
+                payload.push_back(static_cast<char>(midi::status_type::stim_on));
+                const std::string stim = STIMULUS_NAME;
+                payload.insert(payload.end(), stim.begin(), stim.end());
+                std::vector<char> block = make_block(200000, EVENT, EVENT_CHANNEL,
+                                                     payload.data(), payload.size());
+                writer->write(reinterpret_cast<data_block_t const *>(block.data()), 0, 0);
+        }
         writer->close_entry();
 
         writer->flush();
