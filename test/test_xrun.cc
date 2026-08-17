@@ -1,12 +1,12 @@
 /* generates an xrun by waiting too long in the process loop */
 #include <iostream>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include "jill/jack_client.hh"
 #include "jill/logging.hh"
 
 using namespace jill;
 
-boost::shared_ptr<jack_client> client;
+std::unique_ptr<jack_client> client;
 long xrun_usec = 0;
 
 int

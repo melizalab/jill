@@ -15,7 +15,6 @@
 #if MLOCK_STIMFILES
 #include <sys/mman.h>
 #endif
-#include <boost/static_assert.hpp>
 #include <filesystem>
 #include <samplerate.h>
 

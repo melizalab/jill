@@ -1,4 +1,4 @@
-#include <boost/type_traits/make_signed.hpp>
+#include <type_traits>
 
 #include "triggered_data_writer.hh"
 #include "../types.hh"
@@ -11,7 +11,7 @@ using namespace jill;
 using namespace jill::dsp;
 
 /** A data type for comparing differences between frame counts */
-using framediff_t = boost::make_signed<nframes_t>::type;
+using framediff_t = std::make_signed<nframes_t>::type;
 
 namespace jill {
 
