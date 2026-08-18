@@ -209,23 +209,37 @@ public:
          * copies data to a destination buffer.  Uses std::copy (i.e., the
          * assignment operator).
          *
-         * @param dest the destination buffer, which needs to be pre-allocated.
-         *             if 0, does not write any data but still advances read pointer
-         * @param cnt the number of elements to read (0 for all)
+         * @param dest the destination buffer, which must have room for cnt
+         * @param cnt the number of elements to read
          *
-         * @return the number of elements actually read
+         * @return the number of elements actually read, which is cnt or the
+         *         number available, whichever is smaller
+         *
+         * @note cnt of zero reads nothing. It used to mean "read everything",
+         * which made `pop(dest, std::min(capacity, read_space()))` -- the
+         * obvious way to write a bounded read -- fill dest with the whole ring
+         * the moment the buffer was empty. Use discard() to advance the read
+         * pointer without copying.
          */
-        std::size_t pop(data_type * dest, std::size_t cnt=0) {
+        std::size_t pop(data_type * dest, std::size_t cnt) {
                 detail::copyfrom<data_type> copier(dest);
-                return pop(copier, cnt);
+                const std::size_t avail = read_space();
+                if (cnt > avail) cnt = avail;
+                if (cnt == 0) return 0;
+                cnt = copier(buffer() + read_offset(), cnt);
+                advance_read_ptr(cnt);
+                return cnt;
         }
 
         /**
          * Read data from the ringbuffer using a visitor function.
          *
-         * @param data_fun The visitor function (@see read_visitor_type) NB: to avoid copying
-         *                 the underlying object use boost::ref
+         * @param data_fun The visitor function (@see read_visitor_type)
          * @param cnt      The number of elements to process, or 0 for all
+         *
+         * @note zero still means "everything available" here, unlike the
+         * pointer form: the visitor is handed a count and decides what to do
+         * with it, so there is no fixed-size destination to overrun.
          *
          * @return the number of elements actually read
          */
@@ -237,6 +251,23 @@ public:
                 cnt = data_fun(buffer() + read_offset(), cnt);
                 advance_read_ptr(cnt);
                 return cnt;
+        }
+
+        /**
+         * Advance the read pointer past cnt elements without copying them.
+         *
+         * @return the number discarded, which is cnt or the number available
+         */
+        std::size_t discard(std::size_t cnt) {
+                const std::size_t avail = read_space();
+                if (cnt > avail) cnt = avail;
+                advance_read_ptr(cnt);
+                return cnt;
+        }
+
+        /** Discard everything currently readable. @return the number discarded */
+        std::size_t discard_all() {
+                return discard(read_space());
         }
 
         data_type pop() {

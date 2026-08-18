@@ -268,7 +268,7 @@ TEST_CASE("clear rewinds to the start rather than draining") {
         jill::dsp::ringbuffer<int> rb(64);
         std::vector<int> filler(rb.size() - 4, 0);
         rb.push(filler.data(), filler.size());
-        rb.pop(nullptr, filler.size());
+        rb.discard(filler.size());
         REQUIRE(rb.read_offset() != 0);
 
         rb.clear();
@@ -294,4 +294,84 @@ TEST_CASE("block_ringbuffer is emptied by a resize") {
         REQUIRE(block != nullptr);
         CHECK(block->time == 128);
         CHECK(block->id() == "pcm");
+}
+
+/* pop(dest, cnt) used to treat a count of zero as "read everything available",
+ * so the obvious way to write a bounded read filled the destination with the
+ * whole ring the moment the buffer was empty. Advancing without copying is
+ * discard()'s job now. */
+
+TEST_CASE("popping zero elements reads nothing") {
+        jill::dsp::ringbuffer<int> rb(64);
+        const std::vector<int> in{1, 2, 3, 4};
+        rb.push(in.data(), in.size());
+
+        std::vector<int> dest(2, -1);
+        CHECK(rb.pop(dest.data(), 0) == 0);
+        CHECK(dest[0] == -1);                   // untouched
+        CHECK(rb.read_space() == in.size());    // and nothing consumed
+}
+
+TEST_CASE("a bounded read of an empty buffer is safe") {
+        // min(capacity, read_space()) is zero here, which used to mean "all"
+        jill::dsp::ringbuffer<int> rb(1024);
+        std::vector<int> sink(4, -1);
+        REQUIRE(rb.read_space() == 0);
+        CHECK(rb.pop(sink.data(), std::min<std::size_t>(sink.size(), rb.read_space())) == 0);
+        CHECK(sink[0] == -1);
+}
+
+TEST_CASE("pop never reads more than asked") {
+        jill::dsp::ringbuffer<int> rb(64);
+        std::vector<int> in(20);
+        for (std::size_t i = 0; i < in.size(); ++i) in[i] = static_cast<int>(i);
+        rb.push(in.data(), in.size());
+
+        std::vector<int> dest(5);
+        CHECK(rb.pop(dest.data(), dest.size()) == dest.size());
+        CHECK(rb.read_space() == in.size() - dest.size());
+}
+
+TEST_CASE("discard advances without copying") {
+        jill::dsp::ringbuffer<int> rb(64);
+        const std::vector<int> in{1, 2, 3, 4, 5};
+        rb.push(in.data(), in.size());
+
+        CHECK(rb.discard(2) == 2);
+        CHECK(rb.read_space() == 3);
+        std::vector<int> out(3);
+        REQUIRE(rb.pop(out.data(), out.size()) == 3);
+        CHECK(out == std::vector<int>{3, 4, 5});   // the right ones were dropped
+}
+
+TEST_CASE("discard is bounded by what is there") {
+        jill::dsp::ringbuffer<int> rb(64);
+        const std::vector<int> in{1, 2, 3};
+        rb.push(in.data(), in.size());
+        CHECK(rb.discard(100) == in.size());
+        CHECK(rb.read_space() == 0);
+        CHECK(rb.discard(1) == 0);              // nothing left to drop
+}
+
+TEST_CASE("discard_all empties the buffer") {
+        jill::dsp::ringbuffer<int> rb(64);
+        std::vector<int> in(30, 7);
+        rb.push(in.data(), in.size());
+        CHECK(rb.discard_all() == in.size());
+        CHECK(rb.read_space() == 0);
+        CHECK(rb.discard_all() == 0);
+}
+
+TEST_CASE("block_ringbuffer::release_all drops every block") {
+        const std::size_t frames = 16;
+        const std::size_t bytes = frames * sizeof(jill::sample_t);
+        jill::dsp::block_ringbuffer rb(bytes * 8);
+        std::vector<jill::sample_t> payload(frames, 1.0f);
+        for (int i = 0; i < 3; ++i) {
+                REQUIRE(rb.push(i * frames, jill::SAMPLED, "pcm", bytes, payload.data()) != 0);
+        }
+        REQUIRE(rb.peek() != nullptr);
+        rb.release_all();
+        CHECK(rb.peek() == nullptr);
+        CHECK(rb.read_space() == 0);
 }

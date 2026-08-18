@@ -129,7 +129,7 @@ process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
                                 // h(n - j) = -h(j)
                                 conv += - rb[j] * hilbert_filt[j];
                         }
-                        hilbert_rb.pop(nullptr, 1);
+                        hilbert_rb.discard(1);
                         // envelope
                         sample_t delayed = delay_rb.pop();
                         envelope = sqrt(conv * conv + delayed * delayed);

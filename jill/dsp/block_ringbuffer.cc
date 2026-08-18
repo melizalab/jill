@@ -75,13 +75,13 @@ block_ringbuffer::release()
         if (ptr) {
                 if (_read_ahead_ptr > 0)
                         _read_ahead_ptr -= ptr->size();
-                super::pop(nullptr, ptr->size());
+                super::discard(ptr->size());
         }
 }
 
 void
 block_ringbuffer::release_all()
 {
-        super::pop(nullptr, 0);
+        super::discard_all();
         _read_ahead_ptr = 0;
 }
