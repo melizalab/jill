@@ -17,6 +17,7 @@
 #include <memory>
 #include <algorithm>
 #include <functional>
+#include <optional>
 #include "../util/mirrored_memory.hh"
 
 /**
@@ -92,6 +93,8 @@ inline next_pow2(std::size_t size) {
  *  ensures that memory is aligned to cache lines). For zero-copy operations the
  *  class uses a visitor pattern, which ensures that indices remain in sync.
  *
+ *  This is a single-producer, single-consumer channel. Only one thread should
+ *  write to the buffer and only one should read from it.
  */
 template <typename T>
 class ringbuffer {
@@ -270,9 +273,10 @@ public:
                 return discard(read_space());
         }
 
-        data_type pop() {
+        /** Read a single element, or nothing if the buffer is empty. */
+        std::optional<data_type> pop() {
                 data_type ret;
-                pop(&ret, 1);
+                if (pop(&ret, 1) == 0) return std::nullopt;
                 return ret;
         }
 

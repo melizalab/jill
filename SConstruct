@@ -95,7 +95,12 @@ env = Environment(
     PREFIX=install_prefix,
     LIBDIR=install_libdir,
     BINDIR=install_bindir,
-    CXXFLAGS=["-std=c++17"],
+    # C++20 for std::jthread, which joins in its destructor and so removes the
+    # hand-written join guards. Requires GCC 10 / Apple clang 17; both CI
+    # runners and Debian 12 are well past that. Note that chrono parsing
+    # (std::chrono::from_stream) is absent from Apple's libc++, which is why
+    # boost::date_time is still here.
+    CXXFLAGS=["-std=c++20"],
     tools=["default"],
 )
 

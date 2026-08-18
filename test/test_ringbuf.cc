@@ -375,3 +375,21 @@ TEST_CASE("block_ringbuffer::release_all drops every block") {
         CHECK(rb.peek() == nullptr);
         CHECK(rb.read_space() == 0);
 }
+
+TEST_CASE("popping a single element reports an empty buffer") {
+        jill::dsp::ringbuffer<int> rb(64);
+        REQUIRE(rb.read_space() == 0);
+        CHECK_FALSE(rb.pop().has_value());
+
+        // a zero stored in the buffer is not the same as nothing in it
+        const int zero = 0;
+        rb.push(&zero, 1);
+        auto got = rb.pop();
+        REQUIRE(got.has_value());
+        CHECK(*got == 0);
+        CHECK_FALSE(rb.pop().has_value());
+
+        const int v = 42;
+        rb.push(&v, 1);
+        CHECK(rb.pop().value_or(-1) == 42);
+}

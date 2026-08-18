@@ -61,8 +61,9 @@ jack_client::start_client(char const * name, char const * server_name)
                 err << ")";
                 throw JackError(err);
         }
-        if (status & JackServerStarted)
+        if (status & JackServerStarted) {
                 LOG << "JACK server started";
+        }
         LOG << "created client: " << jack_get_client_name(_client)
               << " (load=" << jack_cpu_load(_client) << "%)" ;
 }
@@ -128,8 +129,9 @@ jack_client::deactivate()
 {
         int ret = jack_deactivate(_client);
         // fail silently here in case the server has crashed or shut down
-        if (!ret)
+        if (!ret) {
                 LOG << "deactivated client" ;
+        }
 }
 
 
@@ -246,8 +248,9 @@ jack_client::portconn_callback_(jack_port_id_t a, jack_port_id_t b, int connecte
         jack_port_t *port2 = jack_port_by_id(self->_client, b);
         if (!(jack_port_is_mine(self->_client, port1) || jack_port_is_mine(self->_client, port2)))
                 return;
-        if (jack_port_flags(port2) & JackPortIsOutput)
+        if (jack_port_flags(port2) & JackPortIsOutput) {
                 std::swap(port1,port2);
+        }
         LOG << "ports " << ((connected) ? "" : "dis") << "connected: "
                     << jack_port_name(port1) << " -> " << jack_port_name(port2) ;
 

@@ -131,7 +131,9 @@ process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
                         }
                         hilbert_rb.discard(1);
                         // envelope
-                        sample_t delayed = delay_rb.pop();
+                        // an underrun means the delay line was primed
+                        // short; treat the missing sample as silence
+                        sample_t delayed = delay_rb.pop().value_or(0.0f);
                         envelope = sqrt(conv * conv + delayed * delayed);
                 }
                 // lowpass filter. Using casacaded second-order sections, direct
