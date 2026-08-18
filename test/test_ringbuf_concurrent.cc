@@ -171,7 +171,7 @@ TEST_CASE("block_ringbuffer round-trips periods between two threads") {
         jill::dsp::block_ringbuffer rb(DATA_BYTES * 16);
         std::atomic<bool> producer_stalled(false);
 
-        std::thread producer([&rb, &producer_stalled, FRAMES, DATA_BYTES, TOTAL_PERIODS] {
+        std::thread producer([&rb, &producer_stalled] {
                 std::vector<sample_t> payload(FRAMES);
                 int next = 0;
                 const auto deadline = std::chrono::steady_clock::now() + BUDGET;

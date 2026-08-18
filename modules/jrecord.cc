@@ -244,10 +244,10 @@ main(int argc, char **argv)
                                 }
                                 else {
                                         char buf[16];
-                                        if (strcmp(jack_port_type(p),JACK_DEFAULT_AUDIO_TYPE)==0)
-                                                sprintf(buf,"pcm_%03d",name_index);
-                                        else
-                                                sprintf(buf,"evt_%03d",name_index);
+                                        snprintf(buf, sizeof(buf),
+                                                 (strcmp(jack_port_type(p),
+                                                         JACK_DEFAULT_AUDIO_TYPE) == 0)
+                                                 ? "pcm_%03d" : "evt_%03d", name_index);
                                         LOG << "startup connection: " << it << " -> " << buf;
                                         name_index++;
                                         client.register_port(buf, jack_port_type(p),
