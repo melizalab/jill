@@ -251,14 +251,7 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps)
         size_t nreps;
         for (size_t i = 0; i < stims.size(); ++i) {
                 path p(stims[i]);
-               if ((i+1) < stims.size()) {
-                       if (sscanf(stims[i+1].c_str(),"%zd",&nreps) == 0) {
-                               nreps = default_nreps;
-                                i += 1;
-                       }
-               }
-               else
-                       nreps = default_nreps;
+		nreps = default_nreps;
                 try {
                         jill::stimulus_t *stim = new file::stimfile(p.string());
                         _stimuli.push_back(stim);
@@ -413,7 +406,7 @@ jstim_options::jstim_options(string const &program_name)
 void
 jstim_options::print_usage()
 {
-        std::cout << "Usage: " << _program_name << " [options] [stim1 [nreps]] [stim2 [nreps]] ...\n"
+        std::cout << "Usage: " << _program_name << " [options] [stim1] [stim2] ...\n"
                   << visible_opts << std::endl
                   << "Ports:\n"
                   << " * out:       sampled output of the presented stimulus\n"
