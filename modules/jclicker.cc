@@ -269,9 +269,9 @@ main(int argc, char **argv)
 
                 client.deactivate();
                 if (randomizer) {
-			std::cout << "Final event counts: " << std::endl;
+                        std::cout << "Final event counts: " << std::endl;
                         for (auto const & it : randomizer->counts()) {
-				std::cout << " - " << it.first << ": " << it.second.first << "/" << it.second.second << std::endl;
+                                std::cout << " - " << it.first << ": " << it.second.first << "/" << it.second.second << std::endl;
                         }
                 }
                 return ret;

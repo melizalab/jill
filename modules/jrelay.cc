@@ -5,6 +5,7 @@
 #include <iostream>
 #include <random>
 #include <csignal>
+#include <boost/optional.hpp>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -16,6 +17,7 @@
 
 #define PROGRAM_NAME "jrelay"
 #define DEFAULT_OPEN_EPHYS_ENDPOINT "tcp://localhost:5556"
+#define DEFAULT_MIDI_CHANNEL 0
 
 using namespace jill;
 using std::string;
@@ -35,6 +37,9 @@ public:
 
         /** The open-ephys NetworkEvents zmq address */
         string openephys_addr;
+
+	/** Which MIDI channel to monitor */
+	boost::optional<int> midi_channel;
 
 protected:
 
@@ -57,9 +62,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         for (nframes_t i = 0; i < nevents; ++i) {
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
+		if (options.midi_channel && options.midi_channel != (event.buffer[0] & 0x0f)) continue;
                 zmq_thread->push(time + event.time, EVENT, jack_port_short_name(port_in), event.size, event.buffer);
         }
-	if (nevents > 0) zmq_thread->data_ready();
+        if (nevents > 0) zmq_thread->data_ready();
         return 0;
 }
 
@@ -158,7 +164,8 @@ jrelay_options::jrelay_options(string const &program_name)
         opts.add_options()
                 ("open-ephys",
                  po::value(&openephys_addr)->implicit_value(DEFAULT_OPEN_EPHYS_ENDPOINT),
-                 "endpoint for an open-ephys NetworkEvents plugin");
+                 "endpoint for an open-ephys NetworkEvents plugin")
+		("channel,c", po::value(&midi_channel), "which midi channel to relay");
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 }

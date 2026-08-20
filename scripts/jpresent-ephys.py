@@ -326,7 +326,9 @@ if __name__ == "__main__":
         )
         log.debug(" ".join(jclicker_trig_args))
 
-    jrelay_args = [binary_paths["jrelay"]]
+    # only relay sync messages (channel 0) - otherwise open-ephys will see the trigger
+    # events too, but has no way to distinguish them from sync events.
+    jrelay_args = [binary_paths["jrelay"], "-c", "0"]
     if args.open_ephys is not None:
         jrelay_args.extend(("--open-ephys", f"tcp://{args.open_ephys}:{network_event_port}"))
     log.debug(" ".join(jrelay_args))
