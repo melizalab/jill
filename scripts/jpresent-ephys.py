@@ -298,11 +298,8 @@ if __name__ == "__main__":
         "jclicker-sync",
         "-o",
         args.sync_out,
-        # due to bad design in the schmitt trigger circuit, we send a negative pulse to
-        # latch up the TTL and a positive pulse to latch it down. Fix this once the
-        # circuit is fixed.
-        "0x10,positive,1",
-        "0x00,negative,1",
+        "0x00,positive,0.1",
+        "0x10,negative,0.1",
     )
     jstim_args.extend(("-e", "jclicker-sync:in"))
     log.debug(" ".join(jclicker_sync_args))
@@ -316,8 +313,8 @@ if __name__ == "__main__":
             args.trig_out,
             "--prob",
             f"{args.trig_prob}",
-            f"0x01,negative,1,{args.trig_delay}",
-            f"0x01,positive,1,{args.trig_delay + args.trig_duration}"
+            f"0x01,positive,0.1,{args.trig_delay}",
+            f"0x01,negative,0.1,{args.trig_delay + args.trig_duration}"
         )
         jstim_args.extend(
             (

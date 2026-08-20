@@ -56,21 +56,21 @@ if __name__ == "__main__":
     p.add_argument(
         "--trig-out",
         default="system:playback_4",
-        help="name of the JACK port where the trigger signal should go (default %(default)s)",
+        help="name of the JACK port where the acquisition signal should go (default %(default)s)",
     )
 
     p.add_argument(
         "--trigger-before",
         type=float,
         default=1.0,
-        help="time before stimulus onset to send a trigger on pulse",
+        help="time before stimulus onset to send an acquisition on pulse",
     )
 
     p.add_argument(
         "--trigger-after",
         type=float,
         default=1.0,
-        help="time after stimulus end to send a trigger off pulse",
+        help="time after stimulus end to send an acquisition off pulse",
     )
 
     p.add_argument(
@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
     if args.trigger_before + args.trigger_after >= args.gap:
         p.error(
-            "pre- and post-stimulus trigger times must sum to less than gap between stimuli"
+            "pre- and post-stimulus acquisition times must sum to less than gap between stimuli"
         )
 
     log.info("checking for jill binaries:")
@@ -148,8 +148,8 @@ if __name__ == "__main__":
         "jclicker-sync",
         "-o",
         args.sync_out,
-        "0x10,positive,1",
-        "0x00,negative,1",
+        "0x00,positive,0.1",
+        "0x10,negative,0.1",
     )
     jstim_args.extend(("-e", "jclicker-sync:in"))
     log.debug(" ".join(jclicker_sync_args))
@@ -158,16 +158,16 @@ if __name__ == "__main__":
     jclicker_trig_args = (
         binary_paths["jclicker"],
         "-n",
-        "jclicker-trig",
+        "jclicker-acq",
         "-o",
         args.trig_out,
-        "0x11,positive,1",
-        "0x01,negative,1",
+        "0x01,positive,0.1",
+        "0x11,negative,0.1",
     )
     jstim_args.extend(
         (
             "-e",
-            "jclicker-trig:in",
+            "jclicker-acq:in",
             "--trigger-before",
             f"{args.trigger_before}",
             "--trigger-after",
