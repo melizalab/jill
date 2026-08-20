@@ -2,7 +2,7 @@ import os
 
 Import("env")
 
-scripts = ["jpresent-mini.py"]
+scripts = ["jpresent-mini.py", "jpresent-ephys.py"]
 
 for script in scripts:
     env.Alias("install", env.Install(env["BINDIR"], script))
