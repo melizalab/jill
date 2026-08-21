@@ -8,6 +8,17 @@ menv.Append(
     LIBS=["pthread"] + env["BOOST_LIBS"],
 )
 
+# doctest includes <ciso646> unconditionally under clang, to detect libc++ by
+# looking for _LIBCPP_VERSION. With libstdc++ that header deprecates itself
+# under C++20 and every suite reports it, which buries anything real. The
+# include is ahead of doctest's own configuration macros, so there is no way to
+# ask it not to, and it is still there in 2.5.3. Scoped to the suites, and to
+# clang, because that is the only place it happens; drop it if doctest starts
+# using <version>. Note this also silences any #warning of our own in test
+# code, of which there are none.
+if "clang" in env.subst("$CXX"):
+    menv.Append(CXXFLAGS=["-Wno-#warnings"])
+
 # doctest-based suites, listed explicitly. Each source file is compiled into its own
 # binary so that suites run as separate processes and can't take the rest of the run
 # down.
