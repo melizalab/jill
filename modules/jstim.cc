@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <random>
+#include <fstream>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -616,6 +617,11 @@ jstim_options::jstim_options(string const &program_name)
                 /* implicit_value so that -S alone still works: with a value
                   * the presentation is repeatable, without one a seed is drawn
                   * and logged so the session can be repeated afterwards. */
+                ("stim-list", po::value<string>(),
+                 "read stimuli from a file, one per line, each optionally "
+                 "followed by whitespace and a repeat count. Blank lines and "
+                 "lines beginning with # are ignored. Combines with stimuli "
+                 "named on the command line, which come first.")
                 ("shuffle,S", po::value<string>()->implicit_value(""),
                  "shuffle order of presentation, optionally with a seed. The "
                  "seed also governs which repetitions carry the condition, so "
@@ -665,6 +671,53 @@ jstim_options::print_usage()
                   << std::endl;
 }
 
+/* Append the stimuli named in a list file.
+ *
+ * One per line, each optionally followed by a repeat count. The count is
+ * separated from the name by whitespace, and only the *last* field is taken as
+ * one -- so a path containing spaces still works, which splitting the line
+ * would break. Appends to whatever was given on the command line rather than
+ * replacing it, so the two can be combined.
+ */
+static void
+read_stim_list(string const & path, std::vector<string> & out)
+{
+        std::ifstream ff(path);
+        if (!ff) {
+                throw std::invalid_argument("cannot read stimulus list " + path);
+        }
+        string line;
+        int lineno = 0;
+        while (std::getline(ff, line)) {
+                lineno += 1;
+                // strip a trailing comment and surrounding whitespace
+                const auto hash = line.find('#');
+                if (hash != string::npos) line.erase(hash);
+                const auto first = line.find_first_not_of(" \t\r");
+                if (first == string::npos) continue;
+                const auto last = line.find_last_not_of(" \t\r");
+                line = line.substr(first, last - first + 1);
+
+                /* Split a trailing count off the end, if there is one. Anything
+                 * else, including embedded spaces, belongs to the name. */
+                const auto gap = line.find_last_of(" \t");
+                size_t count = 0;
+                if (gap != string::npos && parse_count(line.substr(gap + 1), count)) {
+                        const auto name_end = line.find_last_not_of(" \t", gap);
+                        if (name_end == string::npos) {
+                                throw std::invalid_argument(
+                                        path + ":" + std::to_string(lineno) +
+                                        ": repeat count with no stimulus");
+                        }
+                        out.push_back(line.substr(0, name_end + 1));
+                        out.push_back(line.substr(gap + 1));
+                }
+                else {
+                        out.push_back(line);
+                }
+        }
+}
+
 void
 jstim_options::process_options()
 {
@@ -672,6 +725,9 @@ jstim_options::process_options()
         // see the note by the option declarations: these cannot be bound
         pretrigger_interval_sec = get<float>("trial-before");
         posttrigger_interval_sec = get<float>("trial-after");
+        if (const auto listfile = get<string>("stim-list")) {
+                read_stim_list(*listfile, stimuli);
+        }
         const double pre_and_post_gap = pretrigger_interval_sec.value_or(0.0) +
                 posttrigger_interval_sec.value_or(0.0);
         if (pre_and_post_gap >= min_gap_sec) {
