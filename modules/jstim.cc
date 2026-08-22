@@ -491,18 +491,24 @@ main(int argc, char **argv)
                 stim_queue->join();
                 // wait for posttrigger and midi buffers to clear
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
-
-                return ret;
         }
 
         catch (Exit const &e) {
-                return e.status();
+                ret = e.status();
         }
         catch (std::exception const &e) {
                 LOG << "ERROR: " << e.what();
-                return EXIT_FAILURE;
+                ret = EXIT_FAILURE;
         }
 
+        /* Tear down explicitly rather than leaving it to static destruction.
+         * It happened to work, because stim_queue is declared after _stimuli
+         * and so is destroyed first, but relying on the order of two
+         * declarations in one file is not the same as saying what has to
+         * happen. jrecord uses a scope_guard and jrelay resets here; this was
+         * the odd one out. */
+        stim_queue.reset();
+        return ret;
 }
 
 

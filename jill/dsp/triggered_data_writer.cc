@@ -32,7 +32,12 @@ triggered_data_writer::triggered_data_writer(std::unique_ptr<data_writer> writer
           _trigger_port(std::move(trigger_port)),
           _pretrigger(pretrigger_frames),
           _posttrigger(std::max(posttrigger_frames, 1U)),
-          _recording(false)
+          _recording(false),
+          /* Never initialized before. write() only reads it after
+           * stop_recording() has set it, so nothing was observably wrong, but
+           * an uninitialized read is one refactor away and costs nothing to
+           * rule out. */
+          _last_offset(0)
 {
         DBG << "triggered_data_writer initializing";
 }
@@ -60,17 +65,30 @@ triggered_data_writer::start_recording(nframes_t event_time)
 	 * if it has not had enough time to fill.
 	 */
         data_block_t const * ptr = _buffer->peek();
-        assert(ptr);
 
-        /* skip any earlier periods */
-        while (ptr->time + ptr->nframes() < onset) {
+        /* Every comparison below is a frame *difference*, not a magnitude.
+         * The sample counter is unsigned and wraps, and onset wraps with it
+         * whenever the trigger arrives within _pretrigger frames of the JACK
+         * server starting -- at which point comparing directly makes every
+         * buffered period look older than the onset. The first loop then
+         * released the whole buffer and the next dereferenced the null that
+         * peek() returned. A trigger early in a session segfaulted jrecord.
+         *
+         * The null checks matter on their own account: the comment below
+         * about the buffer not having filled describes a case the code did
+         * not actually handle, and assert() is compiled out of release
+         * builds, which is where recordings are made. */
+        while (ptr && framediff_t(ptr->time + ptr->nframes() - onset) <= 0) {
+                /* <= rather than <: a period ending exactly at the onset holds
+                 * no sample at or after it, and was being written with a
+                 * start offset equal to its length -- an empty write. */
 		DBG << "prebuffer frame (discarded): " << *ptr;
                 _buffer->release();
                 ptr = _buffer->peek();
         }
 
         /* write partial period(s) */
-        while (ptr->time <= onset) {
+        while (ptr && framediff_t(ptr->time - onset) <= 0) {
                 DBG << "prebuf frame (partial): " << *ptr << ", on=" << onset - ptr->time;
                 _writer->write(ptr, onset - ptr->time, 0);
                 _buffer->release();
@@ -78,7 +96,7 @@ triggered_data_writer::start_recording(nframes_t event_time)
         }
 
         /* write additional periods in prebuffer, up to current period */
-        while (ptr->time + ptr->nframes() <= event_time) {
+        while (ptr && framediff_t(ptr->time + ptr->nframes() - event_time) <= 0) {
 		DBG << "prebuffer frame (complete): " << *ptr;
                 _writer->write(ptr, 0, 0);
                 _buffer->release();
