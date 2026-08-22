@@ -1,0 +1,50 @@
+# clang-tidy configuration for jill.
+#
+# The check set is chosen for what actually goes wrong here -- lifetimes,
+# concurrency, and things that misbehave only rarely -- rather than for style.
+# readability-* and modernize-* are left off deliberately: they generate a
+# great deal of churn on a codebase this age, and a linter that cries wolf is
+# one people switch off.
+#
+# The pre-commit hook lints only the lines a commit touches (see
+# .githooks/pre-commit), so enabling a check does not require fixing every
+# existing instance of it first.
+
+Checks: >
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
+  -clang-analyzer-optin.performance.Padding,
+  -performance-enum-size,
+  -performance-avoid-endl
+
+# Rationale for each exclusion above:
+#
+# easily-swappable-parameters: fires on any function taking two arguments of
+#   the same type, which describes most of the DSP code. Almost no signal.
+#
+# narrowing-conversions: audio code converts between float and integer sample
+#   counts constantly and deliberately. The genuine cases are caught by the
+#   compiler's own -Wconversion if anyone wants them.
+#
+# reserved-identifier: leading underscores at namespace scope are technically
+#   reserved, and jill uses that convention throughout for members and
+#   file-scope variables. Renaming would touch nearly every file to satisfy a
+#   rule no implementation enforces.
+#
+# optin.performance.Padding: reordering members to save a few bytes is not
+#   worth reshuffling structs whose layout is documented, and data_block_t's
+#   layout is load-bearing.
+#
+# enum-size and avoid-endl: between them these were 55 of the 92 findings in
+#   the tree, and neither is worth acting on. Narrowing an enum's underlying
+#   type saves bytes in structs that are not hot, and std::endl versus '\n'
+#   matters only where flushing is frequent, which is nowhere it is used here.
+#   Leaving them on would have buried the checks that do mean something.
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '(jill|modules)/.*\.hh$'
+FormatStyle: none

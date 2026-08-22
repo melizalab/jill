@@ -1,0 +1,70 @@
+#!/bin/sh
+#
+# Run clang-tidy over the lines a commit touches.
+#
+# Only the diff, not whole files: adopting a linter on an existing codebase any
+# other way means every commit is blocked by findings in code it did not touch,
+# and the hook gets switched off within a day. New and changed lines are held
+# to the standard; the rest is left for whoever is working on it.
+#
+# Coverage, stated plainly: this lints .cc files. Headers are not in the
+# compilation database, so clang-tidy has no flags for them and the diff tool
+# skips them. Findings *inside* a header are still reported when a .cc that
+# includes it is linted (see HeaderFilterRegex in .clang-tidy), but a commit
+# touching only headers gets no checking -- and a good deal of jill is
+# header-only. Do not read a clean hook run as a clean tree.
+#
+# Install with:
+#
+#     git config core.hooksPath .githooks
+#
+# It is opt-in because .git/hooks is not tracked, and because it needs
+# clang-tidy and a compilation database that not every checkout will have.
+# Skip it for one commit with `git commit --no-verify`.
+
+set -e
+
+# Nothing to do if the tools are absent. A missing linter must not stop someone
+# committing -- CI is where absence should be an error, not a laptop.
+if ! command -v clang-tidy >/dev/null 2>&1; then
+    echo "pre-commit: clang-tidy not installed, skipping" >&2
+    exit 0
+fi
+
+DIFF_TOOL=$(ls /usr/lib/llvm-*/share/clang/clang-tidy-diff.py \
+               /usr/share/clang/clang-tidy-diff.py \
+               "$(brew --prefix llvm 2>/dev/null)/share/clang/clang-tidy-diff.py" \
+               2>/dev/null | head -1)
+if [ -z "$DIFF_TOOL" ]; then
+    echo "pre-commit: clang-tidy-diff.py not found, skipping" >&2
+    exit 0
+fi
+
+# clang-tidy needs to know how each file is compiled. A stale database is worse
+# than none, since it reports against flags the build no longer uses, so
+# regenerate rather than reuse whatever is lying around.
+if ! scons -Q compile_commands.json >/dev/null 2>&1; then
+    echo "pre-commit: could not generate compile_commands.json, skipping" >&2
+    exit 0
+fi
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM -- '*.cc' '*.hh')
+if [ -z "$STAGED" ]; then
+    exit 0
+fi
+
+# -U0 so only changed lines are considered; -p1 strips the a/ and b/ prefixes
+# git puts on diff paths.
+OUTPUT=$(git diff --cached -U0 -- '*.cc' '*.hh' \
+         | python3 "$DIFF_TOOL" -p1 -path . -quiet 2>/dev/null \
+         | grep -E ': (warning|error):' || true)
+
+if [ -n "$OUTPUT" ]; then
+    echo "$OUTPUT" >&2
+    echo >&2
+    echo "pre-commit: clang-tidy objected to lines this commit touches." >&2
+    echo "Fix them, or commit with --no-verify if the finding is wrong." >&2
+    exit 1
+fi
+
+exit 0

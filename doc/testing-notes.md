@@ -5,6 +5,38 @@ The prerequisites differ by platform and are listed in
 [Debian](debian-installation.md) and [OS X](osx-installation.md); everything
 here applies to both.
 
+## Linting
+
+`clang-tidy` is configured in `.clang-tidy`, with a check set aimed at
+lifetimes, concurrency and the things that go wrong rarely, rather than at
+style. `readability-*` and `modernize-*` are deliberately off: they produce a
+lot of churn on a codebase this age, and a linter that cries wolf gets switched
+off.
+
+An optional pre-commit hook runs it over the lines a commit touches:
+
+```shell
+git config core.hooksPath .githooks
+```
+
+Only the diff is linted. There are about ninety findings in the tree as it
+stands, so linting whole files would block every commit until they were all
+cleared; this way new and changed lines are held to the standard and the rest
+waits for whoever is working on it. `git commit --no-verify` skips it, and the
+hook skips itself when `clang-tidy` is not installed.
+
+The hook covers `.cc` files only. Headers are absent from the compilation
+database, so a commit touching only headers is not checked — which matters
+here, because much of the library is header-only. Findings inside a header do
+appear when a `.cc` that includes it is linted.
+
+To run it by hand over one file:
+
+```shell
+scons -Q compile_commands.json
+clang-tidy -p . jill/dsp/buffered_data_writer.cc
+```
+
 ## Running the tests
 
 Build the suites and run them all with a single command, from the top of the

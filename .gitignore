@@ -22,3 +22,4 @@ __pycache__/
 !/test/*.ini
 !/test/*.supp
 !/test/SConscript
+/compile_commands.json

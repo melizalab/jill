@@ -101,7 +101,10 @@ env = Environment(
     # (std::chrono::from_stream) is absent from Apple's libc++, which is why
     # boost::date_time is still here.
     CXXFLAGS=["-std=c++20"],
-    tools=["default"],
+    # compilation_db writes compile_commands.json, which is how clang-tidy
+    # learns the include paths and flags each file is built with. Without it
+    # the linter sees a different translation unit than the compiler does.
+    tools=["default", "compilation_db"],
 )
 
 def brew_prefix(package=None):
@@ -188,6 +191,10 @@ print(env.subst("using $CXX $CXXVERSION"))
 # arguments that most of them ignore: it accounts for ~94 of the ~106 warnings
 # this codebase produces, and leaving it on buries the ones that matter.
 env.Append(CCFLAGS=["-Wall", "-Wextra", "-Wno-unused-parameter"])
+
+# Emitted unconditionally. A stale database makes clang-tidy report against
+# flags the build no longer uses, which is worse than having none.
+env.CompilationDatabase("compile_commands.json")
 
 if int(debug):
     env.Append(CCFLAGS=["-g2", "-DDEBUG=%s" % debug])
