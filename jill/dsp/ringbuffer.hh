@@ -218,11 +218,11 @@ public:
          * @return the number of elements actually read, which is cnt or the
          *         number available, whichever is smaller
          *
-         * @note cnt of zero reads nothing. It used to mean "read everything",
-         * which made `pop(dest, std::min(capacity, read_space()))` -- the
-         * obvious way to write a bounded read -- fill dest with the whole ring
-         * the moment the buffer was empty. Use discard() to advance the read
-         * pointer without copying.
+         * @note cnt of zero reads nothing, and must not be made to mean
+         * "read everything": the obvious bounded read,
+         * `pop(dest, std::min(capacity, read_space()))`, would then write the
+         * whole ring into dest whenever the buffer is empty. Use discard() to
+         * advance the read pointer without copying.
          */
         std::size_t pop(data_type * dest, std::size_t cnt) {
                 detail::copyfrom<data_type> copier(dest);

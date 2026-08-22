@@ -30,10 +30,9 @@ program_options::program_options(std::string program_name, bool remote_log_defau
                 ("version,v", "print version string")
                 ("help,h",    "print help message")
                 /**
-                 * No longer needed to keep a module alive without jrecord:
-                 * the logger drops messages once its queue is full rather than
-                 * blocking. This is now only a way to avoid holding a queue at
-                 * all when you know no log server is coming.
+                 * Only a way to avoid holding a queue when no log server is
+                 * coming. A module without one does not need this: the logger
+                 * queues and then drops rather than blocking.
                  */
                 ("no-remote-log,L",
                  po::bool_switch()->default_value(!remote_log_default),
@@ -89,10 +88,10 @@ program_options::parse(int argc, char **argv)
         /**
          * If page locking is ever wanted, it goes here: one
          * mlockall(MCL_CURRENT|MCL_FUTURE) per process, behind an option,
-         * reporting whether it succeeded. Not mlock() per buffer, which is
-         * what used to be attempted and could not work -- see the note in
-         * mirrored_memory.cc. mlockall covers everything the realtime thread
-         * reaches, code and stack included, rather than one allocation.
+         * reporting whether it succeeded. Not mlock() per buffer: that cannot
+         * work for the mirrored mapping (see mirrored_memory.cc) and covers
+         * one allocation, where mlockall covers everything the realtime thread
+         * reaches, code and stack included.
          *
          * Nothing needs it today. Anonymous pages cannot be evicted on a host
          * without swap, which is how the small ones are configured, and the

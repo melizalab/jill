@@ -293,8 +293,8 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                         // specification requires one unit per field for complex
                         // event data. Only the first carries a timebase: start
                         // is in samples, status and message are not quantities.
-                        // This used to pass the bare string "samples", which
-                        // arf 2 accepted and arf.py rejects.
+                        // A bare "samples" for the whole compound is not
+                        // equivalent -- arf.py rejects it.
                         const std::vector<std::string> units{"samples", "", ""};
                         arf::h5pt::packet_table pt =
                                 _entry->create_packet_table<event_t>(name, units, arf::EVENT,

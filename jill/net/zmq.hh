@@ -25,8 +25,8 @@ namespace jill { namespace net { namespace zmq {
 /** Owning handle for a zmq message.
  *
  * Unique rather than shared: every use is a const reference to a message that
- * does not outlive the call it was made in, so a shared_ptr was paying for a
- * control block allocation and an atomic refcount that nothing ever used. */
+ * does not outlive the call it was made in, so sharing would cost a control
+ * block allocation and an atomic refcount for no benefit. */
 using msg_ptr_t = std::unique_ptr<zmq_msg_t, void (*)(zmq_msg_t *)>;
 
 /** global singleton class for context */

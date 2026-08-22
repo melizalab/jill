@@ -21,33 +21,31 @@ namespace {
  * How long the worker sleeps before checking whether the realtime thread has
  * taken the pre-loaded trial.
  *
- * Nothing wakes it for that any more. It used to be signalled from release(),
- * which meant pthread_cond_signal on the audio path -- glibc's takes the
- * condition variable's internal lock and issues a futex wake. The realtime
- * thread now promotes the pre-loaded trial itself, so this only governs how
- * quickly the empty slot is refilled.
+ * Nothing wakes it, and nothing should: notifying from release() would mean
+ * pthread_cond_signal on the audio path, which takes the condition variable's
+ * internal lock and issues a futex wake. The realtime thread promotes the
+ * pre-loaded trial itself, so this interval governs only how quickly the empty
+ * slot is refilled.
  *
- * It bounds the queue's sustained rate at one trial per interval, because
- * head() empties _next and nothing refills it until the next wake. That is not
- * a throughput problem for the protocols this runs -- stimuli last a second or
- * two with gaps of at least a second -- but it is a jitter problem: whatever
- * the interval is, it is also how much the gap between stimuli can vary from
- * one run to the next. --gap promises a minimum rather than an exact spacing,
- * so this breaks no contract, but repeatable is better than merely conformant.
- * Five milliseconds costs two hundred wakeups a second on a thread that does
- * one comparison when it has nothing to do, and measures out: consuming
- * back-to-back went from 51 ms a trial to 5.6, and a consumer holding each
- * trial for 20 ms now runs at 21.5 ms a trial rather than 50, meaning the
- * queue has stopped being the thing setting the pace.
+ * That bounds the queue's sustained rate at one trial per interval, since
+ * head() empties _next and nothing refills it until the next wake. Throughput
+ * is not the constraint -- stimuli last a second or two with gaps of at least
+ * a second -- but jitter is: the interval is also how much the gap between
+ * stimuli can vary from run to run. --gap promises a minimum rather than an
+ * exact spacing, so a longer interval breaks no contract, but repeatable beats
+ * merely conformant. At 5 ms the queue is no longer what sets the pace: a
+ * consumer taking trials back to back gets one every 5.6 ms, and one holding
+ * each for 20 ms runs at 21.5 ms.
  *
- * Note this is a floor, not the whole story: a stimulus not already in memory
- * still has to be read and resampled, which dominates for a playlist of
+ * This is a floor rather than the whole story: a stimulus not already in
+ * memory still has to be read and resampled, which dominates for a playlist of
  * distinct files and vanishes for one that repeats.
  *
  * It also bounds how long stop() takes to be noticed, since sleep_for cannot
  * be interrupted. Five milliseconds is not worth a mutex and a
- * condition_variable_any to skip, but the two are coupled: raise this interval
- * much and an interruptible wait starts to earn its keep.
+ * condition_variable_any to reclaim -- but the interval and that choice are
+ * coupled, so raise one and reconsider the other rather than assuming the
+ * sleep is still the cheaper option.
  */
 const auto poll_interval = std::chrono::milliseconds(5);
 

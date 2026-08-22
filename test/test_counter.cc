@@ -199,10 +199,11 @@ TEST_CASE("the running total matches a naive sliding window") {
 }
 
 TEST_CASE("a zero-size window is refused") {
-        // It used to be accepted: full() reported true with nothing stored,
-        // and the first push() read the front of an empty buffer. jdetect
-        // derives the size from --open-period / --period-size, so asking for
-        // an integration window shorter than the analysis period segfaulted
-        // it inside the realtime callback.
+        // A zero-length window has no meaningful sum, and accepting one is
+        // not harmless: full() reports true with nothing stored, and the first
+        // push() then reads the front of an empty buffer. jdetect derives the
+        // size from --open-period / --period-size, so an integration window
+        // shorter than the analysis period reaches this from the command line
+        // and would fail inside the realtime callback.
         CHECK_THROWS_AS(running_counter<int>(0), std::invalid_argument);
 }

@@ -180,10 +180,10 @@ main(int argc, char ** argv)
         writer->close_entry();
 
         /**
-         * An event stamped before data already written. arf_writer used to
-         * record the end of an entry as the last write rather than the
-         * furthest one, so this dragged trial_off backwards; the entry is two
-         * periods long whichever order the writes arrive in.
+         * An event stamped before data already written. The end of an entry
+         * has to be the furthest write, not the latest one, or this drags
+         * trial_off backwards; the entry is two periods long whichever order
+         * the writes arrive in.
          */
         writer->new_entry(200000);
         write_periods(*writer, 200000, 2);

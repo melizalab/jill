@@ -60,11 +60,11 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_pages)
                 throw std::runtime_error("anonymous mmap failed");
 
         /**
-         * An mlock() used to sit here, and could not have worked: this mapping
-         * is PROT_NONE, which mlock refuses with ENOMEM, and the middle of it
-         * is unmapped and replaced by the shared segment a few lines below.
-         * Page locking, if it is ever wanted, belongs in one mlockall() per
-         * process; see the note in program_options.cc.
+         * Do not try to mlock() this mapping: it is PROT_NONE, which mlock
+         * refuses with ENOMEM, and the middle of it is unmapped and replaced
+         * by the shared segment a few lines below. Page locking, if it is ever
+         * wanted, belongs in one mlockall() per process; see the note in
+         * program_options.cc.
          */
 
         // round the address down to SHMLBA to prevent errors on archs where

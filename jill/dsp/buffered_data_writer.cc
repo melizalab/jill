@@ -261,10 +261,10 @@ buffered_data_writer::write_messages()
                 // expect a three-part message: source, timestamp, message
                 std::vector<std::string> messages = zmq::recv(_socket, ZMQ_DONTWAIT);
                 if (messages.empty()) {
-                        // nothing left; the loop used to run all hundred
-                        // iterations regardless, which was merely wasteful when
-                        // it ran on a signal and is worse now that it runs on a
-                        // timer
+                        // stop at the first empty read rather than running all
+                        // max_messages iterations: this pass happens on a timer,
+                        // so spinning here would cost a syscall per iteration
+                        // several times a second for nothing
                         break;
                 }
                 if (messages.size() >= 3) {

@@ -36,13 +36,13 @@ namespace jill { namespace util {
  * close after 20 presentations. Smaller values add more randomness at the
  * expense of larger variance around the target.
  *
- * present() is called from the realtime thread and does not allocate. That is
- * the reason for the storage below rather than the std::map this used to hold:
- * map::operator[] allocates a tree node and copies the key on first sight of a
- * stimulus, and the key copy allocates again once the name outgrows the small
- * string buffer. Here the table is sized once at construction and never grows,
- * and the names live inline rather than in std::strings, so a lookup or an
- * insertion touches no allocator at all.
+ * present() is called from the realtime thread and does not allocate, which
+ * is what dictates the storage below. An associative container keyed by name
+ * cannot be used here: map::operator[] allocates a tree node on first sight of
+ * a stimulus, and copying the key allocates again once the name outgrows the
+ * small string buffer. Instead the table is sized once at construction and
+ * never grows, and the names live inline rather than in std::strings, so a
+ * lookup or an insertion touches no allocator at all.
  *
  * The counts are written only by the thread calling present(). Read them from
  * another thread only once that thread has stopped -- jclicker reports them

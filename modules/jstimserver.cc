@@ -427,12 +427,11 @@ stim_monitor(std::stop_token stop)
 /**
  * The version of the control protocol, reported by VERSION.
  *
- * Deliberately not the JILL release version, which is what this used to
- * return. A client needs to know whether it understands the exchange, not
- * which build produced it, and the two move independently: releases happen
- * that do not touch the protocol, and the protocol could change without one.
- * Reporting the release version also made two builds with observably
- * different behaviour indistinguishable, since both called themselves 2.2.2.
+ * Deliberately not the JILL release version. A client needs to know whether it
+ * understands the exchange, not which build produced it, and the two move
+ * independently: releases happen that do not touch the protocol, and the
+ * protocol could change without one. Reporting the release version also cannot
+ * distinguish builds that behave differently but share a version number.
  *
  * Major changes when an existing exchange changes meaning, so a client MUST
  * refuse a major it does not know. Minor changes when something is added that
@@ -544,16 +543,15 @@ main(int argc, char **argv)
                                         ? std::string("PLAYING ") + playing->name()
                                         : REP_IDLE;
                         }
-                        // There is deliberately no "is a request already
-                        // pending" test ahead of the dispatch. There used to
-                        // be, and because it ran before the command was
-                        // recognised, an unknown request was answered BUSY
-                        // whenever the realtime thread had not yet consumed the
-                        // previous one -- so a client could not tell a
-                        // malformed request from a transient failure. It was
-                        // redundant as well as harmful: start() and interrupt()
-                        // below compare-and-swap, and report BUSY themselves
-                        // when they lose.
+                        // Do not add an "is a request already pending" test
+                        // ahead of the dispatch. Running it before the command
+                        // is recognised answers BUSY to an unknown request
+                        // whenever the realtime thread has not yet consumed the
+                        // previous one, leaving a client unable to tell a
+                        // malformed request from a transient failure. It is
+                        // redundant as well: start() and interrupt() below
+                        // compare-and-swap and report BUSY themselves when they
+                        // lose.
                         else if (data.starts_with(REQ_PLAYSTIM)) {
                                 auto stim = data.substr(strlen(REQ_PLAYSTIM));
                                 auto it = _stimuli.find(stim);

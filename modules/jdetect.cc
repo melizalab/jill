@@ -169,9 +169,9 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
         int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
         int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
         // Integer division, so an integration window shorter than the analysis
-        // period rounds to zero periods. running_counter rejects that, but it
-        // cannot say which options produced it, and this used to segfault in
-        // the process callback instead.
+        // period rounds to zero periods. running_counter refuses a zero-length
+        // window, but cannot say which options produced one; checking here is
+        // what makes the message name them.
         if (open_crossing_periods < 1 || close_crossing_periods < 1) {
                 std::ostringstream msg;
                 msg << "--open-period (" << options.open_crossing_period_ms

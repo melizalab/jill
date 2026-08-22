@@ -5,8 +5,8 @@
  *
  * buffered_data_writer takes a data_writer by unique_ptr, so a test can supply
  * its own and drive the thread without a JACK server or a file on disk. These
- * cover starting and stopping, which is where a lost stop() used to hang
- * join() forever.
+ * cover starting and stopping, where a lost stop() means join() never
+ * returns.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -81,8 +81,7 @@ make_writer(recording_writer ** out = nullptr)
 /** Fail rather than hang: a lost stop() shows up as join() never returning. */
 /**
  * Takes the owning pointer, not a reference, because a writer whose join()
- * never returns can no longer be destroyed safely: the waiter is parked inside
- * it. On timeout the writer is released deliberately, so that the detached
+ * never returns cannot be destroyed safely: the waiter is parked inside it. On timeout the writer is released deliberately, so that the detached
  * waiter keeps a live object to sit in and the caller is left holding nothing
  * to destruct. Leaking it is the point -- the alternative is a second join()
  * from the destructor racing the first, which is undefined behaviour and shows
@@ -128,10 +127,11 @@ TEST_CASE("start then stop terminates the thread") {
 }
 
 TEST_CASE("a stop arriving immediately after start is not lost") {
-        // The thread used to set the state to Running itself, leaving a window
-        // where it was still Stopped and a stop() would fail its
-        // compare-and-swap and vanish, after which join() hung. Repeat enough
-        // times to land inside that window.
+        // start() must move the state to Running before launching the
+        // thread. Leaving the thread to do it opens a window where the state
+        // is still Stopped, so a stop() arriving there fails its
+        // compare-and-swap and vanishes, and join() then hangs. Repeated
+        // enough times to land inside that window.
         for (int i = 0; i < 200; ++i) {
                 CAPTURE(i);
                 auto w = make_writer();

@@ -198,12 +198,11 @@ TEST_CASE("block_ringbuffer preserves block times") {
 }
 
 /**
- * resize() had no coverage at all, and used to leave the read and write
- * pointers alone while replacing the block and recomputing the mask -- so
- * read_space(), their difference, kept reporting the old count against a fresh
- * zeroed mapping at differently masked offsets. It now discards deliberately
- * and says so; see the note on resize() for why discarding is what the callers
- * actually want.
+ * resize() must leave the buffer empty. Replacing the block and recomputing
+ * the mask without rewinding the pointers would leave read_space(), which is
+ * their difference, reporting the old count against a fresh zeroed mapping at
+ * differently masked offsets. See the note on resize() for why discarding is
+ * what the callers actually want.
  */
 
 TEST_CASE("resizing an empty ringbuffer just changes its size") {
@@ -301,10 +300,10 @@ TEST_CASE("block_ringbuffer is emptied by a resize") {
 }
 
 /**
- * pop(dest, cnt) used to treat a count of zero as "read everything available",
- * so the obvious way to write a bounded read filled the destination with the
- * whole ring the moment the buffer was empty. Advancing without copying is
- * discard()'s job now.
+ * A count of zero must read nothing. Treating it as "read everything
+ * available" makes the obvious bounded read fill the destination with the
+ * whole ring the moment the buffer is empty. Advancing without copying is
+ * discard()'s job.
  */
 
 TEST_CASE("popping zero elements reads nothing") {
@@ -319,7 +318,8 @@ TEST_CASE("popping zero elements reads nothing") {
 }
 
 TEST_CASE("a bounded read of an empty buffer is safe") {
-        // min(capacity, read_space()) is zero here, which used to mean "all"
+        // min(capacity, read_space()) is zero here: the case that overruns
+        // dest if zero is taken to mean "all"
         jill::dsp::ringbuffer<int> rb(1024);
         std::vector<int> sink(4, -1);
         REQUIRE(rb.read_space() == 0);

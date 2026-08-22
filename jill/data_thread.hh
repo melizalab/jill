@@ -51,12 +51,11 @@ public:
          * Running, data are stored for further processing. In Stopping, data
          * are silently discarded. Must always be wait-free.
          *
-         * There is deliberately no companion call to wake the handler. This
-         * used to be data_ready(), which the realtime thread called after
-         * every push; it signalled a condition variable, and
-         * pthread_cond_signal takes glibc's internal condvar lock and makes a
-         * futex syscall, neither of which belongs on the audio path. The
-         * handler finds the data on its own.
+         * There is deliberately no companion call to wake the handler, and
+         * one must not be added: signalling from here would mean
+         * pthread_cond_signal on the audio path, which takes glibc's internal
+         * condvar lock and makes a futex syscall. The handler polls instead
+         * and finds the data on its own.
          *
          * @param time  the time of the block
          * @param dtype the type of data in the block

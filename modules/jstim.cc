@@ -92,15 +92,18 @@ std::unique_ptr<util::readahead_stimqueue> stim_queue;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
 /**
- * MIDI events the realtime thread could not write. jack refuses an event
- * whose offset is not inside the period, and refuses to reserve space in a
- * full buffer; write_message reports both by returning non-zero, and every
- * caller here used to discard that. A dropped sync event is invisible in the
- * recording except as a trial with no end, which is a hard thing to trace
- * back. Counted here and reported by main, since the callback cannot log.
+ * MIDI events the realtime thread could not write. jack refuses an event whose
+ * offset is not inside the period, and refuses to reserve space in a full
+ * buffer; write_message reports both by returning non-zero, which must not be
+ * discarded. A dropped sync event is otherwise invisible, showing up only as a
+ * trial with no end and no indication of why. Counted here and reported by
+ * main, since the callback cannot log.
  */
 std::atomic<int> midi_errors(0);
-std::atomic<nframes_t> last_stop(0);        // time when last stimulus ended
+// time when last stimulus ended. global atomic so that the main loop can
+// initialize it. Otherwise the pre-stimulus trigger doesn't work on the first
+// stimulus.
+std::atomic<nframes_t> last_stop(0);
 std::atomic<int> ret(EXIT_SUCCESS);
 // cleared by a signal or by the server going away; main stops the queue
 std::atomic<bool> running(true);
@@ -151,9 +154,6 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
          */
         static jill::stimulus_t const * deferred_off;
         static bool deferred_off_condition;
-        // last stimulus stop is a global atomic so that the main loop can
-        // initialize it. Otherwise the pre-stimulus trigger doesn't work on the
-        // first stimulus.
 
         nframes_t period_offset;      // the offset in the period to start copying
 
@@ -371,11 +371,11 @@ signal_handler(int sig)
 {
         /**
          * Only touch lock-free atomics to stay within bounds of what a signal
-         * handler can safely do. This used to call stim_queue->stop(), which
-         * takes the queue's mutex: a signal delivered while the worker thread
-         * held that mutex deadlocked the process, since the handler runs on the
-         * thread it interrupted and that thread cannot release it. main() does
-         * the stopping now. The xruns variable is incremented to tell the
+         * handler can safely do. In particular do not call stim_queue->stop()
+         * here: it takes the queue's mutex, and a signal arriving while the
+         * worker holds it deadlocks the process, because the handler runs on
+         * the thread it interrupted and that thread cannot release it. main()
+         * does the stopping. The xruns variable is incremented to tell the
          * realtime thread to cut the stimulus short at the start of the next
          * period rather than playing it out.
          */
@@ -415,10 +415,10 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps,
                 /**
                  * A bare count following a filename is that stimulus's number
                  * of repeats, and is consumed here so it is not opened as a
-                 * file. Both halves of this used to be inverted: a count was
-                 * read but left in place, so it became the next "filename",
-                 * and a following *filename* was skipped instead, so
-                 * `jstim a.wav b.wav` silently played only a.wav.
+                 * file. Both halves matter: leaving the count in place makes it
+                 * the next "filename", and skipping the following entry
+                 * unconditionally drops a real one, so `jstim a.wav b.wav`
+                 * plays only a.wav.
                  */
                 size_t nreps = default_nreps;
                 if ((i + 1) < stims.size() && parse_count(stims[i + 1], nreps)) {

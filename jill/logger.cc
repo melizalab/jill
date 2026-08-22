@@ -90,25 +90,25 @@ logger::log(timestamp_t const & utc, std::string const & msg)
 }
 
 /**
- * The send must not block. Connecting to an endpoint nothing has bound yet is
- * normal and useful -- an orchestration script cannot guarantee that jrecord
- * wins the race to start, and zeromq queues up to ZMQ_SNDHWM (1000) messages
- * so that everything said in the meantime is delivered once it arrives. What
- * was not handled is the queue filling: the sends were blocking, so a module
- * running without a log server stopped dead after about a thousand messages,
- * holding _lock, with every other thread that logs piling up behind it. For an
- * unattended recorder that is worse than a crash, because the process still
- * looks alive.
+ * The send must not block, and the queue must not be given up.
  *
- * Dropping the remote copy costs nothing that is not already on stdout, and
- * the queue drains and starts accepting again by itself once a server appears.
+ * Connecting to an endpoint nothing has bound yet is normal and useful: an
+ * orchestration script cannot guarantee jrecord wins the race to start, and
+ * zeromq holds up to ZMQ_SNDHWM (1000) messages so that everything said
+ * meanwhile is delivered once it arrives. Refusing to queue -- ZMQ_IMMEDIATE
+ * would do that -- fixes nothing worth fixing and loses this.
  *
- * Frame one is where a full queue refuses: zeromq checks the high water mark
+ * A blocking send is the other trap. With the queue full it stops the caller
+ * indefinitely while holding _lock, so every thread that logs piles up behind
+ * it and the process goes on looking alive while doing nothing. Dropping the
+ * remote copy instead costs nothing that is not already on stdout, and the
+ * queue drains and starts accepting again by itself once a server appears.
+ *
+ * A full queue refuses at frame one, because zeromq checks the high water mark
  * when a message begins rather than partway through, so abandoning here cannot
  * leave a half-written message to corrupt the next one. A failure on a later
- * frame should therefore be impossible; it is reported rather than handled,
- * because it would mean the stream at the other end is desynchronized, and
- * that should not pass silently.
+ * frame should be unreachable; it is reported rather than handled, since it
+ * would mean the far end is desynchronized and that must not pass silently.
  */
 bool
 logger::forward(timestamp_t const & utc, std::string const & msg)

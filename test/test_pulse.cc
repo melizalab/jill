@@ -81,9 +81,9 @@ TEST_CASE("an even biphasic pulse is symmetric") {
 }
 
 TEST_CASE("an odd biphasic pulse is balanced by an interphase gap") {
-        // duration / 2 used to round down and give the remainder to the
-        // negative phase, leaving a net negative sample at the electrode --
-        // exactly what a biphasic pulse is meant to avoid.
+        // Giving the odd sample to either phase leaves net charge at the
+        // electrode, which is exactly what a biphasic pulse is meant to avoid.
+        // duration / 2 rounds down, so the remainder must go to the gap.
         const auto buf = rendered(pulse_shape::biphasic, 5);
         CHECK(buf[PAD + 0] == 1.0f);
         CHECK(buf[PAD + 1] == 1.0f);

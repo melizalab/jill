@@ -51,11 +51,11 @@ public:
         /**
          * @param poll_interval  how long the consumer sleeps between passes.
          *
-         * Nothing wakes it: the realtime thread used to signal a condition
-         * variable after every push, which is not something the audio path may
-         * do. So this bounds how long data sits unwritten, and how long a
-         * consumer whose output is observable lags behind the events that
-         * produced it.
+         * Nothing wakes it, and nothing should: signalling a condition
+         * variable from the realtime thread after each push is not something
+         * the audio path may do. So this interval bounds how long data sits
+         * unwritten, and how long a consumer whose output is observable lags
+         * behind the events that produced it.
          *
          * The default suits a writer whose data carries its own timestamps --
          * jrecord's, where nothing downstream can tell when the write happened

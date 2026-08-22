@@ -111,11 +111,11 @@ TEST_CASE("the counter reports where in the block the threshold tripped") {
 }
 
 TEST_CASE("the reported offset accounts for a period that spans two calls") {
-        // The bug this pins: the offset used to be the period index scaled by
-        // period_size(), which assumed periods line up with block boundaries.
-        // They do not once a period spans a call, and the product then
-        // understated the offset by however much of the period arrived in the
-        // earlier block.
+        // The offset must be a sample count, not a period index scaled by
+        // period_size(). That scaling assumes periods line up with block
+        // boundaries, which stops being true as soon as a period spans a call,
+        // and then understates the offset by however much of the period
+        // arrived in the earlier block.
         const std::size_t period_size = 8;
         crossing_counter<float> counter(thresh, period_size, 2);
         const std::vector<float> data = square(128);
@@ -180,16 +180,16 @@ TEST_CASE("the state buffer is filled when requested") {
 }
 
 TEST_CASE("the count does not depend on how the signal is blocked") {
-        // It used to. push() seeded 'last' from samples[0] and started
-        // comparing at index 1, and did not carry that value between calls, so
-        // a transition straddling a block boundary was invisible -- while
-        // _period_crossings and _period_nsamples *were* carried, so the period
-        // closed at the same sample either way and swept up a different set of
-        // crossings. The counts came out 2 and 3 for the signal below.
+        // This is the property jdetect needs: how the JACK server happens to
+        // divide a signal into periods must not change whether a recording
+        // triggers.
         //
-        // This is the property jdetect actually needs: how the JACK server
-        // happens to divide a signal into periods must not change whether a
-        // recording triggers.
+        // It is easy to lose. Seeding the comparison from samples[0] and
+        // starting at index 1 makes a transition straddling a block boundary
+        // invisible, while _period_crossings and _period_nsamples carry across
+        // calls regardless -- so the period closes at the same sample either
+        // way and sweeps up a different set of crossings. The two effects do
+        // not cancel; for the signal below they give 2 against 3.
         const std::vector<float> whole = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
 
         crossing_counter<float> one(thresh, 4, 2);

@@ -58,11 +58,11 @@ render_pulse(sample_t * buf, pulse_shape shape, nframes_t duration,
                 std::fill(buf, buf + duration, -amplitude);
                 break;
         case pulse_shape::biphasic: {
-                // Equal phases, with the odd sample left at zero between them.
-                // duration / 2 used to round down and hand the remainder to
-                // the negative phase, leaving a net negative sample. Extending
-                // a phase instead would only move the imbalance, and shortening
-                // the pulse would silently ignore the duration asked for.
+                // Equal phases, with the odd sample left at zero between
+                // them. Giving the remainder to either phase leaves net charge
+                // at the electrode, which is the one thing a biphasic pulse
+                // exists to avoid, and rounding the duration down to something
+                // even would silently ignore what was asked for.
                 const nframes_t half = duration / 2;
                 std::fill(buf, buf + half, amplitude);
                 std::fill(buf + half, buf + duration - half, 0.0f);
