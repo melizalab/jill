@@ -141,7 +141,7 @@ Events are published as they occur. Each is a single frame.
 | `PLAYING <name> <frame>` | Playback of `<name>` began. |
 | `DONE <name> <frame>` | `<name>` played to its end. |
 | `INTERRUPTED <name> <frame>` | `<name>` was cut off by `INTERRUPT` or by a stream break. |
-| `XRUN <name> <frame>` | The audio stream broke. See §7. |
+| `XRUN <name> <frame>` | The audio stream broke while `<name>` was playing. Not emitted when nothing is playing; see §4.3. |
 | `BUSY` | A `PLAY` arrived while another stimulus was playing. It was discarded. |
 | `NOTPLAYING` | An `INTERRUPT` arrived with nothing playing. |
 | `STOPPING` | The server is shutting down. |
@@ -175,7 +175,27 @@ name, frame = rest.rsplit(" ", 1)
 
 Splitting on all whitespace will mis-parse any name containing a space.
 
-### 4.3 Delivery
+### 4.3 Stream breaks
+
+An xrun, or a change of JACK period size, means the audio stream has a gap in
+it. When this happens while a stimulus is playing, the server publishes `XRUN`
+naming that stimulus, truncates playback, and publishes `INTERRUPTED`. The
+trial is over and is not valid.
+
+When nothing is playing, the server MUST NOT publish anything. An `XRUN` event
+carries the name of the stimulus it ruined, and between trials there is no such
+stimulus — the event would have to name something that does not exist, and this
+protocol reports what happened to stimuli rather than the health of the audio
+stream.
+
+The consequence is deliberate but worth stating: **a client cannot use this
+channel to learn that the stream is breaking up between trials.** That is real
+information about a degrading session, and it is available elsewhere — JACK
+reports xruns to the server log, and `jrecord` records them in the ARF file as
+part of the recording they actually affect. A client that wants to monitor
+stream health should look there rather than here.
+
+### 4.4 Delivery
 
 Events are best-effort, and a client MUST NOT assume it sees all of them:
 
@@ -240,20 +260,15 @@ that a conforming client can assert against the intended behaviour.
 
 | # | Intended | Actual |
 |---|---|---|
-| 1 | An xrun with nothing playing publishes `XRUN` with no stimulus name, or is suppressed. | The server dereferences a null pointer and **crashes** (SIGSEGV). |
+| 1 | An xrun with nothing playing publishes no event (§4.3). | The server dereferences a null pointer and **crashes** (SIGSEGV). |
 | 2 | `PLAY` with no name is answered `BADCMD`. | The server throws `std::out_of_range`, which unwinds past a joinable thread and **aborts** (SIGABRT). |
 | 3 | An unrecognised request is always answered `BADCMD`. | It is answered `BUSY` when a previous request is still pending, so `BADCMD` and `BUSY` are not distinguishable by the client. |
 | 4 | Two stimulus files with the same basename are rejected, or disambiguated. | `STIMLIST` reports both, with their true durations, but only the first is loaded. `PLAY` always gets the first, so a client timing against the second's duration is silently wrong. |
 
 Defect 1 requires no client involvement at all — any xrun while idle is enough,
-and xruns while idle are routine in a long session.
-
-For 1, the intended behaviour needs a decision rather than just a fix: an `XRUN`
-with no stimulus has nothing to name. Emitting `XRUN` with a placeholder keeps
-the arity uniform at the cost of a name that means nothing; omitting the event
-entirely means a client cannot see stream breaks that happen between trials,
-which is exactly when it would want to know the recording is degrading. This
-document does not yet choose.
+and xruns while idle are routine in a long session. Suppressing the event is
+what §4.3 now specifies, so the fix is to guard the event on a stimulus being
+present rather than to invent a name for one that is not.
 
 ## 8. Grammar
 
