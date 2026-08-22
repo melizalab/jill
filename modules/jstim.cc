@@ -541,9 +541,17 @@ jstim_options::jstim_options(string const &program_name)
                  "minimum gap between sound (s)")
                 ("interval,i",po::value(&min_interval_sec)->default_value(0.0),
                  "minimum interval between stimulus start times (s)")
-                ("trial-before", po::value(&pretrigger_interval_sec),
+                /* Not bound to the std::optional members with po::value(&x).
+                  * program_options converts through boost::lexical_cast, which
+                  * only learned to stream std::optional in Boost 1.90 -- so
+                  * that compiled here and failed on every CI runner with a
+                  * static_assert about the target being neither istream'able
+                  * nor wistream'able. The optionals are filled from the
+                  * variables map in process_options() instead, which is what
+                  * program_options::get() is for. */
+                ("trial-before", po::value<float>(),
                  "if set, open the trial window (channel 1) this many seconds before stimulus onset (does not apply to triggered mode)")
-                ("trial-after", po::value(&posttrigger_interval_sec),
+                ("trial-after", po::value<float>(),
                  "if set, close the trial window (channel 1) this many seconds after the stimulus ends")
                 ("condition-prob", po::value(&condition_prob)->default_value(0.0),
                  "proportion of each stimulus's repetitions to mark as being in "
@@ -574,6 +582,9 @@ void
 jstim_options::process_options()
 {
         program_options::process_options();
+        // see the note by the option declarations: these cannot be bound
+        pretrigger_interval_sec = get<float>("trial-before");
+        posttrigger_interval_sec = get<float>("trial-after");
         const double pre_and_post_gap = pretrigger_interval_sec.value_or(0.0) +
                 posttrigger_interval_sec.value_or(0.0);
         if (pre_and_post_gap >= min_gap_sec) {
