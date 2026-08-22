@@ -266,6 +266,29 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
                 try {
                         auto stim = std::make_unique<file::stimfile>(p.string());
                         std::string name(stim->name());
+                        /* Stimuli are addressed by basename, so two files that
+                         * share one are a configuration error there is no
+                         * honest way to serve: only the first could ever be
+                         * played, while STIMLIST would advertise both with
+                         * their real durations. Refuse to start, rather than
+                         * let an experiment run against a list that lies.
+                         *
+                         * Note this is deliberately harsher than the treatment
+                         * of an unreadable file below, which is logged and
+                         * skipped. That leaves a shorter list which is still
+                         * accurate; this cannot, because two different files
+                         * are claiming one identity.
+                         *
+                         * Checked before load_samples() so a misconfigured
+                         * playlist fails immediately rather than after
+                         * resampling everything ahead of the collision. */
+                        if (_stimuli.count(name) > 0) {
+                                std::ostringstream msg;
+                                msg << "duplicate stimulus name '" << name
+                                    << "': " << p << " shares a basename with an "
+                                    "earlier file, and could never be played";
+                                throw std::invalid_argument(msg.str());
+                        }
                         stim->load_samples(sampling_rate);
                         // read before the move; the map owns it afterwards
                         const float duration = stim->duration();
@@ -346,6 +369,20 @@ stim_monitor(std::stop_token stop)
         zmq::send(socket, "STOPPING");
         zmq::close(socket);
 }
+
+/* The version of the control protocol, reported by VERSION.
+ *
+ * Deliberately not the JILL release version, which is what this used to
+ * return. A client needs to know whether it understands the exchange, not
+ * which build produced it, and the two move independently: releases happen
+ * that do not touch the protocol, and the protocol could change without one.
+ * Reporting the release version also made two builds with observably
+ * different behaviour indistinguishable, since both called themselves 2.2.2.
+ *
+ * Major changes when an existing exchange changes meaning, so a client MUST
+ * refuse a major it does not know. Minor changes when something is added that
+ * an older client can ignore. See doc/jstimserver-protocol.md. */
+constexpr char PROTOCOL_VERSION[] = "1.0";
 
 constexpr char REQ_VERSION[] = "VERSION";
 constexpr char REQ_STIMLIST[] = "STIMLIST";
@@ -429,7 +466,7 @@ main(int argc, char **argv)
                         auto data = messages.back();
                         if (data.compare(REQ_VERSION) == 0) {
                                 DBG << "client requested jstimserver version";
-                                messages.back() = JILL_VERSION;
+                                messages.back() = PROTOCOL_VERSION;
                         }
                         else if (data.compare(REQ_STIMLIST) == 0) {
                                 DBG << "client requested playlist";

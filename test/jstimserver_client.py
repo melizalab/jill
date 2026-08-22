@@ -114,6 +114,11 @@ class JstimserverClient:
         return seen
 
     def version(self, **kw):
+        """The protocol version, as "MAJOR.MINOR".
+
+        Not the JILL release version. Refuse a major you do not know; a higher
+        minor only adds things you can ignore.
+        """
         return self.request("VERSION", **kw)
 
     def stimlist(self, **kw):

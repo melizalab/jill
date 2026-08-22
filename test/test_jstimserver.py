@@ -43,12 +43,20 @@ MODULE = TEST_DIR.parent / "modules" / "jstimserver"
 
 pytestmark = pytest.mark.needs_jack
 
+#: The protocol version the server should report. Bump deliberately, and
+#: only alongside doc/jstimserver-protocol.md.
+PROTOCOL_VERSION = "1.0"
+
 SAMPLERATE = 44100
 
 # Long enough that a request issued after playback starts is comfortably
 # inside it, short enough not to pad the suite.
 LONG_SECONDS = 2.0
 SHORT_SECONDS = 0.2
+
+# generous enough for startup on a loaded runner, short enough that a hang
+# is obvious rather than a wait
+BUDGET = 30
 
 
 def break_the_stream(server_name, period):
@@ -255,11 +263,13 @@ def server(start_server, stimuli):
 # The parts that work
 # --------------------------------------------------------------------------
 
-def test_version_is_a_version(server):
-    version = server.client.version()
-    assert version, "VERSION returned nothing"
-    # not pinned to a value: this changes every release
-    assert version[0].isdigit(), "VERSION returned %r" % version
+def test_version_reports_the_protocol_version(server):
+    """VERSION reports the protocol, not the JILL release.
+
+    Pinned to a value, unlike the release version it replaced: this changes
+    only when the protocol does, and a client keys its behaviour off it.
+    """
+    assert server.client.version() == PROTOCOL_VERSION
 
 
 def test_stimlist_reports_every_stimulus(server, stimuli):
@@ -354,22 +364,78 @@ def test_unknown_request_is_refused_even_with_a_request_pending(server):
     assert server.client.request("NOT_A_COMMAND") == "BADCMD"
 
 
-@pytest.mark.xfail(strict=True, reason="defect 4: STIMLIST advertises both files, "
-                                       "only the first is playable")
-def test_duplicate_basenames_are_not_advertised_twice(start_server, tmp_path):
-    """Two files with the same stem collapse to one name.
+def test_duplicate_basenames_are_refused(tmp_path, jack_server):
+    """Two files with the same stem collapse to one name, so the server refuses.
 
-    The list reports both with their true durations while only the first is
-    loaded, so a client timing against the second is silently wrong.
+    STIMLIST used to report both with their true durations while only the first
+    was loaded, which meant a client timing against the second was silently
+    wrong. There is no honest list to serve here, so this fails at startup
+    rather than during the experiment.
+
+    Runs the binary directly: the start_server fixture waits for a server that
+    is never going to bind.
     """
     a = tmp_path / "a"
     b = tmp_path / "b"
     a.mkdir()
     b.mkdir()
-    server = start_server([write_tone(a / "dup.wav", SHORT_SECONDS),
-                           write_tone(b / "dup.wav", LONG_SECONDS)])
-    names = [s["name"] for s in server.client.stimlist()]
-    assert len(names) == len(set(names)), "STIMLIST reported %r" % (names,)
+    if not MODULE.exists():
+        pytest.skip("jstimserver was not built")
+    proc = subprocess.run(
+        [str(MODULE), "--name", "jstimtest_dup_%d" % os.getpid(),
+         write_tone(a / "dup.wav", SHORT_SECONDS),
+         write_tone(b / "dup.wav", LONG_SECONDS)],
+        capture_output=True, text=True, timeout=BUDGET, env=sanitizer_env())
+    assert proc.returncode != 0, (
+        "jstimserver started with two stimuli called 'dup'\n%s" % proc.stdout)
+    assert proc.returncode > 0, (
+        "jstimserver was killed by signal %d rather than reporting the error"
+        % -proc.returncode)
+    assert "dup" in proc.stdout, (
+        "the error does not name the offending stimulus\n%s" % proc.stdout)
+
+
+def test_distinct_basenames_in_different_directories_are_fine(tmp_path, jack_server):
+    """The check is on the name, not the path: same directory rule, different stems.
+
+    Guards the fix against being written as "reject any repeated path element"
+    or similar, which would break an ordinary playlist assembled from several
+    directories.
+    """
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    if not MODULE.exists():
+        pytest.skip("jstimserver was not built")
+    name = "jstimtest_ok_%d" % os.getpid()
+    proc = subprocess.Popen(
+        [str(MODULE), "--name", name,
+         write_tone(a / "one.wav", SHORT_SECONDS),
+         write_tone(b / "two.wav", SHORT_SECONDS)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        env=sanitizer_env())
+    try:
+        socket_dir = pathlib.Path("/tmp/org.meliza.jill/default") / name
+        deadline = time.monotonic() + BUDGET
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                pytest.fail("jstimserver refused a valid playlist (rc=%d)\n%s"
+                            % (proc.returncode, proc.communicate()[0]))
+            if (socket_dir / "req").exists() and (socket_dir / "pub").exists():
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("jstimserver did not start")
+        with JstimserverClient("ipc://%s" % socket_dir) as client:
+            assert sorted(s["name"] for s in client.stimlist()) == ["one", "two"]
+    finally:
+        proc.send_signal(signal.SIGINT)
+        try:
+            proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
 
 
 @pytest.mark.parametrize("request_text", ["PLAY", "PLAY "],
@@ -433,10 +499,19 @@ def test_xrun_during_playback_is_reported(private_jack, start_server, stimuli):
 
 @pytest.fixture
 def private_jack():
-    """A JACK server of our own, for tests that disturb the period size."""
+    """A JACK server of our own, for tests that disturb the period size.
+
+    The name is fixed rather than derived from the pid. jackd2 keeps a registry
+    in /dev/shm with room for only a handful of servers, and an entry survives a
+    server that was killed rather than asked to stop -- so a per-run name burns
+    a slot on every interrupted run until startup fails with an opaque
+    "jack_get_descriptor : dll" and nothing suggests why. A fixed name reuses
+    one slot forever. This does mean two copies of the suite cannot run at once,
+    which is already true of the shared jack_server fixture.
+    """
     if shutil.which("jackd") is None:
         pytest.fail("jackd is not installed")
-    name = "jilltest_%d" % os.getpid()
+    name = "jilltest"
     proc = subprocess.Popen(
         ["jackd", "-n", name, "-r", "-d", "dummy", "-r", str(SAMPLERATE), "-p", "1024"],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -451,7 +526,10 @@ def private_jack():
         time.sleep(0.1)
     else:
         proc.kill()
-        pytest.fail("private jackd did not come up")
+        pytest.fail("private jackd did not come up. If it reported "
+                    "'jack_get_descriptor', the /dev/shm registry is full of "
+                    "entries from servers that were killed rather than stopped; "
+                    "remove /dev/shm/jack* with no jackd running.")
     yield name
     proc.terminate()
     try:

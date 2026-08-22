@@ -1,6 +1,11 @@
 # jstimserver control protocol
 
-**Status:** draft. **Version:** 1.0. Applies to JILL 2.2.x.
+**Status:** draft. **Version:** 1.0.
+
+This version number describes the protocol, not the software. It is what
+`VERSION` reports, and it moves independently of the JILL release version:
+releases happen that do not touch the protocol, and the protocol could
+change without one.
 
 `jstimserver` presents stimuli on demand rather than from a fixed playlist. A
 client asks it to play a named stimulus and is told, asynchronously, what
@@ -20,21 +25,15 @@ module and has no bearing on this one.
 
 `jstimserver` exposes two ØMQ endpoints:
 
-| Purpose | Server socket | Client socket | Direction |
-|---|---|---|---|
-| Requests | `ROUTER` | `REQ` or `DEALER` | client → server, with a reply |
-| Events | `PUB` | `SUB` | server → clients, unsolicited |
+| Purpose  | Server socket | Client socket     | Direction                      |
+|----------|---------------|-------------------|--------------------------------|
+| Requests | `ROUTER`      | `REQ` or `DEALER` | client to server, with a reply |
+| Events   | `PUB`         | `SUB`             | server to clients, unsolicited |
 
-The split is not decorative. A reply says only that a request was **accepted**;
+Important: the reply a request only indicates if the request was **accepted**;
 what actually happened to the audio is reported on the event channel, because
-the answer is not known until the realtime thread acts on the request — which
-may be several milliseconds later, and may be "no".
-
-> **The single most important rule in this document.** `OK` means *the server
-> took your request*, not *the stimulus played*. A `PLAY` issued while another
-> stimulus is playing is answered `OK` on the request channel and `BUSY` on the
-> event channel. A client that treats `OK` as success will silently believe in
-> trials that never happened.
+the answer is not known until the realtime thread acts on the request, which may
+be several milliseconds later, and may be "no".
 
 ## 2. Transport
 
@@ -71,27 +70,36 @@ prefixes, so a non-empty subscription silently matches on the message text.
 
 ## 3. Requests and replies
 
-| Request | Reply on success | Other replies |
-|---|---|---|
-| `VERSION` | JILL version string, e.g. `2.2.2` | — |
-| `STIMLIST` | JSON object, see §5 | — |
-| `PLAY <name>` | `OK` | `BADSTIM`, `BUSY` |
-| `INTERRUPT` | `OK` | `BUSY` |
-| anything else | — | `BADCMD` |
+| Request       | Reply on success                  | Other replies     |
+|---------------|-----------------------------------|-------------------|
+| `VERSION`     | Protocol version, e.g. `1.0`      | —                 |
+| `STIMLIST`    | JSON object, see §5               | —                 |
+| `PLAY <name>` | `OK`                              | `BADSTIM`, `BUSY` |
+| `INTERRUPT`   | `OK`                              | `BUSY`            |
+| anything else | —                                 | `BADCMD`          |
 
 Every request MUST receive exactly one reply. The reply tokens are:
 
-| Reply | Meaning |
-|---|---|
-| `OK` | The request was accepted and handed to the realtime thread. Watch the event channel for the outcome. |
-| `BADCMD` | The request was not recognised. |
-| `BADSTIM` | The named stimulus is not in the server's stimulus set. |
-| `BUSY` | A previous request has not yet been consumed by the realtime thread. The client MAY retry. |
+| Reply     | Meaning                                                                                              |
+|-----------|------------------------------------------------------------------------------------------------------|
+| `OK`      | The request was accepted and handed to the realtime thread. Watch the event channel for the outcome. |
+| `BADCMD`  | The request was not recognised.                                                                      |
+| `BADSTIM` | The named stimulus is not in the server's stimulus set.                                              |
+| `BUSY`    | A previous request has not yet been consumed by the realtime thread. The client MAY retry.           |
 
 ### 3.1 `VERSION`
 
-Returns the JILL version the server was built from. A client SHOULD issue this
-first and refuse to continue against a version it does not understand.
+Returns the version of this protocol, as `MAJOR.MINOR`.
+
+The major part changes when an existing exchange changes meaning. A client
+MUST refuse to continue against a major version it does not know, because
+anything it does next may be misinterpreted. The minor part changes when
+something is added that a client written against an earlier minor can safely
+ignore, so a client SHOULD accept a minor higher than the one it knows.
+
+A client SHOULD issue this first. Doing so also serves as a readiness check:
+the reply proves the server has bound its request endpoint, which is more
+reliable than waiting for the `STARTING` event (§4.4).
 
 ### 3.2 `STIMLIST`
 
@@ -133,18 +141,18 @@ JACK period, typically a few milliseconds.
 
 ## 4. Events
 
-Events are published as they occur. Each is a single frame.
+Events are published as they occur. Each is a single ZMQ frame.
 
-| Event | Emitted when |
-|---|---|
-| `STARTING` | The server has bound the event endpoint and is ready. |
-| `PLAYING <name> <frame>` | Playback of `<name>` began. |
-| `DONE <name> <frame>` | `<name>` played to its end. |
-| `INTERRUPTED <name> <frame>` | `<name>` was cut off by `INTERRUPT` or by a stream break. |
-| `XRUN <name> <frame>` | The audio stream broke while `<name>` was playing. Not emitted when nothing is playing; see §4.3. |
-| `BUSY` | A `PLAY` arrived while another stimulus was playing. It was discarded. |
-| `NOTPLAYING` | An `INTERRUPT` arrived with nothing playing. |
-| `STOPPING` | The server is shutting down. |
+| Event                        | Emitted when                                                                                      |
+|------------------------------|---------------------------------------------------------------------------------------------------|
+| `STARTING`                   | The server has bound the event endpoint and is ready.                                             |
+| `PLAYING <name> <frame>`     | Playback of `<name>` began in JACK frame `<frame>`.                                               |
+| `DONE <name> <frame>`        | `<name>` played to its end, stopping in JACK frame `<frame>`.                                     |
+| `INTERRUPTED <name> <frame>` | `<name>` was cut off by `INTERRUPT` or by a stream break.                                         |
+| `XRUN <name> <frame>`        | The audio stream broke while `<name>` was playing. Not emitted when nothing is playing; see §4.3. |
+| `BUSY`                       | A `PLAY` arrived while another stimulus was playing. It was discarded.                            |
+| `NOTPLAYING`                 | An `INTERRUPT` arrived with nothing playing.                                                      |
+| `STOPPING`                   | The server is shutting down.                                                                      |
 
 `BUSY` and `NOTPLAYING` carry no arguments. Both are outcomes of a request that
 was already answered `OK`, which is why the request channel alone is not enough
@@ -235,10 +243,10 @@ mislead a client author who assumes ordinary JSON:
 
 Clients MUST ignore members they do not recognise, so that fields can be added.
 
-Names in the array are not guaranteed unique. A name is a file basename with
-its directory stripped, so two stimuli in different directories can collapse to
-one name; the list reports both while only the first is playable (see §7).
-Clients SHOULD treat a repeated name as a configuration error and report it.
+Names in the array are unique. A name is a file basename with its directory
+stripped, so two stimuli in different directories can collapse to one name; the
+server refuses to start when they do, rather than serve a list in which only
+the first entry is reachable. A client can therefore use the name as a key.
 
 ## 6. MIDI output
 
@@ -250,33 +258,9 @@ in the same JACK graph, and it carries sample-accurate timing that the ØMQ even
 channel does not.
 
 A client that needs a durable, precisely timed record of what was presented
-SHOULD use the MIDI path and treat the event channel as supervisory.
+SHOULD use the MIDI path and treat the event channel as advisory.
 
-## 7. Known divergences
-
-The following are defects in the current implementation, not intended
-behaviour. They are listed so that client authors know what to expect and so
-that a conforming client can assert against the intended behaviour.
-
-| # | Intended | Actual |
-|---|---|---|
-| 4 | Two stimulus files with the same basename are rejected, or disambiguated. | `STIMLIST` reports both, with their true durations, but only the first is loaded. `PLAY` always gets the first, so a client timing against the second's duration is silently wrong. |
-
-Three earlier entries have been fixed and are recorded here only so that a
-client written against an older build knows what it may meet.
-
-- **An xrun with nothing playing crashed the server** (SIGSEGV), because the
-  event was published with no stimulus to name and the publisher dereferenced
-  it. This needed no client involvement and fired on ordinary xruns, not only
-  on the deliberate period-size change used to provoke it.
-- **`PLAY` with no name aborted the server** (SIGABRT). It matched the
-  dispatch, `substr` threw, and the exception unwound past a joinable thread
-  before any handler could run.
-- **`BADCMD` and `BUSY` were interchangeable.** The busy test ran before the
-  command was recognised, so an unknown request was answered `BUSY` whenever
-  the realtime thread had not yet consumed the previous one.
-
-## 8. Grammar
+## 7. Grammar
 
 ```abnf
 ; Requests: one UTF-8 frame, no terminator.
@@ -289,7 +273,7 @@ interrupt-req = %s"INTERRUPT"
 ; Replies: one UTF-8 frame.
 reply         = version / stimlist / %s"OK" / %s"BADCMD"
               / %s"BADSTIM" / %s"BUSY"
-version       = 1*VCHAR                 ; JILL version, e.g. "2.2.2"
+version       = 1*DIGIT "." 1*DIGIT     ; protocol version, e.g. "1.0"
 stimlist      = json-object             ; see section 5
 
 ; Events: one UTF-8 frame, published unsolicited.

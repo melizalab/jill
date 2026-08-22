@@ -34,6 +34,13 @@ else runs as normal.
 
 Tests needing a JACK server get one automatically: a `jackd -d dummy` is
 started for them and shut down afterwards, so no sound hardware is involved.
+
+If a run fails to start a server and jackd says `jack_get_descriptor`, its
+registry in `/dev/shm` is full. jackd2 has room for only a handful of servers
+there, and an entry outlives a server that was killed rather than asked to
+stop — so interrupting runs, or reaching for `kill -9`, eventually fills it.
+With no jackd running, `rm /dev/shm/jack*` clears it. A clean shutdown leaves
+nothing behind, so this only accumulates when runs are cut short.
 JACK on macOS is less predictable than on Linux, so if `jackd` cannot be
 started those tests skip rather than fail. `test_zmq_server` runs until
 interrupted and is skipped by default; start it by hand if you need it.
