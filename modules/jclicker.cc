@@ -14,7 +14,10 @@
 #include <random>
 #include <csignal>
 #include <atomic>
-#include <boost/algorithm/string.hpp>
+#include <algorithm>
+#include <cctype>
+#include <sstream>
+#include <string_view>
 
 #include "jill/logging.hh"
 #include "jill/jack_client.hh"
@@ -189,39 +192,117 @@ signal_handler(int sig)
         running = false;
 }
 
+namespace {
+
+/* Split on a single character, keeping empty fields so that "0x00,,5" is
+ * three tokens and the arity check below catches the missing one. Replaces
+ * boost::split, which was the only thing pulling in
+ * boost/algorithm/string.hpp. */
+stringvec
+split_on(string const & s, char sep)
+{
+        stringvec out;
+        std::size_t start = 0, sep_at;
+        while ((sep_at = s.find(sep, start)) != string::npos) {
+                out.push_back(s.substr(start, sep_at - start));
+                start = sep_at + 1;
+        }
+        out.push_back(s.substr(start));
+        return out;
+}
+
+/* ASCII case-insensitive compare, replacing boost::iequals. These are
+ * keywords in the option grammar, so there is no locale question to answer. */
+bool
+iequals_ascii(std::string_view a, std::string_view b)
+{
+        return std::equal(a.begin(), a.end(), b.begin(), b.end(),
+                          [](unsigned char x, unsigned char y) {
+                                  return std::tolower(x) == std::tolower(y);
+                          });
+}
+
+/* Parse a field, requiring the whole of it.
+ *
+ * std::stoul and std::stof stop at the first character they cannot use and
+ * report success, so "foo" read as hex is 0xf, "12junk" is 0x12 and "5abc" is
+ * 5. For a pulse condition that means firing on a MIDI status nobody asked
+ * for, in a run that otherwise looks entirely normal -- the worst kind of
+ * configuration error, because nothing reports it. Anything left over is an
+ * error here, and the message names the field and quotes what was given.
+ */
+template <typename Parse>
+auto parse_whole(char const * field, string const & value, Parse parse)
+{
+        std::size_t used = 0;
+        decltype(parse(value, &used)) parsed{};
+        bool ok = !value.empty();
+        if (ok) {
+                try {
+                        parsed = parse(value, &used);
+                }
+                catch (std::exception const &) {
+                        ok = false;
+                }
+        }
+        if (!ok || used != value.size()) {
+                std::ostringstream msg;
+                msg << "pulse " << field << ": '" << value << "' is not a number";
+                throw std::invalid_argument(msg.str());
+        }
+        return parsed;
+}
+
+} // namespace
+
 static
 void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
         LOG << "parsing pulse specifications: ";
         float dt = 1.0 / sampling_rate;
         for (const auto &it : pulse_defs) {
-                stringvec words;
-                boost::split(words, it, [](char c) { return c==',';});
+                const stringvec words = split_on(it, ',');
                 if (words.size() != 3 && words.size() != 4) {
                         throw std::invalid_argument(
                                 "invalid pulse configuration (must be condition,shape,duration[,delay])");
                 }
                 pulse_type pulse;
-                // parse first token as hex - std::invalid_argument on failure
-                pulse.status = std::stoul(words[0], 0, 16);
+                // first token is a hex MIDI status byte
+                const unsigned long status = parse_whole(
+                        "condition", words[0],
+                        [](string const & s, std::size_t * used) {
+                                return std::stoul(s, used, 16);
+                        });
+                /* midi::data_type is one byte, so without this a status of
+                 * 0x1ff would quietly become 0xff and match the wrong events */
+                if (status > 0xff) {
+                        std::ostringstream msg;
+                        msg << "pulse condition: '" << words[0]
+                            << "' does not fit in a MIDI status byte";
+                        throw std::invalid_argument(msg.str());
+                }
+                pulse.status = static_cast<midi::data_type>(status);
                 // parse second token by string matching
-                if (boost::iequals(words[1], "positive"))
+                if (iequals_ascii(words[1], "positive"))
                         pulse.shape = dsp::pulse_shape::positive;
-                else if (boost::iequals(words[1], "negative"))
+                else if (iequals_ascii(words[1], "negative"))
                         pulse.shape = dsp::pulse_shape::negative;
-                else if (boost::iequals(words[1], "biphasic"))
+                else if (iequals_ascii(words[1], "biphasic"))
                         pulse.shape = dsp::pulse_shape::biphasic;
                 else
                         throw std::invalid_argument("pulse shape must be 'positive', 'negative', or 'biphasic'");
-                // parse third token as a float
-                float duration_ms = std::stof(words[2], 0);
+                auto parse_ms = [](string const & s, std::size_t * used) {
+                        return std::stof(s, used);
+                };
+                const float duration_ms = parse_whole("duration", words[2], parse_ms);
                 if (duration_ms < dt) {
                         throw std::invalid_argument("duration must be positive and at least one sample");
                 }
                 pulse.duration = 0.001 * duration_ms * sampling_rate;
                 // parse optional fourth token as a float (delay in ms)
-                float delay_ms = (words.size() == 4) ? std::stof(words[3], 0) : 0.0f;
+                const float delay_ms = (words.size() == 4)
+                        ? parse_whole("delay", words[3], parse_ms) : 0.0f;
                 if (delay_ms < 0.0) {
-                        throw std::invalid_argument("delay must be positive ");
+                        throw std::invalid_argument("delay must not be negative");
                 }
                 pulse.delay = 0.001 * delay_ms * sampling_rate;
 

@@ -112,6 +112,61 @@ def test_error_path_exits_cleanly(name, args, jack_server, tone, tmp_path):
     assert_exited_under_its_own_control(rc, elapsed, out, name)
 
 
+# Pulse specifications jclicker must reject. std::stoul and std::stof stop at
+# the first character they cannot use and report success, so before these were
+# checked "foo" read as hex was 0xf and "5abc" as 5 -- a rig firing on a MIDI
+# status nobody asked for, in a run that looked entirely normal.
+BAD_PULSE_SPECS = [
+    pytest.param("foo,positive,5", "condition", id="hex-that-is-not-hex"),
+    pytest.param("12junk,positive,5", "condition", id="hex-with-trailing-junk"),
+    pytest.param("1ff,positive,5", "condition", id="status-too-wide-for-a-byte"),
+    pytest.param("0x00,positive,5abc", "duration", id="duration-with-trailing-junk"),
+    pytest.param("0x00,positive,5,x", "delay", id="delay-that-is-not-a-number"),
+    pytest.param(",,", "condition", id="all-fields-empty"),
+    pytest.param("0x00,sideways,5", "shape", id="unknown-shape"),
+]
+
+
+@pytest.mark.parametrize("spec,field", BAD_PULSE_SPECS)
+def test_jclicker_rejects_malformed_pulse(spec, field, jack_server):
+    """A bad --pulse must be reported, not silently reinterpreted.
+
+    Also checks the message names the offending field: "ERROR: stof" was what
+    this used to say, which tells the user nothing about which of four fields
+    to look at.
+    """
+    rc, elapsed, out = run_until_exit([module("jclicker"), "--pulse", spec])
+    assert_exited_under_its_own_control(rc, elapsed, out, "jclicker")
+    assert field in out, (
+        "the error does not say which field was wrong\n--- output ---\n%s"
+        % out[-2000:])
+
+
+def test_jclicker_accepts_valid_pulses(jack_server):
+    """The negative control: rejecting more must not reject what is correct.
+
+    Covers the hex forms with and without an 0x prefix, mixed case in the
+    shape keyword, and the optional fourth field.
+    """
+    proc = subprocess.Popen(
+        [module("jclicker"), "--pulse", "0x00,positive,5",
+         "--pulse", "10,BIPHASIC,2.5,1.0", "--pulse", "ff,negative,1"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        env=sanitizer_env())
+    time.sleep(3)
+    still_running = proc.poll() is None
+    proc.send_signal(signal.SIGINT)
+    try:
+        out = proc.communicate(timeout=10)[0]
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out = proc.communicate()[0]
+    assert still_running, (
+        "jclicker rejected a valid pulse specification\n--- output ---\n%s"
+        % out[-2000:])
+    assert_no_sanitizer_error(out, "jclicker")
+
+
 # Modules that will run steadily under the dummy backend, for the shutdown path
 SHUTDOWN_PATHS = [
     ("jnoise", []),
