@@ -488,7 +488,29 @@ main(int argc, char **argv)
                 if (options.condition_prob < 0.0 || options.condition_prob > 1.0) {
                         throw std::invalid_argument("--condition-prob must be between 0 and 1");
                 }
-                std::mt19937 rng(std::random_device{}());
+                /* One generator drives both the shuffle and the condition
+                 * assignment, so quoting the seed reproduces the whole
+                 * schedule rather than half of it. Seeded even when not
+                 * shuffling, because the condition assignment still draws. */
+                const auto given = options.get<string>("shuffle");
+                unsigned seed;
+                if (given && !given->empty()) {
+                        /* A string rather than an unsigned so that "-S" alone
+                         * and "-S 0" are distinguishable: with a numeric
+                         * implicit value they both arrive as zero, and a seed
+                         * of zero is as good as any other. */
+                        std::size_t parsed = 0;
+                        if (!parse_count(*given, parsed)) {
+                                throw std::invalid_argument(
+                                        "--shuffle takes a non-negative integer seed, or no value");
+                        }
+                        seed = static_cast<unsigned>(parsed);
+                }
+                else {
+                        seed = std::random_device{}();
+                }
+                std::mt19937 rng(seed);
+                LOG << "random seed: " << seed;
                 init_stimset(options.stimuli, options.nreps, options.condition_prob, rng);
                 if (options.count("shuffle")) {
                         LOG << "shuffled stimuli";
@@ -591,7 +613,14 @@ jstim_options::jstim_options(string const &program_name)
         // tropts is a group of options
         po::options_description opts("Stimulus options");
         opts.add_options()
-                ("shuffle,S", "shuffle order of presentation")
+                /* implicit_value so that -S alone still works: with a value
+                  * the presentation is repeatable, without one a seed is drawn
+                  * and logged so the session can be repeated afterwards. */
+                ("shuffle,S", po::value<string>()->implicit_value(""),
+                 "shuffle order of presentation, optionally with a seed. The "
+                 "seed also governs which repetitions carry the condition, so "
+                 "one seed reproduces the whole schedule; if none is given, one "
+                 "is drawn and logged.")
                 ("loop,l",    "loop endlessly")
                 ("repeats,r", po::value(&nreps)->default_value(1),
                  "default number of repetitions (can be overridden for individual stimuli)")
