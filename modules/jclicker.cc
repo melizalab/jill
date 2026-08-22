@@ -57,6 +57,10 @@ protected:
 struct pulse_type {
         /** the shape of the pulse */
         dsp::pulse_shape shape;
+        /** peak amplitude, 1.0 being full scale. Carried per pulse rather than
+         *  read from a global in the callback, which also leaves room for
+         *  per-pulse amplitudes without moving anything. */
+        sample_t amplitude;
         /** the type of midi message that will trigger the pulse */
         midi::data_type status;
         /** delay between the triggering event and pulse onset, in samples */
@@ -135,7 +139,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                         if (pulse.status != event.buffer[0]) continue;
                         DBG << " - adding pulse at " << pulse.delay;
                         sample_t * pulse_buf = buf + event.time + pulse.delay;
-                        dsp::render_pulse(pulse_buf, pulse.shape, pulse.duration);
+                        dsp::render_pulse(pulse_buf, pulse.shape, pulse.duration,
+                                          pulse.amplitude);
                 }
         }
         // copy the front of the buffer into the output and advance the read pointer
@@ -259,6 +264,12 @@ static
 void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
         LOG << "parsing pulse specifications: ";
         float dt = 1.0 / sampling_rate;
+        const float amplitude = options.vmap["amplitude"].as<float>();
+        if (!(amplitude > 0.0f) || amplitude > 1.0f) {
+                throw std::invalid_argument(
+                        "--amplitude must be greater than 0 and at most 1");
+        }
+        if (amplitude < 1.0f) LOG << "  pulse amplitude: " << amplitude;
         for (const auto &it : pulse_defs) {
                 const stringvec words = split_on(it, ',');
                 if (words.size() != 3 && words.size() != 4) {
@@ -266,6 +277,7 @@ void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
                                 "invalid pulse configuration (must be condition,shape,duration[,delay])");
                 }
                 pulse_type pulse;
+                pulse.amplitude = amplitude;
                 // first token is a hex MIDI status byte
                 const unsigned long status = parse_whole(
                         "condition", words[0],
@@ -439,6 +451,11 @@ jclicker_options::jclicker_options(string const &program_name)
                 ("prob,p",
                  po::value<float>()->default_value(1.0),
                  "per-stimulus probability of emitting a pulse (0-1)")
+                ("amplitude,a",
+                 po::value<float>()->default_value(1.0),
+                 "peak amplitude of the pulses, from 0 to 1, where 1 is full "
+                 "scale. Useful where the hardware converting clicks to TTL "
+                 "expects less than a professional line-out delivers.")
                 ("max-stimuli",
                  po::value<std::size_t>()->default_value(
                          jill::util::event_randomizer::default_capacity),

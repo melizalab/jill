@@ -43,16 +43,19 @@ enum class pulse_shape {
  * @param buf       start of the region to fill
  * @param shape     the pulse shape
  * @param duration  number of samples to fill
+ * @param amplitude peak value of the pulse; 1.0 is full scale. Defaulted so
+ *                  that callers with no reason to care are unaffected.
  */
 inline void
-render_pulse(sample_t * buf, pulse_shape shape, nframes_t duration)
+render_pulse(sample_t * buf, pulse_shape shape, nframes_t duration,
+             sample_t amplitude = 1.0f)
 {
         switch (shape) {
         case pulse_shape::positive:
-                std::fill(buf, buf + duration, 1.0f);
+                std::fill(buf, buf + duration, amplitude);
                 break;
         case pulse_shape::negative:
-                std::fill(buf, buf + duration, -1.0f);
+                std::fill(buf, buf + duration, -amplitude);
                 break;
         case pulse_shape::biphasic: {
                 /* Equal phases, with the odd sample left at zero between them.
@@ -61,9 +64,9 @@ render_pulse(sample_t * buf, pulse_shape shape, nframes_t duration)
                  * a phase instead would only move the imbalance, and shortening
                  * the pulse would silently ignore the duration asked for. */
                 const nframes_t half = duration / 2;
-                std::fill(buf, buf + half, 1.0f);
+                std::fill(buf, buf + half, amplitude);
                 std::fill(buf + half, buf + duration - half, 0.0f);
-                std::fill(buf + duration - half, buf + duration, -1.0f);
+                std::fill(buf + duration - half, buf + duration, -amplitude);
                 break;
         }
         }

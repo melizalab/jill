@@ -12,6 +12,7 @@
 #include <doctest/doctest.h>
 
 #include <vector>
+#include <cmath>
 
 #include "jill/dsp/pulse.hh"
 
@@ -136,4 +137,40 @@ TEST_CASE("pulses stay within the range the format allows") {
                         }
                 }
         }
+}
+
+TEST_CASE("amplitude scales the pulse without unbalancing it") {
+        // github #31: hardware converting clicks to TTL may want less than a
+        // professional line-out delivers.
+        const sample_t amp = 0.25f;
+        for (jill::nframes_t duration : {2u, 5u, 6u, 33u}) {
+                CAPTURE(duration);
+                std::vector<sample_t> buf(PAD * 2 + duration, 0.0f);
+                jill::dsp::render_pulse(buf.data() + PAD, pulse_shape::biphasic,
+                                        duration, amp);
+                sample_t sum = 0;
+                for (jill::nframes_t i = 0; i < duration; ++i) {
+                        const sample_t v = buf[PAD + i];
+                        CHECK(std::abs(v) <= amp);
+                        sum += v;
+                }
+                // scaling must not disturb the charge balance
+                CHECK(sum == doctest::Approx(0.0f));
+        }
+
+        SUBCASE("and reaches full scale in each direction") {
+                std::vector<sample_t> buf(PAD * 2 + 4, 0.0f);
+                jill::dsp::render_pulse(buf.data() + PAD, pulse_shape::biphasic, 4, amp);
+                CHECK(buf[PAD + 0] == doctest::Approx(amp));
+                CHECK(buf[PAD + 3] == doctest::Approx(-amp));
+        }
+}
+
+TEST_CASE("the default amplitude is full scale") {
+        // the parameter is defaulted so callers with no reason to care are
+        // unaffected; this pins that
+        std::vector<sample_t> buf(PAD * 2 + 2, 0.0f);
+        jill::dsp::render_pulse(buf.data() + PAD, pulse_shape::positive, 2);
+        CHECK(buf[PAD + 0] == 1.0f);
+        CHECK(buf[PAD + 1] == 1.0f);
 }
