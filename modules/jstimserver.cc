@@ -120,6 +120,15 @@ std::atomic<bool> _running(true);
 static dsp::ringbuffer<Event> _eventbuf(64);
 /** jack ports */
 jack_port_t *port_out, *port_trigout;
+/* What the realtime thread is playing, or null. Published for STATUS, which
+ * is the only way a client can learn the state without having seen every
+ * event -- and no client has, since a SUB that connects after the server
+ * binds misses everything before it.
+ *
+ * Written only by the realtime thread and read only by main, so relaxed is
+ * enough: there is no other data whose visibility this has to order, and the
+ * answer is advisory in any case. It lags by at most one period. */
+std::atomic<stimulus_t const *> _playing{nullptr};
 
 
 /** The realtime process loop for jstimserver. */
@@ -190,6 +199,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 
         // if no stimulus queued return
         if (!_stim) {
+                _playing.store(nullptr, std::memory_order_relaxed);
                 return 0;
         }
 
@@ -210,6 +220,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 _stim = nullptr;
         }
 
+        /* Publish after every transition above, so a STATUS answer is never a
+         * state that did not happen. The other exit stores too. */
+        _playing.store(_stim, std::memory_order_relaxed);
         return 0;
 }
 
@@ -391,10 +404,12 @@ constexpr char REQ_STIMLIST[] = "STIMLIST";
  * a length check someone has to remember to write. */
 constexpr char REQ_PLAYSTIM[] = "PLAY ";
 constexpr char REQ_INTERRUPT[] = "INTERRUPT";
+constexpr char REQ_STATUS[] = "STATUS";
 constexpr char REP_BADCMD[] = "BADCMD";
 constexpr char REP_BADSTIM[] = "BADSTIM";
 constexpr char REP_OK[] = "OK";
 constexpr char REP_BUSY[] = "BUSY";
+constexpr char REP_IDLE[] = "IDLE";
 
 int
 main(int argc, char **argv)
@@ -471,6 +486,18 @@ main(int argc, char **argv)
                         else if (data.compare(REQ_STIMLIST) == 0) {
                                 DBG << "client requested playlist";
                                 messages.back() = stimlist;
+                        }
+                        /* Answered from the published state rather than from a
+                         * request to the realtime thread, so it is available
+                         * whatever else is in flight -- a client asking what is
+                         * going on must not be told BUSY. */
+                        else if (data.compare(REQ_STATUS) == 0) {
+                                stimulus_t const * playing =
+                                        _playing.load(std::memory_order_relaxed);
+                                DBG << "client requested status";
+                                messages.back() = playing
+                                        ? std::string("PLAYING ") + playing->name()
+                                        : REP_IDLE;
                         }
                         /* There is deliberately no "is a request already
                          * pending" test ahead of the dispatch. There used to

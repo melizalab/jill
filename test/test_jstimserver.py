@@ -299,6 +299,37 @@ def test_play_runs_to_completion(server):
     assert end - start == pytest.approx(SHORT_SECONDS * SAMPLERATE, rel=0.1)
 
 
+def test_status_is_idle_when_nothing_is_playing(server):
+    assert server.client.status() is None
+
+
+def test_status_names_the_playing_stimulus(server):
+    """The point of STATUS: state without having seen the events.
+
+    Waits for PLAYING rather than asking straight after the OK, because the
+    realtime thread acts a period later and the answer would still be IDLE.
+    """
+    assert server.client.play("long") == "OK"
+    assert parse_event(server.client.next_event())[:2] == ("PLAYING", "long")
+    assert server.client.status() == "long"
+
+    server.client.interrupt()
+    assert parse_event(server.client.next_event())[:2] == ("INTERRUPTED", "long")
+    assert server.client.status() is None
+
+
+def test_status_is_answered_while_a_request_is_pending(server):
+    """A client asking what is going on must never be told BUSY.
+
+    STATUS is answered from published state rather than by asking the realtime
+    thread, so unlike PLAY and INTERRUPT it does not go through the
+    single-slot request register.
+    """
+    assert server.client.interrupt() == "OK"
+    # issued inside the window where the request has not been consumed yet
+    assert server.client.request("STATUS") in ("IDLE",)
+
+
 def test_play_unknown_stimulus_is_refused(server):
     assert server.client.play("no_such_stimulus") == "BADSTIM"
 

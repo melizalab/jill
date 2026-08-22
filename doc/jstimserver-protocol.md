@@ -74,6 +74,7 @@ prefixes, so a non-empty subscription silently matches on the message text.
 |---------------|-----------------------------------|-------------------|
 | `VERSION`     | Protocol version, e.g. `1.0`      | —                 |
 | `STIMLIST`    | JSON object, see §5               | —                 |
+| `STATUS`      | `PLAYING <name>` or `IDLE`        | —                 |
 | `PLAY <name>` | `OK`                              | `BADSTIM`, `BUSY` |
 | `INTERRUPT`   | `OK`                              | `BUSY`            |
 | anything else | —                                 | `BADCMD`          |
@@ -107,7 +108,31 @@ Returns the stimulus set as a JSON object (§5). The set is fixed at startup fro
 the command line and does not change while the server runs, so a client SHOULD
 request it once and cache it.
 
-### 3.3 `PLAY <name>`
+### 3.3 `STATUS`
+
+Returns `PLAYING <name>` if a stimulus is playing, or `IDLE` if not.
+
+This is how a client establishes what the server is doing without having seen
+every event, which no client has: a `SUB` socket that connects after the server
+binds misses everything published before it, so a controller that starts or
+restarts mid-session is otherwise blind. It is answered from published state
+rather than by asking the realtime thread, so it is available whatever else is
+in flight — a client asking what is going on is never told `BUSY`.
+
+Two things a caller must know.
+
+The answer lags by up to one JACK period. `PLAY` is answered `OK` as soon as the
+request is accepted, and the realtime thread acts on it in the next period, so a
+`STATUS` issued immediately after an `OK` will still say `IDLE`. This is the
+same rule as everywhere else here: a reply reports acceptance, not completion.
+Watch the event channel to learn when playback actually began.
+
+The reply is advisory, and shares only its verb with the `PLAYING` *event*. It
+carries no frame count, because the state it reports is already stale by the
+time the client reads it and a frame from a different instant would be worse
+than none. A client that needs timing has the event channel and the MIDI line.
+
+### 3.4 `PLAY <name>`
 
 Requests playback of the stimulus called `<name>`. The name is separated from
 the verb by exactly one space and extends to the end of the frame, so a name
@@ -122,7 +147,7 @@ nothing. Otherwise it replies `OK`, and the outcome follows on the event
 channel: `PLAYING` if playback began, or `BUSY` if another stimulus was already
 playing.
 
-### 3.4 `INTERRUPT`
+### 3.5 `INTERRUPT`
 
 Requests that playback stop immediately. The reply is `OK`, and the outcome
 follows on the event channel: `INTERRUPTED` if a stimulus was cut off, or
@@ -131,10 +156,10 @@ follows on the event channel: `INTERRUPTED` if a stimulus was cut off, or
 Interruption is not a fade — output drops to silence at the next period
 boundary, and a `stim_off` MIDI message is emitted at that instant.
 
-### 3.5 Ordering
+### 3.6 Ordering
 
-`VERSION` and `STIMLIST` are answered from the server's main thread and are
-always available. `PLAY` and `INTERRUPT` reach the realtime thread through a
+`VERSION`, `STIMLIST` and `STATUS` are answered from the server's main thread
+and are always available. `PLAY` and `INTERRUPT` reach the realtime thread through a
 single-slot request register, so at most one may be outstanding; a second one
 arriving before the first is consumed is answered `BUSY`. The window is one
 JACK period, typically a few milliseconds.
@@ -264,15 +289,18 @@ SHOULD use the MIDI path and treat the event channel as advisory.
 
 ```abnf
 ; Requests: one UTF-8 frame, no terminator.
-request       = version-req / stimlist-req / play-req / interrupt-req
+request       = version-req / stimlist-req / status-req
+              / play-req / interrupt-req
 version-req   = %s"VERSION"
 stimlist-req  = %s"STIMLIST"
+status-req    = %s"STATUS"
 play-req      = %s"PLAY" SP stim-name
 interrupt-req = %s"INTERRUPT"
 
 ; Replies: one UTF-8 frame.
-reply         = version / stimlist / %s"OK" / %s"BADCMD"
+reply         = version / stimlist / status / %s"OK" / %s"BADCMD"
               / %s"BADSTIM" / %s"BUSY"
+status        = %s"IDLE" / (%s"PLAYING" SP stim-name)
 version       = 1*DIGIT "." 1*DIGIT     ; protocol version, e.g. "1.0"
 stimlist      = json-object             ; see section 5
 

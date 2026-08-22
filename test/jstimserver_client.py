@@ -133,6 +133,21 @@ class JstimserverClient:
             stim["duration"] = float(stim["duration"])
         return stimuli
 
+    def status(self, **kw):
+        """What the server is playing: the stimulus name, or None if idle.
+
+        Lags by up to one JACK period, so a status taken straight after a
+        successful play() will still be None. The reply reports acceptance,
+        not completion; watch the events to learn when playback began.
+        """
+        reply = self.request("STATUS", **kw)
+        if reply == "IDLE":
+            return None
+        verb, _, name = reply.partition(" ")
+        if verb != "PLAYING" or not name:
+            raise ValueError("unexpected STATUS reply: %r" % reply)
+        return name
+
     def play(self, name, **kw):
         return self.request("PLAY %s" % name, **kw)
 
