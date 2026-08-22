@@ -9,6 +9,7 @@
  * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <sstream>
 #include <atomic>
 #include <csignal>
 
@@ -166,6 +167,18 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
         nframes_t period_size = options.period_size_ms * samplerate / 1000;
         int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
         int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
+        /* Integer division, so an integration window shorter than the analysis
+         * period rounds to zero periods. running_counter rejects that, but it
+         * cannot say which options produced it, and this used to segfault in
+         * the process callback instead. */
+        if (open_crossing_periods < 1 || close_crossing_periods < 1) {
+                std::ostringstream msg;
+                msg << "--open-period (" << options.open_crossing_period_ms
+                    << " ms) and --close-period (" << options.close_crossing_period_ms
+                    << " ms) must each be at least one --period-size ("
+                    << options.period_size_ms << " ms)";
+                throw std::invalid_argument(msg.str());
+        }
         int open_count_thresh = options.open_crossing_rate * period_size / 1000 * open_crossing_periods;
         int close_count_thresh = options.close_crossing_rate * period_size / 1000 * close_crossing_periods;
 

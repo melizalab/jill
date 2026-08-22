@@ -130,6 +130,22 @@ BAD_PULSE_SPECS = [
 ]
 
 
+def test_jdetect_rejects_a_window_shorter_than_a_period(jack_server):
+    """An integration window under one analysis period rounds to zero periods.
+
+    That used to build a zero-length running_counter, which reported itself
+    full with nothing stored and segfaulted on the first push -- inside the
+    realtime callback.
+    """
+    rc, elapsed, out = run_until_exit(
+        [module("jdetect"), "-i", "system:capture_1",
+         "--period-size", "20", "--open-period", "10"])
+    assert_exited_under_its_own_control(rc, elapsed, out, "jdetect")
+    assert "period-size" in out, (
+        "the error does not name the options involved\n--- output ---\n%s"
+        % out[-2000:])
+
+
 @pytest.mark.parametrize("spec,field", BAD_PULSE_SPECS)
 def test_jclicker_rejects_malformed_pulse(spec, field, jack_server):
     """A bad --pulse must be reported, not silently reinterpreted.

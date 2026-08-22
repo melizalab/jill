@@ -11,6 +11,13 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+#include <deque>
+#include <stdexcept>
+#include <numeric>
+#include <random>
+#include <sstream>
+#include <vector>
+
 #include "jill/dsp/counter.hh"
 
 using jill::dsp::running_counter;
@@ -110,4 +117,92 @@ TEST_CASE("running_counter works with a floating point type") {
         CHECK(counter.running_count() == doctest::Approx(0.75f));
         counter.push(0.25f);    // evicts 0.5
         CHECK(counter.running_count() == doctest::Approx(0.5f));
+}
+
+TEST_CASE("full() flips exactly when the window fills") {
+        const std::size_t size = 5;
+        running_counter<int> counter(size);
+        for (std::size_t i = 0; i < size - 1; ++i) {
+                counter.push(1);
+                CHECK_FALSE(counter.full());
+        }
+        counter.push(1);
+        CHECK(counter.full());
+        // and stays full
+        for (int i = 0; i < 10; ++i) {
+                counter.push(1);
+                CHECK(counter.full());
+        }
+}
+
+TEST_CASE("reset makes the window refillable") {
+        const std::size_t size = 3;
+        running_counter<int> counter(size);
+        for (std::size_t i = 0; i < size; ++i) counter.push(1);
+        REQUIRE(counter.full());
+
+        counter.reset();
+        CHECK_FALSE(counter.full());
+        for (std::size_t i = 0; i < size - 1; ++i) {
+                counter.push(2);
+                CHECK_FALSE(counter.full());
+        }
+        counter.push(2);
+        CHECK(counter.full());
+        CHECK(counter.running_count() == 6);
+}
+
+TEST_CASE("the stream operator reports the window oldest first") {
+        /* Only a debugging aid, with no callers, but it is the one place the
+         * storage order is visible -- a ring that printed its raw array rather
+         * than insertion order would be wrong here and nowhere else. */
+        running_counter<int> counter(3);
+        counter.push(1);
+        counter.push(2);
+        std::ostringstream partial;
+        partial << counter;
+        CHECK(partial.str() == "3 [2/3] (1 2 )");
+
+        // fill and wrap, so the oldest value is no longer at the front
+        counter.push(3);
+        counter.push(4);        // evicts 1
+        std::ostringstream wrapped;
+        wrapped << counter;
+        CHECK(wrapped.str() == "9 [3/3] (2 3 4 )");
+}
+
+TEST_CASE("the running total matches a naive sliding window") {
+        /* The strongest pin available: compare against an implementation with
+         * no shared logic, over enough pushes to wrap the ring many times, at
+         * window sizes that are and are not powers of two. An indexing error
+         * that survives the cases above will not survive this. */
+        std::mt19937 rng(20260822);
+        std::uniform_int_distribution<int> values(-50, 50);
+
+        for (std::size_t size : {1u, 2u, 3u, 7u, 8u, 64u, 250u}) {
+                CAPTURE(size);
+                running_counter<int> counter(size);
+                std::deque<int> reference;
+
+                for (int step = 0; step < 2000; ++step) {
+                        const int v = values(rng);
+                        counter.push(v);
+
+                        reference.push_back(v);
+                        if (reference.size() > size) reference.pop_front();
+
+                        REQUIRE(counter.full() == (reference.size() == size));
+                        REQUIRE(counter.running_count()
+                                == std::accumulate(reference.begin(), reference.end(), 0));
+                }
+        }
+}
+
+TEST_CASE("a zero-size window is refused") {
+        /* It used to be accepted: full() reported true with nothing stored,
+         * and the first push() read the front of an empty buffer. jdetect
+         * derives the size from --open-period / --period-size, so asking for
+         * an integration window shorter than the analysis period segfaulted
+         * it inside the realtime callback. */
+        CHECK_THROWS_AS(running_counter<int>(0), std::invalid_argument);
 }
