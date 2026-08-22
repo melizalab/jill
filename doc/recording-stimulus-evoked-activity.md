@@ -9,13 +9,13 @@ But there's a better way. We can use the event output from `jstim` to trigger `j
 First, start `jrecord` in triggered acquisition mode. If you're recording from many channels you can list them all on the command line:
 
 ```shell
-jrecord -t -f bu70_1.arf -i system:capture_1 -i system:capture_2 -i system:capture_3 ...
+jrecord -t -i system:capture_1 -i system:capture_2 -i system:capture_3 ... bu70_1.arf
 ```
 
 or use a configuration file to specify the input ports:
 
 ```shell
-jrecord -C multichannel.ini -a animal=bu70 -a site=1 -f bu70_1.arf
+jrecord -C multichannel.ini -a animal=bu70 -a site=1 bu70_1.arf
 ```
 
 Note the use of the `-a` flags to set attributes on the recorded entries. `multichannel.ini` might look something like:
@@ -49,7 +49,7 @@ Note that we've connected the sound output of jstim to a playback port on the so
 What if you don't want gaps in your recordings? One option is to run `jrecord` in continuous mode:
 
 ```shell
-jrecord -f bu70_1.arf -E stimuli -i system:capture_1 ...
+jrecord -E stimuli -i system:capture_1 ... bu70_1.arf
 jstim -S -r 10 -g 5 -o system:playback_1 -e jrecord:stimuli
 ```
 

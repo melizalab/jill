@@ -36,8 +36,11 @@ jstim -e jrecord:trig_in -o zita-j2a:playback_1 mystimulus.wav  # trigger jrecor
 Check the `zitaout.log` file and make sure that the value in the first column stays close to zero, preferably with a magnitude less than 1 sample. A quick plotting command is:
 
 ```shell
-awk '$1 ~ /[-0-9]/{print $NR/4,$1,$2} zitaout.log | gnuplot -p -e 'plot "-" using 1:2 with lines'
+awk '$1 ~ /[-0-9]/ {print NR/4, $1, $2}' zitaout.log | gnuplot -p -e 'plot "-" using 1:2 with lines'
 ```
+
+`NR/4` converts the line number to seconds, so it assumes `zita-j2a` is logging
+four lines a second; adjust the divisor if yours reports at a different rate.
 
 Spikes in this time series may indicate that one of the two clocks is not as consistent as the other (a common scenario when one of the devices is on a USB bus).  These spikes will cause the resampler in zita to adjust, possibly distorting the signal.  Try setting the sampling rate or fragment size for the sound card to different values if there are a lot of spikes. Some simple experiments comparing the zero-crossing rate of a sine wave on the copy line indicate that the distortions are very small, on the order of 0.05%.
 

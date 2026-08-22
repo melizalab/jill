@@ -5,6 +5,9 @@ range of architectures and data types.  It organizes the data in the file
 according to the ARF specification (see <https://github.com/melizalab/arf>).
 Briefly, this layout is as follows:
 
+- The file itself carries `arf_version` (currently `2.2`), `arf_library` and
+  `arf_library_version` for the library that wrote it, and `file_creator`
+  naming the program and its version.
 - The `/jill_log` dataset stores log messages from `jrecord` and from other
   programs that connect to its 0MQ logging socket.
 - Each recording epoch is stored in a sequentially named group,
@@ -19,7 +22,9 @@ Briefly, this layout is as follows:
     and its version
 - Each entry contains datasets that correspond to `jrecord` ports.  Sampled and
   event data are stored differently (see below). All datasets have attributes
-  that indicate the units and sampling rate of the data.
+  that indicate the units and sampling rate of the data. For event data, which
+  is a compound type, `units` is an array with one entry per field rather than
+  a single string; see below.
 
 ## Sampled data
 
@@ -36,6 +41,11 @@ type. The fields are:
 - `status`: the MIDI status byte of the message
 - `message`: a string giving the remainder of the event message. This string may
   be hex-encoded for some event types and UTF-8 encoded for others.
+
+The `units` attribute has one entry per field, `["samples", "", ""]`: only
+`start` is a quantity with a timebase. The specification requires a unit per
+field for compound types, and a single string for the whole dataset is not
+accepted by `arf.py`.
 
 **JILL** modules use the following status bytes:
 
