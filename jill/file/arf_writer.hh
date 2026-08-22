@@ -35,12 +35,14 @@ public:
                    int compression=0);
         ~arf_writer() override = default;
 
-        /* Owns the HDF5 file and the packet tables written into it, which are
-         * themselves move-only handles. */
+        /**
+         * Owns the HDF5 file and the packet tables written into it, which are
+         * themselves move-only handles.
+         */
         arf_writer(arf_writer const &) = delete;
         arf_writer & operator=(arf_writer const &) = delete;
 
-        /* data_writer overrides */
+        /** data_writer overrides */
         bool ready() const override;
         void new_entry(nframes_t) override;
         void close_entry() override;
@@ -50,9 +52,11 @@ public:
         void flush() override;
 
 protected:
-        /* arf 3 packet tables are move-only handles rather than shared_ptrs,
+        /**
+         * arf 3 packet tables are move-only handles rather than shared_ptrs,
          * so this map has a move-only mapped type: use emplace, not
-         * operator[]. Erasing an element closes the table. */
+         * operator[]. Erasing an element closes the table.
+         */
         typedef std::map<std::string, arf::h5pt::packet_table> dset_map_type;
 
         /**
@@ -65,7 +69,7 @@ protected:
         dset_map_type::iterator get_dataset(std::string const & name, bool is_sampled);
 
 private:
-        /* find last entry index */
+        /** find last entry index */
         void _get_last_entry_index();
 
         // references

@@ -29,10 +29,12 @@ program_options::program_options(std::string program_name, bool remote_log_defau
         generic.add_options()
                 ("version,v", "print version string")
                 ("help,h",    "print help message")
-                /* No longer needed to keep a module alive without jrecord:
+                /**
+                 * No longer needed to keep a module alive without jrecord:
                  * the logger drops messages once its queue is full rather than
                  * blocking. This is now only a way to avoid holding a queue at
-                 * all when you know no log server is coming. */
+                 * all when you know no log server is coming.
+                 */
                 ("no-remote-log,L",
                  po::bool_switch()->default_value(!remote_log_default),
                  "do not forward log messages to jrecord. Not required when no "
@@ -84,7 +86,8 @@ program_options::parse(int argc, char **argv)
         LOG << _program_name << ", version " JILL_VERSION;
         LOG << "jackd server: " << server_name;
 
-        /* If page locking is ever wanted, it goes here: one
+        /**
+         * If page locking is ever wanted, it goes here: one
          * mlockall(MCL_CURRENT|MCL_FUTURE) per process, behind an option,
          * reporting whether it succeeded. Not mlock() per buffer, which is
          * what used to be attempted and could not work -- see the note in
@@ -94,7 +97,8 @@ program_options::parse(int argc, char **argv)
          * Nothing needs it today. Anonymous pages cannot be evicted on a host
          * without swap, which is how the small ones are configured, and the
          * larger ones have memory to spare. MCL_FUTURE also turns an
-         * allocation failure into a hard stop, so it should be opt-in. */
+         * allocation failure into a hard stop, so it should be opt-in.
+         */
 
         std::filesystem::path configfile = get<string>("config", "");
         if (std::filesystem::is_regular_file(configfile)) {

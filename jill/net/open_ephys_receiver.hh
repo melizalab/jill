@@ -22,11 +22,11 @@ public:
 	open_ephys_receiver(std::string const & endpoint);
 	~open_ephys_receiver() override;
 
-	/* Owns the socket events are published on. A copy would close it twice. */
+	/** Owns the socket events are published on. A copy would close it twice. */
 	open_ephys_receiver(open_ephys_receiver const &) = delete;
 	open_ephys_receiver & operator=(open_ephys_receiver const &) = delete;
 
-        /* override the write method to send messages over zmq */
+        /** override the write method to send messages over zmq */
         void write(data_block_t const *, nframes_t, nframes_t) override;
 
 	/** send a message to the remote endpoint (ignores reply) */

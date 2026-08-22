@@ -69,8 +69,8 @@ logger::log(timestamp_t const & utc, std::string const & msg)
                 // function, but only one can access the socket at a time
                 std::lock_guard<std::mutex> lock(_lock);
                 const bool sent = forward(utc, msg);
-                /* Report each change of state once rather than per message.
-                 * printf rather than LOG, because LOG comes back here. */
+                // Report each change of state once rather than per message.
+                // printf rather than LOG, because LOG comes back here.
                 if (!sent && _forwarding) {
                         printf("%s [%s] log server is not keeping up;"
                                " messages will not be forwarded until it does"
@@ -89,7 +89,7 @@ logger::log(timestamp_t const & utc, std::string const & msg)
         }
 }
 
-/*
+/**
  * The send must not block. Connecting to an endpoint nothing has bound yet is
  * normal and useful -- an orchestration script cannot guarantee that jrecord
  * wins the race to start, and zeromq queues up to ZMQ_SNDHWM (1000) messages
@@ -113,10 +113,10 @@ logger::log(timestamp_t const & utc, std::string const & msg)
 bool
 logger::forward(timestamp_t const & utc, std::string const & msg)
 {
-        /* message consists of the source name, the timestamp (as an iso
-         * string), and the actual log message. Note that the zmq dealer socket
-         * doesn't prepend an address envelope, so this is what the recipient
-         * router socket will see */
+        // message consists of the source name, the timestamp (as an iso
+        // string), and the actual log message. Note that the zmq dealer socket
+        // doesn't prepend an address envelope, so this is what the recipient
+        // router socket will see
         if (zmq::send(_socket, _source, ZMQ_SNDMORE | ZMQ_DONTWAIT) < 0) {
                 return false;
         }

@@ -69,7 +69,8 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-/* Holds (and owns) all the stimuli. Kept separate from _stimlist because the
+/**
+ * Holds (and owns) all the stimuli. Kept separate from _stimlist because the
  * two answer different questions: this is the set of distinct stimuli, that is
  * the sequence they are presented in, with repeats aliasing entries here.
  *
@@ -77,7 +78,8 @@ jstim_options options(PROGRAM_NAME);
  * move into _stimlist -- a shared_ptr per trial, or entries holding an index
  * into this -- which would remove the declaration-order dependency noted below.
  * The pointers _stimlist hands the queue stay valid across growth either way,
- * since it is the unique_ptrs that move and not what they point at. */
+ * since it is the unique_ptrs that move and not what they point at.
+ */
 std::vector<std::unique_ptr<stimulus_t>> _stimuli;
 // The sequence of trials being played. May be shuffled, and holds one entry
 // per repetition -- several of which alias the same stimulus, which is why the
@@ -89,12 +91,14 @@ std::vector<util::trial> _stimlist;
 std::unique_ptr<util::readahead_stimqueue> stim_queue;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
-/* MIDI events the realtime thread could not write. jack refuses an event
+/**
+ * MIDI events the realtime thread could not write. jack refuses an event
  * whose offset is not inside the period, and refuses to reserve space in a
  * full buffer; write_message reports both by returning non-zero, and every
  * caller here used to discard that. A dropped sync event is invisible in the
  * recording except as a trial with no end, which is a hard thing to trace
- * back. Counted here and reported by main, since the callback cannot log. */
+ * back. Counted here and reported by main, since the callback cannot log.
+ */
 std::atomic<int> midi_errors(0);
 std::atomic<nframes_t> last_stop(0);        // time when last stimulus ended
 std::atomic<int> ret(EXIT_SUCCESS);
@@ -135,14 +139,16 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer
         static nframes_t last_start;  // last stimulus start time
-        /* A stimulus that ends flush with the end of a period wants its
+        /**
+         * A stimulus that ends flush with the end of a period wants its
          * stim_off at offset nframes, which is one past the last frame of the
          * period and which jack refuses. The event belongs at the first frame
          * of the next period -- the same frame either way, just expressed in
          * the next period's coordinates -- so it is carried over and written
          * below. Without this the stop was silently dropped, roughly one trial
          * in every period_size, leaving the trial with no end and the trigger
-         * line stuck on. */
+         * line stuck on.
+         */
         static jill::stimulus_t const * deferred_off;
         static bool deferred_off_condition;
         // last stimulus stop is a global atomic so that the main loop can
@@ -162,8 +168,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         jill::stimulus_t const * stim = (current) ? current->stim : nullptr;
         jill::stimulus_t const * last_stim = (last) ? last->stim : nullptr;
 
-        /* Ahead of everything else: events have to be written in ascending
-         * order, and this one belongs at the first frame of this period. */
+        // Ahead of everything else: events have to be written in ascending
+        // order, and this one belongs at the first frame of this period.
         if (deferred_off) {
                 emit(sync, 0, midi::status_type::stim_off, deferred_off->name());
                 if (deferred_off_condition && !options.posttrigger_interval) {
@@ -268,9 +274,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
                 emit(sync, period_offset, midi::status_type::stim_on, stim->name());
-                /* The condition window brackets the trial, so when there is a
-                 * pretrigger it opened there and this would double it. Without
-                 * one there is no wider window to ride on, so it opens here. */
+                // The condition window brackets the trial, so when there is a
+                // pretrigger it opened there and this would double it. Without
+                // one there is no wider window to ride on, so it opens here.
                 if (current->condition && !options.pretrigger_interval) {
                         emit(sync, period_offset,
                                             midi::status_type(midi::status_type::stim_on,
@@ -333,7 +339,8 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        /* Registered after activation, so this only ever runs on a real change,
+        /**
+         * Registered after activation, so this only ever runs on a real change,
          * never to report the initial size. JACK delivers it on its
          * notification thread with the engine stopped, so logging here is fine;
          * this is not the realtime thread.
@@ -342,7 +349,8 @@ jack_bufsize(jack_client *client, nframes_t nframes)
          * It truncates the stimulus at the next period boundary and emits the
          * stim_off marker there, so the recording carries the length that was
          * actually played rather than the length that was intended. One trial
-         * is spoiled and can be dropped from the analysis. */
+         * is spoiled and can be dropped from the analysis.
+         */
         LOG << "WARNING: JACK period size changed to " << nframes
             << " frames; the audio stream was interrupted and any stimulus in"
                " progress has been truncated";
@@ -361,8 +369,8 @@ jack_shutdown(jack_status_t code, char const *)
 void
 signal_handler(int sig)
 {
-        /*
-	 * Only touch lock-free atomics to stay within bounds of what a signal
+        /**
+         * Only touch lock-free atomics to stay within bounds of what a signal
          * handler can safely do. This used to call stim_queue->stop(), which
          * takes the queue's mutex: a signal delivered while the worker thread
          * held that mutex deadlocked the process, since the handler runs on the
@@ -370,7 +378,7 @@ signal_handler(int sig)
          * the stopping now. The xruns variable is incremented to tell the
          * realtime thread to cut the stimulus short at the start of the next
          * period rather than playing it out.
-	 */
+         */
         xruns.fetch_add(1);
         ret = sig;
         running = false;
@@ -394,7 +402,7 @@ parse_count(string const & s, size_t & out)
         return true;
 }
 
-/* parse the list of stimuli */
+/** parse the list of stimuli */
 static void
 init_stimset(std::vector<string> const & stims, size_t const default_nreps,
              float condition_prob, std::mt19937 & rng)
@@ -404,12 +412,14 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps,
         size_t marked = 0;
         for (size_t i = 0; i < stims.size(); ++i) {
                 fs::path p(stims[i]);
-                /* A bare count following a filename is that stimulus's number
+                /**
+                 * A bare count following a filename is that stimulus's number
                  * of repeats, and is consumed here so it is not opened as a
                  * file. Both halves of this used to be inverted: a count was
                  * read but left in place, so it became the next "filename",
                  * and a following *filename* was skipped instead, so
-                 * `jstim a.wav b.wav` silently played only a.wav. */
+                 * `jstim a.wav b.wav` silently played only a.wav.
+                 */
                 size_t nreps = default_nreps;
                 if ((i + 1) < stims.size() && parse_count(stims[i + 1], nreps)) {
                         i += 1;
@@ -417,7 +427,8 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps,
                 try {
                         _stimuli.push_back(std::make_unique<file::stimfile>(p.string()));
                         jill::stimulus_t * stim = _stimuli.back().get();
-                        /* Assign the condition by counting rather than by
+                        /**
+                         * Assign the condition by counting rather than by
                          * drawing per trial. Every stimulus gets exactly
                          * round(p * nreps) of its repetitions marked, so the
                          * proportion is exact instead of approached, and which
@@ -428,7 +439,8 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps,
                          *
                          * This is also why it does not depend on --shuffle:
                          * that decides presentation order, which is a separate
-                         * question from which trials carry the manipulation. */
+                         * question from which trials carry the manipulation.
+                         */
                         const size_t want = std::lround(condition_prob * nreps);
                         std::vector<bool> flags(nreps, false);
                         std::fill_n(flags.begin(), want, true);
@@ -484,22 +496,24 @@ main(int argc, char **argv)
                         throw Exit(0);
                 }
 
-                /* stimulus queue */
+                /** stimulus queue */
                 DBG << "loading " << options.stimuli.size() << " stimuli";
                 if (options.condition_prob < 0.0 || options.condition_prob > 1.0) {
                         throw std::invalid_argument("--condition-prob must be between 0 and 1");
                 }
-                /* One generator drives both the shuffle and the condition
+                /**
+                 * One generator drives both the shuffle and the condition
                  * assignment, so quoting the seed reproduces the whole
                  * schedule rather than half of it. Seeded even when not
-                 * shuffling, because the condition assignment still draws. */
+                 * shuffling, because the condition assignment still draws.
+                 */
                 const auto given = options.get<string>("shuffle");
                 unsigned seed;
                 if (given && !given->empty()) {
-                        /* A string rather than an unsigned so that "-S" alone
-                         * and "-S 0" are distinguishable: with a numeric
-                         * implicit value they both arrive as zero, and a seed
-                         * of zero is as good as any other. */
+                        // A string rather than an unsigned so that "-S" alone
+                        // and "-S 0" are distinguishable: with a numeric
+                        // implicit value they both arrive as zero, and a seed
+                        // of zero is as good as any other.
                         std::size_t parsed = 0;
                         if (!parse_count(*given, parsed)) {
                                 throw std::invalid_argument(
@@ -564,9 +578,9 @@ main(int argc, char **argv)
                 stim_queue->join();
                 // wait for posttrigger and midi buffers to clear
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
-                /* Reported rather than ignored: a sync event that never made
-                 * it out shows up downstream as a trial with no end, and
-                 * nothing else would say why. */
+                // Reported rather than ignored: a sync event that never made
+                // it out shows up downstream as a trial with no end, and
+                // nothing else would say why.
                 if (const int lost = midi_errors.load()) {
                         LOG << "ERROR: " << lost << " sync event(s) could not be"
                             " written; some trials may have no matching offset";
@@ -582,12 +596,14 @@ main(int argc, char **argv)
                 ret = EXIT_FAILURE;
         }
 
-        /* Tear down explicitly rather than leaving it to static destruction.
+        /**
+         * Tear down explicitly rather than leaving it to static destruction.
          * It happened to work, because stim_queue is declared after _stimuli
          * and so is destroyed first, but relying on the order of two
          * declarations in one file is not the same as saying what has to
          * happen. jrecord uses a scope_guard and jrelay resets here; this was
-         * the odd one out. */
+         * the odd one out.
+         */
         stim_queue.reset();
         return ret;
 }
@@ -614,9 +630,11 @@ jstim_options::jstim_options(string const &program_name)
         // tropts is a group of options
         po::options_description opts("Stimulus options");
         opts.add_options()
-                /* implicit_value so that -S alone still works: with a value
-                  * the presentation is repeatable, without one a seed is drawn
-                  * and logged so the session can be repeated afterwards. */
+                /**
+                 * implicit_value so that -S alone still works: with a value
+                 * the presentation is repeatable, without one a seed is drawn
+                 * and logged so the session can be repeated afterwards.
+                 */
                 ("stim-list", po::value<string>(),
                  "read stimuli from a file, one per line, each optionally "
                  "followed by whitespace and a repeat count. Blank lines and "
@@ -634,14 +652,16 @@ jstim_options::jstim_options(string const &program_name)
                  "minimum gap between sound (s)")
                 ("interval,i",po::value(&min_interval_sec)->default_value(0.0),
                  "minimum interval between stimulus start times (s)")
-                /* Not bound to the std::optional members with po::value(&x).
-                  * program_options converts through boost::lexical_cast, which
-                  * only learned to stream std::optional in Boost 1.90 -- so
-                  * that compiled here and failed on every CI runner with a
-                  * static_assert about the target being neither istream'able
-                  * nor wistream'able. The optionals are filled from the
-                  * variables map in process_options() instead, which is what
-                  * program_options::get() is for. */
+                /**
+                 * Not bound to the std::optional members with po::value(&x).
+                 * program_options converts through boost::lexical_cast, which
+                 * only learned to stream std::optional in Boost 1.90 -- so
+                 * that compiled here and failed on every CI runner with a
+                 * static_assert about the target being neither istream'able
+                 * nor wistream'able. The optionals are filled from the
+                 * variables map in process_options() instead, which is what
+                 * program_options::get() is for.
+                 */
                 ("trial-before", po::value<float>(),
                  "if set, open the trial window (channel 1) this many seconds before stimulus onset (does not apply to triggered mode)")
                 ("trial-after", po::value<float>(),
@@ -671,7 +691,8 @@ jstim_options::print_usage()
                   << std::endl;
 }
 
-/* Append the stimuli named in a list file.
+/**
+ * Append the stimuli named in a list file.
  *
  * One per line, each optionally followed by a repeat count. The count is
  * separated from the name by whitespace, and only the *last* field is taken as
@@ -698,8 +719,8 @@ read_stim_list(string const & path, std::vector<string> & out)
                 const auto last = line.find_last_not_of(" \t\r");
                 line = line.substr(first, last - first + 1);
 
-                /* Split a trailing count off the end, if there is one. Anything
-                 * else, including embedded spaces, belongs to the name. */
+                // Split a trailing count off the end, if there is one. Anything
+                // else, including embedded spaces, belongs to the name.
                 const auto gap = line.find_last_of(" \t");
                 size_t count = 0;
                 if (gap != string::npos && parse_count(line.substr(gap + 1), count)) {

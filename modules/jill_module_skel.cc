@@ -166,14 +166,12 @@ main(int argc, char **argv)
                 return ret;
         }
 
-        /*
-         * These catch statements handle two kinds of exceptions.  The
-         * Exit exception is thrown to terminate the application
-         * normally (i.e. if the user asked for the app version or
-         * usage); other exceptions are typically thrown if there's a
-         * serious error, in which case the user is notified on
-         * stderr.
-         */
+        // These catch statements handle two kinds of exceptions.  The
+        // Exit exception is thrown to terminate the application
+        // normally (i.e. if the user asked for the app version or
+        // usage); other exceptions are typically thrown if there's a
+        // serious error, in which case the user is notified on
+        // stderr.
         catch (Exit const &e) {
                 return e.status();
         }

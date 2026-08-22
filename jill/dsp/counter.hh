@@ -80,8 +80,8 @@ public:
 	 * @param count          the value to add
 	 */
 	void push(data_type count) {
-                /* _head is the next slot to write, which once the window has
-                 * filled is also the oldest value in it. */
+                // _head is the next slot to write, which once the window has
+                // filled is also the oldest value in it.
                 if (full()) {
                         _running_count -= _counts[_head];
                 }
@@ -110,8 +110,8 @@ public:
 	friend std::ostream& operator<< (std::ostream &os, const running_counter<T> &o) {
 		const size_type capacity = o._counts.size();
 		os << o._running_count << " [" << o._size << '/' << capacity << "] (";
-                /* Oldest first, which is insertion order rather than storage
-                 * order: the oldest value sits _size slots behind the head. */
+                // Oldest first, which is insertion order rather than storage
+                // order: the oldest value sits _size slots behind the head.
                 for (size_type i = 0; i < o._size; ++i) {
                         os << o._counts[(o._head + capacity - o._size + i) % capacity] << ' ';
                 }

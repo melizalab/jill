@@ -33,10 +33,12 @@ triggered_data_writer::triggered_data_writer(std::unique_ptr<data_writer> writer
           _pretrigger(pretrigger_frames),
           _posttrigger(std::max(posttrigger_frames, 1U)),
           _recording(false),
-          /* Never initialized before. write() only reads it after
+          /**
+           * Never initialized before. write() only reads it after
            * stop_recording() has set it, so nothing was observably wrong, but
            * an uninitialized read is one refactor away and costs nothing to
-           * rule out. */
+           * rule out.
+           */
           _last_offset(0)
 {
         DBG << "triggered_data_writer initializing";
@@ -49,7 +51,7 @@ triggered_data_writer::~triggered_data_writer()
         join();
 }
 
-/*
+/**
  * This function handles opening a new entry and writing data in the prebuffer.
  * The event_time argument indicates the time when the trigger event occurred,
  * so we start at the tail of the ringbuffer and search for the sample with
@@ -60,34 +62,34 @@ triggered_data_writer::start_recording(nframes_t event_time)
 {
         nframes_t onset = event_time - _pretrigger;
 
-        /*
-	 * Start at tail of queue and find onset. This may not be in the buffer
-	 * if it has not had enough time to fill.
-	 */
+        /**
+         * Start at tail of queue and find onset. This may not be in the buffer
+         * if it has not had enough time to fill.
+         */
         data_block_t const * ptr = _buffer->peek();
 
-        /* Every comparison below is a frame *difference*, not a magnitude.
-         * The sample counter is unsigned and wraps, and onset wraps with it
-         * whenever the trigger arrives within _pretrigger frames of the JACK
-         * server starting -- at which point comparing directly makes every
-         * buffered period look older than the onset. The first loop then
-         * released the whole buffer and the next dereferenced the null that
-         * peek() returned. A trigger early in a session segfaulted jrecord.
-         *
-         * The null checks matter on their own account: the comment below
-         * about the buffer not having filled describes a case the code did
-         * not actually handle, and assert() is compiled out of release
-         * builds, which is where recordings are made. */
+        // Every comparison below is a frame *difference*, not a magnitude.
+        // The sample counter is unsigned and wraps, and onset wraps with it
+        // whenever the trigger arrives within _pretrigger frames of the JACK
+        // server starting -- at which point comparing directly makes every
+        // buffered period look older than the onset. The first loop then
+        // released the whole buffer and the next dereferenced the null that
+        // peek() returned. A trigger early in a session segfaulted jrecord.
+        //
+        // The null checks matter on their own account: the comment below
+        // about the buffer not having filled describes a case the code did
+        // not actually handle, and assert() is compiled out of release
+        // builds, which is where recordings are made.
         while (ptr && framediff_t(ptr->time + ptr->nframes() - onset) <= 0) {
-                /* <= rather than <: a period ending exactly at the onset holds
-                 * no sample at or after it, and was being written with a
-                 * start offset equal to its length -- an empty write. */
+                // <= rather than <: a period ending exactly at the onset holds
+                // no sample at or after it, and was being written with a
+                // start offset equal to its length -- an empty write.
 		DBG << "prebuffer frame (discarded): " << *ptr;
                 _buffer->release();
                 ptr = _buffer->peek();
         }
 
-        /* write partial period(s) */
+        // write partial period(s)
         while (ptr && framediff_t(ptr->time - onset) <= 0) {
                 DBG << "prebuf frame (partial): " << *ptr << ", on=" << onset - ptr->time;
                 _writer->write(ptr, onset - ptr->time, 0);
@@ -95,7 +97,7 @@ triggered_data_writer::start_recording(nframes_t event_time)
                 ptr = _buffer->peek();
         }
 
-        /* write additional periods in prebuffer, up to current period */
+        // write additional periods in prebuffer, up to current period
         while (ptr && framediff_t(ptr->time + ptr->nframes() - event_time) <= 0) {
 		DBG << "prebuffer frame (complete): " << *ptr;
                 _writer->write(ptr, 0, 0);
@@ -106,7 +108,7 @@ triggered_data_writer::start_recording(nframes_t event_time)
         _recording = true;
 }
 
-/*
+/**
  * this function doesn't close the entry immediately, but sets flags so that
  * write() will do this at the appropriate time
  */
@@ -123,7 +125,7 @@ triggered_data_writer::write(data_block_t const * data)
 {
         std::string id = data->id();
         nframes_t nframes = data->nframes();
-        /* handle trigger channel */
+        // handle trigger channel
         if (data->dtype == EVENT && id == _trigger_port) {
                 if (_recording) {
                         if (midi::is_offset(data->data(), data->sz_data)) {

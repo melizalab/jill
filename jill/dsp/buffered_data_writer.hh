@@ -68,12 +68,14 @@ public:
                              std::chrono::milliseconds poll_interval=std::chrono::milliseconds(50));
         ~buffered_data_writer() override;
 
-        /* Owns the consumer thread and the socket log messages arrive on. A copy
-         * would put two threads on one buffer and close the socket twice. */
+        /**
+         * Owns the consumer thread and the socket log messages arrive on. A copy
+         * would put two threads on one buffer and close the socket twice.
+         */
         buffered_data_writer(buffered_data_writer const &) = delete;
         buffered_data_writer & operator=(buffered_data_writer const &) = delete;
 
-        /* implementations of data_thread methods */
+        /** implementations of data_thread methods */
 
         void push(nframes_t time, dtype_t dtype, char const * id,
                   std::size_t size, void const * data) override;
@@ -124,11 +126,13 @@ protected:
          */
         void write_messages();
 
-        /* Control flags, touched by the realtime thread, the writer thread
+        /**
+         * Control flags, touched by the realtime thread, the writer thread
          * and main(). Left at the default sequentially consistent ordering:
          * each is read at most once per period, so the cost is irrelevant and
          * the weaker orderings would only be an opportunity to get it wrong.
-         * The ringbuffer pointers are the ones worth tuning. */
+         * The ringbuffer pointers are the ones worth tuning.
+         */
         std::atomic<state_t> _state;               // thread state
         std::atomic<bool> _reset;                  // flag to reset stream
 
@@ -140,9 +144,11 @@ private:
 
         std::mutex _lock;                           // mutex for condition variable
         std::condition_variable _ready;             // indicates data ready
-        /* Set when something has been written since the last flush. The
+        /**
+         * Set when something has been written since the last flush. The
          * consumer wakes on a timer now rather than on a signal, so without
-         * this it would flush the file on every idle pass. */
+         * this it would flush the file on every idle pass.
+         */
         bool _dirty;
         std::chrono::milliseconds _poll_interval;
         std::thread _thread;

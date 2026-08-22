@@ -26,9 +26,11 @@ public:
         data_source() = default;
         virtual ~data_source() = default;
 
-        /* An implementation wraps a live connection to a running server, which
+        /**
+         * An implementation wraps a live connection to a running server, which
          * cannot be duplicated. Deleting the copy constructor here also keeps a
-         * derived object from being sliced down to this interface. */
+         * derived object from being sliced down to this interface.
+         */
         data_source(data_source const &) = delete;
         data_source & operator=(data_source const &) = delete;
 

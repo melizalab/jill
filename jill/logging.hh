@@ -44,8 +44,10 @@ using timestamp_t = boost::posix_time::ptime;
 class log_msg {
 
 public:
-        /* Accumulates a line and emits it on destruction. A copy would emit
-         * the same line a second time. */
+        /**
+         * Accumulates a line and emits it on destruction. A copy would emit
+         * the same line a second time.
+         */
         log_msg(log_msg const &) = delete;
         log_msg & operator=(log_msg const &) = delete;
 

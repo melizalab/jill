@@ -67,7 +67,7 @@ std::atomic<bool> stopping(false);
 std::atomic<bool> running(true);
 std::atomic<int> ret(EXIT_SUCCESS);
 
-/* data storage for event times */
+/** data storage for event times */
 struct event_t {
         nframes_t time;
         midi::status_type status;
@@ -138,10 +138,11 @@ std::size_t log_times(event_t const * events, std::size_t count)
 void
 signal_handler(int sig)
 {
-        /* Stores to lock-free atomics and nothing else. `stopping` tells the
+        /**
+         * Stores to lock-free atomics and nothing else. `stopping` tells the
          * realtime thread to generate a note off event for any downstream
          * clients (e.g. jrecord in triggered mode). `running` is polled by
-         * main() and initiates shutdown of the main thread. 
+         * main() and initiates shutdown of the main thread.
          */
         ret = sig;
         stopping = true;
@@ -167,10 +168,10 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
         nframes_t period_size = options.period_size_ms * samplerate / 1000;
         int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
         int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
-        /* Integer division, so an integration window shorter than the analysis
-         * period rounds to zero periods. running_counter rejects that, but it
-         * cannot say which options produced it, and this used to segfault in
-         * the process callback instead. */
+        // Integer division, so an integration window shorter than the analysis
+        // period rounds to zero periods. running_counter rejects that, but it
+        // cannot say which options produced it, and this used to segfault in
+        // the process callback instead.
         if (open_crossing_periods < 1 || close_crossing_periods < 1) {
                 std::ostringstream msg;
                 msg << "--open-period (" << options.open_crossing_period_ms
@@ -238,10 +239,12 @@ main(int argc, char **argv)
                         trig_times.pop(log_times); // calls visitor function on ringbuffer
                 }
 
-                /* Give the realtime thread a period to notice `stopping` and
+                /**
+                 * Give the realtime thread a period to notice `stopping` and
                  * emit its closing note_off before activated_client goes out
                  * of scope and deactivates the client. The signal handler used
-                 * to do this wait itself, from signal context. */
+                 * to do this wait itself, from signal context.
+                 */
                 usleep(2e6 * client->buffer_size() / client->sampling_rate());
                 trig_times.pop(log_times); // whatever it logged on the way out
 

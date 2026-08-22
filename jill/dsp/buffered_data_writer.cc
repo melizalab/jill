@@ -27,7 +27,7 @@ using namespace jill::net;
 using std::size_t;
 using std::string;
 
-/*
+/**
  * # Notes on buffered data_thread objects
  *
  * Wait-free functions are provided to the producer thread by using a
@@ -90,7 +90,8 @@ buffered_data_writer::xrun()
 void
 buffered_data_writer::stop()
 {
-        /* Begins the process of shutting down the writer. If the writer is
+        /**
+         * Begins the process of shutting down the writer. If the writer is
          * Running, switches the state to Stopping (which drops any further data
          * sent to push()) and releases the _ready condition variable so that
          * the writer thread flushes any remaining data. If the writer is
@@ -160,7 +161,8 @@ buffered_data_writer::join()
 size_t
 buffered_data_writer::request_buffer_size(size_t bytes)
 {
-        /* Called from the JACK buffer size callback, which the server delivers
+        /**
+         * Called from the JACK buffer size callback, which the server delivers
          * on its notification thread with the engine stopped -- so blocking and
          * allocating here are both fine, and no process callback is running to
          * push while this works.
@@ -172,11 +174,13 @@ buffered_data_writer::request_buffer_size(size_t bytes)
         if (bytes <= _buffer->size()) {
                 return _buffer->size();
         }
-        /* resize() discards, so anything still buffered has to reach the file
+        /**
+         * resize() discards, so anything still buffered has to reach the file
          * first. Taking the lock already implies the writer thread is parked,
          * and it only parks after draining and flushing -- but that is a
          * property of the loop above rather than a promise, and the cost of
-         * being wrong is a silent hole in a recording. Drain explicitly. */
+         * being wrong is a silent hole in a recording. Drain explicitly.
+         */
         data_block_t const * hdr;
         while ((hdr = _buffer->peek()) != nullptr) {
                 write(hdr);
@@ -205,14 +209,14 @@ buffered_data_writer::thread()
                 hdr = _buffer->peek_ahead();
                 if (!hdr) {
                         write_messages();
-                        /* if ringbuffer empty and Stopping, exit loop */
+                        // if ringbuffer empty and Stopping, exit loop
                         if (_state == Stopping) {
                                 break;
                         }
-                        /* otherwise flush anything outstanding and sleep. The
-                         * flush is guarded because this pass now also happens
-                         * on an idle timer, and flushing an unchanged file
-                         * every interval would be pure overhead. */
+                        // otherwise flush anything outstanding and sleep. The
+                        // flush is guarded because this pass now also happens
+                        // on an idle timer, and flushing an unchanged file
+                        // every interval would be pure overhead.
                         else {
                                 if (_dirty) {
                                         _writer->flush();

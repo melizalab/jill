@@ -212,7 +212,7 @@ jack_client::time() const
         return jack_get_time();
 }
 
-/*
+/**
  * These are the callback functions that are actually registered with the JACK
  * server. The registration functions take function pointers, not member
  * function pointers, so these functions have to be static. A pointer to the
@@ -342,7 +342,7 @@ jack_client::set_latency_callback(LatencyCallback const & cb) {
         _latency_cb = cb;
 }
 
-/* These are methods that can only be called on activated clients */
+/** These are methods that can only be called on activated clients */
 void
 activated_client::connect_port(string const & src, string const & dest)
 {

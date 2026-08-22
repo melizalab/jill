@@ -102,7 +102,7 @@ static bool envelope_only = false;
 static std::random_device rd;  //Will be used to obtain a seed for the random number engine
 static std::mt19937 wn_gen(rd()); //Standard mersenne_twister_engine seeded with rd()
 static std::uniform_real_distribution<> wn_dis(-1.0, 1.0);
-/*
+/**
  * The process callback extracts the envelope of the incoming signal by
  * performing a Hilbert transform and then low-pass filtering with a 4th-order
  * Butterworth.

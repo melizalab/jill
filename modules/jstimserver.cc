@@ -114,8 +114,10 @@ std::map<std::string, std::unique_ptr<stimulus_t>> _stimuli;
 ProcessRequest _request;
 /** signal from jack server to process that there was an xrun */
 std::atomic<int> _xruns(0);
-/* MIDI events the realtime thread could not write; see jstim for the
- * reasoning. Counted here because the callback cannot log. */
+/**
+ * MIDI events the realtime thread could not write; see jstim for the
+ * reasoning. Counted here because the callback cannot log.
+ */
 std::atomic<int> _midi_errors(0);
 /** signal from jack server or signal handler to end the process */
 std::atomic<bool> _running(true);
@@ -123,14 +125,16 @@ std::atomic<bool> _running(true);
 static dsp::ringbuffer<Event> _eventbuf(64);
 /** jack ports */
 jack_port_t *port_out, *port_trigout;
-/* What the realtime thread is playing, or null. Published for STATUS, which
+/**
+ * What the realtime thread is playing, or null. Published for STATUS, which
  * is the only way a client can learn the state without having seen every
  * event -- and no client has, since a SUB that connects after the server
  * binds misses everything before it.
  *
  * Written only by the realtime thread and read only by main, so relaxed is
  * enough: there is no other data whose visibility this has to order, and the
- * answer is advisory in any case. It lags by at most one period. */
+ * answer is advisory in any case. It lags by at most one period.
+ */
 std::atomic<stimulus_t const *> _playing{nullptr};
 
 
@@ -151,10 +155,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         static stimulus_t const * _stim;       // currently playing stimulus or
                                                // zero if stopped
         static nframes_t stim_offset;          // current position in stimulus buffer
-        /* A stimulus ending flush with the end of a period wants its stim_off
+        /**
+         * A stimulus ending flush with the end of a period wants its stim_off
          * at offset nframes, which jack refuses as outside the period. The
          * event belongs at the first frame of the next period -- the same
-         * frame, in the next period's coordinates -- so carry it over. */
+         * frame, in the next period's coordinates -- so carry it over.
+         */
         static stimulus_t const * deferred_off;
 
         void * trig = client->events(port_trigout, nframes);
@@ -163,28 +169,28 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         for(nframes_t i = 0; i < nframes; ++i)
                 out[i] = 0.0f;
 
-        /* Before anything else writes to the port: events must be in
-         * ascending order and this one belongs at the first frame. */
+        // Before anything else writes to the port: events must be in
+        // ascending order and this one belongs at the first frame.
         if (deferred_off) {
                 emit(trig, 0, midi::status_type::stim_off, deferred_off->name());
                 deferred_off = nullptr;
         }
 
-        /* An xrun -- or a buffer size change, which routes here too -- means
-         * a gap in the audio stream. Truncate anything playing rather than
-         * carrying on from where we left off: the stimulus would come out with
-         * a hole in the middle, and a trial that sounds intact but is not is
-         * far harder to exclude from an analysis than one that is obviously
-         * short. The client is told both that the stream broke and that this
-         * particular playback was cut off. */
+        // An xrun -- or a buffer size change, which routes here too -- means
+        // a gap in the audio stream. Truncate anything playing rather than
+        // carrying on from where we left off: the stimulus would come out with
+        // a hole in the middle, and a trial that sounds intact but is not is
+        // far harder to exclude from an analysis than one that is obviously
+        // short. The client is told both that the stream broke and that this
+        // particular playback was cut off.
         if (_xruns) {
-                /* Only report a break that ruined something. An Xrun event
-                 * names the stimulus it interrupted, and between trials there
-                 * is none: publishing one anyway left the publisher formatting
-                 * a null stimulus, which segfaulted the process on any xrun
-                 * while idle. Nothing is lost by staying quiet -- a break
-                 * between trials affects no playback, and jrecord marks xruns
-                 * against the data they actually corrupted. */
+                // Only report a break that ruined something. An Xrun event
+                // names the stimulus it interrupted, and between trials there
+                // is none: publishing one anyway left the publisher formatting
+                // a null stimulus, which segfaulted the process on any xrun
+                // while idle. Nothing is lost by staying quiet -- a break
+                // between trials affects no playback, and jrecord marks xruns
+                // against the data they actually corrupted.
                 if (_stim) {
                         _eventbuf.push(Event{Event::Xrun, time, _stim});
                         emit(trig, 0, midi::status_type::stim_off,
@@ -250,8 +256,10 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 _stim = nullptr;
         }
 
-        /* Publish after every transition above, so a STATUS answer is never a
-         * state that did not happen. The other exit stores too. */
+        /**
+         * Publish after every transition above, so a STATUS answer is never a
+         * state that did not happen. The other exit stores too.
+         */
         _playing.store(_stim, std::memory_order_relaxed);
         return 0;
 }
@@ -266,13 +274,15 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        /* Registered after activation, so this only ever runs on a real change,
+        /**
+         * Registered after activation, so this only ever runs on a real change,
          * never to report the initial size. JACK delivers it on its
          * notification thread with the engine stopped, so logging and
          * allocating here are both fine -- this is not the realtime thread.
          *
          * The stream has a gap in it either way, so route it through the xrun
-         * path, which truncates the current stimulus and tells the client. */
+         * path, which truncates the current stimulus and tells the client.
+         */
         LOG << "WARNING: JACK period size changed to " << nframes
             << " frames; the audio stream was interrupted and any playback in"
                " progress has been truncated";
@@ -309,22 +319,22 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
                 try {
                         auto stim = std::make_unique<file::stimfile>(p.string());
                         std::string name(stim->name());
-                        /* Stimuli are addressed by basename, so two files that
-                         * share one are a configuration error there is no
-                         * honest way to serve: only the first could ever be
-                         * played, while STIMLIST would advertise both with
-                         * their real durations. Refuse to start, rather than
-                         * let an experiment run against a list that lies.
-                         *
-                         * Note this is deliberately harsher than the treatment
-                         * of an unreadable file below, which is logged and
-                         * skipped. That leaves a shorter list which is still
-                         * accurate; this cannot, because two different files
-                         * are claiming one identity.
-                         *
-                         * Checked before load_samples() so a misconfigured
-                         * playlist fails immediately rather than after
-                         * resampling everything ahead of the collision. */
+                        // Stimuli are addressed by basename, so two files that
+                        // share one are a configuration error there is no
+                        // honest way to serve: only the first could ever be
+                        // played, while STIMLIST would advertise both with
+                        // their real durations. Refuse to start, rather than
+                        // let an experiment run against a list that lies.
+                        //
+                        // Note this is deliberately harsher than the treatment
+                        // of an unreadable file below, which is logged and
+                        // skipped. That leaves a shorter list which is still
+                        // accurate; this cannot, because two different files
+                        // are claiming one identity.
+                        //
+                        // Checked before load_samples() so a misconfigured
+                        // playlist fails immediately rather than after
+                        // resampling everything ahead of the collision.
                         if (_stimuli.count(name) > 0) {
                                 std::ostringstream msg;
                                 msg << "duplicate stimulus name '" << name
@@ -352,7 +362,8 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
         return ss.str();
 }
 
-/* This thread publishes events to a zmq socket.
+/**
+ * This thread publishes events to a zmq socket.
  *
  * Takes a stop token as well as watching the global _running flag, because the
  * two cover different exits. _running is how a signal or a JACK shutdown ends
@@ -413,7 +424,8 @@ stim_monitor(std::stop_token stop)
         zmq::close(socket);
 }
 
-/* The version of the control protocol, reported by VERSION.
+/**
+ * The version of the control protocol, reported by VERSION.
  *
  * Deliberately not the JILL release version, which is what this used to
  * return. A client needs to know whether it understands the exchange, not
@@ -424,14 +436,17 @@ stim_monitor(std::stop_token stop)
  *
  * Major changes when an existing exchange changes meaning, so a client MUST
  * refuse a major it does not know. Minor changes when something is added that
- * an older client can ignore. See doc/jstimserver-protocol.md. */
+ * an older client can ignore. See doc/jstimserver-protocol.md.
+ */
 constexpr char PROTOCOL_VERSION[] = "1.0";
 
 constexpr char REQ_VERSION[] = "VERSION";
 constexpr char REQ_STIMLIST[] = "STIMLIST";
-/* The separator is part of the token deliberately, so that a bare "PLAY"
+/**
+ * The separator is part of the token deliberately, so that a bare "PLAY"
  * fails to match and falls through to BADCMD by construction rather than by
- * a length check someone has to remember to write. */
+ * a length check someone has to remember to write.
+ */
 constexpr char REQ_PLAYSTIM[] = "PLAY ";
 constexpr char REQ_INTERRUPT[] = "INTERRUPT";
 constexpr char REQ_STATUS[] = "STATUS";
@@ -453,7 +468,7 @@ main(int argc, char **argv)
                         LOG << "no stimuli; quitting";
                         throw Exit(0);
                 }
-                /* load the stimuli */
+                /** load the stimuli */
                 std::string stimlist = init_stimset(options.stimuli, client.sampling_rate());
                 DBG << "stimlist: " << stimlist;
 
@@ -517,10 +532,10 @@ main(int argc, char **argv)
                                 DBG << "client requested playlist";
                                 messages.back() = stimlist;
                         }
-                        /* Answered from the published state rather than from a
-                         * request to the realtime thread, so it is available
-                         * whatever else is in flight -- a client asking what is
-                         * going on must not be told BUSY. */
+                        // Answered from the published state rather than from a
+                        // request to the realtime thread, so it is available
+                        // whatever else is in flight -- a client asking what is
+                        // going on must not be told BUSY.
                         else if (data.compare(REQ_STATUS) == 0) {
                                 stimulus_t const * playing =
                                         _playing.load(std::memory_order_relaxed);
@@ -529,16 +544,16 @@ main(int argc, char **argv)
                                         ? std::string("PLAYING ") + playing->name()
                                         : REP_IDLE;
                         }
-                        /* There is deliberately no "is a request already
-                         * pending" test ahead of the dispatch. There used to
-                         * be, and because it ran before the command was
-                         * recognised, an unknown request was answered BUSY
-                         * whenever the realtime thread had not yet consumed the
-                         * previous one -- so a client could not tell a
-                         * malformed request from a transient failure. It was
-                         * redundant as well as harmful: start() and interrupt()
-                         * below compare-and-swap, and report BUSY themselves
-                         * when they lose. */
+                        // There is deliberately no "is a request already
+                        // pending" test ahead of the dispatch. There used to
+                        // be, and because it ran before the command was
+                        // recognised, an unknown request was answered BUSY
+                        // whenever the realtime thread had not yet consumed the
+                        // previous one -- so a client could not tell a
+                        // malformed request from a transient failure. It was
+                        // redundant as well as harmful: start() and interrupt()
+                        // below compare-and-swap, and report BUSY themselves
+                        // when they lose.
                         else if (data.starts_with(REQ_PLAYSTIM)) {
                                 auto stim = data.substr(strlen(REQ_PLAYSTIM));
                                 auto it = _stimuli.find(stim);
@@ -576,18 +591,18 @@ main(int argc, char **argv)
                         zmq::send_n(req_socket, messages.begin(), messages.size());
                 }
                 LOG << "stopping";
-                /* Reported rather than ignored: a trigger event that never
-                 * made it out leaves a stimulus with no matching offset, and
-                 * nothing else would say why. */
+                // Reported rather than ignored: a trigger event that never
+                // made it out leaves a stimulus with no matching offset, and
+                // nothing else would say why.
                 if (const int lost = _midi_errors.load()) {
                         LOG << "ERROR: " << lost << " trigger event(s) could not"
                             " be written; some stimuli may have no offset";
                 }
 
-                /* No explicit join: ~jthread requests the stop and waits.
-                 * Joining here would also have hung on the path where the
-                 * request loop breaks out with _running still set, which is
-                 * what an interrupted recv does. */
+                // No explicit join: ~jthread requests the stop and waits.
+                // Joining here would also have hung on the path where the
+                // request loop breaks out with _running still set, which is
+                // what an interrupted recv does.
                 return EXIT_SUCCESS;
         }
 

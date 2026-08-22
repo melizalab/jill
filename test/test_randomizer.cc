@@ -21,7 +21,7 @@ using jill::util::event_randomizer;
 
 namespace {
 
-/* the control parameter the class documentation recommends */
+/** the control parameter the class documentation recommends */
 const float control = 8.0;
 const float seed = 1024;
 
@@ -135,9 +135,11 @@ TEST_CASE("reset clears counts") {
         }
 }
 
-/* The table is fixed at construction because growing it would mean allocating
+/**
+ * The table is fixed at construction because growing it would mean allocating
  * in the realtime thread. These cover what that costs: a capacity to run into,
- * and a name length to exceed. */
+ * and a name length to exceed.
+ */
 
 TEST_CASE("a capacity of zero is rejected") {
         CHECK_THROWS_AS(event_randomizer(0.5, control, seed, 0), std::out_of_range);

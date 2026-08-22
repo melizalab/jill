@@ -46,7 +46,7 @@ constexpr char TRIGGER_PORT[] = "trig_in";
 constexpr char DATA_PORT[] = "data";
 constexpr nframes_t PERIOD = 64;
 
-/* A sink that records what it was asked to do. */
+/** A sink that records what it was asked to do. */
 struct recording_writer : public data_writer {
         struct call {
                 std::string kind;
@@ -57,11 +57,13 @@ struct recording_writer : public data_writer {
         };
 
         std::vector<call> calls;
-        /* Models arf_writer: ready() reports whether an entry is open, an
+        /**
+         * Models arf_writer: ready() reports whether an entry is open, an
          * entry opens lazily on the first write, and close_entry() ends it.
          * Getting this wrong matters -- a sink that claims to be ready before
          * anything has been recorded sends write() down its posttrigger
-         * branch, and the prebuffer is never exercised at all. */
+         * branch, and the prebuffer is never exercised at all.
+         */
         bool entry_open = false;
 
         bool ready() const override { return entry_open; }
@@ -102,8 +104,10 @@ struct recording_writer : public data_writer {
 
 } // namespace
 
-/* Declared a friend by triggered_data_writer, so this is how the test reaches
- * write() and the inherited buffer without the consumer thread running. */
+/**
+ * Declared a friend by triggered_data_writer, so this is how the test reaches
+ * write() and the inherited buffer without the consumer thread running.
+ */
 namespace jill { namespace dsp {
 
 class triggered_data_writer_test {
@@ -119,9 +123,11 @@ using jill::dsp::triggered_data_writer_test;
 
 namespace {
 
-/* A fixture holding the writer, the sink it reports to, and helpers for
+/**
+ * A fixture holding the writer, the sink it reports to, and helpers for
  * pushing periods. The sink is owned by the writer, so keep a raw pointer to
- * look at afterwards -- it outlives every use here. */
+ * look at afterwards -- it outlives every use here.
+ */
 struct harness {
         recording_writer * sink;
         std::unique_ptr<triggered_data_writer> writer;
@@ -201,9 +207,9 @@ TEST_CASE("an onset trigger starts recording") {
 }
 
 TEST_CASE("the prebuffer walk writes exactly the pretrigger window") {
-        /* Four periods buffered and a pretrigger of two, so the onset falls on
-         * the boundary between period 1 and period 2: periods 0 and 1 are too
-         * old and must be discarded, 2 and 3 must be written whole. */
+        // Four periods buffered and a pretrigger of two, so the onset falls on
+        // the boundary between period 1 and period 2: periods 0 and 1 are too
+        // old and must be discarded, 2 and 3 must be written whole.
         const nframes_t pretrigger = PERIOD * 2;
         harness h(pretrigger, PERIOD * 2);
         h.fill(4);
@@ -211,8 +217,8 @@ TEST_CASE("the prebuffer walk writes exactly the pretrigger window") {
         const nframes_t onset_at = h.now;
         h.trigger(midi::status_type::note_on);
 
-        /* The trigger event block is written too, so that the entry records
-         * what opened it; count only the sampled channel here. */
+        // The trigger event block is written too, so that the entry records
+        // what opened it; count only the sampled channel here.
         std::vector<recording_writer::call> data_writes;
         for (auto const & w : h.sink->writes())
                 if (w.id == DATA_PORT) data_writes.push_back(w);
@@ -233,10 +239,10 @@ TEST_CASE("the prebuffer walk writes exactly the pretrigger window") {
 }
 
 TEST_CASE("a period straddling the onset is written from the onset") {
-        /* A pretrigger that is not a multiple of the period puts the onset
-         * inside a period rather than on a boundary. That period must be
-         * written from the onset onwards, which is the `start` argument, and
-         * getting it wrong silently shifts every triggered recording. */
+        // A pretrigger that is not a multiple of the period puts the onset
+        // inside a period rather than on a boundary. That period must be
+        // written from the onset onwards, which is the `start` argument, and
+        // getting it wrong silently shifts every triggered recording.
         const nframes_t pretrigger = PERIOD + PERIOD / 2;
         harness h(pretrigger, PERIOD * 2);
         h.fill(4);
@@ -259,19 +265,19 @@ TEST_CASE("a period straddling the onset is written from the onset") {
 }
 
 TEST_CASE("a pretrigger longer than the buffered data writes what there is") {
-        /* The comment on start_recording() says the onset may not be in the
-         * buffer if it has not had time to fill. Asking for more history than
-         * exists must not walk off the end. */
+        // The comment on start_recording() says the onset may not be in the
+        // buffer if it has not had time to fill. Asking for more history than
+        // exists must not walk off the end.
         harness h(PERIOD * 100, PERIOD * 2);
         h.fill(2);
         for (int i = 0; i < 2; ++i) h.step();
         h.trigger(midi::status_type::note_on);
 
         CHECK(h.recording());
-        /* Both buffered periods are kept rather than discarded: asking for
-         * more history than exists must yield what there is. Before the walk
-         * was made wrap-safe this segfaulted, because onset underflowed and
-         * every period looked older than it. */
+        // Both buffered periods are kept rather than discarded: asking for
+        // more history than exists must yield what there is. Before the walk
+        // was made wrap-safe this segfaulted, because onset underflowed and
+        // every period looked older than it.
         std::size_t data_writes = 0;
         for (auto const & w : h.sink->writes())
                 if (w.id == DATA_PORT) ++data_writes;
@@ -304,9 +310,9 @@ TEST_CASE("an offset trigger stops recording but keeps writing posttrigger data"
         h.trigger(midi::status_type::note_off);
         CHECK_FALSE(h.recording());
 
-        /* Recording is off, but the entry stays open until the posttrigger
-         * window has passed -- that is the whole point of the flag being
-         * separate from the entry. */
+        // Recording is off, but the entry stays open until the posttrigger
+        // window has passed -- that is the whole point of the flag being
+        // separate from the entry.
         const std::size_t at_offset = h.sink->writes().size();
         h.push_data();
         h.step();
@@ -341,9 +347,9 @@ TEST_CASE("an onset while already recording does not restart the entry") {
 
         h.trigger(midi::status_type::note_on);
         CHECK(h.recording());
-        /* The second onset writes its own event block, because everything is
-         * recorded once the entry is open, but it must not walk the prebuffer
-         * again -- that would splice already-written audio back in. */
+        // The second onset writes its own event block, because everything is
+        // recorded once the entry is open, but it must not walk the prebuffer
+        // again -- that would splice already-written audio back in.
         std::size_t data_after_second = 0;
         for (auto const & w : h.sink->writes())
                 if (w.id == DATA_PORT) ++data_after_second;

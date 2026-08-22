@@ -118,11 +118,13 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
                 auto status = static_cast<midi::status_type>(event.buffer[0]);
-                /* The label is used as a pointer and a length, not copied into
+                /**
+                 * The label is used as a pointer and a length, not copied into
                  * a std::string: encode() allocates, and this runs in the
                  * realtime thread. It stays behind DBG, which compiles out of
                  * release builds, so the allocation only happens in a build
-                 * that is already not realtime safe. */
+                 * that is already not realtime safe.
+                 */
                 char const * stimulus = reinterpret_cast<char const *>(event.buffer) + 1;
                 std::size_t stimulus_len = event.size - 1;
                 DBG << status << " @ " << time + event.time << ": "
@@ -161,11 +163,13 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 int
 jack_bufsize(jack_client *, nframes_t nframes)
 {
-        /* Grow only, but empty either way. Whatever is in the buffer is pulses
+        /**
+         * Grow only, but empty either way. Whatever is in the buffer is pulses
          * already rendered into sample positions on the old timeline, and the
          * stream has just been interrupted -- emitting them now would fire a
          * click at the wrong latency after the event that asked for it, which
-         * is worse than the silence that replaces them. */
+         * is worse than the silence that replaces them.
+         */
         const std::size_t needed = nframes * 3 + max_lookahead;
         if (needed > ringbuf->size()) {
                 ringbuf->resize(needed);        // discards
@@ -199,10 +203,12 @@ signal_handler(int sig)
 
 namespace {
 
-/* Split on a single character, keeping empty fields so that "0x00,,5" is
+/**
+ * Split on a single character, keeping empty fields so that "0x00,,5" is
  * three tokens and the arity check below catches the missing one. Replaces
  * boost::split, which was the only thing pulling in
- * boost/algorithm/string.hpp. */
+ * boost/algorithm/string.hpp.
+ */
 stringvec
 split_on(string const & s, char sep)
 {
@@ -216,8 +222,10 @@ split_on(string const & s, char sep)
         return out;
 }
 
-/* ASCII case-insensitive compare, replacing boost::iequals. These are
- * keywords in the option grammar, so there is no locale question to answer. */
+/**
+ * ASCII case-insensitive compare, replacing boost::iequals. These are
+ * keywords in the option grammar, so there is no locale question to answer.
+ */
 bool
 iequals_ascii(std::string_view a, std::string_view b)
 {
@@ -227,7 +235,8 @@ iequals_ascii(std::string_view a, std::string_view b)
                           });
 }
 
-/* Parse a field, requiring the whole of it.
+/**
+ * Parse a field, requiring the whole of it.
  *
  * std::stoul and std::stof stop at the first character they cannot use and
  * report success, so "foo" read as hex is 0xf, "12junk" is 0x12 and "5abc" is
@@ -284,8 +293,8 @@ void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
                         [](string const & s, std::size_t * used) {
                                 return std::stoul(s, used, 16);
                         });
-                /* midi::data_type is one byte, so without this a status of
-                 * 0x1ff would quietly become 0xff and match the wrong events */
+                // midi::data_type is one byte, so without this a status of
+                // 0x1ff would quietly become 0xff and match the wrong events
                 if (status > 0xff) {
                         std::ostringstream msg;
                         msg << "pulse condition: '" << words[0]
@@ -310,9 +319,9 @@ void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
                         throw std::invalid_argument("duration must be positive and at least one sample");
                 }
                 pulse.duration = 0.001 * duration_ms * sampling_rate;
-                /* Two phases do not fit in one sample. render_pulse() would
-                 * emit the interphase gap alone, which is silence -- better
-                 * refused here than delivered as a pulse that is not one. */
+                // Two phases do not fit in one sample. render_pulse() would
+                // emit the interphase gap alone, which is silence -- better
+                // refused here than delivered as a pulse that is not one.
                 if (pulse.shape == dsp::pulse_shape::biphasic && pulse.duration < 2) {
                         throw std::invalid_argument(
                                 "a biphasic pulse must be at least two samples long");
@@ -392,8 +401,10 @@ main(int argc, char **argv)
                         active.connect_ports("out", portlist.begin(), portlist.end());
                 }
 
-                /* The realtime thread cannot log, so it raises flags and this
-                 * loop reports them. Latched, so each is said once. */
+                /**
+                 * The realtime thread cannot log, so it raises flags and this
+                 * loop reports them. Latched, so each is said once.
+                 */
                 bool said_overflow = false, said_truncation = false;
                 while (running) {
                         usleep(100000);

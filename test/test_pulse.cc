@@ -22,8 +22,10 @@ using jill::dsp::render_pulse;
 
 namespace {
 
-/* Render into the middle of a zeroed buffer, so that writing outside the
- * requested region would be visible. */
+/**
+ * Render into the middle of a zeroed buffer, so that writing outside the
+ * requested region would be visible.
+ */
 const std::size_t PAD = 4;
 
 std::vector<sample_t> rendered(pulse_shape shape, jill::nframes_t duration)

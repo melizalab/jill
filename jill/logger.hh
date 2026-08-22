@@ -28,8 +28,10 @@ class logger {
 public:
 
         /** Access the instance of the logger */
-        /* One instance, reached through instance(); a copy would be a
-         * second one holding the same connection. */
+        /**
+         * One instance, reached through instance(); a copy would be a
+         * second one holding the same connection.
+         */
         logger(logger const &) = delete;
         logger & operator=(logger const &) = delete;
 
@@ -71,17 +73,21 @@ private:
         logger();
         ~logger();
 
-        /* Forward one message on the socket, without blocking.
-         * @return true if it was accepted, false if the queue was full. */
+        /**
+         * Forward one message on the socket, without blocking.
+         * @return true if it was accepted, false if the queue was full.
+         */
         bool forward(timestamp_t const & utc, std::string const & msg);
 
         std::string _source;
         std::mutex _lock;       // mutex for zmq socket access
         void * _socket;         // zmq socket
         bool _connected;        // was connection successful?
-        /* Whether the last attempt to forward succeeded, and how many have
+        /**
+         * Whether the last attempt to forward succeeded, and how many have
          * been dropped since it last did. Used to report the transition in
-         * each direction once, rather than per message. Guarded by _lock. */
+         * each direction once, rather than per message. Guarded by _lock.
+         */
         bool _forwarding;
         unsigned long _dropped;
 };

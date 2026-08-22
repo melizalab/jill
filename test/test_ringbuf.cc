@@ -27,7 +27,7 @@ namespace {
 
 const std::size_t BUFSIZE = 4096;
 
-/* deterministic filler, so a failure is reproducible */
+/** deterministic filler, so a failure is reproducible */
 template <typename T>
 std::vector<T> random_values(std::size_t n, unsigned seed = 12345)
 {
@@ -40,9 +40,11 @@ std::vector<T> random_values(std::size_t n, unsigned seed = 12345)
         return out;
 }
 
-/* the channel names the block ringbuffer is keyed on. Built with a stream
+/**
+ * the channel names the block ringbuffer is keyed on. Built with a stream
  * rather than sprintf: the previous version passed a size_t to a %d
- * conversion, which is undefined behaviour on 64-bit platforms. */
+ * conversion, which is undefined behaviour on 64-bit platforms.
+ */
 std::string channel_name(std::size_t i)
 {
         std::ostringstream os;
@@ -195,12 +197,14 @@ TEST_CASE("block_ringbuffer preserves block times") {
         CHECK(rb.peek() == nullptr);
 }
 
-/* resize() had no coverage at all, and used to leave the read and write
+/**
+ * resize() had no coverage at all, and used to leave the read and write
  * pointers alone while replacing the block and recomputing the mask -- so
  * read_space(), their difference, kept reporting the old count against a fresh
  * zeroed mapping at differently masked offsets. It now discards deliberately
  * and says so; see the note on resize() for why discarding is what the callers
- * actually want. */
+ * actually want.
+ */
 
 TEST_CASE("resizing an empty ringbuffer just changes its size") {
         jill::dsp::ringbuffer<int> rb(64);
@@ -296,10 +300,12 @@ TEST_CASE("block_ringbuffer is emptied by a resize") {
         CHECK(block->id() == "pcm");
 }
 
-/* pop(dest, cnt) used to treat a count of zero as "read everything available",
+/**
+ * pop(dest, cnt) used to treat a count of zero as "read everything available",
  * so the obvious way to write a bounded read filled the destination with the
  * whole ring the moment the buffer was empty. Advancing without copying is
- * discard()'s job now. */
+ * discard()'s job now.
+ */
 
 TEST_CASE("popping zero elements reads nothing") {
         jill::dsp::ringbuffer<int> rb(64);

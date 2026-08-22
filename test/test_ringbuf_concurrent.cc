@@ -40,14 +40,18 @@ using jill::sample_t;
 
 namespace {
 
-/* Enough traffic to wrap the buffer many times over, but still quick. A soak
+/**
+ * Enough traffic to wrap the buffer many times over, but still quick. A soak
  * run (pytest --soak=N) repeats the whole binary, which is the intended way to
- * hunt for something intermittent. */
+ * hunt for something intermittent.
+ */
 const int TOTAL_ITEMS = 200000;
 const std::size_t CAPACITY = 4096;
 
-/* Give up rather than hang if the other thread stops making progress. A
- * deadlocked ringbuffer must fail the suite, not wedge the run. */
+/**
+ * Give up rather than hang if the other thread stops making progress. A
+ * deadlocked ringbuffer must fail the suite, not wedge the run.
+ */
 const auto BUDGET = std::chrono::seconds(30);
 
 bool past(std::chrono::steady_clock::time_point deadline)
@@ -149,9 +153,9 @@ TEST_CASE("ringbuffer never reports more space than it has") {
                         out_of_range = true;
                         break;
                 }
-                /* Not pop(sink.data(), min(sink.size(), r)): a count of zero
-                 * means "read everything available" to pop(), not "read
-                 * nothing", so an empty buffer would fill sink past its end. */
+                // Not pop(sink.data(), min(sink.size(), r)): a count of zero
+                // means "read everything available" to pop(), not "read
+                // nothing", so an empty buffer would fill sink past its end.
                 if (r > 0) {
                         rb.pop(sink.data(), std::min<std::size_t>(sink.size(), r));
                 }

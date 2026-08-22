@@ -113,7 +113,8 @@ main(int argc, char **argv)
                         LOG << "using dummy receiver";
                         receiver.reset(new net::dummy_event_receiver());
                 }
-                /* Poll faster than jrecord does. jrelay's output is a zmq
+                /**
+                 * Poll faster than jrecord does. jrelay's output is a zmq
                  * message carrying a stimulus name and nothing else -- JACK
                  * frame counts mean nothing to open-ephys, which runs its own
                  * acquisition clock -- so the receiving end has only arrival
@@ -123,7 +124,8 @@ main(int argc, char **argv)
                  * pairing is unambiguous either way at the intervals in use,
                  * but there is no reason to add jitter to it: unlike jrecord,
                  * whose flush() reaches H5Fflush, this writer's flush is a
-                 * no-op, so a shorter interval costs nothing here. */
+                 * no-op, so a shorter interval costs nothing here.
+                 */
                 zmq_thread.reset(new dsp::buffered_data_writer(
                                          std::move(receiver), 4096,
                                          std::chrono::milliseconds(5)));

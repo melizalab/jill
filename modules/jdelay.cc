@@ -53,7 +53,7 @@ jack_port_t *port_in, *port_out;
 std::atomic<int> ret(EXIT_SUCCESS);
 std::atomic<bool> running(true);
 
-/*
+/**
  * The process callback introduces a delay by writing and then reading data from
  * a ringbuffer that was padded with zeros equal in length to the delay (see
  * jack_bufsize())
@@ -112,11 +112,13 @@ jack_latency (jack_client * client, jack_latency_callback_mode_t mode)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        /* Grow only, but empty either way. The buffer holds the audio that
+        /**
+         * Grow only, but empty either way. The buffer holds the audio that
          * constitutes the delay line, and by the time this runs the stream has
          * already been interrupted -- so those samples are from before the gap
          * and would be spliced back in at the wrong time. Drop them and start
-         * the delay again from silence. */
+         * the delay again from silence.
+         */
         const std::size_t needed = options.delay + nframes;
         if (needed > ringbuf.size()) {
                 ringbuf.resize(needed);         // discards

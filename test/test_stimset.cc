@@ -31,7 +31,7 @@ using jill::file::stimfile;
 
 namespace {
 
-/* A temporary directory that cleans itself up. */
+/** A temporary directory that cleans itself up. */
 struct temp_dir {
         fs::path path;
 
@@ -52,8 +52,10 @@ struct temp_dir {
         temp_dir & operator=(temp_dir const &) = delete;
 };
 
-/* Write a mono sine wave to a WAV file and return its path. A tone rather than
- * noise, so that resampling has something band-limited to work with. */
+/**
+ * Write a mono sine wave to a WAV file and return its path. A tone rather than
+ * noise, so that resampling has something band-limited to work with.
+ */
 std::string write_tone(fs::path const & path, jill::nframes_t nframes,
                        jill::nframes_t samplerate, float freq = 440.0)
 {
@@ -76,8 +78,10 @@ std::string write_tone(fs::path const & path, jill::nframes_t nframes,
         return path.string();
 }
 
-/* Drain a queue, giving up after a budget rather than blocking forever: a
- * stalled queue has to fail the suite, not hang the run. */
+/**
+ * Drain a queue, giving up after a budget rather than blocking forever: a
+ * stalled queue has to fail the suite, not hang the run.
+ */
 std::vector<std::string> drain(jill::util::stimqueue & q, std::size_t expected,
                                std::chrono::milliseconds budget = std::chrono::seconds(10))
 {
@@ -236,9 +240,11 @@ TEST_CASE("the queue resamples to the rate the consumer asked for") {
         queue.join();
 }
 
-/* The condition flag rides on the playlist entry, not on the stimulus, because
+/**
+ * The condition flag rides on the playlist entry, not on the stimulus, because
  * several entries alias one stimulus. These pin that it survives the handoff
- * and that a stimulus can appear both marked and unmarked. */
+ * and that a stimulus can appear both marked and unmarked.
+ */
 
 TEST_CASE("the condition flag reaches the consumer with its trial") {
         temp_dir dir;
@@ -300,11 +306,11 @@ TEST_CASE("previous() reports the trial that was just released") {
 }
 
 TEST_CASE("head() promotes without waiting for the worker") {
-        /* The point of the redesign. release() clears the head and head()
-         * promotes the pre-loaded trial itself, so the queue is never
-         * momentarily empty while a background thread is scheduled. jstim gives
-         * up on its trigger port for the period when head() is null, so such a
-         * window discards external triggers rather than delaying them. */
+        // The point of the redesign. release() clears the head and head()
+        // promotes the pre-loaded trial itself, so the queue is never
+        // momentarily empty while a background thread is scheduled. jstim gives
+        // up on its trigger port for the period when head() is null, so such a
+        // window discards external triggers rather than delaying them.
         temp_dir dir;
         const jill::nframes_t samplerate = 8000;
         const std::string path = write_tone(dir.path / "a.wav", 800, samplerate);
@@ -320,9 +326,9 @@ TEST_CASE("head() promotes without waiting for the worker") {
         }
         REQUIRE(queue.head() != nullptr);
 
-        /* Now let the worker get ahead, release, and demand the next one
-         * immediately -- no sleeping, no retry. The old design cleared _head
-         * and signalled, so this would have come back null. */
+        // Now let the worker get ahead, release, and demand the next one
+        // immediately -- no sleeping, no retry. The old design cleared _head
+        // and signalled, so this would have come back null.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         queue.release();
         CHECK(queue.head() != nullptr);
@@ -345,17 +351,17 @@ TEST_CASE("a queue with no stimuli finishes on its own") {
 }
 
 TEST_CASE("destroying a running queue stops and joins it") {
-        /* The worker is owned by a jthread, whose destructor requests a stop
-         * and joins, so the queue needs no explicit teardown to be destroyed
-         * safely. That is the case a module hits when it throws between
-         * building the queue and stopping it: a bare std::thread would reach
-         * ~thread still joinable and call std::terminate.
-         *
-         * A regression shows up as an abort, which doctest reports, or as a
-         * hang, which the suite timeout in test_suites.py catches. The bound
-         * below is for the case in between -- a stop that is noticed but only
-         * eventually. It is generous because the sanitizer builds run this
-         * too; the real cost is one poll interval. */
+        // The worker is owned by a jthread, whose destructor requests a stop
+        // and joins, so the queue needs no explicit teardown to be destroyed
+        // safely. That is the case a module hits when it throws between
+        // building the queue and stopping it: a bare std::thread would reach
+        // ~thread still joinable and call std::terminate.
+        //
+        // A regression shows up as an abort, which doctest reports, or as a
+        // hang, which the suite timeout in test_suites.py catches. The bound
+        // below is for the case in between -- a stop that is noticed but only
+        // eventually. It is generous because the sanitizer builds run this
+        // too; the real cost is one poll interval.
         temp_dir dir;
         const jill::nframes_t samplerate = 8000;
         const std::string path = write_tone(dir.path / "a.wav", 800, samplerate);

@@ -37,10 +37,12 @@ public:
         data_thread() = default;
         virtual ~data_thread() = default;
 
-        /* An implementation owns the consumer thread and the buffer it drains,
+        /**
+         * An implementation owns the consumer thread and the buffer it drains,
          * neither of which can be duplicated. Deleting the copy constructor
          * here also keeps a derived object from being sliced down to this
-         * interface. */
+         * interface.
+         */
         data_thread(data_thread const &) = delete;
         data_thread & operator=(data_thread const &) = delete;
 

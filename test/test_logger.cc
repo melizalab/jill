@@ -38,8 +38,10 @@ using namespace jill;
 
 namespace {
 
-/* The queue holds ZMQ_SNDHWM messages, 1000 by default. Overflow it by a
- * clear margin so the test does not depend on the exact figure. */
+/**
+ * The queue holds ZMQ_SNDHWM messages, 1000 by default. Overflow it by a
+ * clear margin so the test does not depend on the exact figure.
+ */
 constexpr int OVERFLOW_BY = 500;
 constexpr int HWM_GUESS = 1000;
 
@@ -48,14 +50,18 @@ std::string unique_server()
         return "jilltest_logger_" + std::to_string(::getpid());
 }
 
-/* The logger prints every message locally, which is the point -- but 1500 of
+/**
+ * The logger prints every message locally, which is the point -- but 1500 of
  * them would bury the test output, so send them somewhere else for the
- * duration. */
+ * duration.
+ */
 struct muted_stdout {
         int saved;
-        /* Duplicate the real descriptor and put it back afterwards. Reopening
+        /**
+         * Duplicate the real descriptor and put it back afterwards. Reopening
          * stdout on /dev/tty instead would lose doctest's own output whenever
-         * the suite is run from a pipe, which is how the harness runs it. */
+         * the suite is run from a pipe, which is how the harness runs it.
+         */
         explicit muted_stdout(std::string const & path)
                 : saved(::dup(STDOUT_FILENO))
         {
@@ -115,9 +121,9 @@ TEST_CASE("logging without a server queues, degrades, and recovers") {
                 }
                 const auto elapsed = std::chrono::steady_clock::now() - start;
 
-                /* The real assertion is that this returns at all -- before the
-                 * fix it blocked forever and the suite timeout caught it. The
-                 * bound turns a merely slow send into a failure too. */
+                // The real assertion is that this returns at all -- before the
+                // fix it blocked forever and the suite timeout caught it. The
+                // bound turns a merely slow send into a failure too.
                 CHECK(elapsed < std::chrono::seconds(10));
 
                 // every message still reaches the console
@@ -147,10 +153,10 @@ TEST_CASE("logging without a server queues, degrades, and recovers") {
                         else if (backlog > 0) break;
                         else ::usleep(20000);
                 }
-                /* Messages said before the server existed are not lost: this is
-                 * why the socket queues rather than refusing outright, and why
-                 * a module may be started before jrecord. Four frames each,
-                 * since the router prepends an identity. */
+                // Messages said before the server existed are not lost: this is
+                // why the socket queues rather than refusing outright, and why
+                // a module may be started before jrecord. Four frames each,
+                // since the router prepends an identity.
                 CHECK(backlog >= 4 * HWM_GUESS);
 
                 {

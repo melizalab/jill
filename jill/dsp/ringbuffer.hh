@@ -192,11 +192,11 @@ public:
                 return push(copier, cnt);
         }
         std::size_t push(write_visitor_type data_fun, std::size_t cnt) {
-                /* Read the available space once. Calling write_space() again
-                 * to assign can return a larger value than the test saw, if
-                 * the reader freed space in between, and cnt would then grow
-                 * past what the caller passed -- reading off the end of the
-                 * caller's buffer. */
+                // Read the available space once. Calling write_space() again
+                // to assign can return a larger value than the test saw, if
+                // the reader freed space in between, and cnt would then grow
+                // past what the caller passed -- reading off the end of the
+                // caller's buffer.
                 const std::size_t avail = write_space();
                 if (cnt > avail)
                         cnt = avail;
@@ -281,9 +281,11 @@ public:
         }
 
 
-        /* Relaxed: each offset is read by the thread that owns that pointer,
+        /**
+         * Relaxed: each offset is read by the thread that owns that pointer,
          * and the ordering against the other thread was already established by
-         * the acquire in read_space()/write_space(). */
+         * the acquire in read_space()/write_space().
+         */
         std::size_t write_offset() const {
                 return _write_ptr.load(std::memory_order_relaxed) & _size_mask;
         };
@@ -315,11 +317,13 @@ protected:
 
 private:
         std::unique_ptr<jill::util::mirrored_memory> _buf;
-        /* Single producer, single consumer: the producer owns _write_ptr and
+        /**
+         * Single producer, single consumer: the producer owns _write_ptr and
          * the consumer owns _read_ptr, so each has exactly one writer and no
          * read-modify-write is needed, but load should use
          * std::memory_order_relaxed and store should use
-         * std::memory_order_release to ensure ordering on ARM. */
+         * std::memory_order_release to ensure ordering on ARM.
+         */
         std::atomic<std::size_t> _write_ptr;
         std::atomic<std::size_t> _read_ptr;
         std::size_t _size_mask;

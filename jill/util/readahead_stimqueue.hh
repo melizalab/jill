@@ -78,8 +78,10 @@ public:
          */
         ~readahead_stimqueue() override = default;
 
-        /* Owns the worker thread that pre-loads stimuli. A copy would leave two
-         * objects expecting to join it. */
+        /**
+         * Owns the worker thread that pre-loads stimuli. A copy would leave two
+         * objects expecting to join it.
+         */
         readahead_stimqueue(readahead_stimqueue const &) = delete;
         readahead_stimqueue & operator=(readahead_stimqueue const &) = delete;
 
@@ -111,10 +113,12 @@ private:
         iterator const _last;
         iterator _it;                             // next trial to load
 
-        /* _next is filled by the worker and taken by the realtime thread;
+        /**
+         * _next is filled by the worker and taken by the realtime thread;
          * _head and _previous are touched only by the realtime thread, through
          * head(), previous() and release(). Default ordering throughout: one
-         * access per period, nothing to gain from tuning it. */
+         * access per period, nothing to gain from tuning it.
+         */
         std::atomic<trial *> _next;
         std::atomic<trial *> _head;
         std::atomic<trial *> _previous;

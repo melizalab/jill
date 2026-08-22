@@ -42,9 +42,11 @@ public:
         data_writer() = default;
         virtual ~data_writer() = default;
 
-        /* An implementation holds an open file or socket, which cannot be
+        /**
+         * An implementation holds an open file or socket, which cannot be
          * duplicated. Deleting the copy constructor here also keeps a derived
-         * object from being sliced down to this interface. */
+         * object from being sliced down to this interface.
+         */
         data_writer(data_writer const &) = delete;
         data_writer & operator=(data_writer const &) = delete;
 

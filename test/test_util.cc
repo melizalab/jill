@@ -30,8 +30,10 @@ using boost::posix_time::duration_from_string;
 
 namespace {
 
-/* data_block_t is a header that precedes its id and data in one allocation,
- * so a test has to lay the three out contiguously the way the ringbuffer does. */
+/**
+ * data_block_t is a header that precedes its id and data in one allocation,
+ * so a test has to lay the three out contiguously the way the ringbuffer does.
+ */
 std::vector<char> pack(jill::nframes_t time, jill::dtype_t dtype,
                        std::string const & id, void const * data, std::size_t sz_data)
 {

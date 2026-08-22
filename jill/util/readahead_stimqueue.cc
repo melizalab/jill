@@ -17,7 +17,8 @@ using namespace jill::util;
 
 namespace {
 
-/* How long the worker sleeps before checking whether the realtime thread has
+/**
+ * How long the worker sleeps before checking whether the realtime thread has
  * taken the pre-loaded trial.
  *
  * Nothing wakes it for that any more. It used to be signalled from release(),
@@ -46,7 +47,8 @@ namespace {
  * It also bounds how long stop() takes to be noticed, since sleep_for cannot
  * be interrupted. Five milliseconds is not worth a mutex and a
  * condition_variable_any to skip, but the two are coupled: raise this interval
- * much and an interruptible wait starts to earn its keep. */
+ * much and an interruptible wait starts to earn its keep.
+ */
 const auto poll_interval = std::chrono::milliseconds(5);
 
 }
@@ -81,7 +83,7 @@ readahead_stimqueue::join()
 }
 
 
-/*
+/**
  * The worker keeps _next filled and does nothing else. It never writes _head:
  * the realtime thread promotes for itself in head(), so a stimulus becomes
  * available the moment the previous one is released rather than whenever this
@@ -124,9 +126,11 @@ readahead_stimqueue::head()
 {
         trial * ptr = _head.load();
         if (ptr) return ptr;
-        /* Nothing current, so take whatever the worker has ready. Both steps
+        /**
+         * Nothing current, so take whatever the worker has ready. Both steps
          * are ours alone: the worker only ever fills _next, and only the
-         * realtime thread writes _head. */
+         * realtime thread writes _head.
+         */
         ptr = _next.exchange(nullptr);
         if (ptr) _head.store(ptr);
         return ptr;
@@ -142,9 +146,11 @@ readahead_stimqueue::previous()
 void
 readahead_stimqueue::release()
 {
-        /* Hand the current trial to _previous and clear _head. The next call to
+        /**
+         * Hand the current trial to _previous and clear _head. The next call to
          * head() promotes the pre-loaded one, so there is no window where the
-         * queue looks empty while a background thread catches up. */
+         * queue looks empty while a background thread catches up.
+         */
         _previous.store(_head.load());
         _head.store(nullptr);
 }

@@ -76,10 +76,12 @@ struct data_block_t {
                      std::size_t sz_id_, std::size_t sz_data_)
                 : time(time_), dtype(dtype_), sz_id(sz_id_), sz_data(sz_data_) {}
 
-        /* Only the header is a data_block_t; the id and the data follow it in
+        /**
+         * Only the header is a data_block_t; the id and the data follow it in
          * the buffer, and id() and data() find them by offset from `this`. A
          * copy would carry the sizes and point at whatever happened to be
-         * after the copy. */
+         * after the copy.
+         */
         data_block_t(data_block_t const &) = delete;
         data_block_t & operator=(data_block_t const &) = delete;
 

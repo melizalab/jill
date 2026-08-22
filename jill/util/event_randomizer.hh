@@ -114,7 +114,7 @@ public:
         /** @return how many stimuli can be tracked */
         std::size_t capacity() const { return _capacity; }
 
-        /* iteration over the stimuli seen so far, for reporting */
+        /** iteration over the stimuli seen so far, for reporting */
         std::size_t size() const { return _n; }
         bool empty() const { return _n == 0; }
         entry const * begin() const { return _counts.get(); }

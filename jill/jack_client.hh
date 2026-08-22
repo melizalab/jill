@@ -106,7 +106,7 @@ public:
         jack_client(std::string const & name, std::string const & server_name);
         ~jack_client() override;
 
-        /* Owns the connection to the server. A copy would close it twice. */
+        /** Owns the connection to the server. A copy would close it twice. */
         jack_client(jack_client const &) = delete;
         jack_client & operator=(jack_client const &) = delete;
 
@@ -165,7 +165,7 @@ public:
         /** Get event buffer for port. If the port is an output port it's cleared. */
         void * events(jack_port_t *port, nframes_t);
 
-        /* -- Inspect state of the client or server -- */
+        /** -- Inspect state of the client or server -- */
 
         /** Return the underlying JACK client object */
         jack_client_t * client() { return _client;}
@@ -188,7 +188,7 @@ public:
         /**  JACK client name (long form) */
         char const * name() const override;
 
-        /* Implementations of data_source functions */
+        /** Implementations of data_source functions */
         nframes_t sampling_rate() const override;
         nframes_t frame() const override;
         nframes_t frame(utime_t) const override;
@@ -221,7 +221,7 @@ private:
         void start_client(char const * name, char const * server_name=nullptr);
         void set_callbacks();
 
-        /* static callback functions actually registered with JACK server */
+        /** static callback functions actually registered with JACK server */
         static int process_callback_(nframes_t, void *);
         static void portreg_callback_(jack_port_id_t, int, void *);
         static void portconn_callback_(jack_port_id_t, jack_port_id_t, int, void *);
@@ -262,8 +262,10 @@ private:
 class activated_client {
 
 public:
-        /* Scopes an activation: the constructor activates the client and the
-         * destructor deactivates it. Copying would deactivate twice. */
+        /**
+         * Scopes an activation: the constructor activates the client and the
+         * destructor deactivates it. Copying would deactivate twice.
+         */
         activated_client(activated_client const &) = delete;
         activated_client & operator=(activated_client const &) = delete;
 

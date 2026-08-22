@@ -25,9 +25,11 @@ namespace jill { namespace dsp {
  * a moving sum of the counts in previous blocks.
  */
 template<typename T>
-/* Not copyable, because _thresh is a std::atomic: the threshold can be changed
+/**
+ * Not copyable, because _thresh is a std::atomic: the threshold can be changed
  * from another thread while push() is running. That is a property of the
- * member rather than a rule imposed here. */
+ * member rather than a rule imposed here.
+ */
 class crossing_counter {
 public:
 	using sample_type = T;
@@ -76,17 +78,17 @@ public:
 		// a crossing needs two samples to compare; bail out before
 		// dereferencing rather than reading past the end
 		if (samples == nullptr || size < 2) return -1;
-		/* Loaded once per block, not per sample: a change takes effect
-		 * at the next block boundary, which is all volatile ever
-		 * offered, and an atomic load in the innermost loop would cost
-		 * real time on the realtime path. */
+		// Loaded once per block, not per sample: a change takes effect
+		// at the next block boundary, which is all volatile ever
+		// offered, and an atomic load in the innermost loop would cost
+		// real time on the realtime path.
 		const sample_type threshold = _thresh.load(std::memory_order_relaxed);
-		/* Resume from the previous block's last sample. Seeding from
-		 * samples[0] and starting at 1, as this did, made a crossing on
-		 * the boundary invisible -- while _period_crossings and
-		 * _period_nsamples carried across calls regardless, so the
-		 * count depended on how the caller happened to divide the
-		 * signal and the two effects did not cancel. */
+		// Resume from the previous block's last sample. Seeding from
+		// samples[0] and starting at 1, as this did, made a crossing on
+		// the boundary invisible -- while _period_crossings and
+		// _period_nsamples carried across calls regardless, so the
+		// count depended on how the caller happened to divide the
+		// signal and the two effects did not cancel.
 		size_type i = 0;
 		sample_type last = _last;
 		if (!_have_last) {
@@ -133,10 +135,10 @@ public:
 		_counter.reset();
 		_period_crossings = 0;
 		_period_nsamples = 0;
-		/* Also forget the previous block. A counter resumes after
-		 * sitting idle while the other half of a crossing_trigger ran,
-		 * and comparing the next sample against one from before that
-		 * gap would invent a crossing. */
+		// Also forget the previous block. A counter resumes after
+		// sitting idle while the other half of a crossing_trigger ran,
+		// and comparing the next sample against one from before that
+		// gap would invent a crossing.
 		_have_last = false;
 	}
         /** @return the size of the analysis period (in samples) */
@@ -149,10 +151,12 @@ private:
         running_counter<count_type> _counter;
 
 	/// sample threshold
-	/* May be changed from another thread while push() is running. It was
+	/**
+	 * May be changed from another thread while push() is running. It was
 	 * volatile, which provides neither atomicity nor ordering. Relaxed is
 	 * the right ordering: it is a bare value publishing no other data, so
-	 * there is nothing for an acquire to order against. */
+	 * there is nothing for an acquire to order against.
+	 */
 	std::atomic<sample_type> _thresh;
 	/// analysis period size
 	size_type _period_size;

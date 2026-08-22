@@ -30,7 +30,7 @@ using namespace jill;
 using std::string;
 using svec = std::vector<string>;
 
-/* declare options parsing class */
+/** declare options parsing class */
 class jrecord_options : public program_options {
 
 public:
@@ -59,7 +59,7 @@ protected:
 jrecord_options options(PROGRAM_NAME);
 std::unique_ptr<dsp::buffered_data_writer> arf_thread;
 jack_port_t * port_trig = nullptr;
-/* cleared by the signal handler; main() drives the shutdown */
+/** cleared by the signal handler; main() drives the shutdown */
 std::atomic<bool> running(true);
 
 
@@ -106,7 +106,8 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        /* Registered before activation, so JACK calls this once during startup
+        /**
+         * Registered before activation, so JACK calls this once during startup
          * with the current period size -- which is where the ringbuffer
          * actually gets sized -- and then again on any genuine change. It runs
          * on the server's notification thread with the engine stopped, so
@@ -118,7 +119,8 @@ jack_bufsize(jack_client *client, nframes_t nframes)
          * recording is far worse than a seam in it. reset() closes the current
          * entry, so the discontinuity shows up as an entry boundary in the ARF
          * file instead of an unmarked join. At startup the writer has not been
-         * started yet, so it is a no-op there. */
+         * started yet, so it is a no-op there.
+         */
         static nframes_t last_period = 0;
         if (last_period != 0 && last_period != nframes) {
                 LOG << "WARNING: JACK period size changed from " << last_period
@@ -142,7 +144,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 void
 jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
-        /* determine if the last connection to the trigger port was cut */
+        // determine if the last connection to the trigger port was cut
         if (port_trig == nullptr || connected || strcmp(jack_port_name(port2), jack_port_name(port_trig)) != 0)
                 return;
         const char ** connections = jack_port_get_connections(port_trig);
@@ -168,9 +170,11 @@ jack_shutdown(jack_status_t code, char const * msg)
 }
 
 
-/* Signal handlers may run on any thread that has not blocked the signal,
+/**
+ * Signal handlers may run on any thread that has not blocked the signal,
  * including one already holding a lock the shutdown path needs. Nothing here
- * may allocate, log, or take a mutex: set a flag and let main() do the work. */
+ * may allocate, log, or take a mutex: set a flag and let main() do the work.
+ */
 void
 signal_handler(int sig)
 {
@@ -193,7 +197,8 @@ main(int argc, char **argv)
                                                            options.additional_options,
                                                            options.compression);
 
-                /* The activation object below stops the callbacks, but that
+                /**
+                 * The activation object below stops the callbacks, but that
                  * is not enough here. arf_thread is at file scope and so
                  * outlives this one, while the writer it owns holds a
                  * reference to client and calls into it while draining --
@@ -205,10 +210,11 @@ main(int argc, char **argv)
                  * This is the one module where scoping the activation is not
                  * sufficient; the rest is a consequence of the writer holding a
                  * reference to a local, and would go away if arf_thread's
-                 * ownership moved into main. */
+                 * ownership moved into main.
+                 */
                 util::scope_guard release_writer{[&]{ arf_thread.reset(); }};
 
-                /* create ports: one for trigger, and one for each input */
+                // create ports: one for trigger, and one for each input
                 if (options.count("trig")) {
                         LOG << "recordings will be triggered";
                         port_trig = client.register_port("trig_in",JACK_DEFAULT_MIDI_TYPE,
@@ -223,10 +229,10 @@ main(int argc, char **argv)
                         LOG << "recording will be continuous";
                         arf_thread.reset(new dsp::buffered_data_writer(std::move(writer)));
                 }
-                /* bind socket for storing messages in arf file */
+                /** bind socket for storing messages in arf file */
                 arf_thread->bind_logger(options.server_name);
 
-                /* register input ports */
+                // register input ports
                 if (options.count("in")) {
                         int name_index = 0;
                         svec const & plist = options.vmap["in"].as<svec>();
@@ -285,7 +291,7 @@ main(int argc, char **argv)
                 activated_client active(client);
                 arf_thread->start();
 
-                /* connect ports */
+                // connect ports
                 if (options.count("trig")) {
                         svec const & plist = options.vmap["trig"].as<svec>();
                         active.connect_ports(plist.begin(), plist.end(), "trig_in");
@@ -295,9 +301,9 @@ main(int argc, char **argv)
                         if (!it->second.empty()) active.connect_port(it->second, it->first);
                 }
 
-                /* Wait for a signal or a server shutdown, then stop the
-                 * writer from here. stop() takes a lock, so it cannot be
-                 * called from the signal handler. */
+                // Wait for a signal or a server shutdown, then stop the
+                // writer from here. stop() takes a lock, so it cannot be
+                // called from the signal handler.
                 while (running) {
                         usleep(100000);
                 }

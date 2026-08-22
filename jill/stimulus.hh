@@ -27,11 +27,13 @@ public:
         stimulus_t() = default;
         virtual ~stimulus_t() = default;
 
-        /* An implementation owns its sample buffer and whatever it was read
-	 * from. Duplicating a stimulus would be meaningful, unlike the other
-	 * interfaces here, but nothing needs it; relax this if something does.
-	 * Deleting the copy constructor also keeps a derived object from being
-	 * sliced down to this interface. */
+        /**
+         * An implementation owns its sample buffer and whatever it was read
+         * from. Duplicating a stimulus would be meaningful, unlike the other
+         * interfaces here, but nothing needs it; relax this if something does.
+         * Deleting the copy constructor also keeps a derived object from being
+         * sliced down to this interface.
+         */
         stimulus_t(stimulus_t const &) = delete;
         stimulus_t & operator=(stimulus_t const &) = delete;
 

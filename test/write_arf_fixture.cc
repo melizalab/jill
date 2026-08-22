@@ -35,8 +35,10 @@ using boost::posix_time::microsec_clock;
 
 namespace {
 
-/* Values the python side asserts against. Keep in step with
- * test/test_arf_format.py. */
+/**
+ * Values the python side asserts against. Keep in step with
+ * test/test_arf_format.py.
+ */
 const nframes_t SAMPLING_RATE = 20000;
 const nframes_t PERIOD = 1024;
 const int PERIODS_PER_ENTRY = 10;
@@ -44,7 +46,7 @@ const char * CHANNELS[] = {"pcm_000", "pcm_001"};
 const char * EVENT_CHANNEL = "trig_in";
 const char * STIMULUS_NAME = "stim_a";
 
-/* A data source that does not need a JACK server. */
+/** A data source that does not need a JACK server. */
 class null_source : public data_source {
 public:
         null_source(std::string const & name, nframes_t sampling_rate)
@@ -67,8 +69,10 @@ private:
         boost::posix_time::ptime _base_time;
 };
 
-/* Build a data block: header, then the id bytes, then the payload. The id is
- * not null terminated -- sz_id gives its length. */
+/**
+ * Build a data block: header, then the id bytes, then the payload. The id is
+ * not null terminated -- sz_id gives its length.
+ */
 std::vector<char> make_block(nframes_t time, dtype_t dtype, std::string const & id,
                              void const * payload, std::size_t payload_bytes)
 {
@@ -85,7 +89,7 @@ std::vector<char> make_block(nframes_t time, dtype_t dtype, std::string const & 
         return buf;
 }
 
-/* A ramp over [-1, 1), distinct per channel so the two are told apart. */
+/** A ramp over [-1, 1), distinct per channel so the two are told apart. */
 std::vector<sample_t> ramp(nframes_t n, int channel)
 {
         std::vector<sample_t> out(n);
@@ -96,10 +100,12 @@ std::vector<sample_t> ramp(nframes_t n, int channel)
         return out;
 }
 
-/* Write one entry's worth of sampled data on every channel.
+/**
+ * Write one entry's worth of sampled data on every channel.
  *
  * If event_after_period is not negative, a stimulus-onset event is emitted at
- * that period's timestamp. */
+ * that period's timestamp.
+ */
 void write_periods(data_writer & writer, nframes_t start, int periods,
                    int event_after_period = -1)
 {
@@ -173,10 +179,12 @@ main(int argc, char ** argv)
         write_periods(*writer, near_wrap, 6);
         writer->close_entry();
 
-        /* An event stamped before data already written. arf_writer used to
+        /**
+         * An event stamped before data already written. arf_writer used to
          * record the end of an entry as the last write rather than the
          * furthest one, so this dragged trial_off backwards; the entry is two
-         * periods long whichever order the writes arrive in. */
+         * periods long whichever order the writes arrive in.
+         */
         writer->new_entry(200000);
         write_periods(*writer, 200000, 2);
         {

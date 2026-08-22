@@ -77,10 +77,12 @@ struct datatype_traits<event_t> {
 
 namespace {
 
-/* The log dataset is either opened or created, which is a branch, and
+/**
+ * The log dataset is either opened or created, which is a branch, and
  * packet_table has no default constructor to leave a member in until the branch
  * resolves. Returning by value lets it be built in the initializer list; the
- * move is what arf 3 handles are for. */
+ * move is what arf 3 handles are for.
+ */
 arf::h5pt::packet_table
 open_or_create_log(arf::file & file, int compression)
 {
@@ -202,7 +204,7 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
         if (!_entry) {
                 new_entry(data->time + start_frame);
         }
-        /* write the data */
+        // write the data
         if (data->dtype == SAMPLED) {
                 dset = get_dataset(id, true);
                 auto * samples = reinterpret_cast<sample_t const *>(data->data());
@@ -217,12 +219,14 @@ arf_writer::write(data_block_t const * data, nframes_t start_frame, nframes_t st
                     << " message=" << e.message;
                 dset->second.write(&e, 1);
         }
-        /* Track the furthest point reached as an offset from the start of the
+        /**
+         * Track the furthest point reached as an offset from the start of the
          * entry, not as a frame number. Two things have to hold at once: an
          * event stamped earlier than data already written must not pull the
          * end backwards, and the sample counter can wrap mid-entry. The
          * subtraction is correct across a wrap where a comparison of the frame
-         * numbers themselves would not be. */
+         * numbers themselves would not be.
+         */
         const nframes_t offset = (data->time + stop_frame) - _entry_start;
         if (offset > _last_offset) _last_offset = offset;
 }
@@ -285,12 +289,12 @@ arf_writer::get_dataset(string const & name, bool is_sampled)
                         dset = _dsets.emplace_hint(dset, name, std::move(pt));
                 }
                 else {
-                        /* event_t is a compound of three fields, and the
-                         * specification requires one unit per field for complex
-                         * event data. Only the first carries a timebase: start
-                         * is in samples, status and message are not quantities.
-                         * This used to pass the bare string "samples", which
-                         * arf 2 accepted and arf.py rejects. */
+                        // event_t is a compound of three fields, and the
+                        // specification requires one unit per field for complex
+                        // event data. Only the first carries a timebase: start
+                        // is in samples, status and message are not quantities.
+                        // This used to pass the bare string "samples", which
+                        // arf 2 accepted and arf.py rejects.
                         const std::vector<std::string> units{"samples", "", ""};
                         arf::h5pt::packet_table pt =
                                 _entry->create_packet_table<event_t>(name, units, arf::EVENT,

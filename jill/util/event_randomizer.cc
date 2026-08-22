@@ -67,11 +67,11 @@ event_randomizer::present(char const * name, std::size_t len)
 
         if (e == nullptr) {
                 if (_n == _capacity) {
-                        /* Table full. Draw against the desired proportion with
-                         * no correction and do not record the result: the
-                         * alternative is to fail, and in the realtime thread
-                         * failing means failing silently. The flag is what
-                         * lets main() say something about it. */
+                        // Table full. Draw against the desired proportion with
+                        // no correction and do not record the result: the
+                        // alternative is to fail, and in the realtime thread
+                        // failing means failing silently. The flag is what
+                        // lets main() say something about it.
                         _overflowed.store(true, std::memory_order_relaxed);
                         return _distribution(_rng) < _desired_proportion;
                 }

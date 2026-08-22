@@ -21,11 +21,13 @@ namespace jill { namespace util {
  * trials with the manipulation is set up when the stimqueue is populated.
  */
 struct trial {
-        /* Not const: the queue's worker calls load_samples() through this to
+        /**
+         * Not const: the queue's worker calls load_samples() through this to
          * read the file and resample it. head() hands out a `trial const *`,
          * which protects the entry itself -- the consumer cannot retarget it
          * or change its condition -- but not the stimulus behind it. That is
-         * the same protection the queue offered before trials existed. */
+         * the same protection the queue offered before trials existed.
+         */
         stimulus_t * stim;
         /** true if this presentation is in the manipulated condition */
         bool condition;
@@ -43,9 +45,11 @@ public:
         stimqueue() = default;
         virtual ~stimqueue() = default;
 
-        /* An implementation owns the worker thread that prepares the next stimulus,
+        /**
+         * An implementation owns the worker thread that prepares the next stimulus,
          * which cannot be duplicated. Deleting the copy here also keeps a derived
-         * object from being sliced down to this interface. */
+         * object from being sliced down to this interface.
+         */
         stimqueue(stimqueue const &) = delete;
         stimqueue & operator=(stimqueue const &) = delete;
 

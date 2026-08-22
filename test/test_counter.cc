@@ -153,9 +153,9 @@ TEST_CASE("reset makes the window refillable") {
 }
 
 TEST_CASE("the stream operator reports the window oldest first") {
-        /* Only a debugging aid, with no callers, but it is the one place the
-         * storage order is visible -- a ring that printed its raw array rather
-         * than insertion order would be wrong here and nowhere else. */
+        // Only a debugging aid, with no callers, but it is the one place the
+        // storage order is visible -- a ring that printed its raw array rather
+        // than insertion order would be wrong here and nowhere else.
         running_counter<int> counter(3);
         counter.push(1);
         counter.push(2);
@@ -172,10 +172,10 @@ TEST_CASE("the stream operator reports the window oldest first") {
 }
 
 TEST_CASE("the running total matches a naive sliding window") {
-        /* The strongest pin available: compare against an implementation with
-         * no shared logic, over enough pushes to wrap the ring many times, at
-         * window sizes that are and are not powers of two. An indexing error
-         * that survives the cases above will not survive this. */
+        // The strongest pin available: compare against an implementation with
+        // no shared logic, over enough pushes to wrap the ring many times, at
+        // window sizes that are and are not powers of two. An indexing error
+        // that survives the cases above will not survive this.
         std::mt19937 rng(20260822);
         std::uniform_int_distribution<int> values(-50, 50);
 
@@ -199,10 +199,10 @@ TEST_CASE("the running total matches a naive sliding window") {
 }
 
 TEST_CASE("a zero-size window is refused") {
-        /* It used to be accepted: full() reported true with nothing stored,
-         * and the first push() read the front of an empty buffer. jdetect
-         * derives the size from --open-period / --period-size, so asking for
-         * an integration window shorter than the analysis period segfaulted
-         * it inside the realtime callback. */
+        // It used to be accepted: full() reported true with nothing stored,
+        // and the first push() read the front of an empty buffer. jdetect
+        // derives the size from --open-period / --period-size, so asking for
+        // an integration window shorter than the analysis period segfaulted
+        // it inside the realtime callback.
         CHECK_THROWS_AS(running_counter<int>(0), std::invalid_argument);
 }

@@ -32,9 +32,11 @@ using jill::sample_t;
 
 namespace {
 
-/* Records what the writer thread was asked to do, so a test can assert on the
+/**
+ * Records what the writer thread was asked to do, so a test can assert on the
  * sequence rather than on side effects. Only touched by the writer thread
- * until it has been joined, after which the main thread reads it. */
+ * until it has been joined, after which the main thread reads it.
+ */
 class recording_writer : public jill::data_writer {
 
 public:
@@ -76,15 +78,17 @@ make_writer(recording_writer ** out = nullptr)
         return std::make_unique<jill::dsp::buffered_data_writer>(std::move(sink), 4096);
 }
 
-/* Fail rather than hang: a lost stop() shows up as join() never returning. */
-/* Takes the owning pointer, not a reference, because a writer whose join()
+/** Fail rather than hang: a lost stop() shows up as join() never returning. */
+/**
+ * Takes the owning pointer, not a reference, because a writer whose join()
  * never returns can no longer be destroyed safely: the waiter is parked inside
  * it. On timeout the writer is released deliberately, so that the detached
  * waiter keeps a live object to sit in and the caller is left holding nothing
  * to destruct. Leaking it is the point -- the alternative is a second join()
  * from the destructor racing the first, which is undefined behaviour and shows
  * up under ThreadSanitizer as an abort inside its pthread_join interceptor
- * rather than as the test failure it should be. */
+ * rather than as the test failure it should be.
+ */
 void join_within(std::unique_ptr<jill::dsp::buffered_data_writer> & w,
                  std::chrono::seconds budget)
 {

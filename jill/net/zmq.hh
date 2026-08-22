@@ -33,8 +33,10 @@ using msg_ptr_t = std::unique_ptr<zmq_msg_t, void (*)(zmq_msg_t *)>;
 class context {
 
 public:
-        /* One instance, reached through instance(); a copy would be a
-         * second one holding the same connection. */
+        /**
+         * One instance, reached through instance(); a copy would be a
+         * second one holding the same connection.
+         */
         context(context const &) = delete;
         context & operator=(context const &) = delete;
 

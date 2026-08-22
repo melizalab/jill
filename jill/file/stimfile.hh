@@ -36,8 +36,10 @@ public:
         stimfile(std::string const & path);
         ~stimfile() override;
 
-        /* Owns an open sound file and the samples read from it. A copy would
-         * close the file twice. */
+        /**
+         * Owns an open sound file and the samples read from it. A copy would
+         * close the file twice.
+         */
         stimfile(stimfile const &) = delete;
         stimfile & operator=(stimfile const &) = delete;
 
