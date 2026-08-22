@@ -29,9 +29,15 @@ program_options::program_options(std::string program_name, bool remote_log_defau
         generic.add_options()
                 ("version,v", "print version string")
                 ("help,h",    "print help message")
+                /* No longer needed to keep a module alive without jrecord:
+                 * the logger drops messages once its queue is full rather than
+                 * blocking. This is now only a way to avoid holding a queue at
+                 * all when you know no log server is coming. */
                 ("no-remote-log,L",
                  po::bool_switch()->default_value(!remote_log_default),
-                 "disable logging to jrecord (will still log to console)")
+                 "do not forward log messages to jrecord. Not required when no "
+                 "jrecord is running: messages are queued until one appears and "
+                 "dropped if the queue fills. Console logging is unaffected.")
                 ("config,C",  po::value<string>(), "load options from a ini file (overruled by command-line)");
         cmd_opts.add(generic);
         visible_opts.add(generic);

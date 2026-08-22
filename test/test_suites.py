@@ -33,6 +33,7 @@ UNIT_SUITES = [
     "test_ringbuf_concurrent",
     "test_data_writer",
     "test_triggered_writer",
+    "test_logger",
 ]
 
 # Older programs that predate the harness. They mostly return 0 whatever

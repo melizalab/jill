@@ -71,10 +71,19 @@ private:
         logger();
         ~logger();
 
+        /* Forward one message on the socket, without blocking.
+         * @return true if it was accepted, false if the queue was full. */
+        bool forward(timestamp_t const & utc, std::string const & msg);
+
         std::string _source;
         std::mutex _lock;       // mutex for zmq socket access
         void * _socket;         // zmq socket
         bool _connected;        // was connection successful?
+        /* Whether the last attempt to forward succeeded, and how many have
+         * been dropped since it last did. Used to report the transition in
+         * each direction once, rather than per message. Guarded by _lock. */
+        bool _forwarding;
+        unsigned long _dropped;
 };
 
 }

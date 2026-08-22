@@ -38,7 +38,9 @@ logger::logger()
         // initialize zmq socket. Use a dealer socket because log messages are
         // asynchronous (no response from recipient).
         : _socket(zmq::context::socket(ZMQ_DEALER)),
-          _connected(false)
+          _connected(false),
+          _forwarding(true),
+          _dropped(0)
 {}
 
 logger::~logger()
@@ -66,14 +68,65 @@ logger::log(timestamp_t const & utc, std::string const & msg)
                 // lock here because multiple threads may be calling this
                 // function, but only one can access the socket at a time
                 std::lock_guard<std::mutex> lock(_lock);
-                // message consists of the source name, the timestamp (as an iso
-                // string), and the actual log message. Note that the zmq dealer socket
-                // doesn't prepend an address envelope, so this is what the recipient
-                // router socket will see
-                zmq::send(_socket, _source, ZMQ_SNDMORE);
-                zmq::send(_socket, to_iso_string(utc), ZMQ_SNDMORE);
-                zmq::send(_socket, msg);
+                const bool sent = forward(utc, msg);
+                /* Report each change of state once rather than per message.
+                 * printf rather than LOG, because LOG comes back here. */
+                if (!sent && _forwarding) {
+                        printf("%s [%s] log server is not keeping up;"
+                               " messages will not be forwarded until it does"
+                               " (they are still printed here)\n",
+                               to_iso_string(local).c_str(), _source.c_str());
+                }
+                else if (sent && !_forwarding) {
+                        printf("%s [%s] log server is accepting messages again;"
+                               " %lu were dropped\n",
+                               to_iso_string(local).c_str(), _source.c_str(),
+                               _dropped);
+                        _dropped = 0;
+                }
+                if (!sent) _dropped += 1;
+                _forwarding = sent;
         }
+}
+
+/*
+ * The send must not block. Connecting to an endpoint nothing has bound yet is
+ * normal and useful -- an orchestration script cannot guarantee that jrecord
+ * wins the race to start, and zeromq queues up to ZMQ_SNDHWM (1000) messages
+ * so that everything said in the meantime is delivered once it arrives. What
+ * was not handled is the queue filling: the sends were blocking, so a module
+ * running without a log server stopped dead after about a thousand messages,
+ * holding _lock, with every other thread that logs piling up behind it. For an
+ * unattended recorder that is worse than a crash, because the process still
+ * looks alive.
+ *
+ * Dropping the remote copy costs nothing that is not already on stdout, and
+ * the queue drains and starts accepting again by itself once a server appears.
+ *
+ * Frame one is where a full queue refuses: zeromq checks the high water mark
+ * when a message begins rather than partway through, so abandoning here cannot
+ * leave a half-written message to corrupt the next one. A failure on a later
+ * frame should therefore be impossible; it is reported rather than handled,
+ * because it would mean the stream at the other end is desynchronized, and
+ * that should not pass silently.
+ */
+bool
+logger::forward(timestamp_t const & utc, std::string const & msg)
+{
+        /* message consists of the source name, the timestamp (as an iso
+         * string), and the actual log message. Note that the zmq dealer socket
+         * doesn't prepend an address envelope, so this is what the recipient
+         * router socket will see */
+        if (zmq::send(_socket, _source, ZMQ_SNDMORE | ZMQ_DONTWAIT) < 0) {
+                return false;
+        }
+        if (zmq::send(_socket, to_iso_string(utc), ZMQ_SNDMORE | ZMQ_DONTWAIT) < 0 ||
+            zmq::send(_socket, msg, ZMQ_DONTWAIT) < 0) {
+                printf("[%s] WARNING: log message truncated in transit;"
+                       " the receiving end may be out of step\n", _source.c_str());
+                return false;
+        }
+        return true;
 }
 
 void
