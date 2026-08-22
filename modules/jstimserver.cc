@@ -13,6 +13,7 @@
 #include <csignal>
 #include <memory>
 #include <thread>
+#include <stop_token>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -26,6 +27,7 @@
 #include "jill/midi.hh"
 #include "jill/file/stimfile.hh"
 #include "jill/dsp/ringbuffer.hh"
+#include "jill/util/scope_guard.hh"
 
 constexpr char PROGRAM_NAME[] = "jstimserver";
 
@@ -284,9 +286,18 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
         return ss.str();
 }
 
-// This thread publishes events to a zmq socket
+/* This thread publishes events to a zmq socket.
+ *
+ * Takes a stop token as well as watching the global _running flag, because the
+ * two cover different exits. _running is how a signal or a JACK shutdown ends
+ * a normal run; the token is how the jthread destructor ends an abnormal one,
+ * where an exception unwinds main() without anything having cleared _running.
+ * A jthread only helps if the thread function actually reads its token --
+ * without this the destructor would request a stop nobody observes and then
+ * block forever, which is a worse failure than the abort it replaced.
+ */
 void
-stim_monitor()
+stim_monitor(std::stop_token stop)
 {
         // set up zeromq socket
         fs::path path{"/tmp/org.meliza.jill"};
@@ -304,7 +315,7 @@ stim_monitor()
                 INFO << "publishing start/stop events at " << endpoint.str();
         }
         zmq::send(socket, "STARTING");
-        while (_running.load()) {
+        while (!stop.stop_requested() && _running.load()) {
                 Event event;
                 while (_eventbuf.pop(&event, 1) > 0) {
                         std::ostringstream o;
@@ -338,7 +349,10 @@ stim_monitor()
 
 constexpr char REQ_VERSION[] = "VERSION";
 constexpr char REQ_STIMLIST[] = "STIMLIST";
-constexpr char REQ_PLAYSTIM[] = "PLAY";
+/* The separator is part of the token deliberately, so that a bare "PLAY"
+ * fails to match and falls through to BADCMD by construction rather than by
+ * a length check someone has to remember to write. */
+constexpr char REQ_PLAYSTIM[] = "PLAY ";
 constexpr char REQ_INTERRUPT[] = "INTERRUPT";
 constexpr char REP_BADCMD[] = "BADCMD";
 constexpr char REP_BADSTIM[] = "BADSTIM";
@@ -373,6 +387,7 @@ main(int argc, char **argv)
                 endpoint << "ipc://" << path.string();
 
                 void * req_socket = zmq::context::socket(ZMQ_ROUTER);
+                util::scope_guard close_req{[&]{ zmq::close(req_socket); }};
                 if (zmq::bind(req_socket, endpoint.str()) < 0) {
                         LOG << "unable to bind to endpoint " << endpoint.str();
                         throw Exit(-1);
@@ -404,7 +419,7 @@ main(int argc, char **argv)
                 active.connect_ports("trig_out",
                                       options.trigout_ports.begin(), options.trigout_ports.end());
 
-                std::thread monitor_thread(stim_monitor);
+                std::jthread monitor_thread(stim_monitor);
                 LOG << "waiting for requests";
                 while (_running.load()) {
                         // blocking call to receive messages
@@ -420,14 +435,24 @@ main(int argc, char **argv)
                                 DBG << "client requested playlist";
                                 messages.back() = stimlist;
                         }
-                        else if (_request.request != ProcessRequest::None) {
-                                LOG << "client made a request before the previous one was handled";
-                                messages.back() = REP_BUSY;
-                        }
-                        else if (data.compare(0, strlen(REQ_PLAYSTIM), REQ_PLAYSTIM) == 0) {
-                                auto stim = data.substr(strlen(REQ_PLAYSTIM) + 1);
+                        /* There is deliberately no "is a request already
+                         * pending" test ahead of the dispatch. There used to
+                         * be, and because it ran before the command was
+                         * recognised, an unknown request was answered BUSY
+                         * whenever the realtime thread had not yet consumed the
+                         * previous one -- so a client could not tell a
+                         * malformed request from a transient failure. It was
+                         * redundant as well as harmful: start() and interrupt()
+                         * below compare-and-swap, and report BUSY themselves
+                         * when they lose. */
+                        else if (data.starts_with(REQ_PLAYSTIM)) {
+                                auto stim = data.substr(strlen(REQ_PLAYSTIM));
                                 auto it = _stimuli.find(stim);
-                                if (it == _stimuli.end()) {
+                                if (stim.empty()) {
+                                        LOG << "client requested playback with no stimulus name";
+                                        messages.back() = REP_BADCMD;
+                                }
+                                else if (it == _stimuli.end()) {
                                         LOG << "client requested invalid stimulus: " << stim;
                                         messages.back() = REP_BADSTIM;
                                 }
@@ -458,9 +483,10 @@ main(int argc, char **argv)
                 }
                 LOG << "stopping";
 
-                if (monitor_thread.joinable()) monitor_thread.join();
-                zmq_close(req_socket);
-
+                /* No explicit join: ~jthread requests the stop and waits.
+                 * Joining here would also have hung on the path where the
+                 * request loop breaks out with _running still set, which is
+                 * what an interrupted recv does. */
                 return EXIT_SUCCESS;
         }
 

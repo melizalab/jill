@@ -9,8 +9,9 @@ nothing else. See doc/jstimserver-protocol.md.
 Known defects are written as the behaviour the specification calls for and
 marked strict xfail, following test_module_lifecycle.py. That way the test
 says what should happen rather than enshrining what does, and fixing the
-server makes this suite complain until the marker is removed. Both remaining
-ones kill the server outright, so each test gets its own instance.
+server makes this suite complain until the marker is removed. Each test gets
+its own server instance, because a defect that kills it must not take the
+rest of the file with it.
 
 Worth knowing if this file starts failing intermittently again: an
 unanswered request usually means the server has died, so the fixture reports
@@ -342,13 +343,11 @@ def test_stimulus_names_may_contain_spaces(server):
 # Known defects. Each asserts what the specification calls for.
 # --------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="defect 3: BUSY is returned instead of BADCMD "
-                                       "when a request is still pending")
 def test_unknown_request_is_refused_even_with_a_request_pending(server):
-    """The busy check runs before the server tries to recognise the command.
+    """The busy check used to run before the command was recognised.
 
-    So the same input gets BADCMD or BUSY depending on whether the realtime
-    thread has consumed the previous request, and a client cannot tell a
+    So the same input got BADCMD or BUSY depending on whether the realtime
+    thread had consumed the previous request, and a client could not tell a
     malformed request from a transient one.
     """
     assert server.client.interrupt() == "OK"
@@ -373,14 +372,17 @@ def test_duplicate_basenames_are_not_advertised_twice(start_server, tmp_path):
     assert len(names) == len(set(names)), "STIMLIST reported %r" % (names,)
 
 
-@pytest.mark.xfail(strict=True, reason="defect 2: PLAY with no name aborts the server")
-def test_play_with_no_name_is_refused(server):
-    """`PLAY` alone matches the dispatch, and substr() then throws.
+@pytest.mark.parametrize("request_text", ["PLAY", "PLAY "],
+                         ids=["no-separator", "separator-but-no-name"])
+def test_play_with_no_name_is_refused(server, request_text):
+    """`PLAY` alone used to match the dispatch, and substr() then threw.
 
-    The exception unwinds past a joinable monitor_thread, so the process
-    aborts before the handler runs and the client never gets a reply.
+    The exception unwound past a joinable monitor_thread, so the process
+    aborted before the handler ran and the client never got a reply. The
+    trailing-space form reaches the dispatch legitimately and has to be
+    rejected on its own account, since a stimulus name may not be empty.
     """
-    assert server.client.request("PLAY", timeout=3.0) == "BADCMD"
+    assert server.client.request(request_text, timeout=3.0) == "BADCMD"
     assert server.returncode() is None, "the server should still be running"
 
 

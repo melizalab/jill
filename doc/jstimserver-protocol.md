@@ -107,7 +107,7 @@ MAY contain spaces. Names come from the stimulus file's basename with its
 directory and extension removed, so `/data/stims/song a.wav` is `song a`.
 
 `<name>` MUST NOT be empty. A `PLAY` with no name is malformed and MUST be
-answered `BADCMD` (see §7).
+answered `BADCMD`.
 
 If `<name>` is not in the stimulus set the server replies `BADSTIM` and does
 nothing. Otherwise it replies `OK`, and the outcome follows on the event
@@ -260,15 +260,21 @@ that a conforming client can assert against the intended behaviour.
 
 | # | Intended | Actual |
 |---|---|---|
-| 1 | An xrun with nothing playing publishes no event (§4.3). | The server dereferences a null pointer and **crashes** (SIGSEGV). |
-| 2 | `PLAY` with no name is answered `BADCMD`. | The server throws `std::out_of_range`, which unwinds past a joinable thread and **aborts** (SIGABRT). |
-| 3 | An unrecognised request is always answered `BADCMD`. | It is answered `BUSY` when a previous request is still pending, so `BADCMD` and `BUSY` are not distinguishable by the client. |
 | 4 | Two stimulus files with the same basename are rejected, or disambiguated. | `STIMLIST` reports both, with their true durations, but only the first is loaded. `PLAY` always gets the first, so a client timing against the second's duration is silently wrong. |
 
-Defect 1 requires no client involvement at all — any xrun while idle is enough,
-and xruns while idle are routine in a long session. Suppressing the event is
-what §4.3 now specifies, so the fix is to guard the event on a stimulus being
-present rather than to invent a name for one that is not.
+Three earlier entries have been fixed and are recorded here only so that a
+client written against an older build knows what it may meet.
+
+- **An xrun with nothing playing crashed the server** (SIGSEGV), because the
+  event was published with no stimulus to name and the publisher dereferenced
+  it. This needed no client involvement and fired on ordinary xruns, not only
+  on the deliberate period-size change used to provoke it.
+- **`PLAY` with no name aborted the server** (SIGABRT). It matched the
+  dispatch, `substr` threw, and the exception unwound past a joinable thread
+  before any handler could run.
+- **`BADCMD` and `BUSY` were interchangeable.** The busy test ran before the
+  command was recognised, so an unknown request was answered `BUSY` whenever
+  the realtime thread had not yet consumed the previous one.
 
 ## 8. Grammar
 
