@@ -9,6 +9,7 @@
  * (at your option) any later version.
  */
 #include <chrono>
+#include <thread>
 #include "../logging.hh"
 #include "readahead_stimqueue.hh"
 
@@ -42,7 +43,10 @@ namespace {
  * still has to be read and resampled, which dominates for a playlist of
  * distinct files and vanishes for one that repeats.
  *
- * stop() still signals, under the lock, so shutdown does not wait for this. */
+ * It also bounds how long stop() takes to be noticed, since sleep_for cannot
+ * be interrupted. Five milliseconds is not worth a mutex and a
+ * condition_variable_any to skip, but the two are coupled: raise this interval
+ * much and an interruptible wait starts to earn its keep. */
 const auto poll_interval = std::chrono::milliseconds(5);
 
 }
@@ -52,26 +56,19 @@ readahead_stimqueue::readahead_stimqueue(iterator first, iterator last,
                                          bool loop)
         :  _first(first), _last(last), _it(first),
            _next(nullptr), _head(nullptr), _previous(nullptr),
-           _samplerate(samplerate), _loop(loop), _running(true), _finished(false),
-           _thread(&readahead_stimqueue::loop, this)
+           _samplerate(samplerate), _loop(loop), _finished(false),
+           // a lambda rather than a pointer-to-member: jthread supplies the
+           // stop token as the first argument, which for a pmf is where the
+           // object has to go. Qualified because the constructor's `loop`
+           // parameter would otherwise shadow the member function.
+           _thread([this](std::stop_token st) { this->loop(st); })
 {}
 
 void
 readahead_stimqueue::stop()
 {
         LOG << "stimulus queue terminated by stop()";
-        {
-                std::lock_guard<std::mutex> lck(_lock);
-                _running = false;
-        }
-        _ready.notify_one();
-}
-
-readahead_stimqueue::~readahead_stimqueue()
-{
-        // a joinable thread reaching ~std::thread calls std::terminate
-        stop();
-        join();
+        _thread.request_stop();
 }
 
 void
@@ -91,14 +88,12 @@ readahead_stimqueue::join()
  * thread is next scheduled.
  *
  * Loading a stimulus that is already loaded is cheap -- load_samples() checks
- * -- so a pass with nothing to do costs a comparison and a timed wait.
+ * -- so a pass with nothing to do costs a comparison and a sleep.
  */
 void
-readahead_stimqueue::loop()
+readahead_stimqueue::loop(std::stop_token st)
 {
-        std::unique_lock<std::mutex> lck(_lock);
-
-        while (_running) {
+        while (!st.stop_requested()) {
                 if (_next.load() == nullptr) {
                         if (_it == _last && _loop) {
                                 _it = _first;
@@ -116,7 +111,7 @@ readahead_stimqueue::loop()
                                 break;
                         }
                 }
-                _ready.wait_for(lck, poll_interval, [this]{ return !_running; });
+                std::this_thread::sleep_for(poll_interval);
         }
         LOG << "end of stimulus list";
         // published last, so a caller that sees finished() also sees

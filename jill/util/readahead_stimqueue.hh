@@ -13,8 +13,7 @@
 
 #include <atomic>
 #include <thread>
-#include <mutex>
-#include <condition_variable>
+#include <stop_token>
 #include <vector>
 #include "stimqueue.hh"
 
@@ -67,12 +66,17 @@ public:
         /**
          * Stops the background thread and waits for it.
          *
+         * Nothing to write: ~jthread requests a stop and joins, which is the
+         * whole of it. That also covers a throw between construction and the
+         * explicit teardown, where a bare std::thread would reach ~thread
+         * joinable and call std::terminate.
+         *
          * Callers should still stop and join explicitly rather than relying on
          * this: the thread dereferences the stimuli it was given, and if the
          * queue is destroyed during static destruction those may already be
          * gone.
          */
-        ~readahead_stimqueue() override;
+        ~readahead_stimqueue() override = default;
 
         /* Owns the worker thread that pre-loads stimuli. A copy would leave two
          * objects expecting to join it. */
@@ -91,9 +95,9 @@ public:
          *         the sequence was exhausted or because stop() was called.
          *
          * Lets a caller poll for completion instead of blocking in join(). A
-         * main loop that must also notice a signal needs this: stop() takes a
-         * mutex and so cannot be called from a signal handler, which leaves
-         * polling a flag as the only way for the handler to reach it.
+         * main loop that must also notice a signal needs this: stop() logs and
+         * calls request_stop(), neither of which is async-signal-safe, which
+         * leaves polling a flag as the only way for the handler to reach it.
          *
          * This is a latch, not a level: it is set once and never cleared, so
          * unlike head() it will not read false again after reading true.
@@ -101,7 +105,7 @@ public:
         bool finished() const { return _finished.load(std::memory_order_acquire); }
 
 private:
-        void loop();                      // called by thread
+        void loop(std::stop_token st);    // called by thread
 
         iterator const _first;
         iterator const _last;
@@ -117,16 +121,12 @@ private:
 
         nframes_t const _samplerate;
         bool const _loop;
-        bool _running;
         // set by the worker as it exits; read by any thread through finished()
         std::atomic<bool> _finished;
 
-	// Declaration order matters here. Need to initialize the mutex and
-	// condition variable before the thread starts, and shut down the thread
-	// before destroying the variables it waits on.
-        std::mutex _lock;
-        std::condition_variable  _ready;
-        std::thread _thread;
+        // Declared last so that it is destroyed first, stopping and joining
+        // the worker while everything it touches is still alive.
+        std::jthread _thread;
 };
 
 }} // namespace jill::util

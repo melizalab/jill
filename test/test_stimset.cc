@@ -344,6 +344,40 @@ TEST_CASE("a queue with no stimuli finishes on its own") {
         queue.join();
 }
 
+TEST_CASE("destroying a running queue stops and joins it") {
+        /* The worker is owned by a jthread, whose destructor requests a stop
+         * and joins, so the queue needs no explicit teardown to be destroyed
+         * safely. That is the case a module hits when it throws between
+         * building the queue and stopping it: a bare std::thread would reach
+         * ~thread still joinable and call std::terminate.
+         *
+         * A regression shows up as an abort, which doctest reports, or as a
+         * hang, which the suite timeout in test_suites.py catches. The bound
+         * below is for the case in between -- a stop that is noticed but only
+         * eventually. It is generous because the sanitizer builds run this
+         * too; the real cost is one poll interval. */
+        temp_dir dir;
+        const jill::nframes_t samplerate = 8000;
+        const std::string path = write_tone(dir.path / "a.wav", 800, samplerate);
+        stimfile f(path);
+        std::vector<jill::util::trial> playlist{{&f, false}};
+
+        // looping, so the worker cannot exhaust the list and exit on its own
+        auto queue = std::make_unique<jill::util::readahead_stimqueue>(
+                playlist.begin(), playlist.end(), samplerate, true);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (queue->head() == nullptr &&
+               std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        REQUIRE(queue->head() != nullptr);      // the worker is running
+
+        const auto start = std::chrono::steady_clock::now();
+        queue.reset();
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        CHECK(elapsed < std::chrono::seconds(5));
+}
+
 TEST_CASE("finished() waits for the last stimulus to be released") {
         // it is a latch for "the list is done", not "the list was handed out":
         // jstim polls it to decide when playback is over

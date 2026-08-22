@@ -17,12 +17,8 @@ namespace jill { namespace util {
 
 /**
  * One entry in a playlist: a stimulus, plus whether this presentation of it
- * carries the manipulation.
- *
- * The flag lives here and not on stimulus_t because a playlist holds one
- * pointer per repetition, all aliasing the same object. A field on the
- * stimulus would be shared by every repetition -- all of them marked or none
- * -- which is the opposite of what balancing a condition across trials needs.
+ * carries a manipulation (e.g., optogenetic stimulation). The proportion of
+ * trials with the manipulation is set up when the stimqueue is populated.
  */
 struct trial {
         /* Not const: the queue's worker calls load_samples() through this to
