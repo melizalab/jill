@@ -130,6 +130,62 @@ BAD_PULSE_SPECS = [
 ]
 
 
+# The dummy jackd the fixture starts; see conftest.jack_server.
+SAMPLERATE = 44100
+PERIOD = 1024
+
+
+def write_exact(path, nframes, freq=440.0):
+    """A wav of exactly nframes frames at the server's rate, so it is not
+    resampled on load and its length is the number written."""
+    with wave.open(str(path), "w") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLERATE)
+        w.writeframes(b"".join(
+            struct.pack("<h", int(16000 * math.sin(2 * math.pi * freq * i / SAMPLERATE)))
+            for i in range(nframes)))
+    return str(path)
+
+
+def test_jstim_emits_a_stop_that_lands_on_a_period_boundary(jack_server, tmp_path):
+    """A stimulus ending flush with a period must still emit its stop.
+
+    Its stop_off naturally lands at offset nframes, one past the last frame of
+    the period, and jack refuses an event there -- so it used to be dropped in
+    silence. That is one trial in every period_size, which is why a 3250-trial
+    session saw only two: the trial played normally, but it had no end in the
+    recording and the trigger line stayed high (github #32).
+
+    The timing here is chosen so that *every* trial hits the case rather than
+    one in a thousand: the stimulus is an exact multiple of the period, and the
+    interval between onsets is too, so the onsets stay aligned to period
+    boundaries once the first one lands on one.
+    """
+    stim = write_exact(tmp_path / "flush.wav", PERIOD * 4)
+    proc = subprocess.Popen(
+        [module("jstim"), "--loop",
+         "--interval", repr(PERIOD * 8 / SAMPLERATE),
+         "--gap", "0.01", stim],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        env=sanitizer_env())
+    time.sleep(6)
+    proc.send_signal(signal.SIGINT)
+    try:
+        out = proc.communicate(timeout=15)[0]
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out = proc.communicate()[0]
+
+    assert_no_sanitizer_error(out, "jstim")
+    # it has to have actually played, or the test proves nothing
+    assert "playback started" in out or "stimulus" in out, (
+        "jstim does not appear to have run\n--- output ---\n%s" % out[-2000:])
+    assert "could not be written" not in out, (
+        "jstim dropped sync events; a trial has no matching stop"
+        "\n--- output ---\n%s" % out[-3000:])
+
+
 def test_jdetect_rejects_a_window_shorter_than_a_period(jack_server):
     """An integration window under one analysis period rounds to zero periods.
 

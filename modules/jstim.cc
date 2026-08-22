@@ -88,10 +88,26 @@ std::vector<util::trial> _stimlist;
 std::unique_ptr<util::readahead_stimqueue> stim_queue;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
+/* MIDI events the realtime thread could not write. jack refuses an event
+ * whose offset is not inside the period, and refuses to reserve space in a
+ * full buffer; write_message reports both by returning non-zero, and every
+ * caller here used to discard that. A dropped sync event is invisible in the
+ * recording except as a trial with no end, which is a hard thing to trace
+ * back. Counted here and reported by main, since the callback cannot log. */
+std::atomic<int> midi_errors(0);
 std::atomic<nframes_t> last_stop(0);        // time when last stimulus ended
 std::atomic<int> ret(EXIT_SUCCESS);
 // cleared by a signal or by the server going away; main stops the queue
 std::atomic<bool> running(true);
+
+/** Write a sync event, counting the failures instead of discarding them. */
+static void
+emit(void * buffer, nframes_t offset, midi::status_type status, char const * name) JILL_RT
+{
+        if (midi::write_message(buffer, offset, status, name) != 0) {
+                midi_errors.fetch_add(1, std::memory_order_relaxed);
+        }
+}
 
 /**
  * The realtime process loop for jstim. The logic is complicated. The process
@@ -118,6 +134,16 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer
         static nframes_t last_start;  // last stimulus start time
+        /* A stimulus that ends flush with the end of a period wants its
+         * stim_off at offset nframes, which is one past the last frame of the
+         * period and which jack refuses. The event belongs at the first frame
+         * of the next period -- the same frame either way, just expressed in
+         * the next period's coordinates -- so it is carried over and written
+         * below. Without this the stop was silently dropped, roughly one trial
+         * in every period_size, leaving the trial with no end and the trigger
+         * line stuck on. */
+        static jill::stimulus_t const * deferred_off;
+        static bool deferred_off_condition;
         // last stimulus stop is a global atomic so that the main loop can
         // initialize it. Otherwise the pre-stimulus trigger doesn't work on the
         // first stimulus.
@@ -134,6 +160,22 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         util::trial const * last = stim_queue->previous();
         jill::stimulus_t const * stim = (current) ? current->stim : nullptr;
         jill::stimulus_t const * last_stim = (last) ? last->stim : nullptr;
+
+        /* Ahead of everything else: events have to be written in ascending
+         * order, and this one belongs at the first frame of this period. */
+        if (deferred_off) {
+                emit(sync, 0, midi::status_type::stim_off, deferred_off->name());
+                if (deferred_off_condition && !options.posttrigger_interval) {
+                        emit(sync, 0,
+                             midi::status_type(midi::status_type::stim_off,
+                                               midi::channel::condition),
+                             deferred_off->name());
+                }
+                DBG << "wrote deferred stim_off: time=" << time
+                    << ", stim=" << deferred_off->name();
+                deferred_off = nullptr;
+                deferred_off_condition = false;
+        }
 
         // handle xruns
         if (xruns) {
@@ -159,12 +201,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 const auto otrig = dsp::posttrigger_offset(
                         dstop, *options.posttrigger_interval, nframes);
                 if (otrig) {
-                        midi::write_message(sync, *otrig,
+                        emit(sync, *otrig,
                                             midi::status_type(midi::status_type::stim_off,
                                                               midi::channel::trial),
                                             last_stim->name());
                         if (last->condition) {
-                                midi::write_message(sync, *otrig,
+                                emit(sync, *otrig,
                                                     midi::status_type(midi::status_type::stim_off,
                                                                       midi::channel::condition),
                                                     last_stim->name());
@@ -187,11 +229,11 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 period_offset = midi::find_trigger(midi_buffer, true);
                 if (period_offset > nframes) return 0; // no trigger
                 last_start = time + period_offset;
-                midi::write_message(sync, period_offset, midi::status_type::stim_on, stim->name());
+                emit(sync, period_offset, midi::status_type::stim_on, stim->name());
                 // no pretrigger in triggered mode, so the condition window
                 // opens with the stimulus
                 if (current->condition) {
-                        midi::write_message(sync, period_offset,
+                        emit(sync, period_offset,
                                             midi::status_type(midi::status_type::stim_on,
                                                               midi::channel::condition),
                                             stim->name());
@@ -207,12 +249,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                         const auto otrig = dsp::pretrigger_offset(
                                 period_offset, *options.pretrigger_interval, nframes);
                         if (otrig) {
-                                midi::write_message(sync, *otrig,
+                                emit(sync, *otrig,
                                                     midi::status_type(midi::status_type::stim_on,
                                                                       midi::channel::trial),
                                                     stim->name());
                                 if (current->condition) {
-                                        midi::write_message(sync, *otrig,
+                                        emit(sync, *otrig,
                                                             midi::status_type(midi::status_type::stim_on,
                                                                               midi::channel::condition),
                                                             stim->name());
@@ -224,12 +266,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 
                 if (period_offset >= nframes) return 0; // not time yet
                 last_start = time + period_offset;
-                midi::write_message(sync, period_offset, midi::status_type::stim_on, stim->name());
+                emit(sync, period_offset, midi::status_type::stim_on, stim->name());
                 /* The condition window brackets the trial, so when there is a
                  * pretrigger it opened there and this would double it. Without
                  * one there is no wider window to ride on, so it opens here. */
                 if (current->condition && !options.pretrigger_interval) {
-                        midi::write_message(sync, period_offset,
+                        emit(sync, period_offset,
                                             midi::status_type(midi::status_type::stim_on,
                                                               midi::channel::condition),
                                             stim->name());
@@ -254,16 +296,24 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         if (stim_offset >= stim->nframes()) {
                 const bool was_condition = current->condition;
                 stim_queue->release();
-                last_stop = time + period_offset + nsamples;
-                midi::write_message(sync, period_offset + nsamples,
-                                    midi::status_type::stim_off, stim->name());
-                // as at onset: the posttrigger closes the condition window when
-                // there is one, otherwise it closes with the stimulus
-                if (was_condition && !options.posttrigger_interval) {
-                        midi::write_message(sync, period_offset + nsamples,
-                                            midi::status_type(midi::status_type::stim_off,
-                                                              midi::channel::condition),
-                                            stim->name());
+                const nframes_t off_offset = period_offset + nsamples;
+                last_stop = time + off_offset;
+                if (off_offset >= nframes) {
+                        // ends flush with the period; see deferred_off above
+                        deferred_off = stim;
+                        deferred_off_condition = was_condition;
+                }
+                else {
+                        emit(sync, off_offset, midi::status_type::stim_off, stim->name());
+                        // as at onset: the posttrigger closes the condition
+                        // window when there is one, otherwise it closes with
+                        // the stimulus
+                        if (was_condition && !options.posttrigger_interval) {
+                                emit(sync, off_offset,
+                                     midi::status_type(midi::status_type::stim_off,
+                                                       midi::channel::condition),
+                                     stim->name());
+                        }
                 }
                 DBG << "playback ended: time=" << last_stop << ", stim=" << stim->name();
                 stim_offset = 0;
@@ -491,6 +541,14 @@ main(int argc, char **argv)
                 stim_queue->join();
                 // wait for posttrigger and midi buffers to clear
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
+                /* Reported rather than ignored: a sync event that never made
+                 * it out shows up downstream as a trial with no end, and
+                 * nothing else would say why. */
+                if (const int lost = midi_errors.load()) {
+                        LOG << "ERROR: " << lost << " sync event(s) could not be"
+                            " written; some trials may have no matching offset";
+                        ret = EXIT_FAILURE;
+                }
         }
 
         catch (Exit const &e) {

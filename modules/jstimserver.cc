@@ -114,6 +114,9 @@ std::map<std::string, std::unique_ptr<stimulus_t>> _stimuli;
 ProcessRequest _request;
 /** signal from jack server to process that there was an xrun */
 std::atomic<int> _xruns(0);
+/* MIDI events the realtime thread could not write; see jstim for the
+ * reasoning. Counted here because the callback cannot log. */
+std::atomic<int> _midi_errors(0);
 /** signal from jack server or signal handler to end the process */
 std::atomic<bool> _running(true);
 /** ringbuffer to send events from process thread to zmq publisher */
@@ -131,6 +134,15 @@ jack_port_t *port_out, *port_trigout;
 std::atomic<stimulus_t const *> _playing{nullptr};
 
 
+/** Write a trigger event, counting the failures instead of discarding them. */
+static void
+emit(void * buffer, nframes_t offset, midi::status_type status, char const * name) JILL_RT
+{
+        if (midi::write_message(buffer, offset, status, name) != 0) {
+                _midi_errors.fetch_add(1, std::memory_order_relaxed);
+        }
+}
+
 /** The realtime process loop for jstimserver. */
 int
 process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
@@ -139,12 +151,24 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         static stimulus_t const * _stim;       // currently playing stimulus or
                                                // zero if stopped
         static nframes_t stim_offset;          // current position in stimulus buffer
+        /* A stimulus ending flush with the end of a period wants its stim_off
+         * at offset nframes, which jack refuses as outside the period. The
+         * event belongs at the first frame of the next period -- the same
+         * frame, in the next period's coordinates -- so carry it over. */
+        static stimulus_t const * deferred_off;
 
         void * trig = client->events(port_trigout, nframes);
         sample_t * out = client->samples(port_out, nframes);
         // zero the output buffer
         for(nframes_t i = 0; i < nframes; ++i)
                 out[i] = 0.0f;
+
+        /* Before anything else writes to the port: events must be in
+         * ascending order and this one belongs at the first frame. */
+        if (deferred_off) {
+                emit(trig, 0, midi::status_type::stim_off, deferred_off->name());
+                deferred_off = nullptr;
+        }
 
         /* An xrun -- or a buffer size change, which routes here too -- means
          * a gap in the audio stream. Truncate anything playing rather than
@@ -163,7 +187,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                  * against the data they actually corrupted. */
                 if (_stim) {
                         _eventbuf.push(Event{Event::Xrun, time, _stim});
-                        midi::write_message(trig, 0, midi::status_type::stim_off,
+                        emit(trig, 0, midi::status_type::stim_off,
                                             _stim->name());
                         _eventbuf.push(Event{Event::Interrupted, time, _stim});
                         _stim = nullptr;
@@ -180,14 +204,14 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 else {
                         stim_offset = 0;
                         _stim = _request.stim;
-                        midi::write_message(trig, 0, midi::status_type::stim_on, _stim->name());
+                        emit(trig, 0, midi::status_type::stim_on, _stim->name());
                         _eventbuf.push(Event{Event::Started, time, _stim});
                 }
                 _request.clear();
         }
         else if (_request.request == ProcessRequest::Interrupt) {
                 if (_stim) {
-                        midi::write_message(trig, 0, midi::status_type::stim_off, _stim->name());
+                        emit(trig, 0, midi::status_type::stim_off, _stim->name());
                         _eventbuf.push(Event{Event::Interrupted, time, _stim});
                         _stim = nullptr;
                 }
@@ -215,7 +239,13 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 
         // did the stimulus end?
         if (stim_offset >= _stim->nframes()) {
-                midi::write_message(trig, nsamples, midi::status_type::stim_off, _stim->name());
+                if (nsamples >= nframes) {
+                        // ends flush with the period; see deferred_off above
+                        deferred_off = _stim;
+                }
+                else {
+                        emit(trig, nsamples, midi::status_type::stim_off, _stim->name());
+                }
                 _eventbuf.push(Event{Event::Done, time + nsamples, _stim});
                 _stim = nullptr;
         }
@@ -546,6 +576,13 @@ main(int argc, char **argv)
                         zmq::send_n(req_socket, messages.begin(), messages.size());
                 }
                 LOG << "stopping";
+                /* Reported rather than ignored: a trigger event that never
+                 * made it out leaves a stimulus with no matching offset, and
+                 * nothing else would say why. */
+                if (const int lost = _midi_errors.load()) {
+                        LOG << "ERROR: " << lost << " trigger event(s) could not"
+                            " be written; some stimuli may have no offset";
+                }
 
                 /* No explicit join: ~jthread requests the stop and waits.
                  * Joining here would also have hung on the path where the
