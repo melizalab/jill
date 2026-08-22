@@ -9,18 +9,15 @@ nothing else. See doc/jstimserver-protocol.md.
 Known defects are written as the behaviour the specification calls for and
 marked strict xfail, following test_module_lifecycle.py. That way the test
 says what should happen rather than enshrining what does, and fixing the
-server makes this suite complain until the marker is removed. Three of them
-kill the server outright, so each test gets its own instance.
+server makes this suite complain until the marker is removed. Both remaining
+ones kill the server outright, so each test gets its own instance.
 
-**This file is intermittently red, and that is the server's fault rather than
-the suite's.** Defect 1 -- an xrun with nothing playing dereferences a null
-stimulus -- does not need the deliberate period-size change that
-test_xrun_while_idle_does_not_crash uses to provoke it. Starting and stopping
-JACK clients around an idle server is enough to produce a real xrun, and the
-server then dies mid-test, roughly one run in eight here. The fixture reports
-that as "jstimserver exited: rc=-11 (SIGSEGV)" rather than as a bare timeout,
-so it is recognisable when it happens. It will stop once defect 1 is fixed,
-which is the main argument for fixing that one ahead of the others.
+Worth knowing if this file starts failing intermittently again: an
+unanswered request usually means the server has died, so the fixture reports
+its exit status rather than a bare timeout. That is how defect 1 was found to
+fire without the deliberate period-size change used to provoke it -- ordinary
+JACK client churn produced real xruns, and an idle server segfaulted on them
+about one run in eight until it was fixed.
 """
 
 import json
@@ -51,6 +48,39 @@ SAMPLERATE = 44100
 # inside it, short enough not to pad the suite.
 LONG_SECONDS = 2.0
 SHORT_SECONDS = 0.2
+
+
+def break_the_stream(server_name, period):
+    """Put a gap in the audio stream by changing the JACK period size.
+
+    A real xrun cannot be provoked on demand; this reaches the same code path,
+    since jstimserver routes the buffer size callback through its xrun counter.
+    """
+    subprocess.run(["jack_bufsize", str(period)],
+                   env={**os.environ, "JACK_DEFAULT_SERVER": server_name},
+                   capture_output=True, timeout=10)
+
+
+def expect_completion(client, name, timeout):
+    """Wait for `name` to finish playing, and return the frame it ended on.
+
+    Skips rather than fails if the stream breaks first. A genuine xrun
+    truncates playback and publishes XRUN and INTERRUPTED instead of DONE,
+    which is what section 4.3 of the protocol requires, so any assertion about
+    a stimulus completing is really an assertion that the audio stream stayed
+    clean. The dummy backend under a loaded test run does not promise that, and
+    the trial is legitimately void when it happens.
+    """
+    seen = []
+    while True:
+        event = client.next_event(timeout)
+        seen.append(event)
+        verb, event_name, frame = parse_event(event)
+        if verb == "XRUN":
+            pytest.skip("the stream broke during playback (%r); the trial is "
+                        "void, see protocol section 4.3" % (seen,))
+        if verb == "DONE" and event_name == name:
+            return frame
 
 
 def write_tone(path, seconds, freq=440.0):
@@ -253,9 +283,7 @@ def test_play_runs_to_completion(server):
     assert server.client.play("short") == "OK"
     verb, name, start = parse_event(server.client.next_event())
     assert (verb, name) == ("PLAYING", "short")
-    verb, name, end = parse_event(
-        server.client.events_until("DONE", timeout=SHORT_SECONDS + 2)[-1])
-    assert (verb, name) == ("DONE", "short")
+    end = expect_completion(server.client, "short", timeout=SHORT_SECONDS + 2)
     # frame counts advance by roughly the stimulus length
     assert end - start == pytest.approx(SHORT_SECONDS * SAMPLERATE, rel=0.1)
 
@@ -291,9 +319,7 @@ def test_play_while_playing_is_accepted_then_refused(server):
     assert server.client.next_event() == "BUSY", "and then refused on the event channel"
 
     # the first stimulus is unaffected and still finishes
-    verb, name, _ = parse_event(
-        server.client.events_until("DONE", timeout=LONG_SECONDS + 2)[-1])
-    assert (verb, name) == ("DONE", "long")
+    expect_completion(server.client, "long", timeout=LONG_SECONDS + 2)
 
 
 def test_unknown_request_is_refused(server):
@@ -358,28 +384,49 @@ def test_play_with_no_name_is_refused(server):
     assert server.returncode() is None, "the server should still be running"
 
 
-@pytest.mark.xfail(strict=True, reason="defect 1: an xrun with nothing playing "
-                                       "dereferences a null stimulus")
 def test_xrun_while_idle_does_not_crash(private_jack, start_server, stimuli):
-    """The most serious of the four: no client involvement needed.
+    """The most serious of the four defects, now fixed.
 
-    process() pushes the xrun event with whatever _stim holds, which is null
-    between trials, and the publisher formats it as stim->name(). Any period
-    size change while idle is enough, and so is any real xrun.
+    process() pushed the xrun event with whatever _stim held, which is null
+    between trials, and the publisher formatted it as stim->name(). Any period
+    size change while idle was enough, and so was any real xrun.
 
     Runs against its own JACK server because changing the period size would
     disturb every other test sharing one.
     """
     server = start_server([stimuli["short"]], server_name=private_jack)
-    subprocess.run(["jack_bufsize", "512"],
-                   env={**os.environ, "JACK_DEFAULT_SERVER": private_jack},
-                   capture_output=True, timeout=10)
+    break_the_stream(private_jack, 512)
     rc = server.wait_for_exit(timeout=3.0)
     assert rc is None, (
         "the server exited with rc=%s after a period size change\n%s"
         % (rc, server.log()))
     # and it should still be answering
     assert server.client.version(timeout=2.0)
+    # nothing to report: an XRUN event names the stimulus it ruined, and there
+    # was none. Section 4.3 of the protocol says publish nothing.
+    assert server.client.drain_events(settle=0.5) == []
+
+
+def test_xrun_during_playback_is_reported(private_jack, start_server, stimuli):
+    """The other half of the rule: a break that ruins a trial must be reported.
+
+    Guards the fix for defect 1 against being written as "never publish XRUN",
+    which would silently turn a corrupted trial into one that looks fine.
+    """
+    server = start_server([stimuli["long"]], server_name=private_jack)
+    assert server.client.play("long") == "OK"
+    assert parse_event(server.client.next_event())[:2] == ("PLAYING", "long")
+
+    break_the_stream(private_jack, 256)
+    seen = server.client.events_until("INTERRUPTED", timeout=5.0)
+    verbs = [e.split(" ", 1)[0] for e in seen]
+    assert "XRUN" in verbs, "the break was not reported: %r" % (seen,)
+    # both name the stimulus they refer to
+    for event in seen:
+        verb, name, _ = parse_event(event)
+        if verb in ("XRUN", "INTERRUPTED"):
+            assert name == "long"
+    assert server.returncode() is None, "the server died\n%s" % server.log()
 
 
 @pytest.fixture

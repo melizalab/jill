@@ -143,8 +143,15 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
          * short. The client is told both that the stream broke and that this
          * particular playback was cut off. */
         if (_xruns) {
-                _eventbuf.push(Event{Event::Xrun, time, _stim});
+                /* Only report a break that ruined something. An Xrun event
+                 * names the stimulus it interrupted, and between trials there
+                 * is none: publishing one anyway left the publisher formatting
+                 * a null stimulus, which segfaulted the process on any xrun
+                 * while idle. Nothing is lost by staying quiet -- a break
+                 * between trials affects no playback, and jrecord marks xruns
+                 * against the data they actually corrupted. */
                 if (_stim) {
+                        _eventbuf.push(Event{Event::Xrun, time, _stim});
                         midi::write_message(trig, 0, midi::status_type::stim_off,
                                             _stim->name());
                         _eventbuf.push(Event{Event::Interrupted, time, _stim});
