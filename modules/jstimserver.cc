@@ -110,6 +110,8 @@ boost::ptr_map<std::string, stimulus_t> _stimuli;
 ProcessRequest _request;
 /** signal from jack server to process that there was an xrun */
 std::atomic<int> _xruns(0);
+/* Trigger events jack refused; see jstim for the reasoning. */
+std::atomic<int> _midi_errors(0);
 /** signal from jack server or signal handler to end the process */
 std::atomic<bool> _running(true);
 /** ringbuffer to send events from process thread to zmq publisher */
@@ -126,12 +128,25 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         static stimulus_t const * _stim;       // currently playing stimulus or
                                                // zero if stopped
         static nframes_t stim_offset;          // current position in stimulus buffer
+        /* Carried over when a stimulus ends flush with the period; its
+         * stim_off would otherwise want offset nframes, which jack refuses. */
+        static stimulus_t const * deferred_off;
 
         void * trig = client->events(port_trigout, nframes);
         sample_t * out = client->samples(port_out, nframes);
         // zero the output buffer
         for(nframes_t i = 0; i < nframes; ++i)
                 out[i] = 0.0f;
+
+        /* Before anything else writes to the port: ascending order, and this
+         * belongs at the first frame. */
+        if (deferred_off) {
+                if (midi::write_message(trig, 0, midi::status_type::stim_off,
+                                        deferred_off->name()) != 0) {
+                        _midi_errors.fetch_add(1, std::memory_order_relaxed);
+                }
+                deferred_off = nullptr;
+        }
 
         // if there was an xrun, add the event to the ringbuffer
         if (_xruns) {
@@ -181,7 +196,15 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
 
         // did the stimulus end?
         if (stim_offset >= _stim->nframes()) {
-                midi::write_message(trig, nsamples, midi::status_type::stim_off, _stim->name());
+                if (nsamples >= nframes) {
+                        // ends flush with the period; see deferred_off above
+                        deferred_off = _stim;
+                }
+                else if (midi::write_message(trig, nsamples,
+                                             midi::status_type::stim_off,
+                                             _stim->name()) != 0) {
+                        _midi_errors.fetch_add(1, std::memory_order_relaxed);
+                }
                 _eventbuf.push(Event{Event::Done, time + nsamples, _stim});
                 _stim = nullptr;
         }
@@ -424,6 +447,10 @@ main(int argc, char **argv)
                         zmq::send_n(req_socket, messages.begin(), messages.size());
                 }
                 LOG << "stopping";
+                if (const int lost = _midi_errors.load()) {
+                        LOG << "ERROR: " << lost << " trigger event(s) could not"
+                            " be written; some stimuli may have no offset";
+                }
 
                 client.deactivate();
                 if (monitor_thread.joinable()) monitor_thread.join();

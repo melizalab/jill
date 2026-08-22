@@ -68,6 +68,11 @@ boost::ptr_vector<stimulus_t> _stimuli;
 std::vector<stimulus_t *> _stimlist;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
+/* Sync events jack refused. write_message reports a failure by returning
+ * non-zero and callers here discarded it, so a dropped event was invisible
+ * except as a trial with no end. Counted here and reported by main, since the
+ * realtime callback cannot log. */
+std::atomic<int> midi_errors(0);
 std::atomic<nframes_t> last_stop(0);        // time when last stimulus ended
 
 /**
@@ -95,6 +100,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer
         static nframes_t last_start;  // last stimulus start time
+        /* A stimulus ending flush with the end of a period wants its stim_off
+         * at offset nframes, one past the period's last frame, which jack
+         * refuses -- so the stop was dropped, one trial in every period_size.
+         * The event belongs at the first frame of the next period, the same
+         * instant in the next period's coordinates, so carry it over. */
+        static jill::stimulus_t const * deferred_off;
         // last stimulus stop is a global atomic so that the main loop can
         // initialize it. Otherwise the pre-stimulus trigger doesn't work on the
         // first stimulus.
@@ -109,6 +120,16 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // the currently playing stimulus (or nullptr)
         jill::stimulus_t const * stim = queue->head();
         jill::stimulus_t const * last_stim = queue->previous();
+
+        /* Ahead of everything else: events must be written in ascending
+         * order, and this one belongs at the first frame of this period. */
+        if (deferred_off) {
+                if (midi::write_message(sync, 0, midi::status_type::stim_off,
+                                        deferred_off->name()) != 0) {
+                        midi_errors.fetch_add(1, std::memory_order_relaxed);
+                }
+                deferred_off = nullptr;
+        }
 
         // handle xruns
         if (xruns) {
@@ -201,9 +222,17 @@ process(jack_client *client, nframes_t nframes, nframes_t time)
         // did the stimulus end?
         if (stim_offset >= stim->nframes()) {
                 queue->release();
-                last_stop = time + period_offset + nsamples;
-                midi::write_message(sync, period_offset + nsamples,
-                                    midi::status_type::stim_off, stim->name());
+                const nframes_t off_offset = period_offset + nsamples;
+                last_stop = time + off_offset;
+                if (off_offset >= nframes) {
+                        // ends flush with the period; see deferred_off above
+                        deferred_off = stim;
+                }
+                else if (midi::write_message(sync, off_offset,
+                                             midi::status_type::stim_off,
+                                             stim->name()) != 0) {
+                        midi_errors.fetch_add(1, std::memory_order_relaxed);
+                }
                 DBG << "playback ended: time=" << last_stop << ", stim=" << stim->name();
                 stim_offset = 0;
         }
@@ -347,6 +376,14 @@ main(int argc, char **argv)
                 sleep(options.posttrigger_interval_sec.value_or(0.0) + 1.0);
                 client.deactivate();
 
+                /* Reported rather than ignored: a sync event that never left
+                 * the process shows up downstream as a trial with no end, and
+                 * nothing else would say why. */
+                if (const int lost = midi_errors.load()) {
+                        LOG << "ERROR: " << lost << " sync event(s) could not be"
+                            " written; some trials may have no matching offset";
+                        return EXIT_FAILURE;
+                }
                 return EXIT_SUCCESS;
         }
 
