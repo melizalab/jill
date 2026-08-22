@@ -27,6 +27,11 @@ pytest -m "not needs_jack"   # skip anything needing a JACK server
 pytest -m "not needs_arf"    # skip the ARF/HDF5 format tests
 ```
 
+The protocol tests in `test_jstimserver.py` additionally need `pyzmq`, since
+they speak to the server over its ØMQ endpoints. It is `python3-zmq` on Debian
+and `pip install pyzmq` elsewhere; without it that file skips and everything
+else runs as normal.
+
 Tests needing a JACK server get one automatically: a `jackd -d dummy` is
 started for them and shut down afterwards, so no sound hardware is involved.
 JACK on macOS is less predictable than on Linux, so if `jackd` cannot be

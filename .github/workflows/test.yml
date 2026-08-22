@@ -41,7 +41,7 @@ jobs:
             libboost-filesystem-dev \
             libsndfile1-dev libsamplerate0-dev libzmq3-dev \
             libhdf5-dev hdf5-tools \
-            doctest-dev python3-pytest python3-h5py python3-numpy
+            doctest-dev python3-pytest python3-h5py python3-numpy python3-zmq
 
       - name: Build modules and test suites
         run: scons -Q modules test
