@@ -124,6 +124,9 @@ BAD_PULSE_SPECS = [
     pytest.param("0x00,positive,5,x", "delay", id="delay-that-is-not-a-number"),
     pytest.param(",,", "condition", id="all-fields-empty"),
     pytest.param("0x00,sideways,5", "shape", id="unknown-shape"),
+    # two phases do not fit in one sample; the renderer would emit the
+    # interphase gap alone, which is silence rather than a pulse
+    pytest.param("0x00,biphasic,0.02", "biphasic", id="biphasic-too-short"),
 ]
 
 

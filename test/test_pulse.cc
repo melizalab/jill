@@ -77,27 +77,37 @@ TEST_CASE("an even biphasic pulse is symmetric") {
         }
 }
 
-TEST_CASE("characterization: an odd biphasic pulse is not charge balanced") {
-        // duration / 2 rounds down, so the negative phase runs one sample
-        // longer. For an optical or electrical stimulus that is a net charge
-        // imbalance. Recorded as current behaviour, not endorsed as correct.
+TEST_CASE("an odd biphasic pulse is balanced by an interphase gap") {
+        // duration / 2 used to round down and give the remainder to the
+        // negative phase, leaving a net negative sample at the electrode --
+        // exactly what a biphasic pulse is meant to avoid.
         const auto buf = rendered(pulse_shape::biphasic, 5);
         CHECK(buf[PAD + 0] == 1.0f);
         CHECK(buf[PAD + 1] == 1.0f);
-        CHECK(buf[PAD + 2] == -1.0f);
+        CHECK(buf[PAD + 2] == 0.0f);       // the gap
         CHECK(buf[PAD + 3] == -1.0f);
         CHECK(buf[PAD + 4] == -1.0f);
 
         sample_t sum = 0;
         for (std::size_t i = 0; i < 5; ++i) sum += buf[PAD + i];
-        CHECK(sum == -1.0f);
+        CHECK(sum == 0.0f);
 }
 
-TEST_CASE("characterization: a one-sample biphasic pulse is entirely negative") {
-        // half is zero, so the positive phase is empty. Anyone asking for a
-        // biphasic pulse this short gets a monophasic one.
+TEST_CASE("biphasic pulses of every length are charge balanced") {
+        for (jill::nframes_t duration = 0; duration <= 33; ++duration) {
+                CAPTURE(duration);
+                const auto buf = rendered(pulse_shape::biphasic, duration);
+                sample_t sum = 0;
+                for (std::size_t i = 0; i < duration; ++i) sum += buf[PAD + i];
+                CHECK(sum == 0.0f);
+        }
+}
+
+TEST_CASE("a one-sample biphasic pulse is silence") {
+        // Two phases do not fit in one sample. This renders as the gap alone;
+        // jclicker rejects the configuration rather than emit nothing.
         const auto buf = rendered(pulse_shape::biphasic, 1);
-        CHECK(buf[PAD] == -1.0f);
+        CHECK(buf[PAD] == 0.0f);
 }
 
 TEST_CASE("a zero duration pulse writes nothing") {

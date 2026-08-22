@@ -31,10 +31,14 @@ enum class pulse_shape {
  * this by sizing its ringbuffer to a period plus the largest delay plus
  * duration of any configured pulse.
  *
- * Note that a biphasic pulse of odd duration is not charge balanced: the
- * negative phase runs one sample longer than the positive one, and a pulse of
- * duration 1 is entirely negative. That is longstanding behaviour rather than
- * an intended property, and is pinned by the tests.
+ * A biphasic pulse is charge balanced at any duration: an odd duration puts
+ * the spare sample in an interphase gap at zero rather than giving it to
+ * either phase. A biphasic pulse exists to leave no net charge at the
+ * electrode, so an unbalanced one defeats its own purpose.
+ *
+ * Duration 1 therefore renders as a single zero, which is silence rather than
+ * a pulse; jclicker refuses to configure one, since two phases cannot fit in
+ * one sample.
  *
  * @param buf       start of the region to fill
  * @param shape     the pulse shape
@@ -51,9 +55,15 @@ render_pulse(sample_t * buf, pulse_shape shape, nframes_t duration)
                 std::fill(buf, buf + duration, -1.0f);
                 break;
         case pulse_shape::biphasic: {
+                /* Equal phases, with the odd sample left at zero between them.
+                 * duration / 2 used to round down and hand the remainder to
+                 * the negative phase, leaving a net negative sample. Extending
+                 * a phase instead would only move the imbalance, and shortening
+                 * the pulse would silently ignore the duration asked for. */
                 const nframes_t half = duration / 2;
                 std::fill(buf, buf + half, 1.0f);
-                std::fill(buf + half, buf + duration, -1.0f);
+                std::fill(buf + half, buf + duration - half, 0.0f);
+                std::fill(buf + duration - half, buf + duration, -1.0f);
                 break;
         }
         }

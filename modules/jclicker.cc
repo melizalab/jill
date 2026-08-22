@@ -298,6 +298,13 @@ void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
                         throw std::invalid_argument("duration must be positive and at least one sample");
                 }
                 pulse.duration = 0.001 * duration_ms * sampling_rate;
+                /* Two phases do not fit in one sample. render_pulse() would
+                 * emit the interphase gap alone, which is silence -- better
+                 * refused here than delivered as a pulse that is not one. */
+                if (pulse.shape == dsp::pulse_shape::biphasic && pulse.duration < 2) {
+                        throw std::invalid_argument(
+                                "a biphasic pulse must be at least two samples long");
+                }
                 // parse optional fourth token as a float (delay in ms)
                 const float delay_ms = (words.size() == 4)
                         ? parse_whole("delay", words[3], parse_ms) : 0.0f;
