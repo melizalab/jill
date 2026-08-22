@@ -36,6 +36,7 @@ is required, so you will need a reasonably modern C/C++ compiler.
 ## Resources
 
 * [JILL specification](specification.org)
+* [jstimserver control protocol](jstimserver-protocol.md)
 * [Testing notes](testing-notes.md)
 * [JILL implementation notes](implementation-notes.md)
 * [JACK website](http://www.jackaudio.org)

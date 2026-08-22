@@ -133,9 +133,40 @@ Messages sent to the endpoint will be queued and sent when the server binds.
 
 *** Control                                                          :rel2_2:
 
-Modules may bind a control socket with type REQ to endpoint
-=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME=. The control protocol is
-not defined at this time.
+Modules may expose a control interface as a *pair* of endpoints, named for the
+JACK server and the module's client name: a request endpoint at
+=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME/req=, to which the module
+binds a ROUTER socket, and an event endpoint at
+=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME/pub=, to which it binds a
+PUB socket. Clients connect a REQ or DEALER socket to the first and a SUB
+socket to the second.
+
+ROUTER rather than REP, because a module must be able to serve more than one
+client and to answer requests out of order, which the strict alternation of a
+REP socket does not allow. Requests are carried in the last frame of the
+message, and modules must reply with the frames they received, replacing only
+that last frame. This preserves the routing prefix without the module having to
+interpret it, and works unmodified for both REQ clients, which insert an empty
+delimiter frame, and DEALER clients, which do not.
+
+The second endpoint exists because a reply can only report that a request was
+*accepted*. Modules act on control requests in their realtime thread, which
+runs after the reply has been sent, so the outcome is not yet known when the
+module must answer. Outcomes are therefore published on the event endpoint as
+unsolicited messages, and a client that reads a successful reply as a
+successful operation will be wrong. Modules must not use ØMQ topic prefixes on
+this socket; clients subscribe to the empty prefix.
+
+Events are published, not queued. A subscriber that connects after the module
+binds misses anything sent in the interim, and a subscriber that falls behind
+may lose events without being told. Control interfaces must therefore be
+designed so that a client can re-establish state by asking for it, and must not
+require that a client has seen every event.
+
+The vocabulary of requests and events is specific to each module and belongs in
+that module's own specification. At present writing =jstimserver= is the only
+module that implements a control interface; see [[file:jstimserver-protocol.md][the jstimserver control
+protocol]] for a worked example.
 
 ** UNIX Signals
 
