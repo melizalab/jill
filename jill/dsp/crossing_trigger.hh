@@ -58,8 +58,12 @@ public:
 	 *  they are either pushed to the open-threshold counter or the
 	 *  close-threshold counter. If the active counter changes state, the
 	 *  gate is opened or closed, and the offset in the supplied data where
-	 *  this occurred (to the nearest period) is returned. If no state
-	 *  changed, -1 is returned.
+	 *  this occurred is returned. If no state changed, -1 is returned.
+	 *
+	 *  The offset is the first sample of the new state, and is exact: it
+	 *  used to be the period index scaled by period_size(), which
+	 *  understated it by up to a period whenever a period spanned two
+	 *  calls -- the normal case, since periods do not align with blocks.
 	 *
 	 *  @param samples    The input samples
 	 *  @param size       The number of available samples
@@ -73,7 +77,7 @@ public:
 		if (_open) {
 			int per = _close_counter.push(samples, size, _close_count_thresh, counts);
 			if (per > -1) {
-				int offset = per * _close_counter.period_size();
+				const int offset = per;
 				_open = false;
 				_close_counter.reset();
 				// push samples after offset to open counter
@@ -85,7 +89,7 @@ public:
 		else {
 			int per = _open_counter.push(samples, size, _open_count_thresh, counts);
 			if (per > -1) {
-				int offset = per * _open_counter.period_size();
+				const int offset = per;
 				_open = true;
 				_open_counter.reset();
 				// push samples after offset to close counter

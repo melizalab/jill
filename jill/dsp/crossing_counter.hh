@@ -37,7 +37,8 @@ public:
 
 	crossing_counter(const sample_type &threshold, size_type period_size, size_type period_count)
 		:  _counter(period_count), _thresh(threshold), _period_size(period_size),
-		   _period_count(period_count), _period_crossings(0), _period_nsamples(0) {
+		   _period_count(period_count), _period_crossings(0), _period_nsamples(0),
+		   _last(0), _have_last(false) {
 		_max_crossings = _period_count * _period_size / 2;
 	}
 
@@ -57,12 +58,21 @@ public:
 	 *                     to this buffer. Needs to be at least same size as samples.
 	 *                     Useful for debug.
 	 *
-	 * @returns  -1 if no crossing occurred (including calls with samples < period_size)
-	 *           N=0+ if a crossing occurred in the Nth block of data
+	 * @returns  -1 if no threshold crossing occurred (including calls with
+	 *           fewer than two samples), otherwise the offset of the first
+	 *           sample *after* the period in which the count crossed the
+	 *           threshold. That offset may equal size, when the period
+	 *           closed on the last sample of the block.
 	 *
+	 * @note this used to return the index of the analysis period rather
+	 * than a sample offset, and callers multiplied by period_size() to get
+	 * back to samples. That was wrong whenever a period spanned a call,
+	 * which is the normal case: the first period in a block closes early
+	 * by however many samples of it arrived in the previous one, so the
+	 * product understated the offset by up to a full period.
 	 */
  	int push(const sample_type * samples, size_type size, count_type count_thresh, sample_type * state=0) {
-		int ret = -1, period = 0;
+		int ret = -1;
 		// a crossing needs two samples to compare; bail out before
 		// dereferencing rather than reading past the end
 		if (samples == nullptr || size < 2) return -1;
@@ -71,10 +81,21 @@ public:
 		 * offered, and an atomic load in the innermost loop would cost
 		 * real time on the realtime path. */
 		const sample_type threshold = _thresh.load(std::memory_order_relaxed);
-		sample_type last = *samples;
-		if (state)
-			state[0] = float(_counter.running_count()) / _max_crossings;
-		for (size_t i = 1; i < size; ++i) {
+		/* Resume from the previous block's last sample. Seeding from
+		 * samples[0] and starting at 1, as this did, made a crossing on
+		 * the boundary invisible -- while _period_crossings and
+		 * _period_nsamples carried across calls regardless, so the
+		 * count depended on how the caller happened to divide the
+		 * signal and the two effects did not cancel. */
+		size_type i = 0;
+		sample_type last = _last;
+		if (!_have_last) {
+			last = samples[0];
+			i = 1;
+			if (state)
+				state[0] = float(_counter.running_count()) / _max_crossings;
+		}
+		for (; i < size; ++i) {
 			// I only check positive crossings because
 			// it's faster and there's not much point in
 			// counting both for most signals
@@ -86,19 +107,21 @@ public:
 			{
 				_counter.push(_period_crossings);
 				if (_counter.full() && ret < 0) {
+					// where the period closed, in samples
+					const int offset = static_cast<int>(i + 1);
 					if (count_thresh > 0 && _counter.running_count() > count_thresh)
-						ret = period;
+						ret = offset;
 					else if (count_thresh < 0 && _counter.running_count() < -count_thresh)
-						ret = period;
+						ret = offset;
 				} // if (ret < 0)
-				period += 1;
 				_period_nsamples = 0;
 				_period_crossings = 0;
 			}
 			if (state)
 				state[i] = float(_counter.running_count()) / _max_crossings;
-			// here, ret should be the period in blocks or -1 if no crossing
 		}
+		_last = samples[size - 1];
+		_have_last = true;
 		return ret;
 	}
 
@@ -110,6 +133,11 @@ public:
 		_counter.reset();
 		_period_crossings = 0;
 		_period_nsamples = 0;
+		/* Also forget the previous block. A counter resumes after
+		 * sitting idle while the other half of a crossing_trigger ran,
+		 * and comparing the next sample against one from before that
+		 * gap would invent a crossing. */
+		_have_last = false;
 	}
         /** @return the size of the analysis period (in samples) */
 	size_type period_size() const { return _period_size; }
@@ -135,6 +163,11 @@ private:
 	count_type _period_crossings;
 	/// number of samples analyzed in the current period
 	size_type _period_nsamples;
+	/// last sample of the previous block, so that a crossing straddling a
+	/// block boundary is seen. _have_last is false until the first block
+	/// and after reset(), when there is nothing to compare against.
+	sample_type _last;
+	bool _have_last;
         /// max possible crossings in the period (used to normalize)
 	count_type _max_crossings;
 

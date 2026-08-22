@@ -91,13 +91,55 @@ TEST_CASE("crossings are counted once the window fills") {
         CHECK(counter.count() <= static_cast<int>(8 * 4 / 2));
 }
 
-TEST_CASE("the counter reports which period tripped the threshold") {
-        crossing_counter<float> counter(thresh, 8, 2);
+TEST_CASE("the counter reports where in the block the threshold tripped") {
+        const std::size_t period_size = 8;
+        crossing_counter<float> counter(thresh, period_size, 2);
         const std::vector<float> data = square(128);
 
         // a low count threshold trips as soon as the window is full
-        const int period = counter.push(data.data(), data.size(), 1);
-        CHECK(period >= 0);
+        const std::size_t period_count = 2;
+        const int offset = counter.push(data.data(), data.size(), 1);
+        REQUIRE(offset >= 0);
+        CHECK(offset <= static_cast<int>(data.size()));
+        /* A sample offset, not a period index. The window holds period_count
+         * periods and cannot trip until it is full, so this is the offset of
+         * that boundary -- plus one, because the first sample a counter sees
+         * is the seed for the comparison and is not counted. */
+        CHECK(offset == static_cast<int>(1 + period_count * period_size));
+}
+
+TEST_CASE("the reported offset accounts for a period that spans two calls") {
+        /* The bug this pins: the offset used to be the period index scaled by
+         * period_size(), which assumed periods line up with block boundaries.
+         * They do not once a period spans a call, and the product then
+         * understated the offset by however much of the period arrived in the
+         * earlier block. */
+        const std::size_t period_size = 8;
+        crossing_counter<float> counter(thresh, period_size, 2);
+        const std::vector<float> data = square(128);
+
+        // leave the counter part way through a period
+        const std::size_t partial = 3;
+        counter.push(data.data(), partial, 1000);
+
+        const int offset = counter.push(data.data() + partial,
+                                        data.size() - partial, 1);
+        REQUIRE(offset >= 0);
+        /* The first period of this block closes early, by however much of it
+         * arrived in the previous call. That is `partial - 1` samples, not
+         * `partial`: the very first sample a counter ever sees is consumed as
+         * the seed for the comparison and is not counted, since there is
+         * nothing before it to have crossed from. The old arithmetic returned
+         * 0 here, a whole period too early. */
+        const int carried = static_cast<int>(partial) - 1;
+        /* Compared modulo the period, because the trip happens at whichever
+         * boundary fills the running window rather than at the first one. What
+         * matters is that the boundaries are shifted by the carried samples,
+         * which is exactly what scaling a period index could not express. */
+        CHECK(offset % static_cast<int>(period_size)
+              == (static_cast<int>(period_size) - carried) % static_cast<int>(period_size));
+        // and the old arithmetic, a multiple of the period, is not this
+        CHECK(offset % static_cast<int>(period_size) != 0);
 }
 
 TEST_CASE("reset clears the running count") {
@@ -135,32 +177,53 @@ TEST_CASE("the state buffer is filled when requested") {
         }
 }
 
-TEST_CASE("characterization: the count depends on how the signal is blocked") {
-        // Two quirks interact here. push() seeds 'last' from samples[0] and
-        // starts comparing at index 1, and that value is not carried between
-        // calls, so a transition straddling a block boundary is invisible.
-        // But _period_crossings and _period_nsamples *are* carried, so the
-        // period closes at a different sample and sweeps up a different set
-        // of crossings. The two effects do not cancel.
-        //
-        // The exact values below are what the detector does today, not what
-        // it necessarily should do. They are pinned so that a deliberate
-        // change to the period bookkeeping shows up here rather than silently
-        // altering when jdetect triggers.
+TEST_CASE("the count does not depend on how the signal is blocked") {
+        /* It used to. push() seeded 'last' from samples[0] and started
+         * comparing at index 1, and did not carry that value between calls, so
+         * a transition straddling a block boundary was invisible -- while
+         * _period_crossings and _period_nsamples *were* carried, so the period
+         * closed at the same sample either way and swept up a different set of
+         * crossings. The counts came out 2 and 3 for the signal below.
+         *
+         * This is the property jdetect actually needs: how the JACK server
+         * happens to divide a signal into periods must not change whether a
+         * recording triggers. */
         const std::vector<float> whole = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
 
         crossing_counter<float> one(thresh, 4, 2);
         one.push(whole.data(), whole.size(), 1000);
-        const int count_one_block = one.count();
 
         crossing_counter<float> two(thresh, 4, 2);
         two.push(whole.data(), 4, 1000);
         two.push(whole.data() + 4, 4, 1000);
-        const int count_two_blocks = two.count();
 
-        CHECK(count_one_block == 2);
-        CHECK(count_two_blocks == 3);
-        CHECK(count_one_block != count_two_blocks);
+        CHECK(one.count() == two.count());
+
+        // and split somewhere that is not a period boundary
+        crossing_counter<float> three(thresh, 4, 2);
+        three.push(whole.data(), 3, 1000);
+        three.push(whole.data() + 3, 5, 1000);
+        CHECK(three.count() == one.count());
+}
+
+TEST_CASE("reset forgets the previous block") {
+        /* A counter resumes after sitting idle while the other half of a
+         * crossing_trigger ran. Comparing the next sample against one from
+         * before that gap would invent a crossing that never happened. */
+        crossing_counter<float> counter(thresh, 4, 2);
+        // long enough that a period closes and reaches the running count
+        const std::vector<float> high(8, 1.0);
+        std::vector<float> low_then_high(8, 1.0);
+        low_then_high[0] = 0.0;
+
+        counter.push(high.data(), high.size(), 1000);
+        counter.reset();
+        counter.push(low_then_high.data(), low_then_high.size(), 1000);
+        /* Exactly one crossing, from the leading 0.0 to the 1.0 after it. If
+         * reset() had left the previous block's trailing 1.0 in place, the
+         * 0.0 would have been compared against it and the counter would have
+         * seen a fall and then a rise. */
+        CHECK(counter.count() == 1);
 }
 
 TEST_CASE("a new trigger starts closed") {
