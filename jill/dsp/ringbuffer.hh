@@ -191,7 +191,7 @@ public:
                 detail::copyto<data_type> copier(src);
                 return push(copier, cnt);
         }
-        std::size_t push(write_visitor_type data_fun, std::size_t cnt) {
+        std::size_t push(write_visitor_type const & data_fun, std::size_t cnt) {
                 // Read the available space once. Calling write_space() again
                 // to assign can return a larger value than the test saw, if
                 // the reader freed space in between, and cnt would then grow
@@ -246,7 +246,7 @@ public:
          *
          * @return the number of elements actually read
          */
-        std::size_t pop(read_visitor_type data_fun, std::size_t cnt=0) {
+        std::size_t pop(read_visitor_type const & data_fun, std::size_t cnt=0) {
                 // as in push(): one read, so cnt can only shrink
                 const std::size_t avail = read_space();
                 if (cnt==0 || cnt > avail)

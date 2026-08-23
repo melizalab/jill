@@ -150,7 +150,10 @@ jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int co
         const char ** connections = jack_port_get_connections(port_trig);
         // can't directly compare port addresses
         if (connections) {
-                jack_free(connections);
+                // jack_free takes void*; the cast is explicit because dropping
+                // a level of const through an implicit conversion is the kind
+                // of thing worth seeing
+                jack_free(static_cast<void *>(connections));
         }
         else {
                 // close current entry

@@ -70,8 +70,10 @@ jill::midi::write_message(void * buffer, nframes_t time, status_type status, cha
         data_type *buf = jack_midi_event_reserve(buffer, time, len);
         if (buf) {
                 buf[0] = status.value();
-                // FIXME: replace with strlcpy
-                if (message) strcpy(reinterpret_cast<char*>(buf)+1, message);
+                // len was computed from this same string, so the copy is
+                // exactly sized; memcpy says so, where strcpy left the
+                // reader to go and check
+                if (message) memcpy(buf + 1, message, len - 1);
                 return 0;
         }
         else

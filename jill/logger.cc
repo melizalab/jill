@@ -31,7 +31,21 @@ log_msg::log_msg(timestamp_t const & utc)
 
 log_msg::~log_msg()
 {
-        logger::instance().log(_creation, _stream.str());
+        // Every LOG statement ends here, so nothing this does may throw: a
+        // destructor that propagates terminates the process, and an unattended
+        // recorder would die of a failed log line. The paths that can throw are
+        // real rather than theoretical -- the local-time conversion below
+        // throws when the C library cannot convert, and the string work can
+        // throw bad_alloc.
+        //
+        // Swallowing is the only option left at this point. Reporting the
+        // failure would mean logging it, which arrives back here.
+        try {
+                logger::instance().log(_creation, _stream.str());
+        }
+        catch (...) {
+                // @intentional: nowhere left to report it, see above
+        }
 }
 
 logger::logger()
@@ -59,8 +73,20 @@ logger::~logger()
 void
 logger::log(timestamp_t const & utc, std::string const & msg)
 {
+        /**
+         * Fall back to UTC rather than losing the line. utc_to_local reaches
+         * the C library's localtime, which throws if it cannot convert, and
+         * that happens before anything is printed -- so a conversion failure
+         * would discard the message as well as unwinding.
+         */
         using local_adj = boost::date_time::c_local_adjustor<timestamp_t>;
-        timestamp_t local = local_adj::utc_to_local(utc);
+        timestamp_t local = utc;
+        try {
+                local = local_adj::utc_to_local(utc);
+        }
+        catch (std::exception const &) {
+                // @intentional: keep the UTC stamp rather than lose the line
+        }
         // printf calls are generally threadsafe
         printf("%s [%s] %s\n", to_iso_string(local).c_str(), _source.c_str(), msg.c_str());
 

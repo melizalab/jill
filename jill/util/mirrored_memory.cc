@@ -78,7 +78,8 @@ mirrored_memory::mirrored_memory(size_t arg_size, size_t guard_pages)
                 throw std::runtime_error("munmap failed");
 
         //-- Create a private shared memory segment.
-        if ( 0 > ( shm_id = shmget( IPC_PRIVATE, _size, IPC_CREAT | 0700 ) ) )
+        shm_id = shmget( IPC_PRIVATE, _size, IPC_CREAT | 0700 );
+        if ( shm_id < 0 )
                 throw std::runtime_error("shared memory allocation failed");
 
         if ( _buf != shmat( shm_id, _buf, 0 ) ) {

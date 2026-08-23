@@ -86,7 +86,9 @@ static const double hilbert_filt[n_hilbert] = {
         -7.76308935e-04, -1.03098408e-02, -7.11308425e-04, -9.95084658e-03,
         -6.38987738e-04, -9.59325502e-03, -5.69220879e-04, -9.24435788e-03,
         -5.07861048e-04, -8.92437318e-03, -4.60859408e-04, -1.35574586e-01 };
-static sample_ringbuffer hilbert_rb(n_hilbert * 2);
+// widened before multiplying: the ringbuffer takes a size_t, and doing the
+// arithmetic in nframes_t first would wrap before the conversion
+static sample_ringbuffer hilbert_rb(std::size_t{n_hilbert} * 2);
 static sample_ringbuffer delay_rb(n_hilbert);
 static const nframes_t n_sos = 2;
 // this is 4th order butterworth lowpass with cutoff 500 Hz

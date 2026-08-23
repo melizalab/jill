@@ -62,9 +62,15 @@ buffered_data_writer::buffered_data_writer(std::unique_ptr<data_writer> writer,
 buffered_data_writer::~buffered_data_writer()
 {
         DBG << "buffered_data_writer closing";
-        // need to make sure synchrons are not in use
-        stop();                 // no more new data; exit writer thread
-        join();                 // wait for writer thread to exit
+        /**
+         * Qualified because these are virtual and this is a destructor: the
+         * base version is what runs, which is what is wanted here. A derived
+         * class whose write() the thread calls has to stop and join in its own
+         * destructor, while its part of the object is still alive --
+         * triggered_data_writer does exactly that.
+         */
+        buffered_data_writer::stop();   // no more new data; exit writer thread
+        buffered_data_writer::join();   // wait for writer thread to exit
         zmq_close(_socket);
 }
 

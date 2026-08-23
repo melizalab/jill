@@ -45,6 +45,37 @@ Checks: >
 #   matters only where flushing is frequent, which is nowhere it is used here.
 #   Leaving them on would have buried the checks that do mean something.
 
+CheckOptions:
+  # An empty catch is sometimes the only correct thing -- a destructor that
+  # lets an exception escape terminates the process. Marking those with
+  # @intentional keeps the check useful: the marker is greppable, and every
+  # site still has to say in words why there is nothing to do.
+  bugprone-empty-catch.IgnoreCatchWithKeywords: '@TODO;@FIXME;@intentional'
+
+# Findings left in place deliberately, so that nobody spends an afternoon
+# re-deriving these:
+#
+# bugprone-unchecked-optional-access, arf_writer.cc (2): _entry is always
+#   engaged at the point flagged. write() does `if (!_entry) new_entry(...)`
+#   before reaching get_dataset(), and the analyzer cannot see through that
+#   call. Suppressing the check outright would lose the genuine cases.
+#
+# performance-unnecessary-value-param on std::stop_token (2): passing a stop
+#   token by value is the idiom the standard library itself uses. The advice
+#   is wrong here.
+#
+# performance-unnecessary-value-param on data_writer::log (1 signature,
+#   reported once per including TU): two string copies per message, on a path
+#   that is not hot, against a change to a virtual interface and every
+#   override. Not worth it yet.
+#
+# bugprone-branch-clone (4): the arms really are identical, but in
+#   crossing_counter and midi they test opposite directions, and collapsing
+#   the conditions reads worse than the duplication.
+#
+# performance-no-int-to-ptr, mirrored_memory.cc: the cast is the alignment
+#   arithmetic that function exists to do.
+
 WarningsAsErrors: ''
 HeaderFilterRegex: '(jill|modules)/.*\.hh$'
 FormatStyle: none

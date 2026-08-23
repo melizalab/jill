@@ -47,7 +47,7 @@ public:
                         _f();
                 }
                 catch (...) {
-                        // see the note above: never propagate from here
+                        // @intentional: see above, never propagate from here
                 }
         }
 
