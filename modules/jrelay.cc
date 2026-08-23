@@ -103,14 +103,18 @@ main(int argc, char **argv)
                 options.parse(argc,argv);
                 std::unique_ptr<jill::data_writer> receiver;
                 // future: support multiple endpoints. For now, only open-ephys
-                // or dummy.
+                // or the console.
+                if (options.count("open-ephys") > 0 && options.count("print") > 0) {
+                        throw std::runtime_error("--print and --open-ephys ask for "
+                                                 "different destinations; give only one");
+                }
                 if (options.count("open-ephys") > 0) {
                         auto recv = new net::open_ephys_receiver(options.openephys_addr);
                         recv->send("jrelay connected");
                         receiver.reset(recv);
                 }
                 else {
-                        LOG << "using dummy receiver";
+                        LOG << "printing events (no forwarding endpoint given)";
                         receiver.reset(new net::dummy_event_receiver());
                 }
                 /**
@@ -190,7 +194,12 @@ jrelay_options::jrelay_options(string const &program_name)
         opts.add_options()
                 ("open-ephys",
                  po::value(&openephys_addr)->implicit_value(DEFAULT_OPEN_EPHYS_ENDPOINT),
-                 "endpoint for an open-ephys NetworkEvents plugin");
+                 "endpoint for an open-ephys NetworkEvents plugin")
+                ("print",
+                 "print events to the log instead of forwarding them. This is "
+                 "the default when no endpoint is given; naming it makes an "
+                 "event monitor something you can ask for rather than something "
+                 "you get by leaving an option out");
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
 }
@@ -199,10 +208,14 @@ jrelay_options::jrelay_options(string const &program_name)
 void
 jrelay_options::print_usage()
 {
-        std::cout << _program_name << ": relay stimulus events to other data acquisition systems\n\n"
+        std::cout << _program_name << ": relay or print stimulus events\n\n"
                   << "Usage: " << _program_name << " ...\n"
                   << visible_opts << std::endl
                   << "Ports:\n"
                   << " * in:        input event port\n"
+                  << std::endl
+                  << "With --open-ephys, events are forwarded to that endpoint. Otherwise\n"
+                  << "they are printed, which makes this an event monitor:\n"
+                  << "  " << _program_name << " --print -i jstim:sync_out\n"
                   << std::endl;
 }
