@@ -27,7 +27,7 @@ range of sound cards out of the box. **JILL** and JACK do not require
 any specialized hardware. If you have a sound card in your computer, you
 can record audio or neural data.
 
- **JILL** modules can interoperate with any existing JACK modules (e.g. for
+**JILL** modules can interoperate with any existing JACK modules (e.g. for
 filtering, synthesis, and visualization). JACK is well-tested and has a large
 user community.
 
