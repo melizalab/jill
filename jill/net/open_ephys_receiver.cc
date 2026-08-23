@@ -49,18 +49,40 @@ open_ephys_receiver::write(data_block_t const * block, nframes_t, nframes_t)
 	if (block->dtype == SAMPLED) return;
 	auto * buffer = block->data<char>();
 	auto status = midi::status_type(buffer[0]);
-	std::ostringstream message;
+	char const * verb;
 	switch (status.status()) {
 	case midi::status_type::stim_on:
-		message << "start ";
+		verb = "start";
 		break;
 	case midi::status_type::stim_off:
-		message << "stop ";
+		verb = "stop";
 		break;
 	default:
 		return;
 	}
-	message << (buffer + 1);
+	/**
+	 * The channel is part of the verb rather than a field of its own,
+	 * because the stimulus name is last and may contain spaces -- so a
+	 * reader splits once and takes the remainder, and any token added
+	 * after the name would be ambiguous. Channel 0 keeps the bare verb, so
+	 * a reader that predates the other channels is still correct about the
+	 * stimulus stream rather than quietly wrong about it.
+	 *
+	 * Without this the channel was masked off and every stream produced
+	 * the same text: with a trial window and a condition marker in use,
+	 * open-ephys recorded three identical "start" events per trial and no
+	 * way to tell which was which.
+	 */
+	std::ostringstream message;
+	if (auto channel = status.channel()) {
+		switch (*channel) {
+		case midi::channel::stim:                          break;
+		case midi::channel::trial:     message << "trial_";     break;
+		case midi::channel::condition: message << "condition_"; break;
+		default: message << "channel" << int(*channel) << "_";  break;
+		}
+	}
+	message << verb << ' ' << (buffer + 1);
 	DBG << "event: t=" << block->time << " message=" << message.str();
 	send(message.str());
 }
