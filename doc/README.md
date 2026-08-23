@@ -26,6 +26,7 @@ is required, so you will need a reasonably modern C/C++ compiler.
 
 ## Topics
 
+* [JILL modules](modules.md) — what each module is for
 * [Multiple Hardware Devices](multiple-hardware-devices.md)
 * [Network JACK](network-jack.md)
 * [Other JACK clients](other-jack-clients.md)
