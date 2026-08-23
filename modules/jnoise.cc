@@ -1,12 +1,12 @@
 /*
- * Generate noise
+ * Generate (white) noise, varying the noise by circadian time.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Copyright (C) 2010-2021 C Daniel Meliza <dan || meliza.org>
+ * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
 #include <random>
@@ -33,13 +33,15 @@ public:
         string server_name;
         /** The client name (used in internal JACK representations) */
         string client_name;
-
         /** Ports to connect to */
         std::vector<string> output_ports;
-
+	/** When day starts */
         string start_time;
+	/** When day ends */
         string stop_time;
+	/** How loud the noise is during the day */
         float loud_db;
+	/** How loud it is at night */
         float quiet_db;
 
 protected:
@@ -50,23 +52,23 @@ protected:
 
 
 static jnoise_options options(PROGRAM_NAME);
-static std::unique_ptr<jack_client> client;
-jack_port_t *port_out;
+jack_port_t * port_out;
 float loud_scale = 0;
 float quiet_scale = 0;
 std::atomic<int> ret(EXIT_SUCCESS);
 std::atomic<bool> running(true);
 std::atomic<bool> daytime(false);
 
-static std::random_device rd;  //Will be used to obtain a seed for the random number engine
-static std::mt19937 wn_gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+static std::random_device rd;  // Will be used to obtain a seed for the random number engine
+static std::mt19937 wn_gen(rd()); // Standard mersenne_twister_engine seeded with rd()
 static std::normal_distribution<> wn_dis(0.0, 1.0);
 
 int
-process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
+process(jack_client * client, nframes_t nframes, nframes_t) JILL_RT
 {
         sample_t *out = client->samples(port_out, nframes);
-
+	// daytime flag is calculated by the main loop, so we're not doing any
+	// time-related stuff (which can throw) in realtime.
         if (daytime) {
                 for (nframes_t i = 0; i < nframes; ++i) {
                         out[i] = wn_dis(wn_gen) * loud_scale;
@@ -81,7 +83,7 @@ process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
 }
 
 int
-jack_xrun(jack_client *client, float delay)
+jack_xrun(jack_client * client, float delay)
 {
         return 0;
 }
@@ -106,7 +108,7 @@ main(int argc, char **argv)
         using namespace std;
         try {
                 options.parse(argc,argv);
-                client.reset(new jack_client(options.client_name, options.server_name));
+                auto client = jack_client(options.client_name, options.server_name);
 
                 // parse the arguments
                 time_duration start = duration_from_string(options.start_time);
@@ -117,7 +119,7 @@ main(int argc, char **argv)
                 loud_scale = pow(10, (options.loud_db - 3.0103) / 20);
                 quiet_scale = pow(10, (options.quiet_db - 3.0103) / 20);
 
-                port_out = client->register_port("out", JACK_DEFAULT_AUDIO_TYPE,
+                port_out = client.register_port("out", JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsOutput, 0);
 
                 // register signal handlers
@@ -125,14 +127,14 @@ main(int argc, char **argv)
                 signal(SIGTERM, signal_handler);
                 signal(SIGHUP,  signal_handler);
 
-                client->set_shutdown_callback(jack_shutdown);
-                client->set_xrun_callback(jack_xrun);
-                client->set_process_callback(process);
-                activated_client active(*client);
+                client.set_shutdown_callback(jack_shutdown);
+                client.set_xrun_callback(jack_xrun);
+                client.set_process_callback(process);
+                activated_client active(client);
 
                 active.connect_ports("out", options.output_ports.begin(), options.output_ports.end());
 
-                // check time here
+                // Wake up every 5 s and check if it's daytime.
                 while (running) {
                         time_duration time_of_day = second_clock::local_time().time_of_day();
                         bool is_day;
