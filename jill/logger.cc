@@ -55,7 +55,15 @@ logger::logger()
           _connected(false),
           _forwarding(true),
           _dropped(0)
-{}
+{
+        // Line-buffer the console log. stdio picks block buffering whenever
+        // stdout is not a terminal, so a module whose output is piped or
+        // redirected -- to tee, to grep, to a log file under a supervisor --
+        // otherwise shows nothing for kilobytes at a time, and loses the tail
+        // entirely if it is killed rather than shut down. That turns the log
+        // into something you can only read post mortem, and only sometimes.
+        setvbuf(stdout, nullptr, _IOLBF, 0);
+}
 
 logger::~logger()
 {
