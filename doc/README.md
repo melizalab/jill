@@ -23,6 +23,7 @@ is required, so you will need a reasonably modern C/C++ compiler.
 * [Basic Recording](basic-recording.md)
 * [Triggered Recording](triggered-recording.md)
 * [Recording Stimulus-Evoked Activity](recording-stimulus-evoked-activity.md)
+* [Orchestration Scripts](orchestration-scripts.md)
 
 ## Topics
 
