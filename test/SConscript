@@ -50,16 +50,31 @@ LEGACY_PROGRAMS = [
 # writes a fixture file for test_arf_format.py to inspect with h5py
 ARF_PROGRAMS = ["write_arf_fixture"]
 
+# doctest is needed by the unit suites and by nothing else, so a missing
+# header skips those targets instead of failing the build. A machine that only
+# runs recordings has no reason to carry a test framework, and requiring one to
+# build the modules is what issue #33 is about. Asking for `test` explicitly is
+# the exception: there, building nothing and saying nothing would be worse than
+# stopping.
+have_doctest = False
 if UNIT_SUITES:
     conf = Configure(menv)
-    if not conf.CheckCXXHeader("doctest/doctest.h"):
-        print("error: the doctest headers were not found, and are needed to")
-        print("       build the unit test suites. Install the 'doctest-dev'")
-        print("       package on Debian, or 'doctest' from Homebrew.")
-        Exit(1)
+    have_doctest = conf.CheckCXXHeader("doctest/doctest.h")
     menv = conf.Finish()
 
-out = [menv.Program(name, ["%s.cc" % name, lib]) for name in UNIT_SUITES + LEGACY_PROGRAMS]
+if UNIT_SUITES and not have_doctest:
+    hint = (
+        "the doctest headers were not found. Install the 'doctest-dev' package "
+        "on Debian, or 'doctest' from Homebrew."
+    )
+    if "test" in COMMAND_LINE_TARGETS:
+        print("error: %s" % hint)
+        Exit(1)
+    print("note: %s Skipping the unit test suites." % hint)
+
+# The legacy programs are plain main()s and build with or without doctest.
+suites = UNIT_SUITES if have_doctest else []
+out = [menv.Program(name, ["%s.cc" % name, lib]) for name in suites + LEGACY_PROGRAMS]
 
 if GetOption("compile_arf"):
     # a separate environment: appending to menv here would retroactively add
