@@ -13,6 +13,7 @@
 #include <csignal>
 #include <cmath>
 #include <cstdlib>
+#include <sstream>
 #include <algorithm>
 #include <random>
 #include <fstream>
@@ -402,46 +403,97 @@ parse_count(string const & s, size_t & out)
         return true;
 }
 
+/**
+ * How far the delivered condition fraction may sit from the requested
+ * probability before the request is refused. This absorbs a probability
+ * written as a short decimal -- 0.33 for one third is 0.0033 away from what
+ * it means -- and nothing else. A repeat count that cannot express the
+ * probability at all is a different situation: 0.25 over three repetitions
+ * would deliver 0.333, and running that experiment is worse than not running
+ * it, so it stops rather than reporting the discrepancy and continuing.
+ */
+static constexpr double condition_tolerance = 0.01;
+
+/**
+ * Pair each stimulus argument with its repeat count.
+ *
+ * A bare count following a filename is that stimulus's number of repeats, and
+ * is consumed here so it is not opened as a file. Both halves matter: leaving
+ * the count in place makes it the next "filename", and skipping the following
+ * entry unconditionally drops a real one, so `jstim a.wav b.wav` plays only
+ * a.wav.
+ *
+ * Shared by the option check and the loader so the two cannot disagree about
+ * how many repetitions a stimulus gets -- a check that validates a different
+ * list than the one played is worse than no check.
+ */
+static std::vector<std::pair<string, size_t> >
+parse_stimlist(std::vector<string> const & stims, size_t default_nreps)
+{
+        std::vector<std::pair<string, size_t> > out;
+        for (size_t i = 0; i < stims.size(); ++i) {
+                string const & name = stims[i];
+                size_t nreps = default_nreps;
+                if ((i + 1) < stims.size() && parse_count(stims[i + 1], nreps)) {
+                        i += 1;
+                }
+                out.emplace_back(name, nreps);
+        }
+        return out;
+}
+
+/**
+ * How many of a stimulus's repetitions carry the condition.
+ *
+ * The fraction has to be one this repeat count can express. Rounding to the
+ * nearest whole trial silently changes the experiment: at the default of one
+ * repetition, 0.5 rounds to 1 and every trial carries the condition. Throws
+ * instead, naming the value that would have been delivered.
+ */
+static size_t
+condition_count(string const & name, size_t nreps, float condition_prob)
+{
+        namespace fs = std::filesystem;
+        const size_t want = std::lround(double(condition_prob) * nreps);
+        const double achieved = (nreps > 0) ? double(want) / nreps : 0.0;
+        if (std::fabs(achieved - condition_prob) > condition_tolerance) {
+                std::ostringstream msg;
+                msg << "--condition-prob " << condition_prob
+                    << " cannot be delivered for " << fs::path(name).filename().string()
+                    << ": " << nreps
+                    << (nreps == 1 ? " repetition gives " : " repetitions give ")
+                    << achieved
+                    << ". Use a repeat count this probability divides into,"
+                       " or change --condition-prob.";
+                throw std::invalid_argument(msg.str());
+        }
+        return want;
+}
+
 /** parse the list of stimuli */
 static void
 init_stimset(std::vector<string> const & stims, size_t const default_nreps,
              float condition_prob, std::mt19937 & rng)
 {
-        namespace fs = std::filesystem;
-
         size_t marked = 0;
-        for (size_t i = 0; i < stims.size(); ++i) {
-                fs::path p(stims[i]);
+        for (auto const & entry : parse_stimlist(stims, default_nreps)) {
+                string const & name = entry.first;
+                const size_t nreps = entry.second;
                 /**
-                 * A bare count following a filename is that stimulus's number
-                 * of repeats, and is consumed here so it is not opened as a
-                 * file. Both halves matter: leaving the count in place makes it
-                 * the next "filename", and skipping the following entry
-                 * unconditionally drops a real one, so `jstim a.wav b.wav`
-                 * plays only a.wav.
+                 * Assign the condition by counting rather than by drawing per
+                 * trial, so every stimulus carries it on exactly the same
+                 * fraction of its repetitions. Which repetitions those are is
+                 * still random -- the flags are shuffled within the block --
+                 * and none of it depends on --shuffle, which decides
+                 * presentation order rather than which trials are manipulated.
+                 *
+                 * The repeat count was checked against the probability before
+                 * the client was created, so this cannot throw here.
                  */
-                size_t nreps = default_nreps;
-                if ((i + 1) < stims.size() && parse_count(stims[i + 1], nreps)) {
-                        i += 1;
-                }
+                const size_t want = condition_count(name, nreps, condition_prob);
                 try {
-                        _stimuli.push_back(std::make_unique<file::stimfile>(p.string()));
+                        _stimuli.push_back(std::make_unique<file::stimfile>(name));
                         jill::stimulus_t * stim = _stimuli.back().get();
-                        /**
-                         * Assign the condition by counting rather than by
-                         * drawing per trial. Every stimulus gets exactly
-                         * round(p * nreps) of its repetitions marked, so the
-                         * proportion is exact instead of approached, and which
-                         * repetitions they are is still random -- the flags are
-                         * shuffled within this stimulus's block. Doing it here
-                         * rather than after the whole list is built is what
-                         * keeps the balance per stimulus rather than overall.
-                         *
-                         * This is also why it does not depend on --shuffle:
-                         * that decides presentation order, which is a separate
-                         * question from which trials carry the manipulation.
-                         */
-                        const size_t want = std::lround(condition_prob * nreps);
                         std::vector<bool> flags(nreps, false);
                         std::fill_n(flags.begin(), want, true);
                         std::shuffle(flags.begin(), flags.end(), rng);
@@ -451,7 +503,7 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps,
                         marked += want;
                 }
                 catch (jill::FileError const & e) {
-                        LOG << "invalid stimulus " << p << ": " << e.what();
+                        LOG << "invalid stimulus " << name << ": " << e.what();
                 }
         }
         LOG << "loaded " << _stimuli.size() << " stimuli, " << _stimlist.size()
@@ -498,9 +550,6 @@ main(int argc, char **argv)
 
                 /** stimulus queue */
                 DBG << "loading " << options.stimuli.size() << " stimuli";
-                if (options.condition_prob < 0.0 || options.condition_prob > 1.0) {
-                        throw std::invalid_argument("--condition-prob must be between 0 and 1");
-                }
                 /**
                  * One generator drives both the shuffle and the condition
                  * assignment, so quoting the seed reproduces the whole
@@ -669,7 +718,11 @@ jstim_options::jstim_options(string const &program_name)
                 ("condition-prob", po::value(&condition_prob)->default_value(0.0),
                  "proportion of each stimulus's repetitions to mark as being in "
                  "the manipulated condition (channel 2). Exactly this fraction "
-                 "of every stimulus's repeats is marked, chosen at random.");
+                 "of every stimulus's repeats is marked, chosen at random, so "
+                 "the repeat count has to be one the fraction divides into: "
+                 "0.5 needs an even number of repeats, 0.25 a multiple of four. "
+                 "A repeat count that cannot deliver the fraction is refused "
+                 "rather than rounded to the nearest whole trial.");
 
 
         cmd_opts.add(jillopts).add(opts);
@@ -755,5 +808,18 @@ jstim_options::process_options()
                 LOG << "ERROR: pretrigger + posttrigger intervals must be less than the gap between stimuli!" << std::endl;
                 throw Exit(EXIT_FAILURE);
         }
-
+        /**
+         * Check the condition assignment here rather than where the stimuli
+         * are loaded. Neither the range nor the divisibility depends on the
+         * sampling rate, so both can be settled before a client is created and
+         * before any file is opened or resampled -- a misconfigured run should
+         * not reach the server at all. --stim-list is read above, so this sees
+         * the same list that will be played.
+         */
+        if (condition_prob < 0.0 || condition_prob > 1.0) {
+                throw std::invalid_argument("--condition-prob must be between 0 and 1");
+        }
+        for (auto const & entry : parse_stimlist(stimuli, nreps)) {
+                condition_count(entry.first, entry.second, condition_prob);
+        }
 }
