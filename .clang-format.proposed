@@ -1,0 +1,80 @@
+# PROPOSED, NOT ACTIVE.
+#
+# clang-format reads `.clang-format`, not this file, so nothing picks it up
+# while it is named this way. To try it: rename to `.clang-format`, run
+#
+#     git ls-files 'jill/*' 'modules/*' 'test/*' | grep -E '\.(cc|hh)$' \
+#         | xargs clang-format -i
+#
+# and commit the result on its own. To go back, delete `.clang-format`.
+#
+# Deferred 2026-08-23 until the current run of fixes has been exercised in
+# production. The reformat would rewrite the blame for a third of the tree
+# during a period when rare bugs are being traced through history, and that is
+# a bad trade until the code has actually been trusted in a session.
+#
+#
+# WHAT IT WOULD COST
+#
+# Measured against the tree at 8aeb2c0:
+#
+#   absolute floor, indentation and tabs only     4180 lines, 71 files
+#   this configuration                            4456 lines, 71 files
+#   full kernel style                             5128 lines, 74 files
+#
+# Tree total is 13768 lines, so this is about a third of the codebase.
+#
+# The floor is the surprising part, and it is worth knowing before anyone
+# reopens this: it is not tabs. Only 14 of 75 files contain any, and
+# indentation is already a consistent 8/16/24 columns. The floor is there
+# because clang-format renormalises everything it touches -- inter-token
+# spacing, continuation alignment, blank lines -- so a third of the tree moves
+# whatever settings are chosen. There is no cheap version of this change.
+#
+# Given that, this configuration costs 276 lines more than the floor and saves
+# 672 against full kernel style, which is near enough free.
+#
+#
+# WHAT IT PRESERVES, DELIBERATELY
+#
+# PointerAlignment: Middle keeps `char const * id` rather than the kernel's
+# `char const *id`. BraceWrapping puts a brace on its own line after a
+# function, and leaves it attached for classes, structs, namespaces and
+# control flow, which is what this codebase already does. Both were chosen
+# over the kernel defaults on request.
+#
+# If this is ever applied, add a .git-blame-ignore-revs naming the commit so
+# `git blame --ignore-revs-file` can see past it.
+
+BasedOnStyle: LLVM
+IndentWidth: 8
+TabWidth: 8
+UseTab: Never
+ColumnLimit: 0
+SortIncludes: Never
+NamespaceIndentation: None
+IndentCaseLabels: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AccessModifierOffset: -8
+PointerAlignment: Middle
+FixNamespaceComments: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterClass: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterEnum: false
+  AfterNamespace: false
+  AfterControlStatement: Never
+  AfterCaseLabel: false
+  BeforeElse: false
+  BeforeCatch: false
+
+# ColumnLimit 0 disables reflowing: indentation, spacing and brace placement
+# are fixed, existing line breaks are left alone. With a limit set, nearly
+# every declaration in the tree is rewrapped, which buries the intended change.
+#
+# SortIncludes off: a few files include system headers in an order that
+# matters, and reordering them is not a formatting decision.
