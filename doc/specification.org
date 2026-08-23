@@ -3,8 +3,8 @@
 #+TITLE:    JILL Real-Time Auditory Neuroscience Framework: Specification
 #+AUTHOR:    Dan Meliza
 #+EMAIL:     dan||meliza.org
-#+DATE: [2013-02-08 Fri]
-#+TEXT: Version 2.1
+#+DATE: [2026-08-23 Sun]
+#+TEXT: Version 3.0
 #+LANGUAGE:   en
 #+OPTIONS: ^:nil H:2
 #+HTML_HEAD:    <link rel="stylesheet" href="org.css" type="text/css" />
@@ -118,7 +118,11 @@ specification.
 One module in the JACK client graph may serve as a centralized logger. This
 module (i.e., the log server) must bind a DEALER socket to the endpoint
 =ipc:///tmp/org.meliza.jill/SERVER_NAME/msg=. Programs may send log
-messages to this logger by connecting a ROUTER socket to this endpoint.
+messages to this logger by connecting a DEALER socket to this endpoint.
+
+DEALER at both ends is deliberate. Logging is fully asynchronous and the log
+server never replies, so neither end needs the address envelope a ROUTER
+socket would prepend, and neither end has to wait for the other.
 
 Log messages are sent asynchronously and are not acknowledged by the log
 server. Messages must consist of the following ØMQ frames:
@@ -131,7 +135,7 @@ server. Messages must consist of the following ØMQ frames:
 Note that with ØMQ, sockets may connect to an endpoint before the server binds.
 Messages sent to the endpoint will be queued and sent when the server binds.
 
-*** Control                                                          :rel2_2:
+*** Control                                                          :rel3_0:
 
 Modules MAY expose control and notification interfaces on ØMQ endpoints named
 for the JACK server and the module's client name. If it exists, the control
@@ -224,10 +228,11 @@ and all detection events during normal operation.
 *jdetect* does not bind to a control socket at present. Eventually this mechanism
 will be used to adjust parameters in a running process.
 
-*** UNIX Signals                                                     :rel2_0:
+*** UNIX Signals                                                     :rel3_0:
 
-Termination signals have their default behavior (cause the client to exit). If
-the last ouput was a note_on event, a note_off event will be sent.
+SIGINT, SIGTERM and SIGHUP cause the client to shut down. If the last output was
+a note_on event, a note_off event is sent first, so that a downstream *jrecord*
+in triggered mode closes its entry rather than being left recording.
 
 *** Options and behavior                                             :rel2_0:
 
@@ -243,17 +248,21 @@ The function of *jrecord* is to write sampled and event data to disk. Sampled da
 may include audio and neural signals, and event data may include signal
 detections (such as emitted by jdetect), spike times, and other external events.
 Data are stored in HDF5 format (http://www.hdfgroup.org/HDF5) using the ARF
-specification (https://github.com/dmeliza/arf). Recording may be continuous, or
+specification (https://github.com/melizalab/arf). Recording may be continuous, or
 may be in discrete epochs triggered by events. In the latter case, a prebuffer
 provides the ability to record data prior to the actual epoch onset event.
 
 *** JACK Ports                                                       :rel2_0:
 
-+ in_NNN :: input. NNN is a numerical index. The number of ports and their type
-            is determined at startup by specifying a list of ports to connect to
-            the client.  The client may also create custom-named ported as
-            specified by the user.
-+ trig_in :: input, events. In epoch mode, controls the start and stop of
++ pcm_NNN :: input, sampled. NNN is a numerical index. The number of ports is
+              determined at startup by specifying a list of ports to connect to
+              the client.
++ evt_NNN :: input, events. As above, for ports carrying event rather than
+             sampled data. A port created for a connection takes the prefix
+             matching the type of the port it is connected to.
+
+The client may also create custom-named ports as specified by the user.
++ trig_in :: input, events. In triggered mode, controls the start and stop of
              recording epochs. Note on and stim on (onset) events cause epochs
              to start; note off and stim off (offset) events cause epochs to
              terminate. Multiple inputs may be connected to this port, in which
@@ -270,7 +279,7 @@ The client will not make any changes to its port configuration during operation.
    a chunk to ensure synchronization across channels. There is no output.
 2. Registration/unregistration events are ignored.
 3. Port connections and disconnections are logged to the output file. If the the
-   program is in epoch mode, the last connection to the trigger port is
+   program is in triggered mode, the last connection to the trigger port is
    disconnected, and recording is in progress, stops in the next period (TODO).
    Disconnected input ports will still be recorded, but will have zeros in the
    signal.
@@ -280,7 +289,7 @@ The client will not make any changes to its port configuration during operation.
 5. Changes to period size result in a log entry and cause all the data in the
    ringbuffer to be flushed to disk. Because this introduces a gap in the data
    stream, the current entry will be terminated. In continuous mode, a new entry
-   will be started; in epoch mode no new entry is started. Furthermore, if the
+   will be started; in triggered mode no new entry is started. Furthermore, if the
    new size of the period is so large that less than three full periods will fit
    in the ringbuffer, the ringbuffer is resized.
 6. Server shutdown causes remaining data in the ringbuffer to be flushed before
@@ -301,13 +310,13 @@ maintain a running *jrecord* client, run it in a virtual screen.
 
 **** commandline options                                             :rel2_0:
 
-1. Epoch or continuous recording mode
+1. Triggered or continuous recording mode
 2. Output file name.
-3. Prebuffer size. Only takes effect in epoch mode. Specifies the amount of data
+3. Prebuffer size. Only takes effect in triggered mode. Specifies the amount of data
    (in units of time) write from before the time of the trigger to write to
    disk. This is treated as an approximate value, because the prebuffer may not
    fill completely, and for performance sake only complete periods may be used.
-4. Postbuffer size. Only takes effect in epoch mode. Specifies the amount of
+4. Postbuffer size. Only takes effect in triggered mode. Specifies the amount of
    additional data (in units of time) write after the trigger port signals an offset.
 5. A list of ports to create and/or connect to. If the specified port name exists in the
    JACK system, it will be connected to a numerically named port on the client
@@ -320,6 +329,7 @@ maintain a running *jrecord* client, run it in a virtual screen.
    Determines the size of the buffer used to move data from the realtime process
    thread to the writer thread. By default this is automatically set to hold at
    least ten complete periods of data, or 2 seconds, whichever is more.
+8. Compression level for the output file.
 
 **** startup                                                         :rel2_0:
 
@@ -339,9 +349,9 @@ disk immediately, and continue until the program is terminated.  Entries may be
 split as necessary to ensure consistency (for example, if the sample count
 overflows), but there must be no gaps in the data in normal operation.
 
-**** epoch mode operation                                            :rel2_0:
+**** triggered mode operation                                        :rel3_0:
 
-In epoch mode, *jrecord* will be in one of two states. It starts in the =paused=
+In triggered mode, *jrecord* will be in one of two states. It starts in the =paused=
 state, and will wait until it receives a note on event on the trigger port.
 While waiting, it will copy periods from the ringbuffer to the prebuffer,
 freeing periods beyond the duration of the prebuffer window. While in this
@@ -414,12 +424,18 @@ neurons.
 *** JACK Ports                                                       :rel2_0:
 
 + out :: sampled, output. Carries the audio signal for the stimulus.
-+ trig_out :: event, output. Generates stim on events when the stimulus starts
-              and stim off events when it ends. For recording, the channel value
-              is 0. For search, the channel value is 8. The data is the basename
-              of the stimulus file, UTF-8 encoded, and null-terminated. *This
-              message is not hardware-compatible* and is intended for
-              consumption by *jrecord*.
++ sync_out :: event, output. Generates stim on events when the stimulus starts
+               and stim off events when it ends. The data is the basename of the
+               stimulus file, UTF-8 encoded, and null-terminated. *This message
+               is not hardware-compatible* and is intended for consumption by
+               *jrecord* and other JILL modules.
+
+               The channel identifies which interval the event delimits, not who
+               consumes it: 0 for the stimulus itself, 1 for a wider window
+               around it when one is requested, and 2 on the subset of trials
+               carrying an out-of-band manipulation. Channel 0 is emitted on
+               every trial regardless of the others, so a consumer that matches
+               only channel 0 sees every stimulus.
 + trig_in :: (optional) event, input. Only created for triggered mode. Initiates
              stimulus playback synchronized to the time of any note_on or
              stim_on events. Ignores note_off events.
@@ -453,17 +469,26 @@ may be used to allow other programs to initiate or terminate playback.
 
 SIGINT, SIGTERM, and SIGHUP events cause termination of the client.  The client
 should try to send a stim_off event. The client must ensure that the buffer
-associated with the trig_out port is properly cleared before terminating.
+associated with the sync_out port is properly cleared before terminating.
 
 *** Options and behavior
 
-**** commandline options                                             :rel2_0:
+**** commandline options                                             :rel3_0:
 
-1. When to start stimuli: external trigger, or minimum interval/gap. Keypress?
+1. When to start stimuli: external trigger, or minimum interval/gap
 2. Default number of repetitions
 3. Loop endlessly or once
-4. Whether to randomize stimulus order
-5. List of stimulus files (and optional numerical values indicating number of reps)
+4. Whether to randomize stimulus order, and optionally the seed to randomize
+   with, so that a presentation can be repeated exactly
+5. List of stimulus files (and optional numerical values indicating number of
+   reps), given on the command line or read from a file
+6. The width of the trial window, as the time before the first stimulus onset
+   and after the last stimulus offset that channel 1 events should bracket
+7. The proportion of each stimulus's repetitions to mark on channel 2. This is a
+   proportion of the repeats rather than a per-trial probability: the same
+   fraction of every stimulus is marked, so a repeat count the proportion does
+   not divide into MUST be refused rather than rounded to the nearest whole
+   trial.
 
 **** startup                                                         :rel2_0:
 
@@ -521,8 +546,8 @@ The following hardware-incompatible message types are defined for JILL modules:
 |   0x1x | stim off    | n         | stimulus name (string)                       |
 |   0x2x | info        | n         | an informative message (string)              |
 
-A brief summary of the MIDI specification is available at
-http://www.srm.com/qtma/davidsmidispec.html.
+A summary of the MIDI 1.0 messages is available at
+https://midi.org/summary-of-midi-1-0-messages.
 
 Up to version 2.2, JILL had these two transposed: =note_on= was 0x80 and
 =note_off= was 0x90. Since these events were only ever consumed within JILL the
