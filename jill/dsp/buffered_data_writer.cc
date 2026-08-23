@@ -228,8 +228,18 @@ buffered_data_writer::thread()
                                         _writer->flush();
                                         _dirty = false;
                                 }
+                                // The predicate asks whether there is anything
+                                // left to read *ahead*, which is what this
+                                // loop consumes. Testing peek() instead asks
+                                // whether the buffer holds any data at all,
+                                // and a triggered writer deliberately retains
+                                // a pretrigger's worth at all times -- so the
+                                // predicate would never be false, the wait
+                                // would return immediately, and this thread
+                                // would spin on a core holding _lock, which
+                                // stop() needs in order to shut it down.
                                 _ready.wait_for(lck, _poll_interval,
-                                                [this]{ return(_state == Stopping || _buffer->peek()); });
+                                                [this]{ return(_state == Stopping || !_buffer->empty_ahead()); });
                         }
                 }
                 else {

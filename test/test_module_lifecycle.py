@@ -247,12 +247,19 @@ SHUTDOWN_PATHS = [
     ("jnoise", []),
     ("jdetect", []),
     ("jrecord", ["-i", "system:capture_1", "{tmp}/out.arf"]),
+    # Triggered mode is listed separately because it shuts down through a
+    # different condition than the continuous path: its writer holds a
+    # pretrigger's worth of data in the ringbuffer at all times, so anything
+    # that treats "buffer has data" as "there is work to do" never idles and
+    # never lets go of the lock that stop() needs.
+    ("jrecord", ["-t", "-i", "system:capture_1", "{tmp}/out.arf"]),
     ("jstim", ["-l", "{tone}"]),
 ]
 
+SHUTDOWN_IDS = ["jnoise", "jdetect", "jrecord", "jrecord-triggered", "jstim"]
 
-@pytest.mark.parametrize("name,args", SHUTDOWN_PATHS,
-                         ids=[n for n, _ in SHUTDOWN_PATHS])
+
+@pytest.mark.parametrize("name,args", SHUTDOWN_PATHS, ids=SHUTDOWN_IDS)
 def test_sigint_shuts_down_cleanly(name, args, jack_server, tone, tmp_path):
     """SIGINT is the normal way these are stopped, so it has to work.
 
