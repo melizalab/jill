@@ -9,6 +9,7 @@
  * Copyright (C) 2010-2021 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
+#include <stdexcept>
 #include <random>
 #include <csignal>
 #include <atomic>
@@ -38,8 +39,14 @@ public:
 
         /** Ports to connect to */
         std::vector<string> output_ports;
-        /** The MIDI output channel */
-        midi::data_type output_chan;
+        /**
+         * The MIDI output channel. Unsigned rather than midi::data_type:
+         * program_options parses a uint8_t as a character, so the channel
+         * would be the argument's ASCII code, two-digit channels would be
+         * rejected as invalid, and --help would print the default as a raw
+         * byte.
+         */
+        unsigned output_chan;
 
         string start_time;
         string stop_time;
@@ -47,6 +54,7 @@ public:
 protected:
 
         void print_usage() override;
+        void process_options() override;
 
 }; // jtime_options
 
@@ -185,8 +193,8 @@ jtime_options::jtime_options(string const &program_name)
                 ("name,n",    po::value<string>(&client_name)->default_value(_program_name),
                  "set client name")
                 ("out,o",     po::value<vector<string> >(&output_ports), "add connection to output port")
-                ("chan,c",    po::value<midi::data_type>(&output_chan)->default_value(0),
-                 "set MIDI channel for output messages (0-16)");
+                ("chan,c",    po::value<unsigned>(&output_chan)->default_value(0),
+                 "set MIDI channel for output messages (0-15)");
 
         // tropts is a group of options
         po::options_description opts("Module options");
@@ -200,6 +208,17 @@ jtime_options::jtime_options(string const &program_name)
 
         cmd_opts.add(jillopts).add(opts);
         visible_opts.add(jillopts).add(opts);
+}
+
+void
+jtime_options::process_options()
+{
+        program_options::process_options();
+        // status_type masks the channel with 0x0f, so an out-of-range value
+        // would land on some other channel instead of being refused.
+        if (output_chan > 15) {
+                throw std::invalid_argument("--chan must be between 0 and 15");
+        }
 }
 
 void

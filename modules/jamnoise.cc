@@ -245,7 +245,10 @@ jamnoise_options::jamnoise_options(string const &program_name)
         opts.add_options()
                 ("envelope,e",    "output envelope (used for debugging)");
         opts.add_options()
-                ("scale,s",    po::value<float>(&output_scale)->default_value(1.0),
+                // No short form for --scale: -s is --server in every jill module,
+                // and program_options rejects a doubly bound short option as
+                // ambiguous rather than preferring either one.
+                ("scale",     po::value<float>(&output_scale)->default_value(1.0),
                  "scale output by factor");
 
         cmd_opts.add(jillopts).add(opts);
