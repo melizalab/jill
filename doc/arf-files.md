@@ -50,11 +50,17 @@ The `units` attribute has one entry per field, `["samples", "", ""]`: only
 |--------:|--------------|------------------------------------------------|
 |    0-15 | stimulus on  | the name of the stimulus, utf-8 encoded string |
 |   16-31 | stimulus off | the name of the stimulus, utf-8 encoded string |
-| 128-143 | note on      | pitch and velocity, 2 bytes, hex encoded       |
-| 144-159 | note off     | pitch and velocity, 2 bytes, hex encoded       |
+| 128-143 | note off     | pitch and velocity, 2 bytes, hex encoded       |
+| 144-159 | note on      | pitch and velocity, 2 bytes, hex encoded       |
 
 At present, `jstim` emits stimulus on and stimulus off events on channel 0 when
 it starts and stops playback. It uses channel 1 for trial start/end and channel
 2 for a condition variable (e.g., for triggering an optogenetic LED on or off).
 `jdetect` emits note on and note off events when it detects signals starting and
 stopping. It uses the MIDI default pitch of 60 and velocity of 64.
+
+Note that files written before version 3.0 have the note on and note off values
+the other way round, because JILL had them transposed relative to MIDI 1.0. The
+two cannot be told apart from the status byte alone, so check the `file_creator`
+attribute, which names the program and its version, to find out which convention
+a file uses.

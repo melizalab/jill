@@ -489,8 +489,8 @@ by the MIDI standard:
 
 | status | explanation       | data size | data contents           |
 |--------+-------------------+-----------+-------------------------|
-|   0x8x | note on           |         2 | pitch, velocity         |
-|   0x9x | note off          |         2 | pitch, velocity         |
+|   0x8x | note off          |         2 | pitch, velocity         |
+|   0x9x | note on           |         2 | pitch, velocity         |
 |   0xAx | key pressure      |         2 | key, pressure           |
 |   0xBx | controller change |         2 | controller, value       |
 |   0xCx | program change    |         1 | preset                  |
@@ -523,5 +523,15 @@ The following hardware-incompatible message types are defined for JILL modules:
 
 A brief summary of the MIDI specification is available at
 http://www.srm.com/qtma/davidsmidispec.html.
+
+Up to version 2.2, JILL had these two transposed: =note_on= was 0x80 and
+=note_off= was 0x90. Since these events were only ever consumed within JILL the
+inversion was invisible in practice, but it made the hardware-compatible claim
+above false, and it would have surfaced the first time a JILL event line was
+connected to a MIDI device. Version 3.0 corrects the values.
+
+The two conventions cannot be distinguished from the status byte alone, so a
+program reading events recorded by an earlier version must swap them. In an ARF
+file the writer's version is recorded in the =file_creator= attribute.
 
 

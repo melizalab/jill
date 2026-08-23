@@ -122,8 +122,17 @@ class stimulus_cache(dict):
         return ret
 
 
-def jrecord_stimulus_times(dset):
-    """Get stimulus id, onset, and offset from a trig_in dataset."""
+def jrecord_stimulus_times(dset, swap_notes=False):
+    """Get stimulus id, onset, and offset from a trig_in dataset.
+
+    JILL before version 3.0 had note_on and note_off transposed relative to
+    MIDI 1.0, writing 0x80 for an onset and 0x90 for an offset. The two
+    conventions cannot be told apart from the status byte, so set swap_notes
+    when reading a file written by an earlier version; the file_creator
+    attribute says which one wrote it. Only the note events moved, so
+    stim_on and stim_off are unaffected either way.
+    """
+    note_on, note_off = (0x80, 0x90) if swap_notes else (0x90, 0x80)
     stim = onset = offset = None
     dset_offset = dset.attrs.get("offset", 0)
     for row in dset:
@@ -138,25 +147,33 @@ def jrecord_stimulus_times(dset):
             # first stimulus onset
             assert str(row["message"]) == stim
             offset = row["start"]
-        elif status == 0x80:
-            # note_on
+        elif status == note_on:
             onset = row["start"]
-        elif status == 0x90 and onset is not None:
-            # note_off
+        elif status == note_off and onset is not None:
             assert stim is None
             offset = row["start"]
         if onset is not None and offset is not None:
             break
-    return stim, onset + dset_offset, offset + dset_offset
+    # Return rather than raise when nothing matched: the caller checks for a
+    # missing onset, and reading a file with the wrong note assignment lands
+    # here, where a TypeError on None + int would say nothing about the cause.
+    return (
+        stim,
+        None if onset is None else onset + dset_offset,
+        None if offset is None else offset + dset_offset,
+    )
 
 
-def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0):
+def estimate_times(
+    entry, recording_dset, trigger_dset, stimcache, match_dur=1.0, swap_notes=False
+):
     """Estimate onset and offset times of a stimulus in a recording.
 
     entry - the h5py group with recording and trigger data
     recording_dset - the name of the dataset with the recording
     trigger_dset - the name of the dataset with the trigger (and stimulus information)
     match_dur - the number of seconds on either end of the stimulus to use
+    swap_notes - read note events using the pre-3.0 assignment
 
     """
     rec = entry[recording_dset]
@@ -165,9 +182,10 @@ def estimate_times(entry, recording_dset, trigger_dset, stimcache, match_dur=1.0
 
     trig = entry[trigger_dset]
     assert trig.attrs["sampling_rate"] == ds
-    stimname, onset, offset = jrecord_stimulus_times(trig)
-    if onset is None:
-        # couldn't find an onset:
+    stimname, onset, offset = jrecord_stimulus_times(trig, swap_notes)
+    if onset is None or offset is None:
+        # Both are needed to estimate a delay. A file read with the wrong note
+        # assignment lands here, having matched one event and not the other.
         return None, None, None
     if stimname is None:
         raise NotImplementedError(
@@ -283,6 +301,14 @@ def main():
         help="update trigger times without asking",
         action="store_true",
     )
+    p.add_argument(
+        "--swap-notes",
+        help="""read note on and note off using the assignment used before
+    JILL 3.0, which had them transposed relative to MIDI 1.0. Needed for files
+    written by an earlier version; check the file_creator attribute to see
+    which version wrote a file""",
+        action="store_true",
+    )
 
     options = p.parse_args()
     stimstats = []
@@ -303,7 +329,13 @@ def main():
                     % (entry.name, entry.attrs["jill_error"])
                 )
                 continue
-            stats = estimate_times(entry, options.recording, options.trigger, stimcache)
+            stats = estimate_times(
+                entry,
+                options.recording,
+                options.trigger,
+                stimcache,
+                swap_notes=options.swap_notes,
+            )
             print("{}\t{}\t{}\t{}\t{}".format(*stats))
             stimstats.append(stats)
 

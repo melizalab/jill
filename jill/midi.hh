@@ -64,8 +64,13 @@ namespace midi {
                         stim_off = 0x10,
                         info = 0x20,
                         // defined in the midi spec, not a complete enumeration
-                        note_on = 0x80,
-                        note_off = 0x90,
+                        // MIDI 1.0 assigns 0x80 to Note Off and 0x90 to Note
+                        // On. That is the reverse of how the stim_on/stim_off
+                        // pair above ascends, so it reads like a transposition
+                        // and has been "corrected" once already; it is right as
+                        // written and a device on the wire depends on it.
+                        note_off = 0x80,
+                        note_on = 0x90,
                         key_press = 0xa0,
                         ctl = 0xb0,
                         program_change = 0xc0,

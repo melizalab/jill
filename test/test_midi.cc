@@ -22,18 +22,18 @@ using jill::midi::status_type;
 
 TEST_CASE("status values match the documented ranges") {
         // doc/arf-files.md: 0-15 stimulus on, 16-31 stimulus off,
-        // 128-143 note on, 144-159 note off
+        // 128-143 note off, 144-159 note on
         CHECK(status_type(status_type::stim_on).value() == 0);
         CHECK(status_type(status_type::stim_off).value() == 16);
-        CHECK(status_type(status_type::note_on).value() == 128);
-        CHECK(status_type(status_type::note_off).value() == 144);
+        CHECK(status_type(status_type::note_off).value() == 128);
+        CHECK(status_type(status_type::note_on).value() == 144);
 }
 
 TEST_CASE("the channel is packed into the low nibble") {
         for (std::uint8_t chan = 0; chan < 16; ++chan) {
                 CAPTURE(chan);
                 status_type s(status_type::note_on, chan);
-                CHECK(s.value() == 0x80 + chan);
+                CHECK(s.value() == 0x90 + chan);
                 CHECK(s.status() == status_type::note_on);
                 REQUIRE(s.channel().has_value());
                 CHECK(*s.channel() == chan);
@@ -42,7 +42,7 @@ TEST_CASE("the channel is packed into the low nibble") {
 
 TEST_CASE("a channel wider than a nibble is masked") {
         status_type s(status_type::note_on, 0xff);
-        CHECK(s.value() == 0x8f);
+        CHECK(s.value() == 0x9f);
         CHECK(*s.channel() == 0x0f);
 }
 
