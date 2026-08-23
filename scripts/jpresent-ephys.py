@@ -162,26 +162,26 @@ if __name__ == "__main__":
     )
     p.add_argument(
         "--trig-out",
-        help="name of the JACK port where the trigger signal should go (default %(default)s)",
+        help="name of the JACK port where the condition trigger signal should go (default %(default)s)",
     )
 
     p.add_argument(
         "--trig-delay",
         type=int,
         default=0,
-        help="delay of the trigger pulse after stimulus onset (in ms; default %(default)d)",
+        help="delay of the condition trigger pulse after stimulus onset (in ms; default %(default)d)",
     )
     p.add_argument(
         "--trig-duration",
         type=int,
         default=300,
-        help="duration of the trigger pulse (in ms; default %(default)d)",
+        help="duration of the condition trigger pulse (in ms; default %(default)d)",
     )
     p.add_argument(
         "--trig-prob",
         type=float,
         default=0.5,
-        help="probability of the trigger pulse (0-1; default %(default)f)",
+        help="probability of the condition trigger pulse (0-1; default %(default)f)",
     )
 
     p.add_argument(
@@ -314,17 +314,15 @@ if __name__ == "__main__":
             "jclicker-trig",
             "-o",
             args.trig_out,
-            "--prob",
-            f"{args.trig_prob}",
-            f"0x01,positive,1,{args.trig_delay}",
-            f"0x01,negative,1,{args.trig_delay + args.trig_duration}"
+            f"0x02,positive,1,{args.trig_delay}",
+            f"0x02,negative,1,{args.trig_delay + args.trig_duration}"
         )
         jstim_args.extend(
             (
                 "-e",
                 "jclicker-trig:in",
-                "--trial-before",
-                "0"
+                "--condition-prob",
+                f"{args.trig_prob}",
             )
         )
         log.debug(" ".join(jclicker_trig_args))
