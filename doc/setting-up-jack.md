@@ -2,7 +2,7 @@
 
 This tutorial will show you how to start up the JACK server (or daemon) and plot input signals from a microphone or other source on a scrolling oscilloscope. Almost every computer comes with a sound card, which means you have a way of converting analog signals to digital bits that can be modified, visualized, or stored on disk.
 
-You should have installed `qjackctl`, a graphical interface for controlling the JACK server and making connections between clients. Later we'll discuss how to do these tasks on the command line. The `qjackctl` interface initially looks like this:
+You should have installed `qjackctl`, a graphical interface for controlling the JACK server and making connections between clients. Later we'll discuss how to do these tasks on the command line. There have been some changes to the `qjackctl` UI since this guide was written, but the images are still representative. The interface initially looks something like this.
 
 ![The main qjackctl window](images/qjackctl.png)
 
@@ -28,4 +28,4 @@ To make a connection, select an output and an input port and click 'Connect'. In
 
 ![A signal displayed in yass](images/yass.png)
 
-Note that you can connect multiple output ports to the same input port, in which case the inputs will be *mixed*: the data from the output ports will be added together, and this sum will appear in the input port. The same output port can be connected to multiple input ports.
+Note that you can connect multiple output ports to the same input port, in which case the inputs will be *mixed*: the data from the output ports will be added together, and this sum will appear in the input port. Conversely, a single output port can be connected to multiple input ports, and each will receive an identical copy of the signal on that line.

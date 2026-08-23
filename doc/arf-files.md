@@ -1,9 +1,9 @@
 # JILL ARF files
 
 `jrecord` stores data in HDF5 files, a hierarchical format that supports a wide
-range of architectures and data types.  It organizes the data in the file
-according to the ARF specification (see <https://github.com/melizalab/arf>).
-Briefly, this layout is as follows:
+range of architectures and data types. It organizes the data in the file
+according to the ARF specification (see <https://meliza.org/spec:1/arf/> and
+<https://github.com/melizalab/arf>). Briefly, this layout is as follows:
 
 - The file itself carries `arf_version` (currently `2.2`), `arf_library` and
   `arf_library_version` for the library that wrote it, and `file_creator`
@@ -23,8 +23,7 @@ Briefly, this layout is as follows:
 - Each entry contains datasets that correspond to `jrecord` ports.  Sampled and
   event data are stored differently (see below). All datasets have attributes
   that indicate the units and sampling rate of the data. For event data, which
-  is a compound type, `units` is an array with one entry per field rather than
-  a single string; see below.
+  is a compound type, `units` is an array with one entry per field.
 
 ## Sampled data
 
@@ -43,9 +42,7 @@ type. The fields are:
   be hex-encoded for some event types and UTF-8 encoded for others.
 
 The `units` attribute has one entry per field, `["samples", "", ""]`: only
-`start` is a quantity with a timebase. The specification requires a unit per
-field for compound types, and a single string for the whole dataset is not
-accepted by `arf.py`.
+`start` is a quantity with a timebase.
 
 **JILL** modules use the following status bytes:
 
@@ -56,7 +53,8 @@ accepted by `arf.py`.
 | 128-143 | note on      | pitch and velocity, 2 bytes, hex encoded       |
 | 144-159 | note off     | pitch and velocity, 2 bytes, hex encoded       |
 
-At present, `jstim` emits stimulus on and stimulus off events when it starts
-and stops playback. `jdetect` emits note on and note off events when it detects
-signals starting and stopping. It uses the MIDI default pitch of 60 and
-velocity of 64.
+At present, `jstim` emits stimulus on and stimulus off events on channel 0 when
+it starts and stops playback. It uses channel 1 for trial start/end and channel
+2 for a condition variable (e.g., for triggering an optogenetic LED on or off).
+`jdetect` emits note on and note off events when it detects signals starting and
+stopping. It uses the MIDI default pitch of 60 and velocity of 64.

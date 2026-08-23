@@ -1,14 +1,13 @@
-# OS X installation
+# macOS installation
 
-The installation instructions for OS X are similar to those for [Debian](debian-installation.md), but use MacPorts instead of the Debian package system.
+The installation instructions for macOS (OS X) are similar to those for
+[Debian](debian-installation.md), but use MacPorts instead of the Debian package
+system.
 
-The build works with either MacPorts or [Homebrew](https://brew.sh) — it looks
-for both, and asks `brew --prefix` where Homebrew keeps things rather than
-assuming, since that differs between Apple Silicon and Intel machines. The
-commands below are given for MacPorts because that is what the lab uses; the
-Homebrew formula names are generally the same without the `py-` prefix. If
-Boost ends up somewhere neither is expected, point `BOOST_ROOT` at its
-installation prefix.
+The build will also work with [Homebrew](https://brew.sh); scons will look for
+both. The Homebrew formula names are generally the same as in MacPorts, but
+without the `py-` prefix. If Boost ends up somewhere neither is expected, point
+`BOOST_ROOT` at its installation prefix.
 
 ## MacPorts
 
@@ -21,8 +20,6 @@ You can install JACK with MacPorts:
 ```shell
 sudo port install jack
 ```
-
-But a simpler and more flexible solution is provided by [Jack OS X](http://www.jackosx.com), which to route audio to and from native OS X applications, and includes qjackctl.
 
 ## YASS
 
@@ -39,13 +36,14 @@ At this point you're ready to go through the first tutorial.
 
 ## JILL prerequisites
 
-Most of the prerequisites are available through MacPorts:
+Install the following dependencies through MacPorts:
 
 ```shell
 sudo port install scons boost libsamplerate libsndfile zmq
 ```
 
-Note that this installs ZMQ 4.x. Older version of ZMQ are no longer compatible. If you plan to use `jrecord`, you will also need the hdf5 dependencies:
+Note that this installs ZMQ 4.x. Older version of ZMQ are no longer compatible.
+If you plan to use `jrecord`, you will also need the hdf5 dependencies:
 
 ```shell
 sudo port install hdf5 -cxx +threadsafe

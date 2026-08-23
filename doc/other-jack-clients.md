@@ -1,6 +1,6 @@
-# Other JACK clients
+# Other JACK clients and tools
 
-There are many third-party JACK clients that can be used with the JILL clients. Most are listed at http://jackaudio.org/applications. Some that might be useful to neurophysiologists:
+There are many third-party JACK clients and tools that can be used with the JILL clients. Most are listed at http://jackaudio.org/applications. Some that might be useful to neurophysiologists:
 
 ## baudline
 
@@ -16,6 +16,12 @@ Faust is a system for specifying signal processors (e.g., filters, delay loops) 
 
 ## jack_delay
 
-Measure the delay between sample output and input. Extremely important if you want to reference the stimulus event times produced by jstim to recorded data.
+Measure the delay between sample output and input. Important if you want to reference the stimulus event times produced by jstim to recorded data.
 
 <http://kokkinizita.linuxaudio.org/linuxaudio/>
+
+## JackTrip
+
+Connect JACK daemons over the network.
+
+<https://github.com/jacktrip/jacktrip/>

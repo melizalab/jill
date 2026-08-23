@@ -17,7 +17,7 @@ framework to run auditory behavioral and neuroscience experiments.
 
 * Licence                                                               :rel2_0:
 
-Copyright (c) 2010-2013 C Daniel Meliza.
+Copyright (c) 2010-2026 C Daniel Meliza.
 
 This Specification is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the Free
@@ -133,29 +133,21 @@ Messages sent to the endpoint will be queued and sent when the server binds.
 
 *** Control                                                          :rel2_2:
 
-Modules may expose a control interface as a *pair* of endpoints, named for the
-JACK server and the module's client name: a request endpoint at
-=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME/req=, to which the module
-binds a ROUTER socket, and an event endpoint at
-=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME/pub=, to which it binds a
-PUB socket. Clients connect a REQ or DEALER socket to the first and a SUB
-socket to the second.
+Modules MAY expose control and notification interfaces on ØMQ endpoints named
+for the JACK server and the module's client name. If it exists, the control
+interface MUST bind a ROUTER socket to
+=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME/req=. If it exists, the
+notification interface MUST bind a PUB socket to
+=ipc:///tmp/org.meliza.jill/SERVER_NAME/CLIENT_NAME/pub=. Clients MAY connect to
+one, both, or none of these endpoints.
 
-ROUTER rather than REP, because a module must be able to serve more than one
-client and to answer requests out of order, which the strict alternation of a
-REP socket does not allow. Requests are carried in the last frame of the
-message, and modules must reply with the frames they received, replacing only
-that last frame. This preserves the routing prefix without the module having to
-interpret it, and works unmodified for both REQ clients, which insert an empty
-delimiter frame, and DEALER clients, which do not.
-
-The second endpoint exists because a reply can only report that a request was
-*accepted*. Modules act on control requests in their realtime thread, which
-runs after the reply has been sent, so the outcome is not yet known when the
-module must answer. Outcomes are therefore published on the event endpoint as
-unsolicited messages, and a client that reads a successful reply as a
-successful operation will be wrong. Modules must not use ØMQ topic prefixes on
-this socket; clients subscribe to the empty prefix.
+The control interface MUST reply to requests with a message that indicates that
+the request was *accepted* or with an error message explaining why not. Modules
+act on control requests in their realtime thread, which runs after the reply has
+been sent. Outcomes are therefore published on the notification endpoint as
+unsolicited messages, and a client that reads a successful reply as a successful
+operation will be wrong. Modules must not use ØMQ topic prefixes on this socket;
+clients subscribe to the empty prefix.
 
 Events are published, not queued. A subscriber that connects after the module
 binds misses anything sent in the interim, and a subscriber that falls behind
@@ -481,15 +473,6 @@ associated with the trig_out port is properly cleared before terminating.
    when the process thread indicates it has played all the stimuli, shut down
    the client and terminate program.
 
-** jplot                                                             :rel2_2:
-
-Replaces splot, providing scrolling oscillogram and periplots for rasters.  It
-may be possible to upgrade splot to a more recent version of gtk and replace its
-signal acquisition routines with JACK callbacks.
-
-** jspikes                                                           :rel2_2:
-
-Replaces aspikes for online spike detection.
 
 * Appendices
 

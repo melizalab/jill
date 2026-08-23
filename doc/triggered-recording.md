@@ -2,7 +2,7 @@
 
 This tutorial will describe how to use `jrecord` to record in *triggered* mode, only saving data when an input signal rises above a certain level, or some other event of interest occurs.
 
-Data sampled at relatively high rates can take up a lot of space. In JACK, data are stored as 32-bit floating point values, so an hour of data from a single channel at 48 kHz requires about 660 MB of uncompressed disk space. For many experimental designs you only want to record when something interesting is happening, so it would be nice to trigger recording on those interesting events.
+Data sampled at typical audio sampling rates can take up a lot of space. In JACK, data are stored as 32-bit floating point values, so an hour of data from a single channel at 48 kHz requires about 660 MB of uncompressed disk space. For many experimental designs you only want to record when something interesting is happening, so we'd like to trigger recording on those interesting events.
 
 The example we'll work with is recording songs over the course of a juvenile songbird's development. We'd like to start recording the bird when it starts singing, and stop when it's done. We'll detect when the bird is singing using the `jdetect` module, and use trigger events from `jdetect` to start and stop `jrecord`.
 
@@ -37,7 +37,7 @@ You can test jdetect even if you don't have a bird or other animal to record, by
 jstim -o jdetect:in myfile.wav
 ```
 
-This example demonstrates why the modular architecture of JACK can be so powerful.
+A useful trick here can be to make a continuous recording of a bird singing, extract a couple of examples from the ARF file as WAVE files, and then use them to tune the jdetect parameters.
 
 ### jdetect parameters
 
@@ -79,16 +79,23 @@ JACK can route MIDI events between clients in its real-time framework, and **JIL
 If `jrecord` is run in triggered mode, it creates an event input port that can be connected to any event output port. For example:
 
 ```shell
-jrecord -t jdetect:trig_out -I pcm <filename>
+jrecord -t jdetect:trig_out -i system:capture_1 <filename>
 ```
 
-`jrecord` will output messages indicating that it's started up and connected to the ports we specified, but it won't start recording until `jdetect` sends it a signal to start. The `-I` flag tells `jrecord` to create an input port called `pcm`, but not to connect it to anything. Now play a stimulus with `jstim`:
+`jrecord` will output messages indicating that it's started up and connected to the ports we specified, but it won't start recording until `jdetect` sends it a signal to start.
 
-```shell
-jstim -l -g 5 -o jdetect:in -o jrecord:pcm <filename>
+If you want to see how this works without having a live bird, you can wire it up with `jstim`:
+
+``` shell
+jdetect &
+jrecord -t jdetect:trig_out -I pcm <filename> &
+jstim -l -g 5 -o jdetect:in -o jrecord:pcm <wavefile>
 ```
 
-The `-g` flag tells `jstim` to wait 5 s between stimuli. You should start to see a series of log messages like this:
+The `-I` flag tells `jrecord` to create an input port called `pcm`, but not to connect it to anything. Then `jstim` will send its output to both `jdetect` and `jrecord`. The `-g` flag tells `jstim` to wait 5 s between stimuli. 
+
+If your detector is working, you should start to see a series of log messages
+like this, as `jdetect` triggers recording on each repetition of the signal.
 
 ```
 20130524T145926.060274 [jdetect] signal on:  frames=682333184, us=785038875072

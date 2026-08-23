@@ -1,9 +1,9 @@
 # Debian installation
 
 These instructions have been tested on Debian 12 and should work any other
-Debian-based Linux system, though some package names may differ. They should also work on Red Hat
-based systems, but you'll have to find the equivalent packages in your package
-manager.
+Debian-based Linux system, though some package names may differ. They should
+also work on Red Hat based systems, but you'll have to find the equivalent
+packages in your package manager.
 
 ## JACK and qjackctl
 
@@ -55,7 +55,9 @@ git submodule update --init
 scons -Q modules
 ```
 
-To omit compiling `jrecord`, run `scons -Q --no-arf modules` instead. You can run the modules from their build directory. (e.g. `modules/jstim`). To install modules in a system location, use the following command:
+To omit compiling `jrecord`, run `scons -Q --no-arf modules` instead. You can
+run the modules from their build directory. (e.g. `modules/jstim`). To install
+modules in a system location, use the following command:
 
 ```shell
 scons -Q install

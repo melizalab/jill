@@ -4,7 +4,13 @@ This section deals with configuring JACK and JILL for low-latency, reliable oper
 
 One option for dealing with these problems is to use large memory buffers, which can hold samples during periods of heavy load. Large buffers mean long latencies. If you're only recording or presenting data, or if all the stimuli are defined ahead of time, or you can generate stimuli seconds to minutes before they're needed, you should use long periods (2048 samples or more) to ensure that data is not lost.
 
-In closed-loop applications, the output of the system depends tightly on the input, and latencies typically need to be short. How short depends on the nature of the application. JACK can provide latencies on the order of 1-2 ms if properly configured. It's important to recognize, though, that Linux and OS X are not designed for realtime performance. Only a dedicated hard realtime system can provide guarantees on latency. Below are some measures for improving performance.
+In closed-loop applications, the output of the system depends tightly on the input, and latencies typically need to be short. How short depends on the nature of the application. JACK can provide latencies on the order of 1-2 ms if properly configured. It's important to recognize, though, that Linux and macOS are not designed for realtime performance. Only a dedicated hard realtime system can provide guarantees on latency. Below are some measures for improving performance.
+
+## Check realtime-related OS settings
+
+This script will test various settings in your installation and make recommendations to improve realtime performance:
+
+<https://codeberg.org/rtcqs/rtcqs>
 
 ## Increase buffer size or decrease sampling rate
 
@@ -26,14 +32,7 @@ Other things to try include:
 
 3. Decrease the number of channels to what you need. To enable only 4 capture and playback ports: `jackd -d alsa -i 4 -o 4 ...`
 
-Also try running JACK 2 instead of JACK 1; it's more fault tolerant and handles port connections without glitching.
-
 ## Keep the system clean
 
 Install a system with a minimal number of applications, and disable any recurring operations.
 
-## Other settings
-
-This script will test various settings in your installation and make recommendations to improve realtime performance:
-
-<https://codeberg.org/rtcqs/rtcqs>

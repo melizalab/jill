@@ -14,7 +14,7 @@ experiments.
 is required, so you will need a reasonably modern C/C++ compiler.
 
 * [Debian](debian-installation.md)
-* [OS X](osx-installation.md)
+* [macOS](osx-installation.md)
 
 ## Tutorials
 
@@ -27,12 +27,11 @@ is required, so you will need a reasonably modern C/C++ compiler.
 ## Topics
 
 * [JILL modules](modules.md) — what each module is for
-* [Multiple Hardware Devices](multiple-hardware-devices.md)
-* [Network JACK](network-jack.md)
-* [Other JACK clients](other-jack-clients.md)
-* [Basic Signal Processing](basic-signal-processing.md)
+* [Basic Signal Processing](basic-signal-processing.md) - introduction to signal processing concepts
+* [Multiple Hardware Devices](multiple-hardware-devices.md) - how to synchronize jill with other hardware systems
 * [Performance and Stability](performance-and-stability.md)
 * [JILL ARF files](arf-files.md)
+* [JACK tools](other-jack-clients.md)
 
 ## Resources
 
@@ -43,4 +42,4 @@ is required, so you will need a reasonably modern C/C++ compiler.
 * [JACK website](http://www.jackaudio.org)
 * [Notes on optimizing Linux systems for realtime audio processing](http://wiki.linuxaudio.org/wiki/system_configuration)
 * [Notes on latency in JACK](http://apps.linuxaudio.org/wiki/jack_latency_tests)
-* [JACK driver for the Intan RHD2000 eval board](https://github.com/dmeliza/jack_rhd2000) (under development)
+* [JACK driver for the Intan RHD2000 eval board](https://github.com/dmeliza/jack_rhd2000) (inactive)

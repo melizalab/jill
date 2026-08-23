@@ -53,14 +53,14 @@ jrecord -E stimuli -i system:capture_1 ... bu70_1.arf
 jstim -S -r 10 -g 5 -o system:playback_1 -e jrecord:stimuli
 ```
 
-Note that we used the `-E` flag to instruct `jrecord` to create an event port, which we then connected to `jstim`. This port is not used to trigger, but any incoming events will be stored in temporal register to the ARF file.
+Note that we used the `-E` flag to instruct `jrecord` to create an event port, which we then connected to `jstim`. This port is not used to trigger, but any incoming events will be stored to the ARF file as a marked point process. Each event will have a frame index in register with the time series data.
 
 Alternatively, you can configure `jrecord` in triggered mode so that `pretrigger + posttrigger` is greater than the gap between stimuli. When this is the case, the first sample in each epoch will be immediately after the last sample in the previous epoch. This gives you a continuous recording, but conveniently divided into epochs associated with specific stimuli. You can stitch the data back together later if you need to process it as a continuous stream.
 
 ## Post-processing correction for playback delay
 
 **IMPORTANT NOTE:** There is a delay between when `jstim` sends a signal to the sound card and when the sound is output from the speaker. Almost all of this delay is due to buffering. **DO NOT** use the times of the events stored by `jrecord` in analysis, until you've determined what
-the delay is. It's strongly recommended that you run the signal from the sound card output to one of your recording system's inputs so that you know exactly what was being presented (or better yet, use a microphone to record what the animal actually heard).
+the delay is. It's strongly recommended that you run a physical wire from the sound card output back to one of your recording recording system's inputs so that you know exactly what was being presented (or better yet, use a microphone to record what the animal actually heard).
 
 The `scripts/jrecord_postproc.py` script can adjust trigger times to compensate for playback latency. It calculates the actual time of stimulus onset by comparing a recording of the presented stimulus with the original stimulus file. Currently, it only works with the software-synchronization configuration described above, because it uses the records of stimulus onset and offset emitted by `jstim` and stored in `trig_in` dataset to determine what stimulus was presented.  However, in principle the same algorithm can be used to identify the stimulus as well as the time it started so future versions may support the hardware-synchronization configuration.
 

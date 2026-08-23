@@ -8,7 +8,7 @@ There are two solutions to this problem:
 
 One option is to let the devices run independently (i.e., in separate JACK systems) while exchanging synchronization information.  For example, the signal could be a TTL pulse emitted by the stimulus presentation device at the start and stop of the signal which would be recorded by the input device.  Alternatively, the input device could record the actual signal being produced by the output device.
 
-The major positive of this approach is that it's relatively foolproof, and can work even if the devices are on different computers.  The negative is that setting up the synchronization signal can be a bit complex. Few sound cards can generate TTL signals, so it's usually easier to pass the output of the sound card into one of the inputs of the data acquisition device, and then use software to detect when the signal started.  To use this setup for stimulus-triggered recording with an Intan RHD2000 eval board and a Linux sound card, split the output of the sound card so that one set of wires goes to one of the ADC ports on the eval board, and the other set of wires goes to the amplifier and speaker.  We'll call this the 'copy line'.
+The major positive of this approach is that it's relatively foolproof, and can work even if the devices are on different computers.  The negative is that setting up the synchronization signal can be a bit complex. Few sound cards can generate TTL signals, so you either need a hardware solution to convert `jclicker` clicks into digital logic, or do the click detection in software.  To use this setup for stimulus-triggered recording with an Intan RHD2000 eval board and a Linux sound card, split the output of the sound card so that one set of wires goes to one of the ADC ports on the eval board, and the other set of wires goes to the amplifier and speaker.  We'll call this the 'copy line'.
 
 ```shell
 jackd -n input -d rhd2000 &   # this will be the input system
@@ -21,6 +21,8 @@ jstim -s output -o system:playback_1 mystimulus.wav
 `jstim` will output the stimulus to the sound card, and the copy line will pass the signal to `jdetect`, which will detect the onset of the stimulus and trigger `jrecord` to start recording.  You'll need to adjust the pretrigger buffer to ensure that the start of the signal actually gets recorded, and you'll have to post-process the recording from the copy line using cross-correlation to find out when the stimulus actually started (see below).
 
 ## The software solution
+
+NB: These instructions are out of date and have not been tested in over ten years.
 
 Another option is to have the devices run the same JACK process, with one controlling the clock (the 'master') and the other 'slave' linked to the master clock through a bridge program. Data sent to (or received from) the slave device is resampled to compensate for differences in sampling rate.  If both devices are in the same computer, this is the most flexible option. However, one must be confident that the resampling does not introduce any distortions into the output signal, so it's a good idea to configure a copy line as described in the previous section.
 
