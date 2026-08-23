@@ -24,7 +24,7 @@ import shutil
 
 log = logging.getLogger("jrecord-triggered")  # root logger
 
-__version__ = "2.2.2"
+__version__ = "3.0.0rc1"
 
 
 def terminate_on_signal(sig, frame):

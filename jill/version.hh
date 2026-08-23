@@ -8,4 +8,4 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-#define JILL_VERSION "2.2.2"
+#define JILL_VERSION "3.0.0rc1"

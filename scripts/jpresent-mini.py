@@ -14,7 +14,7 @@ import shutil
 
 log = logging.getLogger("jpresent")  # root logger
 
-__version__ = "2.2.2"
+__version__ = "3.0.0rc1"
 
 
 def setup_log(log, debug=False):
