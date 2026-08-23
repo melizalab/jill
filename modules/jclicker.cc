@@ -16,6 +16,8 @@
 #include <atomic>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
+#include <iomanip>
 #include <sstream>
 #include <string_view>
 
@@ -28,6 +30,15 @@
 #include "jill/dsp/pulse.hh"
 
 #define PROGRAM_NAME "jclicker"
+
+/**
+ * How far a stimulus's realized rate may sit from the requested probability
+ * before the run says so. The estimator steers towards the target rather than
+ * enforcing it, so a gap is expected early and shrinks with presentations;
+ * this is the point at which it is more likely to be too few trials than
+ * ordinary variance.
+ */
+static constexpr double prob_tolerance = 0.1;
 
 using namespace jill;
 using std::string;
@@ -133,7 +144,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                         DBG << " - no pulses defined for this status";
                         continue;
                 }
-                if (!randomizer->present(stimulus, stimulus_len)) {
+                if (randomizer && !randomizer->present(stimulus, stimulus_len)) {
                         DBG << " - skipped due to randomizer";
                         continue;
                 }
@@ -352,12 +363,22 @@ main(int argc, char **argv)
                 if (options.pulses.size() == 0)
                         throw std::invalid_argument("must define at least one pulse");
 
-                // configure the randomizer - use some nice defaults
-                randomizer = std::make_unique<jill::util::event_randomizer>(
-                        options.vmap["prob"].as<float>(),
-                        8.0,
-                        1024,
-                        options.vmap["max-stimuli"].as<std::size_t>());
+                /**
+                 * At a probability of 1 every event fires, so the randomizer
+                 * has nothing to decide. Leaving it out keeps a per-stimulus
+                 * table lookup off the realtime path, and keeps the run from
+                 * reporting counts and overflow warnings about balancing that
+                 * was never asked for -- on a long stimulus set that report is
+                 * noise that hides real messages.
+                 */
+                const float prob = options.vmap["prob"].as<float>();
+                if (prob < 1.0) {
+                        randomizer = std::make_unique<jill::util::event_randomizer>(
+                                prob,
+                                8.0,
+                                1024,
+                                options.vmap["max-stimuli"].as<std::size_t>());
+                }
 
                 // start client
                 auto client = jack_client(options.client_name, options.server_name);
@@ -408,6 +429,7 @@ main(int argc, char **argv)
                 bool said_overflow = false, said_truncation = false;
                 while (running) {
                         usleep(100000);
+                        if (!randomizer) continue;
                         if (randomizer->overflowed() && !said_overflow) {
                                 said_overflow = true;
                                 LOG << "WARNING: more than " << randomizer->capacity()
@@ -425,9 +447,27 @@ main(int argc, char **argv)
                 }
 
                 if (randomizer) {
-			std::cout << "Final event counts: " << std::endl;
+                        /**
+                         * The realized rate is what an analysis has to use, and
+                         * it only approaches the target -- the estimator steers
+                         * towards it rather than enforcing it. Report per
+                         * stimulus, and say so when one has drifted far enough
+                         * that treating it as the requested probability would
+                         * be wrong.
+                         */
+                        LOG << "final event counts (target " << prob << "):";
                         for (auto const & it : *randomizer) {
-				std::cout << " - " << it.name << ": " << it.events << "/" << it.presentations << std::endl;
+                                const double rate = (it.presentations > 0)
+                                        ? double(it.events) / it.presentations : 0.0;
+                                LOG << " - " << it.name << ": " << it.events << "/"
+                                    << it.presentations << " = "
+                                    << std::fixed << std::setprecision(3) << rate;
+                                if (it.presentations > 0 &&
+                                    std::fabs(rate - prob) > prob_tolerance) {
+                                        LOG << "   WARNING: " << it.name << " fired at "
+                                            << rate << ", not the requested " << prob
+                                            << "; too few presentations to converge";
+                                }
                         }
                 }
                 return ret;
