@@ -68,9 +68,7 @@ protected:
 struct pulse_type {
         /** the shape of the pulse */
         dsp::pulse_shape shape;
-        /** peak amplitude, 1.0 being full scale. Carried per pulse rather than
-         *  read from a global in the callback, which also leaves room for
-         *  per-pulse amplitudes without moving anything. */
+        /** peak amplitude, 1.0 being full scale. */
         sample_t amplitude;
         /** the type of midi message that will trigger the pulse */
         midi::data_type status;
@@ -129,13 +127,9 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 jack_midi_event_get(&event, in, i);
                 if (event.size < 1) continue;
                 auto status = static_cast<midi::status_type>(event.buffer[0]);
-                /**
-                 * The label is used as a pointer and a length, not copied into
-                 * a std::string: encode() allocates, and this runs in the
-                 * realtime thread. It stays behind DBG, which compiles out of
-                 * release builds, so the allocation only happens in a build
-                 * that is already not realtime safe.
-                 */
+		// pull out the stimulus as pointer and length to feed to the
+                // randomizer. encode() allocates, so it's not realtime safe,
+                // but this gets compiled out of release builds.
                 char const * stimulus = reinterpret_cast<char const *>(event.buffer) + 1;
                 std::size_t stimulus_len = event.size - 1;
                 DBG << status << " @ " << time + event.time << ": "
@@ -174,13 +168,11 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 int
 jack_bufsize(jack_client *, nframes_t nframes)
 {
-        /**
-         * Grow only, but empty either way. Whatever is in the buffer is pulses
-         * already rendered into sample positions on the old timeline, and the
-         * stream has just been interrupted -- emitting them now would fire a
-         * click at the wrong latency after the event that asked for it, which
-         * is worse than the silence that replaces them.
-         */
+        // Grow only, but always empty. A period resize creates a break in the
+        // output, and whatever is in the buffer is pulses already rendered into
+        // sample positions on the old timeline. It's not clear how to recover
+        // without access to what was or was not emitted, so we settle for
+        // silence.
         const std::size_t needed = nframes * 3 + max_lookahead;
         if (needed > ringbuf->size()) {
                 ringbuf->resize(needed);        // discards
@@ -215,10 +207,8 @@ signal_handler(int sig)
 namespace {
 
 /**
- * Split on a single character, keeping empty fields so that "0x00,,5" is
- * three tokens and the arity check below catches the missing one. Replaces
- * boost::split, which was the only thing pulling in
- * boost/algorithm/string.hpp.
+ * Split on a single character, keeping empty fields so that "0x00,,5" is three
+ * tokens and the arity check below catches the missing one.
  */
 stringvec
 split_on(string const & s, char sep)
@@ -251,10 +241,7 @@ iequals_ascii(std::string_view a, std::string_view b)
  *
  * std::stoul and std::stof stop at the first character they cannot use and
  * report success, so "foo" read as hex is 0xf, "12junk" is 0x12 and "5abc" is
- * 5. For a pulse condition that means firing on a MIDI status nobody asked
- * for, in a run that otherwise looks entirely normal -- the worst kind of
- * configuration error, because nothing reports it. Anything left over is an
- * error here, and the message names the field and quotes what was given.
+ * 5. Need to error if the user requests such nonsense.
  */
 template <typename Parse>
 auto parse_whole(char const * field, string const & value, Parse parse)
@@ -330,9 +317,7 @@ void parse_pulses(stringvec const & pulse_defs, nframes_t sampling_rate) {
                         throw std::invalid_argument("duration must be positive and at least one sample");
                 }
                 pulse.duration = 0.001 * duration_ms * sampling_rate;
-                // Two phases do not fit in one sample. render_pulse() would
-                // emit the interphase gap alone, which is silence -- better
-                // refused here than delivered as a pulse that is not one.
+                // Can't do a biphasic pulse in one sample.
                 if (pulse.shape == dsp::pulse_shape::biphasic && pulse.duration < 2) {
                         throw std::invalid_argument(
                                 "a biphasic pulse must be at least two samples long");
@@ -363,14 +348,10 @@ main(int argc, char **argv)
                 if (options.pulses.size() == 0)
                         throw std::invalid_argument("must define at least one pulse");
 
-                /**
-                 * At a probability of 1 every event fires, so the randomizer
-                 * has nothing to decide. Leaving it out keeps a per-stimulus
-                 * table lookup off the realtime path, and keeps the run from
-                 * reporting counts and overflow warnings about balancing that
-                 * was never asked for -- on a long stimulus set that report is
-                 * noise that hides real messages.
-                 */
+                // At a probability of 1 every event fires, so the randomizer
+                // has nothing to decide. Leave it out to keep the lookup off
+                // the realtime path, and don't make make noise with reporting
+                // counts and overflow reports.
                 const float prob = options.vmap["prob"].as<float>();
                 if (prob < 1.0) {
                         randomizer = std::make_unique<jill::util::event_randomizer>(
@@ -422,10 +403,9 @@ main(int argc, char **argv)
                         active.connect_ports("out", portlist.begin(), portlist.end());
                 }
 
-                /**
-                 * The realtime thread cannot log, so it raises flags and this
-                 * loop reports them. Latched, so each is said once.
-                 */
+                // The realtime thread cannot log, so it raises these flags when
+                // there are issues with the randomization. The main loop
+                // reports them once when they occur. Doesn't do much else.
                 bool said_overflow = false, said_truncation = false;
                 while (running) {
                         usleep(100000);
@@ -447,14 +427,10 @@ main(int argc, char **argv)
                 }
 
                 if (randomizer) {
-                        /**
-                         * The realized rate is what an analysis has to use, and
-                         * it only approaches the target -- the estimator steers
-                         * towards it rather than enforcing it. Report per
-                         * stimulus, and say so when one has drifted far enough
-                         * that treating it as the requested probability would
-                         * be wrong.
-                         */
+                        // Report the total number of events for each stimulus
+                        // and the number that resulted in a click. Mostly
+                        // useful for debugging; any recording should include
+                        // the actual synchronization track.
                         LOG << "final event counts (target " << prob << "):";
                         for (auto const & it : *randomizer) {
                                 const double rate = (it.presentations > 0)

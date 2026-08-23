@@ -1,5 +1,5 @@
 /*
- * JILL - C++ framework for JACK
+ * jrecord - record time series data, point process data, and log messages to ARF
  *
  * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  *
@@ -30,41 +30,46 @@ using namespace jill;
 using std::string;
 using svec = std::vector<string>;
 
-/** declare options parsing class */
+/** commandline options */
 class jrecord_options : public program_options {
-
 public:
         jrecord_options(string const &program_name);
 
+        /** The server name */
         string server_name;
+        /** The client name (used in internal JACK representations) */
         string client_name;
-
         /** key-value pairs to store as attributes in created entries */
         std::map<string, string> additional_options;
-
+	/** path to the output file */
         string output_file;
+	/** how many seconds of data to prebuffer for triggered mode */
         float pretrigger_size_s;
+	/** how many seconds of data to write after triggered to stop */
         float posttrigger_size_s;
+	/** how much data to buffer between realtime loop and write thread */
         float buffer_size_s;
-        int max_size_mb;
+	/** compression setting for the ARF file */
         int compression;
-
 protected:
-
         void print_usage() override;
         void process_options() override;
-
 };
 
 jrecord_options options(PROGRAM_NAME);
+/** data writer thread. Global for access from realtime loop */
 std::unique_ptr<dsp::buffered_data_writer> arf_thread;
+/** trigger port, initially not set */
 jack_port_t * port_trig = nullptr;
 /** cleared by the signal handler; main() drives the shutdown */
 std::atomic<bool> running(true);
 
-
+/**
+ * Process loop. Just pushes data to arf_thread, which handles the logic of
+ * continuous and triggered recording.
+ */
 int
-process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
+process(jack_client * client, nframes_t nframes, nframes_t time) JILL_RT
 {
         jack_port_t *port;
         void *buffer;
@@ -95,7 +100,7 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
 
 
 int
-jack_xrun(jack_client *client, float delay)
+jack_xrun(jack_client * client, float delay)
 {
         // increment xrun counter
         arf_thread->xrun();
@@ -104,23 +109,17 @@ jack_xrun(jack_client *client, float delay)
 
 
 int
-jack_bufsize(jack_client *client, nframes_t nframes)
+jack_bufsize(jack_client * client, nframes_t nframes)
 {
-        /**
-         * Registered before activation, so JACK calls this once during startup
-         * with the current period size -- which is where the ringbuffer
-         * actually gets sized -- and then again on any genuine change. It runs
-         * on the server's notification thread with the engine stopped, so
-         * blocking and allocating here are both fine; this is not the realtime
-         * thread and no process callback is running alongside it.
-         *
-         * A change means the audio stream had a gap in it. Carry on rather than
-         * give up: this runs unattended for days, and losing the remainder of a
-         * recording is far worse than a seam in it. reset() closes the current
-         * entry, so the discontinuity shows up as an entry boundary in the ARF
-         * file instead of an unmarked join. At startup the writer has not been
-         * started yet, so it is a no-op there.
-         */
+        // Registered before activation, so JACK calls this once during startup
+        // with the current period size and then again on any change. It runs on
+        // the server's notification thread with the engine stopped, so blocking
+        // and allocating here are both fine; this is not the realtime thread
+        // and no process callback is running alongside it.
+        //
+        // A change means the audio stream had a gap in it. We treat this as an
+        // xrun, flushing the remaining data and starting a new entry. At
+        // startup the writer has not been started yet, so it is a no-op there.
         static nframes_t last_period = 0;
         if (last_period != 0 && last_period != nframes) {
                 LOG << "WARNING: JACK period size changed from " << last_period
@@ -141,8 +140,13 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 }
 
 
+/**
+ * Handle port connections. If the last connection to the trigger port is
+ * broken, closes the current entry so that recording doesn't continue
+ * indefinitely.
+ */ 
 void
-jack_portcon(jack_client *client, jack_port_t* port1, jack_port_t* port2, int connected)
+jack_portcon(jack_client * client, jack_port_t* port1, jack_port_t* port2, int connected)
 {
         // determine if the last connection to the trigger port was cut
         if (port_trig == nullptr || connected || strcmp(jack_port_name(port2), jack_port_name(port_trig)) != 0)
@@ -200,21 +204,17 @@ main(int argc, char **argv)
                                                            options.additional_options,
                                                            options.compression);
 
-                /**
-                 * The activation object below stops the callbacks, but that
-                 * is not enough here. arf_thread is at file scope and so
-                 * outlives this one, while the writer it owns holds a
-                 * reference to client and calls into it while draining --
-                 * new_entry() and get_dataset() both do. It therefore has to be
-                 * released before client goes out of scope, on the error paths
-                 * as well as the normal one. Leaving it to static destruction
-                 * would also run it after HDF5 has finalized itself.
-                 *
-                 * This is the one module where scoping the activation is not
-                 * sufficient; the rest is a consequence of the writer holding a
-                 * reference to a local, and would go away if arf_thread's
-                 * ownership moved into main.
-                 */
+                // The activation object below stops the callbacks, but we also
+                // need a scope guard to release the writer. arf_thread is at
+                // file scope and so outlives this one, while the writer it owns
+                // holds a reference to client and calls into it while draining
+                // (via new_entry() and get_dataset()). It therefore has to be
+                // released before client goes out of scope, on the error paths
+                // as well as the normal one. Leaving it to static destruction
+                // would also run it after HDF5 has finalized itself.
+                //
+                // The implicit scope guard on the activated client isn't
+                // sufficient because arf_thread is a global.
                 util::scope_guard release_writer{[&]{ arf_thread.reset(); }};
 
                 // create ports: one for trigger, and one for each input
@@ -232,7 +232,7 @@ main(int argc, char **argv)
                         LOG << "recording will be continuous";
                         arf_thread.reset(new dsp::buffered_data_writer(std::move(writer)));
                 }
-                /** bind socket for storing messages in arf file */
+                // bind socket for storing messages in arf file
                 arf_thread->bind_logger(options.server_name);
 
                 // register input ports
@@ -304,9 +304,8 @@ main(int argc, char **argv)
                         if (!it->second.empty()) active.connect_port(it->second, it->first);
                 }
 
-                // Wait for a signal or a server shutdown, then stop the
-                // writer from here. stop() takes a lock, so it cannot be
-                // called from the signal handler.
+                // Poll running and do cleanup here - can't call stop in the
+                // signal handler.
                 while (running) {
                         usleep(100000);
                 }

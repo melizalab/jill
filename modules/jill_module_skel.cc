@@ -50,7 +50,11 @@ jack_port_t *port_in, *port_out;
 std::atomic<int> ret(EXIT_SUCCESS);
 std::atomic<bool> running(true);
 
-
+/**
+ * The realtime process loop. Must not allocate, throw, take a mutex, or make
+ * any syscall that could block. Only perform the most essential calculations
+ * here to keep overall latency in the graph as low as possible.
+ */
 int
 process(jack_client *client, nframes_t nframes, nframes_t) JILL_RT
 {
@@ -81,7 +85,10 @@ jack_latency (jack_latency_callback_mode_t mode, void *arg)
 }
 
 
-/** handle changes to buffer size */
+/**
+ * Handle changes to buffer size. This function is only called when the
+ * realtime engine is stopped, so it can safely allocate, etc.
+ */
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
@@ -89,7 +96,7 @@ jack_bufsize(jack_client *client, nframes_t nframes)
 }
 
 
-/** handle xrun events */
+/** Handle xrun events. Only called when the realtime engine is paused. */
 int
 jack_xrun(jack_client *client, float delay)
 {
@@ -106,14 +113,18 @@ jack_shutdown(jack_status_t code, char const *)
 }
 
 
-/** handle POSIX signals */
+/**
+ * Handle POSIX signals, registered in `main()`. Signal handlers may run on any
+ * thread that has not blocked the signal, including one already holding a lock
+ * the shutdown path needs. Nothing here may allocate, log, or take a mutex: set
+ * a flag and let main() do the work.
+ */
 void
 signal_handler(int sig)
 {
         ret = sig;
         running = false;
 }
-
 
 int
 main(int argc, char **argv)
@@ -146,7 +157,9 @@ main(int argc, char **argv)
                 // client.set_buffer_size_callback(jack_bufsize);
                 // jack_set_latency_callback (client.client(), jack_latency, 0);
 
-                // activate client
+                // activate client - this object will deactivate on destruction,
+                // which ensures that the process() loop stops dereferencing any
+                // objects created before acctivation.
                 activated_client active(client);
 
                 // connect ports
@@ -159,19 +172,21 @@ main(int argc, char **argv)
                         active.connect_ports("out", portlist.begin(), portlist.end());
                 }
 
+                // Poll the running atomic to wait for a signal or a server
+                // shutdown. Handle any 
                 while (running) {
                         usleep(100000);
                 }
 
+		// Do any cleanup of a running process here before exiting
                 return ret;
         }
 
-        // These catch statements handle two kinds of exceptions.  The
-        // Exit exception is thrown to terminate the application
-        // normally (i.e. if the user asked for the app version or
-        // usage); other exceptions are typically thrown if there's a
-        // serious error, in which case the user is notified on
-        // stderr.
+        // These catch statements handle two kinds of exceptions. The Exit
+        // exception is thrown to terminate the application normally (i.e. if
+        // the user asked for the app version or usage); other exceptions are
+        // typically thrown if there's a serious error, in which case the user
+        // is notified on stderr.
         catch (Exit const &e) {
                 return e.status();
         }

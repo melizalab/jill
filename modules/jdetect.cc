@@ -40,10 +40,7 @@ public:
         std::vector<string> output_ports;
         /**
          * The MIDI output channel. Unsigned rather than midi::data_type:
-         * program_options parses a uint8_t as a character, so the channel
-         * would be the argument's ASCII code, two-digit channels would be
-         * rejected as invalid, and --help would print the default as a raw
-         * byte.
+         * so that program_options doesn't parse it as a character.
          */
         unsigned output_chan;
 
@@ -146,12 +143,10 @@ std::size_t log_times(event_t const * events, std::size_t count)
 void
 signal_handler(int sig)
 {
-        /**
-         * Stores to lock-free atomics and nothing else. `stopping` tells the
-         * realtime thread to generate a note off event for any downstream
-         * clients (e.g. jrecord in triggered mode). `running` is polled by
-         * main() and initiates shutdown of the main thread.
-         */
+        // Stores to lock-free atomics and nothing else. `stopping` tells the
+        // realtime thread to generate a note off event for any downstream
+        // clients (e.g. jrecord in triggered mode). `running` is polled by
+        // main() and initiates shutdown of the main thread.
         ret = sig;
         stopping = true;
         running = false;
@@ -177,9 +172,8 @@ samplerate_callback(jack_client *client, nframes_t samplerate)
         int open_crossing_periods = options.open_crossing_period_ms / options.period_size_ms;
         int close_crossing_periods  = options.close_crossing_period_ms / options.period_size_ms;
         // Integer division, so an integration window shorter than the analysis
-        // period rounds to zero periods. running_counter refuses a zero-length
-        // window, but cannot say which options produced one; checking here is
-        // what makes the message name them.
+        // period rounds to zero periods. Make sure the open-period and
+        // close-period options are still tenable.
         if (open_crossing_periods < 1 || close_crossing_periods < 1) {
                 std::ostringstream msg;
                 msg << "--open-period (" << options.open_crossing_period_ms
@@ -247,12 +241,9 @@ main(int argc, char **argv)
                         trig_times.pop(log_times); // calls visitor function on ringbuffer
                 }
 
-                /**
-                 * Give the realtime thread a period to notice `stopping` and
-                 * emit its closing note_off before activated_client goes out
-                 * of scope and deactivates the client. The signal handler used
-                 * to do this wait itself, from signal context.
-                 */
+                // Give the realtime thread a period to notice `stopping` and
+                // emit its closing note_off before activated_client goes out of
+                // scope and deactivates the client.
                 usleep(2e6 * client->buffer_size() / client->sampling_rate());
                 trig_times.pop(log_times); // whatever it logged on the way out
 

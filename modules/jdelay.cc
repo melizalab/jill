@@ -105,20 +105,18 @@ jack_latency (jack_client * client, jack_latency_callback_mode_t mode)
  * Make the ringbuffer fit the period size and re-establish the delay.
  *
  * Registered before activation, so JACK calls this once during startup with the
- * current period size and then again on any genuine change. It runs on the
- * server's notification thread with the engine stopped, so allocating here is
- * allowed and no process callback is running alongside it.
+ * current period size and then again on any change. It runs on the server's
+ * notification thread with the engine stopped, so allocating here is allowed
+ * and no process callback is running alongside it.
  */
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        /**
-         * Grow only, but empty either way. The buffer holds the audio that
-         * constitutes the delay line, and by the time this runs the stream has
-         * already been interrupted -- so those samples are from before the gap
-         * and would be spliced back in at the wrong time. Drop them and start
-         * the delay again from silence.
-         */
+        // Grow only, but always empty. The buffer holds the audio that
+        // constitutes the delay line, and by the time this runs the stream has
+        // already been interrupted, so those samples are from before the gap
+        // and would be spliced back in at the wrong time. Drop them and start
+        // the delay again from silence.
         const std::size_t needed = options.delay + nframes;
         if (needed > ringbuf.size()) {
                 ringbuf.resize(needed);         // discards

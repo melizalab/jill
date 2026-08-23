@@ -1,5 +1,5 @@
 /*
- * Provides stimulus playback
+ * Play stimuli at intervals or when triggered.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -70,21 +70,13 @@ protected:
 
 
 jstim_options options(PROGRAM_NAME);
-/**
- * Holds (and owns) all the stimuli. Kept separate from _stimlist because the
- * two answer different questions: this is the set of distinct stimuli, that is
- * the sequence they are presented in, with repeats aliasing entries here.
- *
- * Worth revisiting if the split ever costs more than it gives. Ownership could
- * move into _stimlist -- a shared_ptr per trial, or entries holding an index
- * into this -- which would remove the declaration-order dependency noted below.
- * The pointers _stimlist hands the queue stay valid across growth either way,
- * since it is the unique_ptrs that move and not what they point at.
- */
+// Holds (and owns) all the stimuli. Possibly worth revisiting, moving ownership
+// into _stimlist as a shared_ptr, which would remove the declaration-order
+// dependency noted below.
 std::vector<std::unique_ptr<stimulus_t>> _stimuli;
 // The sequence of trials being played. May be shuffled, and holds one entry
-// per repetition -- several of which alias the same stimulus, which is why the
-// condition flag lives on the entry rather than on the stimulus.
+// per repetition. Each trial presenting the same stimulus aliases the objects
+// held by _stimuli
 std::vector<util::trial> _stimlist;
 // The queue of stimuli. Handles the actual file reads and any resampling
 // needed in a background thread. Must be declared after _stimuli so that the
@@ -92,14 +84,12 @@ std::vector<util::trial> _stimlist;
 std::unique_ptr<util::readahead_stimqueue> stim_queue;
 jack_port_t *port_out, *port_syncout, *port_trigin;
 std::atomic<int> xruns(0);                  // xrun counter
-/**
- * MIDI events the realtime thread could not write. jack refuses an event whose
- * offset is not inside the period, and refuses to reserve space in a full
- * buffer; write_message reports both by returning non-zero, which must not be
- * discarded. A dropped sync event is otherwise invisible, showing up only as a
- * trial with no end and no indication of why. Counted here and reported by
- * main, since the callback cannot log.
- */
+// MIDI events the realtime thread could not write. jack refuses an event whose
+// offset is not inside the period, and refuses to reserve space in a full
+// buffer; write_message reports both by returning non-zero, which must not be
+// discarded. A dropped sync event is otherwise invisible, showing up only as a
+// trial with no end and no indication of why. Counted here and reported by
+// main, since the callback cannot log.
 std::atomic<int> midi_errors(0);
 // time when last stimulus ended. global atomic so that the main loop can
 // initialize it. Otherwise the pre-stimulus trigger doesn't work on the first
@@ -143,16 +133,14 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
         // NB static variables are initialized to 0
         static nframes_t stim_offset; // current position in stimulus buffer
         static nframes_t last_start;  // last stimulus start time
-        /**
-         * A stimulus that ends flush with the end of a period wants its
-         * stim_off at offset nframes, which is one past the last frame of the
-         * period and which jack refuses. The event belongs at the first frame
-         * of the next period -- the same frame either way, just expressed in
-         * the next period's coordinates -- so it is carried over and written
-         * below. Without this the stop was silently dropped, roughly one trial
-         * in every period_size, leaving the trial with no end and the trigger
-         * line stuck on.
-         */
+        // A stimulus that ends flush with the end of a period wants its
+        // stim_off at offset nframes, which is one past the last frame of the
+        // period and which jack refuses. The event belongs at the first frame
+        // of the next period -- the same frame either way, just expressed in
+        // the next period's coordinates -- so it is carried over and written
+        // below. Without this the stop was silently dropped, roughly one trial
+        // in every period_size, leaving the trial with no end and the trigger
+        // line stuck on.
         static jill::stimulus_t const * deferred_off;
         static bool deferred_off_condition;
 
@@ -340,18 +328,10 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        /**
-         * Registered after activation, so this only ever runs on a real change,
-         * never to report the initial size. JACK delivers it on its
-         * notification thread with the engine stopped, so logging here is fine;
-         * this is not the realtime thread.
-         *
-         * The xrun counter is how the process thread is told the stream broke.
-         * It truncates the stimulus at the next period boundary and emits the
-         * stim_off marker there, so the recording carries the length that was
-         * actually played rather than the length that was intended. One trial
-         * is spoiled and can be dropped from the analysis.
-         */
+        // Registered after activation, so this only ever runs on a real change,
+        // never to report the initial size. JACK stops the realtime engine when
+        // the buffer size changes, so this creates a gap that needs to be
+        // treated like an xrun. OK to log because this is not realtime.
         LOG << "WARNING: JACK period size changed to " << nframes
             << " frames; the audio stream was interrupted and any stimulus in"
                " progress has been truncated";
@@ -370,16 +350,11 @@ jack_shutdown(jack_status_t code, char const *)
 void
 signal_handler(int sig)
 {
-        /**
-         * Only touch lock-free atomics to stay within bounds of what a signal
-         * handler can safely do. In particular do not call stim_queue->stop()
-         * here: it takes the queue's mutex, and a signal arriving while the
-         * worker holds it deadlocks the process, because the handler runs on
-         * the thread it interrupted and that thread cannot release it. main()
-         * does the stopping. The xruns variable is incremented to tell the
-         * realtime thread to cut the stimulus short at the start of the next
-         * period rather than playing it out.
-         */
+        // Only touch lock-free atomics to stay within bounds of what a signal
+        // handler can safely do. main() takes care of the cleanup. The xruns
+        // variable is incremented to tell the realtime thread to cut the
+        // stimulus short at the start of the next period rather than playing it
+        // out.
         xruns.fetch_add(1);
         ret = sig;
         running = false;
@@ -415,17 +390,14 @@ parse_count(string const & s, size_t & out)
 static constexpr double condition_tolerance = 0.01;
 
 /**
- * Pair each stimulus argument with its repeat count.
+ * Parse the stimulus list, pairing each stimulus argument with its repeat
+ * count.
  *
  * A bare count following a filename is that stimulus's number of repeats, and
- * is consumed here so it is not opened as a file. Both halves matter: leaving
- * the count in place makes it the next "filename", and skipping the following
- * entry unconditionally drops a real one, so `jstim a.wav b.wav` plays only
- * a.wav.
+ * is consumed here so it is not opened as a file.
  *
- * Shared by the option check and the loader so the two cannot disagree about
- * how many repetitions a stimulus gets -- a check that validates a different
- * list than the one played is worse than no check.
+ * Called by both the option check and the loader so the two cannot disagree
+ * about how many repetitions a stimulus gets.
  */
 static std::vector<std::pair<string, size_t> >
 parse_stimlist(std::vector<string> const & stims, size_t default_nreps)
@@ -445,10 +417,9 @@ parse_stimlist(std::vector<string> const & stims, size_t default_nreps)
 /**
  * How many of a stimulus's repetitions carry the condition.
  *
- * The fraction has to be one this repeat count can express. Rounding to the
- * nearest whole trial silently changes the experiment: at the default of one
- * repetition, 0.5 rounds to 1 and every trial carries the condition. Throws
- * instead, naming the value that would have been delivered.
+ * The fraction has to be one this repeat count can express. Throws if this is
+ * not possible (within condition_tolerance), reporting the value that would have
+ * been delivered.
  */
 static size_t
 condition_count(string const & name, size_t nreps, float condition_prob)
@@ -470,7 +441,10 @@ condition_count(string const & name, size_t nreps, float condition_prob)
         return want;
 }
 
-/** parse the list of stimuli */
+/**
+ * Parse the list of stimuli, shuffle, and set condition flags. Actually
+ * loading the stimuli is taken care of by the readahead queue.
+ */
 static void
 init_stimset(std::vector<string> const & stims, size_t const default_nreps,
              float condition_prob, std::mt19937 & rng)
@@ -479,17 +453,15 @@ init_stimset(std::vector<string> const & stims, size_t const default_nreps,
         for (auto const & entry : parse_stimlist(stims, default_nreps)) {
                 string const & name = entry.first;
                 const size_t nreps = entry.second;
-                /**
-                 * Assign the condition by counting rather than by drawing per
-                 * trial, so every stimulus carries it on exactly the same
-                 * fraction of its repetitions. Which repetitions those are is
-                 * still random -- the flags are shuffled within the block --
-                 * and none of it depends on --shuffle, which decides
-                 * presentation order rather than which trials are manipulated.
-                 *
-                 * The repeat count was checked against the probability before
-                 * the client was created, so this cannot throw here.
-                 */
+                // Assign the condition by counting rather than by drawing per
+                // trial, so every stimulus carries it on exactly the same
+                // fraction of its repetitions. This is set randomly using the
+                // same seed used to shuffle, so both the order and which
+                // repetitions have the condition variable set should be
+                // replicable with the same seed.
+                //
+                // The repeat count was checked against the probability before
+                // the client was created, so this cannot throw here.
                 const size_t want = condition_count(name, nreps, condition_prob);
                 try {
                         _stimuli.push_back(std::make_unique<file::stimfile>(name));
@@ -548,14 +520,7 @@ main(int argc, char **argv)
                         throw Exit(0);
                 }
 
-                /** stimulus queue */
                 DBG << "loading " << options.stimuli.size() << " stimuli";
-                /**
-                 * One generator drives both the shuffle and the condition
-                 * assignment, so quoting the seed reproduces the whole
-                 * schedule rather than half of it. Seeded even when not
-                 * shuffling, because the condition assignment still draws.
-                 */
                 const auto given = options.get<string>("shuffle");
                 unsigned seed;
                 if (given && !given->empty()) {
@@ -645,14 +610,8 @@ main(int argc, char **argv)
                 ret = EXIT_FAILURE;
         }
 
-        /**
-         * Tear down explicitly rather than leaving it to static destruction.
-         * It happened to work, because stim_queue is declared after _stimuli
-         * and so is destroyed first, but relying on the order of two
-         * declarations in one file is not the same as saying what has to
-         * happen. jrecord uses a scope_guard and jrelay resets here; this was
-         * the odd one out.
-         */
+        // Tear down explicitly rather than leaving it to static destruction
+        // based on declaration order.
         stim_queue.reset();
         return ret;
 }
@@ -679,11 +638,6 @@ jstim_options::jstim_options(string const &program_name)
         // tropts is a group of options
         po::options_description opts("Stimulus options");
         opts.add_options()
-                /**
-                 * implicit_value so that -S alone still works: with a value
-                 * the presentation is repeatable, without one a seed is drawn
-                 * and logged so the session can be repeated afterwards.
-                 */
                 ("stim-list", po::value<string>(),
                  "read stimuli from a file, one per line, each optionally "
                  "followed by whitespace and a repeat count. Blank lines and "
@@ -701,16 +655,6 @@ jstim_options::jstim_options(string const &program_name)
                  "minimum gap between sound (s)")
                 ("interval,i",po::value(&min_interval_sec)->default_value(0.0),
                  "minimum interval between stimulus start times (s)")
-                /**
-                 * Not bound to the std::optional members with po::value(&x).
-                 * program_options converts through boost::lexical_cast, which
-                 * only learned to stream std::optional in Boost 1.90 -- so
-                 * that compiled here and failed on every CI runner with a
-                 * static_assert about the target being neither istream'able
-                 * nor wistream'able. The optionals are filled from the
-                 * variables map in process_options() instead, which is what
-                 * program_options::get() is for.
-                 */
                 ("trial-before", po::value<float>(),
                  "if set, open the trial window (channel 1) this many seconds before stimulus onset (does not apply to triggered mode)")
                 ("trial-after", po::value<float>(),
@@ -796,7 +740,8 @@ void
 jstim_options::process_options()
 {
         program_options::process_options();
-        // see the note by the option declarations: these cannot be bound
+        // Need to manually assign as a shim for older versions of boost that
+        // couldn't handle options bound to std::optionals
         pretrigger_interval_sec = get<float>("trial-before");
         posttrigger_interval_sec = get<float>("trial-after");
         if (const auto listfile = get<string>("stim-list")) {
@@ -808,14 +753,8 @@ jstim_options::process_options()
                 LOG << "ERROR: pretrigger + posttrigger intervals must be less than the gap between stimuli!" << std::endl;
                 throw Exit(EXIT_FAILURE);
         }
-        /**
-         * Check the condition assignment here rather than where the stimuli
-         * are loaded. Neither the range nor the divisibility depends on the
-         * sampling rate, so both can be settled before a client is created and
-         * before any file is opened or resampled -- a misconfigured run should
-         * not reach the server at all. --stim-list is read above, so this sees
-         * the same list that will be played.
-         */
+        // Validate condition probability against repeats and the stimulus list
+        // here to catch misconfigured runs before starting the client. 
         if (condition_prob < 0.0 || condition_prob > 1.0) {
                 throw std::invalid_argument("--condition-prob must be between 0 and 1");
         }

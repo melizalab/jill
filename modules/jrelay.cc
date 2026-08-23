@@ -6,7 +6,8 @@
  * loop and a backing thread that drains the ringbuffer to a data_writer. In
  * this case the data_writer is open_ephys_receiver, which translates the MIDI
  * messages into ZMQ messages sent to open-ephys (or other data acquisition
- * systems, if this becomes necessary in the future).
+ * systems, if this becomes necessary in the future). Also works for logging
+ * MIDI messages to the console.
  *
  * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
@@ -40,15 +41,12 @@ public:
         string server_name;
         /** The client name (used in internal JACK representations) */
         string client_name;
-
         /** Ports to connect to */
         std::vector<string> input_ports;
-
         /** The open-ephys NetworkEvents zmq address */
         string openephys_addr;
 
 protected:
-
         void print_usage() override;
 
 }; // jrelay_options
@@ -58,11 +56,11 @@ static jrelay_options options(PROGRAM_NAME);
 std::unique_ptr<dsp::buffered_data_writer> zmq_thread;
 /** flag to trigger shutdown in main() */
 std::atomic<bool> running(true);
-jack_port_t *port_in;
+jack_port_t * port_in;
 
-
+/** Process loop. Simple, just pushes valid events to zmq_thread */
 int
-process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
+process(jack_client * client, nframes_t nframes, nframes_t time) JILL_RT
 {
         void * in = client->events(port_in, nframes);
         jack_midi_event_t event;
@@ -117,19 +115,9 @@ main(int argc, char **argv)
                         LOG << "printing events (no forwarding endpoint given)";
                         receiver.reset(new net::dummy_event_receiver());
                 }
-                /**
-                 * Poll faster than jrecord does. jrelay's output is a zmq
-                 * message carrying a stimulus name and nothing else -- JACK
-                 * frame counts mean nothing to open-ephys, which runs its own
-                 * acquisition clock -- so the receiving end has only arrival
-                 * order and arrival time to work with. Timing comes from
-                 * jclicker's TTL pulse on a separate hardware line; these
-                 * messages are the labels that TTL edges get paired with. That
-                 * pairing is unambiguous either way at the intervals in use,
-                 * but there is no reason to add jitter to it: unlike jrecord,
-                 * whose flush() reaches H5Fflush, this writer's flush is a
-                 * no-op, so a shorter interval costs nothing here.
-                 */
+                // Start the zmq writer thread. This needs to poll pretty
+                // frequently so that messages get passed to the network with
+                // only a modest delay.
                 zmq_thread.reset(new dsp::buffered_data_writer(
                                          std::move(receiver), 4096,
                                          std::chrono::milliseconds(5)));

@@ -1,5 +1,6 @@
 /*
- * Generate trigger events based on time of day
+ * Generate trigger events based on time of day. Useful if you only want to
+ * do things like record during daylight hours.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,10 +42,7 @@ public:
         std::vector<string> output_ports;
         /**
          * The MIDI output channel. Unsigned rather than midi::data_type:
-         * program_options parses a uint8_t as a character, so the channel
-         * would be the argument's ASCII code, two-digit channels would be
-         * rejected as invalid, and --help would print the default as a raw
-         * byte.
+         * so that program_options doesn't parse it as a character.
          */
         unsigned output_chan;
 

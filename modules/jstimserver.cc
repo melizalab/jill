@@ -1,5 +1,5 @@
 /*
- * Provides stimulus playback in response to requests through a zmq socket
+ * Provides stimulus playback in response to requests through a zmq socket.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,10 +57,10 @@ protected:
 
 }; // jstim_options
 
-// playback can be in one of two states: Playing and Stopped
+/** Define states the playback can be in: Playing or Stopped */
 enum class ProcessStatus {Playing, Stopped};
 
-// the main thread can signal the process to Start or Interrupt
+/** Model for the playback state and transitions */
 struct ProcessRequest {
         enum request_t {None, Start, Interrupt};
         std::atomic<request_t> request;
@@ -94,7 +94,7 @@ struct ProcessRequest {
 
 };
 
-// four kinds of events: Started, Interrupted, Finished, Xrun
+/** Define an event. Four kinds: Started, Interrupted, Finished, Xrun */
 struct Event {
         enum { Started, Interrupted, Done, Busy, NotPlaying, Xrun } status;
         /** the frame when the event occurred */
@@ -107,8 +107,7 @@ struct Event {
 
 /** store program options */
 jstim_options options(PROGRAM_NAME);
-/** the pre-loaded stimuli, keyed by name; loaded once at startup and only read
-    afterwards */
+/** stimuli, keyed by name; loaded once at startup and only read afterwards */
 std::map<std::string, std::unique_ptr<stimulus_t>> _stimuli;
 /** signal from main thread to process to start or stop playback */
 ProcessRequest _request;
@@ -176,21 +175,12 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 deferred_off = nullptr;
         }
 
-        // An xrun -- or a buffer size change, which routes here too -- means
-        // a gap in the audio stream. Truncate anything playing rather than
-        // carrying on from where we left off: the stimulus would come out with
-        // a hole in the middle, and a trial that sounds intact but is not is
-        // far harder to exclude from an analysis than one that is obviously
-        // short. The client is told both that the stream broke and that this
-        // particular playback was cut off.
+        // An xrun or a buffer size change creates a gap in the audio stream. We
+        // truncate anything currently playing, because this is better than
+        // presenting the rest of a corrupted stimulus. Tell client that the
+        // stream broke and that this particular playback was cut off.
         if (_xruns) {
-                // Only report a break that ruined something. An Xrun event
-                // names the stimulus it interrupted, and between trials there
-                // is none: publishing one anyway left the publisher formatting
-                // a null stimulus, which segfaulted the process on any xrun
-                // while idle. Nothing is lost by staying quiet -- a break
-                // between trials affects no playback, and jrecord marks xruns
-                // against the data they actually corrupted.
+		// Only breaks during a stimulus presentation are reported.
                 if (_stim) {
                         _eventbuf.push(Event{Event::Xrun, time, _stim});
                         emit(trig, 0, midi::status_type::stim_off,
@@ -256,10 +246,8 @@ process(jack_client *client, nframes_t nframes, nframes_t time) JILL_RT
                 _stim = nullptr;
         }
 
-        /**
-         * Publish after every transition above, so a STATUS answer is never a
-         * state that did not happen. The other exit stores too.
-         */
+        // Publish after every transition above, so a STATUS answer is never a
+        // state that did not happen. The other exit stores too.
         _playing.store(_stim, std::memory_order_relaxed);
         return 0;
 }
@@ -274,15 +262,9 @@ jack_xrun(jack_client *client, float delay)
 int
 jack_bufsize(jack_client *client, nframes_t nframes)
 {
-        /**
-         * Registered after activation, so this only ever runs on a real change,
-         * never to report the initial size. JACK delivers it on its
-         * notification thread with the engine stopped, so logging and
-         * allocating here are both fine -- this is not the realtime thread.
-         *
-         * The stream has a gap in it either way, so route it through the xrun
-         * path, which truncates the current stimulus and tells the client.
-         */
+        // Registered after activation, so this only ever runs on a real change.
+        // Treat this as an xrun because it stops the realtime engine and
+        // creates a gap.
         LOG << "WARNING: JACK period size changed to " << nframes
             << " frames; the audio stream was interrupted and any playback in"
                " progress has been truncated";
@@ -320,21 +302,11 @@ init_stimset(std::vector<string> const & stims, nframes_t sampling_rate)
                         auto stim = std::make_unique<file::stimfile>(p.string());
                         std::string name(stim->name());
                         // Stimuli are addressed by basename, so two files that
-                        // share one are a configuration error there is no
-                        // honest way to serve: only the first could ever be
-                        // played, while STIMLIST would advertise both with
-                        // their real durations. Refuse to start, rather than
-                        // let an experiment run against a list that lies.
-                        //
-                        // Note this is deliberately harsher than the treatment
-                        // of an unreadable file below, which is logged and
-                        // skipped. That leaves a shorter list which is still
-                        // accurate; this cannot, because two different files
-                        // are claiming one identity.
-                        //
-                        // Checked before load_samples() so a misconfigured
-                        // playlist fails immediately rather than after
-                        // resampling everything ahead of the collision.
+                        // share one are a configuration error. Unreadable files
+                        // are logged and skipped (this might actually be better
+                        // to crash on). Checked before load_samples() so a
+                        // misconfigured playlist fails immediately rather than
+                        // after resampling everything ahead of the collision.
                         if (_stimuli.count(name) > 0) {
                                 std::ostringstream msg;
                                 msg << "duplicate stimulus name '" << name
@@ -427,12 +399,6 @@ stim_monitor(std::stop_token stop)
 /**
  * The version of the control protocol, reported by VERSION.
  *
- * Deliberately not the JILL release version. A client needs to know whether it
- * understands the exchange, not which build produced it, and the two move
- * independently: releases happen that do not touch the protocol, and the
- * protocol could change without one. Reporting the release version also cannot
- * distinguish builds that behave differently but share a version number.
- *
  * Major changes when an existing exchange changes meaning, so a client MUST
  * refuse a major it does not know. Minor changes when something is added that
  * an older client can ignore. See doc/jstimserver-protocol.md.
@@ -441,11 +407,9 @@ constexpr char PROTOCOL_VERSION[] = "1.0";
 
 constexpr char REQ_VERSION[] = "VERSION";
 constexpr char REQ_STIMLIST[] = "STIMLIST";
-/**
- * The separator is part of the token deliberately, so that a bare "PLAY"
- * fails to match and falls through to BADCMD by construction rather than by
- * a length check someone has to remember to write.
- */
+// The separator is part of the token deliberately, so that a bare "PLAY"
+// fails to match and falls through to BADCMD by construction rather than by
+// a length check someone has to remember to write.
 constexpr char REQ_PLAYSTIM[] = "PLAY ";
 constexpr char REQ_INTERRUPT[] = "INTERRUPT";
 constexpr char REQ_STATUS[] = "STATUS";
@@ -467,7 +431,7 @@ main(int argc, char **argv)
                         LOG << "no stimuli; quitting";
                         throw Exit(0);
                 }
-                /** load the stimuli */
+                // load the stimuli
                 std::string stimlist = init_stimset(options.stimuli, client.sampling_rate());
                 DBG << "stimlist: " << stimlist;
 

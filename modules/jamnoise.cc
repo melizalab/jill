@@ -6,7 +6,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Copyright (C) 2010-2021 C Daniel Meliza <dan || meliza.org>
+ * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
  */
 #include <iostream>
 #include <random>
@@ -39,7 +39,6 @@ public:
         std::vector<string> output_ports;
 
 protected:
-
         void print_usage() override;
 
 }; // jstim_options
@@ -52,6 +51,7 @@ std::atomic<bool> running(true);
 static float output_scale = 1.0;
 
 static const nframes_t n_hilbert = 128;
+// Generated with scipy:
 // signal.remez(N, [100, 0.99 * sampling_rate / 2], [1], type='hilbert', fs=sampling_rate)
 static const double hilbert_filt[n_hilbert] = {
         1.35574586e-01,  4.60859408e-04,  8.92437318e-03,  5.07861048e-04,
@@ -101,9 +101,10 @@ static const double lp_filt_sos[n_sos][6] = {
 static double sos_delay[n_sos][2] = {};
 
 static bool envelope_only = false;
-static std::random_device rd;  //Will be used to obtain a seed for the random number engine
-static std::mt19937 wn_gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+static std::random_device rd;  // Will be used to obtain a seed for the random number engine
+static std::mt19937 wn_gen(rd()); // Standard mersenne_twister_engine seeded with rd()
 static std::uniform_real_distribution<> wn_dis(-1.0, 1.0);
+
 /**
  * The process callback extracts the envelope of the incoming signal by
  * performing a Hilbert transform and then low-pass filtering with a 4th-order
@@ -245,9 +246,6 @@ jamnoise_options::jamnoise_options(string const &program_name)
         opts.add_options()
                 ("envelope,e",    "output envelope (used for debugging)");
         opts.add_options()
-                // No short form for --scale: -s is --server in every jill module,
-                // and program_options rejects a doubly bound short option as
-                // ambiguous rather than preferring either one.
                 ("scale",     po::value<float>(&output_scale)->default_value(1.0),
                  "scale output by factor");
 
