@@ -1,4 +1,10 @@
-/* generates an xrun by waiting too long in the process loop */
+/*
+ * generates an xrun by waiting too long in the process loop
+ *
+ * Copyright (C) 2010-2026 C Daniel Meliza <dan || meliza.org>
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
 #include <iostream>
 #include <memory>
 #include "jill/jack_client.hh"
