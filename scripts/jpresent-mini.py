@@ -148,8 +148,8 @@ if __name__ == "__main__":
         "jclicker-sync",
         "-o",
         args.sync_out,
-        "0x10,positive,1",
-        "0x00,negative,1",
+        "0x00,positive,0.1",
+        "0x10,negative,0.1",
     )
     jstim_args.extend(("-e", "jclicker-sync:in"))
     log.debug(" ".join(jclicker_sync_args))
@@ -161,8 +161,8 @@ if __name__ == "__main__":
         "jclicker-trig",
         "-o",
         args.trig_out,
-        "0x11,positive,1",
-        "0x01,negative,1",
+        "0x01,positive,0.1",
+        "0x11,negative,0.1",
     )
     jstim_args.extend(
         (
