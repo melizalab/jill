@@ -314,8 +314,8 @@ if __name__ == "__main__":
             "jclicker-trig",
             "-o",
             args.trig_out,
-            f"0x02,positive,1,{args.trig_delay}",
-            f"0x02,negative,1,{args.trig_delay + args.trig_duration}"
+            f"0x02,positive,0.1,{args.trig_delay}",
+            f"0x02,negative,0.1,{args.trig_delay + args.trig_duration}"
         )
         jstim_args.extend(
             (
