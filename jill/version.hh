@@ -5,4 +5,4 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
-#define JILL_VERSION "3.0.0rc1"
+#define JILL_VERSION "3.0.0"
